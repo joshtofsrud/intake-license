@@ -682,6 +682,14 @@ HTML;
 <p>— The {$shop} team</p>",
             ],
 
+            // MARKER-SO-HANDOVER: a special order arrived for the customer
+            'special_order_arrived' => [
+                'subject'   => '{{shop_name}}: your {{item}} is here',
+                'body_html' => "<p>Hi {{first_name}},</p>
+<p>Your <strong>{{item}}</strong> is here and waiting for you at {{location}}.</p>
+<p>— The {$shop} team</p>",
+            ],
+
             // internal delivery scheduling notifications
             'delivery_pickup_scheduled' => [
                 'subject'   => 'Pickup scheduled — {{date_short}} at {{time_start}}',

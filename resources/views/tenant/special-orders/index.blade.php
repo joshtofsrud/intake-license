@@ -40,7 +40,7 @@
       'open'          => ['label' => 'All open',      'count' => $counts['open']],
       'arrived_bench' => ['label' => 'Arrived bench', 'count' => $counts['arrived_bench']],
       'overdue'       => ['label' => 'Overdue',       'count' => $counts['overdue']],
-      'pulled'        => ['label' => 'Pulled',        'count' => $counts['pulled']],
+      'pulled'        => ['label' => 'Handed over',   'count' => $counts['pulled']],
       'cancelled'     => ['label' => 'Cancelled',     'count' => $counts['cancelled']],
     ];
   @endphp
@@ -53,13 +53,22 @@
   @endforeach
 </div>
 
+{{-- MARKER-SO-HANDOVER --}}
+@if($view === 'arrived_bench')
+  <div class="so-legend">
+    <b>Held parts are in stock but can't be sold to anyone else.</b> They leave stock when they're handed over: rung up at the register, used on the work order, picked up on a layaway, or handed over here for a sale that's already paid.
+  </div>
+@elseif($view === 'pulled')
+  <div class="so-legend">Handed over means the part left the shop with its person, and its stock came off then.</div>
+@endif
+
 {{-- ========== LIST ========== --}}
 @if($sos->isEmpty())
   <div class="ia-empty">
     <p>No special orders in this view.</p>
     <p class="ia-empty-sub">
       @if($view === 'open')
-        Create one with "+ New special order" above. Or wait — SOs will appear here as they're created from the register, appointments, or item detail pages (those flows ship in upcoming stages).
+        Create one with "+ New special order" above. Orders also appear here when they're raised from the register, a work order, or an item's page.
       @else
         Try a different tab.
       @endif
@@ -84,6 +93,8 @@
      orders are never shown twice, and it works on phones as well as desktop. --}}
 @if($grouped) {{-- open orders ARE the grouped screen --}}
   @include('tenant.special-orders._vendor_groups')
+@elseif($view === 'arrived_bench')
+  @include('tenant.special-orders._bench')
 @else
 
   {{-- Desktop table --}}
@@ -167,7 +178,7 @@
               @if($isOverdue)
                 <span class="so-status so-status--overdue">Overdue</span>
               @else
-                <span class="so-status so-status--{{ $so->status }}">{{ ucfirst($so->status) }}</span>
+                <span class="so-status so-status--{{ $so->status }}">{{ $so->statusLabel() }}</span>
               @endif
             </td>
             <td class="ia-text-muted" style="font-size:12px">
@@ -196,7 +207,7 @@
           @if($isOverdue)
             <span class="so-status so-status--overdue">Overdue</span>
           @else
-            <span class="so-status so-status--{{ $so->status }}">{{ ucfirst($so->status) }}</span>
+            <span class="so-status so-status--{{ $so->status }}">{{ $so->statusLabel() }}</span>
           @endif
         </div>
         <div class="so-card-item">{{ $so->item_name_snapshot }} <span class="ia-text-muted">×{{ $so->quantity }}</span></div>
@@ -321,6 +332,8 @@
 .so-status--pulled   { background: rgba(200,200,200,0.06); color: var(--ia-text-muted); }
 .so-status--cancelled{ background: rgba(248,113,113,0.10); color: #F87171; text-decoration: line-through; }
 .so-status--overdue  { background: rgba(248,113,113,0.15); color: #F87171; }
+.so-legend { font-size: 12.5px; color: var(--ia-text-muted); line-height: 1.55; border-left: 2px solid var(--ia-border-strong, var(--ia-border)); padding: 2px 0 2px 12px; margin: 0 0 18px; max-width: 880px; }
+.so-legend b { color: var(--ia-text); font-weight: 600; }
 
 /* Mobile cards */
 .so-cards { flex-direction: column; gap: 8px; }

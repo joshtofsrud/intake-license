@@ -159,7 +159,7 @@
                   @if($so->quantity > 1)<span class="ia-text-muted"> ×{{ $so->quantity }}</span>@endif
                 </td>
                 <td>
-                  <span class="so-status so-status--{{ $so->status }}">{{ ucfirst($so->status) }}</span>
+                  <span class="so-status so-status--{{ $so->status }}">{{ $so->statusLabel() }}</span>
                 </td>
                 <td class="ia-text-muted" style="font-size:12px">
                   @if($so->expected_arrival_date)

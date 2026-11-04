@@ -1221,6 +1221,24 @@ class AppointmentController extends Controller
             $wasCommitted = AppointmentInventoryService::isCommittedStatus($oldStatus);
             $willCommit   = AppointmentInventoryService::isCommittedStatus($newStatus);
 
+            // MARKER-SO-HANDOVER: a cancelled job's special orders each need a
+            // next step (shop stock, or kept for the customer). Asked once.
+            if ($newStatus === 'cancelled') {
+                $openSos = \App\Models\Tenant\TenantSpecialOrder::where('tenant_id', $appointment->tenant_id)
+                    ->where('appointment_id', $appointment->id)
+                    ->whereIn('status', \App\Models\Tenant\TenantSpecialOrder::STATUSES_OPEN)
+                    ->get();
+                if ($openSos->isNotEmpty()) {
+                    DB::transaction(fn () => app(\App\Services\Tenant\SpecialOrderService::class)->resolveManyForRemoval(
+                        $openSos,
+                        'Cancel ' . ($appointment->ra_number ?: 'this work order') . '?',
+                        'It has ' . $openSos->count() . ' special order' . ($openSos->count() > 1 ? 's' : '') . '. Choose what happens to each.',
+                        'Cancel work order',
+                        'Work order ' . ($appointment->ra_number ?: '') . ' was cancelled.'
+                    ));
+                }
+            }
+
             // Inventory transitions:
             //   not-committed → committed       : commit (decrement)
             //   committed     → not-committed   : revert (increment)
@@ -2499,8 +2517,12 @@ class AppointmentController extends Controller
             }
             $part->forceFill(['is_special_order' => $request->boolean('enabled')])->saveQuietly();
             try {
-                app(\App\Services\Tenant\SpecialOrderService::class)
-                    ->syncForAppointmentPart($part, \Illuminate\Support\Facades\Auth::guard('tenant')->id());
+                DB::transaction(fn () => app(\App\Services\Tenant\SpecialOrderService::class)
+                    ->syncForAppointmentPart($part, \Illuminate\Support\Facades\Auth::guard('tenant')->id()));
+            } catch (\App\Exceptions\SpecialOrderChoiceRequired $e) {
+                // MARKER-SO-HANDOVER: an ordered/arrived part needs a next step first
+                $part->forceFill(['is_special_order' => true])->saveQuietly();
+                throw $e;
             } catch (\Throwable $e) {
                 return response()->json(['ok' => false, 'message' => 'Could not update special order: '.$e->getMessage()], 422);
             }
@@ -2522,6 +2544,11 @@ class AppointmentController extends Controller
                 return response()->json(['ok' => false, 'message' => 'Item not found.'], 422);
             }
 
+            // MARKER-SO-HANDOVER: all of this is one transaction, so when the
+            // special order needs a choice nothing has moved yet.
+            $soWarning = null;
+            $name = $part->item_name_snapshot;
+            DB::transaction(function () use ($appointment, $part, &$soWarning) {
             // If this part has already been committed (decremented from stock),
             // we need to give it back BEFORE deleting the row, otherwise the
             // increment helper has nothing to operate on and committed_at
@@ -2537,25 +2564,22 @@ class AppointmentController extends Controller
                 }
             }
 
-            $name = $part->item_name_snapshot;
-
-            // deleting a part used to leave its linked
-            // special order alive as an orphan. Mirror the uncheck logic:
-            // a still-"needed" SO is retracted; an ordered/arrived SO stays
-            // (goods may be inbound) but the appointment gets a warning note.
-            $soWarning = null;
+            // deleting a part used to leave its linked special order alive as
+            // an orphan, then (later) with only a warning note. Now: a needed
+            // order is retracted; an ordered or arrived one gets a next step
+            // the person chooses (shop stock, or kept for the customer).
             if ($part->special_order_id) {
                 $so = \App\Models\Tenant\TenantSpecialOrder::where('tenant_id', $appointment->tenant_id)
                     ->find($part->special_order_id);
-                if ($so && $so->status === \App\Models\Tenant\TenantSpecialOrder::STATUS_NEEDED) {
+                if ($so && in_array($so->status, \App\Models\Tenant\TenantSpecialOrder::STATUSES_OPEN, true)) {
                     app(\App\Services\Tenant\SpecialOrderService::class)
-                        ->cancel($so->id, 'Part removed from work order.');
-                } elseif ($so && in_array($so->status, \App\Models\Tenant\TenantSpecialOrder::STATUSES_ACTIVE, true)) {
-                    $soWarning = sprintf(' — special order %s is already %s and remains active; review it', $so->so_number, $so->status);
+                        ->resolveForRemoval($so, 'part_removed', 'Part removed from work order ' . ($appointment->ra_number ?: '') . '.');
+                    $soWarning = ' — special order ' . $so->so_number . ': ' . strtolower($so->fresh()->statusLabel());
                 }
             }
 
             $part->delete();
+            });
 
             TenantAppointmentNote::create([
                 'appointment_id'      => $appointment->id,

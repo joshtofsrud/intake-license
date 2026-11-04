@@ -768,7 +768,42 @@ class RegisterController extends Controller
             ];
         }
 
-        return response()->json(['ok' => true, 'open' => $out]);
+        // MARKER-SO-HANDOVER: special orders on the bench for this customer.
+        // Paid ones hand over here; unpaid ones go onto this sale. A part for
+        // a work order is handed over by the job, and one on a layaway by the
+        // layaway, so neither is listed.
+        $pickups = [];
+        $arrived = \App\Models\Tenant\TenantSpecialOrder::where('tenant_id', $tenant->id)
+            ->where('customer_id', $customerId)
+            ->where('status', \App\Models\Tenant\TenantSpecialOrder::STATUS_ARRIVED)
+            ->whereNull('appointment_id')
+            ->with('item', 'location')
+            ->orderBy('arrived_at')
+            ->get();
+        foreach ($arrived as $so) {
+            $sale = $so->sale_id ? \App\Models\Tenant\TenantSale::find($so->sale_id) : null;
+            if ($sale && \App\Models\Tenant\TenantLayawayPlan::where('sale_id', $sale->id)->whereIn('status', ['active', 'ready'])->exists()) {
+                continue;
+            }
+            $paid = $sale && in_array($sale->payment_status, ['paid', 'partial'], true) && $sale->refund_of_sale_id === null;
+            $hold = \App\Services\Tenant\SpecialOrderService::holdState($so);
+            $pickups[] = [
+                'id'                => $so->id,
+                'so_number'         => $so->so_number,
+                'name'              => $so->item_name_snapshot,
+                'quantity'          => (int) $so->quantity,
+                'inventory_item_id' => $so->inventory_item_id,
+                'price_cents'       => $so->item?->effectiveSellPriceCents(),
+                'is_taxable'        => ($so->item?->tax_class_code ?? null) !== 'exempt',
+                'paid'              => $paid,
+                'paid_on'           => $paid ? ($sale->sale_number ?: 'an earlier sale') : null,
+                'held_at'           => $hold['at'],
+                'pickup_at'         => $so->location?->name,
+                'on_this_sale'      => $sale && in_array($sale->payment_status, ['draft', 'quote', 'unpaid'], true) ? $sale->id : null,
+            ];
+        }
+
+        return response()->json(['ok' => true, 'open' => $out, 'pickups' => $pickups]);
     }
 
     /** open a layaway from the cart. */
@@ -1522,6 +1557,38 @@ class RegisterController extends Controller
             return response()->json(['ok' => false, 'error' => 'Draft not found.'], 404);
         }
 
+        // MARKER-SO-HANDOVER: a resumed line keeps its special order, so taking
+        // it off the sale still asks what happens to the order. One order per
+        // line, matched by item, oldest first.
+        $soPool = \App\Models\Tenant\TenantSpecialOrder::where('tenant_id', $tenant->id)
+            ->where('sale_id', $draft->id)
+            ->whereIn('status', \App\Models\Tenant\TenantSpecialOrder::STATUSES_OPEN)
+            ->orderBy('created_at')
+            ->get(['id', 'so_number', 'inventory_item_id', 'sale_item_id', 'status'])
+            ->all();
+        $soFor = function ($line) use (&$soPool) {
+            if ($line->type !== 'product' || ! $line->inventory_item_id) {
+                return null;
+            }
+            foreach ($soPool as $k => $so) {
+                if ($so->sale_item_id === $line->id || ($so->inventory_item_id === $line->inventory_item_id && ! $so->sale_item_id)) {
+                    unset($soPool[$k]);
+                    return $so;
+                }
+            }
+            foreach ($soPool as $k => $so) {
+                if ($so->inventory_item_id === $line->inventory_item_id) {
+                    unset($soPool[$k]);
+                    return $so;
+                }
+            }
+            return null;
+        };
+        $lineSo = [];
+        foreach ($draft->items as $i) {
+            $lineSo[$i->id] = $soFor($i);
+        }
+
         return response()->json([
             'ok' => true,
             'draft' => [
@@ -1551,6 +1618,9 @@ class RegisterController extends Controller
                     'is_taxable'        => (bool) $i->is_taxable,
                     'tax_cents'         => (int) $i->tax_cents,
                     'tax_rate_snapshot' => $i->tax_rate_snapshot,
+                    'special_order_id'  => $lineSo[$i->id]?->id,
+                    'so_number'         => $lineSo[$i->id]?->so_number,
+                    'so_pickup'         => ($lineSo[$i->id]?->status ?? null) === \App\Models\Tenant\TenantSpecialOrder::STATUS_ARRIVED,
                     // MARKER-CLASSES-P1: a resumed pass line keeps which pass it is.
                     'class_pass'        => $i->type === 'class_pass' ? (array) ($i->metadata ?? []) : null,
                     // so a resumed line keeps its price edit.

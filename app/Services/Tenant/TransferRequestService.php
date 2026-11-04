@@ -59,7 +59,6 @@ class TransferRequestService
             }
 
             return TenantTransferRequest::create([
-                'id'                   => (string) Str::uuid(),
                 'tenant_id'            => $data['tenant_id'],
                 'inventory_item_id'    => $data['inventory_item_id'],
                 'to_location_id'       => $data['to_location_id'],
@@ -67,6 +66,7 @@ class TransferRequestService
                 'quantity'             => max(1, (int) $data['quantity']),
                 'requested_by_user_id' => $data['requested_by_user_id'] ?? null,
                 'sale_id'              => $data['sale_id'] ?? null,
+                'special_order_id'     => $data['special_order_id'] ?? null, // MARKER-SO-HANDOVER
                 'status'               => TenantTransferRequest::STATUS_PENDING,
                 'notes'                => $data['notes'] ?? null,
             ]);
@@ -118,6 +118,13 @@ class TransferRequestService
             $tenant = \App\Models\Tenant::find($tr->tenant_id);
             if (!$tenant) {
                 throw new InvalidArgumentException('Transfer request tenant not found.');
+            }
+
+            // MARKER-SO-HANDOVER: a special order's part travels with its hold.
+            // Release it at the source here; markReceived holds it again at
+            // the pickup store.
+            if (!empty($tr->special_order_id)) {
+                app(ReservationService::class)->releaseForSpecialOrder($tr->special_order_id, 'moving_to_pickup');
             }
 
             // Decrement source stock — uses the Pos InventoryService primitive,
@@ -195,6 +202,11 @@ class TransferRequestService
             $tr->fulfilled_at = now();
             $tr->fulfilled_by_user_id = $byUserId;
             $tr->save();
+
+            // MARKER-SO-HANDOVER: the special order's part is now at its pickup store.
+            if (!empty($tr->special_order_id)) {
+                app(SpecialOrderService::class)->holdAtPickup($tr->special_order_id, $toLoc->id);
+            }
             return $tr;
         });
     }

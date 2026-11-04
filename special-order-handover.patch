@@ -1,0 +1,3164 @@
+diff --git a/app/Exceptions/SpecialOrderChoiceRequired.php b/app/Exceptions/SpecialOrderChoiceRequired.php
+new file mode 100644
+index 00000000..712dbe8b
+--- /dev/null
++++ b/app/Exceptions/SpecialOrderChoiceRequired.php
+@@ -0,0 +1,79 @@
++<?php
++
++namespace App\Exceptions;
++
++use Illuminate\Http\JsonResponse;
++use Illuminate\Http\Request;
++
++/**
++ * MARKER-SO-HANDOVER: an action would leave a special order without a
++ * defined next step, so the person has to choose one first.
++ *
++ * Thrown from inside the work (usually inside a DB transaction, so nothing
++ * has changed yet). A JSON caller gets 409 + the question; the shared dialog
++ * (layouts/tenant/_so-choices) asks it and repeats the same request with
++ * so_choice[<order id>] = <option> added. A page form gets sent back with the
++ * question as an error flash, because a plain form can't be replayed.
++ *
++ * $fields: list of
++ *   ['id' => order id, 'label' => 'SO-0058 · Cassette', 'note' => 'on order, due Nov 6',
++ *    'options' => [['value' => 'stock', 'label' => '…', 'help' => '…'], …], 'default' => 'stock']
++ */
++class SpecialOrderChoiceRequired extends \RuntimeException
++{
++    public function __construct(
++        public readonly string $title,
++        public readonly string $messageText,
++        public readonly array $fields,
++        public readonly string $confirmLabel = 'Continue',
++        public readonly bool $danger = false,
++        public readonly ?array $reason = null, // ['required' => bool, 'placeholder' => '…', 'when' => 'free']
++    ) {
++        parent::__construct($title);
++    }
++
++    /** Handled: never logged as an error. */
++    public function report(): bool
++    {
++        return true;
++    }
++
++    public function render(Request $request)
++    {
++        $payload = [
++            'ok'           => false,
++            'needs_choice' => true,
++            'message'      => $this->title,
++            'choice'       => [
++                'title'   => $this->title,
++                'message' => $this->messageText,
++                'fields'  => $this->fields,
++                'confirm' => $this->confirmLabel,
++                'danger'  => $this->danger,
++                'reason'  => $this->reason,
++            ],
++        ];
++
++        if ($request->expectsJson() || $request->ajax()) {
++            return new JsonResponse($payload, 409);
++        }
++
++        return back()->with('flash', ['type' => 'error', 'message' => $this->title . ' ' . $this->messageText]);
++    }
++
++    /** The choice made for an order on this request, if any. */
++    public static function picked(string $specialOrderId): ?string
++    {
++        $all = (array) request()->input('so_choice', []);
++        $v = $all[$specialOrderId] ?? null;
++
++        return is_string($v) && $v !== '' ? $v : null;
++    }
++
++    public static function reason(): ?string
++    {
++        $r = trim((string) request()->input('so_reason', ''));
++
++        return $r !== '' ? mb_substr($r, 0, 255) : null;
++    }
++}
+diff --git a/app/Http/Controllers/Tenant/AppointmentController.php b/app/Http/Controllers/Tenant/AppointmentController.php
+index f197a861..50906659 100644
+--- a/app/Http/Controllers/Tenant/AppointmentController.php
++++ b/app/Http/Controllers/Tenant/AppointmentController.php
+@@ -1221,6 +1221,24 @@ class AppointmentController extends Controller
+             $wasCommitted = AppointmentInventoryService::isCommittedStatus($oldStatus);
+             $willCommit   = AppointmentInventoryService::isCommittedStatus($newStatus);
+ 
++            // MARKER-SO-HANDOVER: a cancelled job's special orders each need a
++            // next step (shop stock, or kept for the customer). Asked once.
++            if ($newStatus === 'cancelled') {
++                $openSos = \App\Models\Tenant\TenantSpecialOrder::where('tenant_id', $appointment->tenant_id)
++                    ->where('appointment_id', $appointment->id)
++                    ->whereIn('status', \App\Models\Tenant\TenantSpecialOrder::STATUSES_OPEN)
++                    ->get();
++                if ($openSos->isNotEmpty()) {
++                    DB::transaction(fn () => app(\App\Services\Tenant\SpecialOrderService::class)->resolveManyForRemoval(
++                        $openSos,
++                        'Cancel ' . ($appointment->ra_number ?: 'this work order') . '?',
++                        'It has ' . $openSos->count() . ' special order' . ($openSos->count() > 1 ? 's' : '') . '. Choose what happens to each.',
++                        'Cancel work order',
++                        'Work order ' . ($appointment->ra_number ?: '') . ' was cancelled.'
++                    ));
++                }
++            }
++
+             // Inventory transitions:
+             //   not-committed → committed       : commit (decrement)
+             //   committed     → not-committed   : revert (increment)
+@@ -2499,8 +2517,12 @@ class AppointmentController extends Controller
+             }
+             $part->forceFill(['is_special_order' => $request->boolean('enabled')])->saveQuietly();
+             try {
+-                app(\App\Services\Tenant\SpecialOrderService::class)
+-                    ->syncForAppointmentPart($part, \Illuminate\Support\Facades\Auth::guard('tenant')->id());
++                DB::transaction(fn () => app(\App\Services\Tenant\SpecialOrderService::class)
++                    ->syncForAppointmentPart($part, \Illuminate\Support\Facades\Auth::guard('tenant')->id()));
++            } catch (\App\Exceptions\SpecialOrderChoiceRequired $e) {
++                // MARKER-SO-HANDOVER: an ordered/arrived part needs a next step first
++                $part->forceFill(['is_special_order' => true])->saveQuietly();
++                throw $e;
+             } catch (\Throwable $e) {
+                 return response()->json(['ok' => false, 'message' => 'Could not update special order: '.$e->getMessage()], 422);
+             }
+@@ -2522,6 +2544,11 @@ class AppointmentController extends Controller
+                 return response()->json(['ok' => false, 'message' => 'Item not found.'], 422);
+             }
+ 
++            // MARKER-SO-HANDOVER: all of this is one transaction, so when the
++            // special order needs a choice nothing has moved yet.
++            $soWarning = null;
++            $name = $part->item_name_snapshot;
++            DB::transaction(function () use ($appointment, $part, &$soWarning) {
+             // If this part has already been committed (decremented from stock),
+             // we need to give it back BEFORE deleting the row, otherwise the
+             // increment helper has nothing to operate on and committed_at
+@@ -2537,25 +2564,22 @@ class AppointmentController extends Controller
+                 }
+             }
+ 
+-            $name = $part->item_name_snapshot;
+-
+-            // deleting a part used to leave its linked
+-            // special order alive as an orphan. Mirror the uncheck logic:
+-            // a still-"needed" SO is retracted; an ordered/arrived SO stays
+-            // (goods may be inbound) but the appointment gets a warning note.
+-            $soWarning = null;
++            // deleting a part used to leave its linked special order alive as
++            // an orphan, then (later) with only a warning note. Now: a needed
++            // order is retracted; an ordered or arrived one gets a next step
++            // the person chooses (shop stock, or kept for the customer).
+             if ($part->special_order_id) {
+                 $so = \App\Models\Tenant\TenantSpecialOrder::where('tenant_id', $appointment->tenant_id)
+                     ->find($part->special_order_id);
+-                if ($so && $so->status === \App\Models\Tenant\TenantSpecialOrder::STATUS_NEEDED) {
++                if ($so && in_array($so->status, \App\Models\Tenant\TenantSpecialOrder::STATUSES_OPEN, true)) {
+                     app(\App\Services\Tenant\SpecialOrderService::class)
+-                        ->cancel($so->id, 'Part removed from work order.');
+-                } elseif ($so && in_array($so->status, \App\Models\Tenant\TenantSpecialOrder::STATUSES_ACTIVE, true)) {
+-                    $soWarning = sprintf(' — special order %s is already %s and remains active; review it', $so->so_number, $so->status);
++                        ->resolveForRemoval($so, 'part_removed', 'Part removed from work order ' . ($appointment->ra_number ?: '') . '.');
++                    $soWarning = ' — special order ' . $so->so_number . ': ' . strtolower($so->fresh()->statusLabel());
+                 }
+             }
+ 
+             $part->delete();
++            });
+ 
+             TenantAppointmentNote::create([
+                 'appointment_id'      => $appointment->id,
+diff --git a/app/Http/Controllers/Tenant/CommunicationController.php b/app/Http/Controllers/Tenant/CommunicationController.php
+index 3a932333..e549ee2f 100644
+--- a/app/Http/Controllers/Tenant/CommunicationController.php
++++ b/app/Http/Controllers/Tenant/CommunicationController.php
+@@ -34,6 +34,7 @@ class CommunicationController extends Controller
+             ['group'=>'Transactional','key'=>'gift_card_purchase_receipt','label'=>'Gift card purchase receipt','desc'=>'Confirmation to whoever bought the card','fires'=>'A gift card is bought on your website','channels'=>['email'],'template'=>'gift_card_purchase_receipt','editor'=>'body','vars'=>['first_name','shop_name','card_amount','card_type','card_delivery','card_next_step'],'def_subject'=>'Your {{shop_name}} gift card purchase','def_body'=>'Thanks — your gift card purchase went through.'],
+             ['group'=>'Lifecycle','key'=>'booking_confirmation','label'=>'Booking confirmation','desc'=>'Sent right after a customer books','fires'=>'Customer finishes booking','channels'=>['email','sms'],'template'=>'booking_confirmation','editor'=>'body','vars'=>['first_name','shop_name','appointment_date','total'],'def_subject'=>'Your booking is confirmed — {{shop_name}}','def_body'=>'Hi {{first_name}}, you are booked with {{shop_name}} on {{appointment_date}}. We will send a reminder the day before. Reply to this email if anything changes.'],
+             ['group'=>'Lifecycle','key'=>'delivery_scheduled','label'=>'Delivery scheduled','desc'=>'Tells the customer your pickup or dropoff window','fires'=>'You schedule a pickup or dropoff','channels'=>['email','sms'],'template'=>'delivery_scheduled','editor'=>'body','vars'=>['first_name','shop_name','date'],'def_subject'=>'{{shop_name}}: your pickup or dropoff is scheduled','def_body'=>'Hi {{first_name}}, your {{shop_name}} pickup or dropoff is scheduled for {{date}}. Reply to this email if you need to change anything.'],
++            ['group'=>'Lifecycle','key'=>'special_order_arrived','label'=>'Special order arrived','desc'=>'Tells the customer their part is here to pick up','fires'=>'You confirm it after receiving (you see who is told first)','channels'=>['email','sms'],'template'=>'special_order_arrived','editor'=>'body','vars'=>['first_name','item','location','shop_name','so_number'],'def_subject'=>'{{shop_name}}: your {{item}} is here','def_body'=>'Hi {{first_name}}, your {{item}} is here and waiting for you at {{location}}. — {{shop_name}}'], // MARKER-SO-HANDOVER
+             ['group'=>'Lifecycle','key'=>'appointment_reminder','label'=>'Appointment reminder','desc'=>'24 hours before the appointment','fires'=>'Daily — 24h before','channels'=>['email','sms'],'template'=>'appointment_reminder','editor'=>'body','vars'=>['first_name','shop_name','date'],'def_subject'=>'Reminder: your {{shop_name}} appointment is tomorrow','def_body'=>'Hi {{first_name}}, a reminder that your appointment with {{shop_name}} is tomorrow, {{date}}.'],
+             ['group'=>'Lifecycle','key'=>'delivery_reminder','label'=>'Delivery reminder','desc'=>'24 hours before a pickup or dropoff','fires'=>'Daily — 24h before','channels'=>['email','sms'],'template'=>'delivery_reminder','editor'=>'body','vars'=>['first_name','shop_name','date'],'def_subject'=>'Reminder: {{shop_name}} pickup or dropoff tomorrow','def_body'=>'Hi {{first_name}}, a reminder that your {{shop_name}} pickup or dropoff is tomorrow, {{date}}.'],
+ 
+diff --git a/app/Http/Controllers/Tenant/ReceiveShipmentController.php b/app/Http/Controllers/Tenant/ReceiveShipmentController.php
+index 99f5bae3..73520319 100644
+--- a/app/Http/Controllers/Tenant/ReceiveShipmentController.php
++++ b/app/Http/Controllers/Tenant/ReceiveShipmentController.php
+@@ -516,7 +516,8 @@ class ReceiveShipmentController extends Controller
+         $tenantUserId = $tenantUser?->id;
+ 
+         try {
+-            DB::transaction(function () use ($tenant, $shipment, $tenantUser, $tenantUserId) {
++            $arrivedForPeople = []; // MARKER-SO-HANDOVER: orders to tell people about
++            DB::transaction(function () use ($tenant, $shipment, $tenantUser, $tenantUserId, &$arrivedForPeople) {
+                 $locked = TenantInventoryReceiveShipment::where('id', $shipment->id)
+                     ->where('tenant_id', $tenant->id)
+                     ->lockForUpdate()
+@@ -618,7 +619,13 @@ class ReceiveShipmentController extends Controller
+                                 $lineCost !== null ? (int) $lineCost : $lockedSo->unit_cost_cents_estimated,
+                                 null,  // invoice number — not captured at receiving v1
+                                 null,  // invoice date — same
++                                false, // stock already moved by this commit
++                                $tenantUser,
++                                $shipment->location_id, // MARKER-SO-HANDOVER: held where it landed
+                             );
++                            if ($lockedSo->customer_id || $lockedSo->appointment_id) {
++                                $arrivedForPeople[] = $lockedSo->id;
++                            }
+                         } catch (\App\Services\Tenant\SpecialOrderValidationException $e) {
+                             // Log + continue. Don't blow up the entire commit
+                             // because one SO transition failed.
+@@ -650,7 +657,8 @@ class ReceiveShipmentController extends Controller
+ 
+         return redirect()
+             ->route('tenant.inventory.receiving.show', ['id' => $shipment->id])
+-            ->with('flash', ['type' => 'success', 'message' => 'Shipment committed.']);
++            ->with('flash', ['type' => 'success', 'message' => 'Shipment committed.'])
++            ->with('so_notify', $arrivedForPeople); // opens "Tell customers" on the shipment page
+     }
+ 
+     public function quickShowItem(string $id): JsonResponse
+diff --git a/app/Http/Controllers/Tenant/RegisterController.php b/app/Http/Controllers/Tenant/RegisterController.php
+index 979d374f..ee94ee9e 100644
+--- a/app/Http/Controllers/Tenant/RegisterController.php
++++ b/app/Http/Controllers/Tenant/RegisterController.php
+@@ -768,7 +768,42 @@ class RegisterController extends Controller
+             ];
+         }
+ 
+-        return response()->json(['ok' => true, 'open' => $out]);
++        // MARKER-SO-HANDOVER: special orders on the bench for this customer.
++        // Paid ones hand over here; unpaid ones go onto this sale. A part for
++        // a work order is handed over by the job, and one on a layaway by the
++        // layaway, so neither is listed.
++        $pickups = [];
++        $arrived = \App\Models\Tenant\TenantSpecialOrder::where('tenant_id', $tenant->id)
++            ->where('customer_id', $customerId)
++            ->where('status', \App\Models\Tenant\TenantSpecialOrder::STATUS_ARRIVED)
++            ->whereNull('appointment_id')
++            ->with('item', 'location')
++            ->orderBy('arrived_at')
++            ->get();
++        foreach ($arrived as $so) {
++            $sale = $so->sale_id ? \App\Models\Tenant\TenantSale::find($so->sale_id) : null;
++            if ($sale && \App\Models\Tenant\TenantLayawayPlan::where('sale_id', $sale->id)->whereIn('status', ['active', 'ready'])->exists()) {
++                continue;
++            }
++            $paid = $sale && in_array($sale->payment_status, ['paid', 'partial'], true) && $sale->refund_of_sale_id === null;
++            $hold = \App\Services\Tenant\SpecialOrderService::holdState($so);
++            $pickups[] = [
++                'id'                => $so->id,
++                'so_number'         => $so->so_number,
++                'name'              => $so->item_name_snapshot,
++                'quantity'          => (int) $so->quantity,
++                'inventory_item_id' => $so->inventory_item_id,
++                'price_cents'       => $so->item?->effectiveSellPriceCents(),
++                'is_taxable'        => ($so->item?->tax_class_code ?? null) !== 'exempt',
++                'paid'              => $paid,
++                'paid_on'           => $paid ? ($sale->sale_number ?: 'an earlier sale') : null,
++                'held_at'           => $hold['at'],
++                'pickup_at'         => $so->location?->name,
++                'on_this_sale'      => $sale && in_array($sale->payment_status, ['draft', 'quote', 'unpaid'], true) ? $sale->id : null,
++            ];
++        }
++
++        return response()->json(['ok' => true, 'open' => $out, 'pickups' => $pickups]);
+     }
+ 
+     /** open a layaway from the cart. */
+@@ -1522,6 +1557,38 @@ class RegisterController extends Controller
+             return response()->json(['ok' => false, 'error' => 'Draft not found.'], 404);
+         }
+ 
++        // MARKER-SO-HANDOVER: a resumed line keeps its special order, so taking
++        // it off the sale still asks what happens to the order. One order per
++        // line, matched by item, oldest first.
++        $soPool = \App\Models\Tenant\TenantSpecialOrder::where('tenant_id', $tenant->id)
++            ->where('sale_id', $draft->id)
++            ->whereIn('status', \App\Models\Tenant\TenantSpecialOrder::STATUSES_OPEN)
++            ->orderBy('created_at')
++            ->get(['id', 'so_number', 'inventory_item_id', 'sale_item_id', 'status'])
++            ->all();
++        $soFor = function ($line) use (&$soPool) {
++            if ($line->type !== 'product' || ! $line->inventory_item_id) {
++                return null;
++            }
++            foreach ($soPool as $k => $so) {
++                if ($so->sale_item_id === $line->id || ($so->inventory_item_id === $line->inventory_item_id && ! $so->sale_item_id)) {
++                    unset($soPool[$k]);
++                    return $so;
++                }
++            }
++            foreach ($soPool as $k => $so) {
++                if ($so->inventory_item_id === $line->inventory_item_id) {
++                    unset($soPool[$k]);
++                    return $so;
++                }
++            }
++            return null;
++        };
++        $lineSo = [];
++        foreach ($draft->items as $i) {
++            $lineSo[$i->id] = $soFor($i);
++        }
++
+         return response()->json([
+             'ok' => true,
+             'draft' => [
+@@ -1551,6 +1618,9 @@ class RegisterController extends Controller
+                     'is_taxable'        => (bool) $i->is_taxable,
+                     'tax_cents'         => (int) $i->tax_cents,
+                     'tax_rate_snapshot' => $i->tax_rate_snapshot,
++                    'special_order_id'  => $lineSo[$i->id]?->id,
++                    'so_number'         => $lineSo[$i->id]?->so_number,
++                    'so_pickup'         => ($lineSo[$i->id]?->status ?? null) === \App\Models\Tenant\TenantSpecialOrder::STATUS_ARRIVED,
+                     // MARKER-CLASSES-P1: a resumed pass line keeps which pass it is.
+                     'class_pass'        => $i->type === 'class_pass' ? (array) ($i->metadata ?? []) : null,
+                     // so a resumed line keeps its price edit.
+diff --git a/app/Http/Controllers/Tenant/SpecialOrderController.php b/app/Http/Controllers/Tenant/SpecialOrderController.php
+index e958e899..3fc15b45 100644
+--- a/app/Http/Controllers/Tenant/SpecialOrderController.php
++++ b/app/Http/Controllers/Tenant/SpecialOrderController.php
+@@ -251,7 +251,20 @@ class SpecialOrderController extends Controller
+             }
+         }
+ 
++        // MARKER-SO-HANDOVER: the Arrived bench shows each order's hold and
++        // how it gets to its person.
++        $bench = [];
++        if ($view === 'arrived_bench') {
++            foreach ($sos as $so) {
++                $bench[$so->id] = [
++                    'hold' => SpecialOrderService::holdState($so),
++                    'ctx'  => SpecialOrderService::handoverContext($so),
++                ];
++            }
++        }
++
+         return view('tenant.special-orders.index', [
++            'bench'         => $bench,
+             'orphanIds'     => $orphanIds ?? [],
+             'cleanupDays'   => \App\Support\SpecialOrderCleanup::days($tenant),
+             'cleanupLabel'  => \App\Support\SpecialOrderCleanup::describe($tenant),
+@@ -281,7 +294,7 @@ class SpecialOrderController extends Controller
+         $this->assertRetailEnabled($tenant);
+ 
+         $so = TenantSpecialOrder::where('tenant_id', $tenant->id)
+-            ->with(['vendor', 'customer', 'appointment', 'item', 'notes.user', 'parent', 'children'])
++            ->with(['vendor', 'customer', 'appointment', 'item', 'notes.user', 'parent', 'children', 'location'])
+             ->findOrFail($id);
+ 
+         // If this SO is part of a batch, fetch siblings for the "linked rows" panel
+@@ -302,6 +315,11 @@ class SpecialOrderController extends Controller
+                 ->get(['id', 'name'])->map(fn ($v) => ['id' => $v->id, 'name' => $v->name, 'sku' => null, 'cost_cents' => null, 'avail' => null, 'preferred' => false, 'lead' => null])->all();
+ 
+         return view('tenant.special-orders.show', [
++            // MARKER-SO-HANDOVER
++            'hold'          => SpecialOrderService::holdState($so),
++            'ctx'           => SpecialOrderService::handoverContext($so),
++            'handedOverBy'  => $so->handed_over_by_user_id
++                ? \App\Models\Tenant\TenantUser::where('id', $so->handed_over_by_user_id)->value('name') : null,
+             'so'            => $so,
+             'batchSiblings' => $batchSiblings,
+             'vendorOptions' => $vendorOptions,
+@@ -534,7 +552,7 @@ class SpecialOrderController extends Controller
+ 
+         try {
+             // MARKER-SO-REPAIRS: a hand arrival puts the units in stock.
+-            $this->service->markArrived(
++            $arrived = $this->service->markArrived(
+                 $id,
+                 $data['received_quantity'] ?? null, // null = full receipt
+                 $actualCents,
+@@ -547,55 +565,224 @@ class SpecialOrderController extends Controller
+             return back()->with('flash', ['type' => 'error', 'message' => $e->getMessage()]);
+         }
+ 
++        // MARKER-SO-HANDOVER: someone is waiting → offer to tell them
++        $tell = ($arrived->customer_id || $arrived->appointment_id) ? [$arrived->id] : [];
++
++        return redirect()->route('tenant.special-orders.show', ['id' => $id])
++            ->with('flash', ['type' => 'success', 'message' => 'Marked arrived.'])
++            ->with('so_notify', $tell);
++    }
++
++    /** Old route name kept: "mark pulled" is now a real handover. */
++    public function markPulled(Request $request, string $id): RedirectResponse|JsonResponse
++    {
++        return $this->handOver($request, $id);
++    }
++
++    // ────────────────────────────────────────────────────────
++    //  MARKER-SO-HANDOVER endpoints. Each answers JSON to fetch callers
++    //  (the bench, the order page, the register) and redirects a plain form.
++    //  A SpecialOrderChoiceRequired thrown inside renders itself (409).
++    // ────────────────────────────────────────────────────────
++
++    private function done(Request $request, string $id, string $message): RedirectResponse|JsonResponse
++    {
++        if ($request->wantsJson()) {
++            return response()->json(['ok' => true, 'message' => $message]);
++        }
++
+         return redirect()->route('tenant.special-orders.show', ['id' => $id])
+-            ->with('flash', ['type' => 'success', 'message' => 'Marked arrived.']);
++            ->with('flash', ['type' => 'success', 'message' => $message]);
++    }
++
++    private function failed(Request $request, string $message): RedirectResponse|JsonResponse
++    {
++        if ($request->wantsJson()) {
++            return response()->json(['ok' => false, 'error' => $message, 'message' => $message], 422);
++        }
++
++        return back()->with('flash', ['type' => 'error', 'message' => $message]);
+     }
+ 
+-    public function markPulled(Request $request, string $id): RedirectResponse
++    /** Hand an arrived order over (paid, a finished job, or with a reason). */
++    public function handOver(Request $request, string $id): RedirectResponse|JsonResponse
+     {
+         $tenant = tenant();
+         $this->assertRetailEnabled($tenant);
++        $this->ensureBelongsToTenant($id, $tenant->id);
++        $data = $request->validate(['reason' => ['nullable', 'string', 'max:255']]);
+ 
++        try {
++            $so = $this->service->handOver($id, $data['reason'] ?? null);
++        } catch (SpecialOrderValidationException|\App\Services\Tenant\InventoryStockException $e) {
++            return $this->failed($request, $e->getMessage());
++        }
++
++        return $this->done($request, $id, "{$so->so_number} handed over.");
++    }
++
++    // returns JSON for the register's inline cleanup and the bench,
++    // and keeps redirecting for a plain form post.
++    public function cancel(Request $request, string $id): RedirectResponse|JsonResponse
++    {
++        $tenant = tenant();
++        $this->assertRetailEnabled($tenant);
+         $this->ensureBelongsToTenant($id, $tenant->id);
+ 
++        $data = $request->validate([
++            'reason'    => ['nullable', 'string', 'max:500'],
++            'so_reason' => ['nullable', 'string', 'max:255'],
++        ]);
++
+         try {
+-            $this->service->markPulled($id);
++            $so = $this->service->cancelWithChoice($id, ($data['reason'] ?? null) ?: ($data['so_reason'] ?? null));
+         } catch (SpecialOrderValidationException $e) {
+-            return back()->with('flash', ['type' => 'error', 'message' => $e->getMessage()]);
++            return $this->failed($request, $e->getMessage());
+         }
+ 
+-        return redirect()->route('tenant.special-orders.show', ['id' => $id])
+-            ->with('flash', ['type' => 'success', 'message' => 'Marked pulled.']);
++        return $this->done($request, $id, $so->status === TenantSpecialOrder::STATUS_CANCELLED
++            ? "{$so->so_number} cancelled."
++            : "{$so->so_number} is now shop stock on the way.");
++    }
++
++    /** The register took the order's line off the sale. */
++    public function removeFromSale(Request $request, string $id): JsonResponse
++    {
++        $tenant = tenant();
++        $this->assertRetailEnabled($tenant);
++        $this->ensureBelongsToTenant($id, $tenant->id);
++
++        try {
++            $so = $this->service->removeFromSale($id, 'Line removed from register sale.');
++        } catch (SpecialOrderValidationException $e) {
++            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
++        }
++
++        $msg = match (true) {
++            $so->status === TenantSpecialOrder::STATUS_CANCELLED => "{$so->so_number} cancelled.",
++            $so->customer_id && ! $so->sale_id                    => "{$so->so_number} kept for {$this->service->whoFor($so)}.",
++            ! $so->customer_id && ! $so->appointment_id           => "{$so->so_number} is now shop stock on the way.",
++            default                                               => "{$so->so_number} updated.",
++        };
++
++        return response()->json(['ok' => true, 'message' => $msg]);
+     }
+ 
+-    // returns JSON for the register's inline cleanup,
+-    // and keeps redirecting for the normal admin form post.
+-    public function cancel(Request $request, string $id): RedirectResponse|\Illuminate\Http\JsonResponse
++    /** Hold an arrived order after checking the shelf. */
++    public function holdNow(Request $request, string $id): RedirectResponse|JsonResponse
+     {
+         $tenant = tenant();
+         $this->assertRetailEnabled($tenant);
++        $this->ensureBelongsToTenant($id, $tenant->id);
++
++        try {
++            $so = $this->service->holdNow($id);
++        } catch (SpecialOrderValidationException $e) {
++            return $this->failed($request, $e->getMessage());
++        }
++
++        return $this->done($request, $id, "{$so->so_number} is held.");
++    }
+ 
++    /** Not on the shelf: back to Needed so it can be ordered again. */
++    public function markMissing(Request $request, string $id): RedirectResponse|JsonResponse
++    {
++        $tenant = tenant();
++        $this->assertRetailEnabled($tenant);
+         $this->ensureBelongsToTenant($id, $tenant->id);
+ 
++        try {
++            $so = $this->service->markMissing($id);
++        } catch (SpecialOrderValidationException $e) {
++            return $this->failed($request, $e->getMessage());
++        }
++
++        return $this->done($request, $id, "{$so->so_number} is back in Needed. Order it again.");
++    }
++
++    /** Register "Ready for pickup" → Add to sale. The register adds the item line itself. */
++    public function attachToSale(Request $request, string $id): JsonResponse
++    {
++        $tenant = tenant();
++        $this->assertRetailEnabled($tenant);
++        $this->ensureBelongsToTenant($id, $tenant->id);
+         $data = $request->validate([
+-            'reason' => ['nullable', 'string', 'max:500'],
++            'sale_id' => ['required', 'uuid', Rule::exists('tenant_sales', 'id')->where(fn ($q) => $q->where('tenant_id', $tenant->id))],
+         ]);
+ 
+         try {
+-            $this->service->cancel($id, $data['reason'] ?? null);
++            $so = $this->service->attachToSale($id, $data['sale_id']);
+         } catch (SpecialOrderValidationException $e) {
+-            if ($request->wantsJson()) {
+-                return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
++            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
++        }
++
++        return response()->json([
++            'ok'   => true,
++            'line' => [
++                'inventory_item_id' => $so->inventory_item_id,
++                'name'              => $so->item_name_snapshot,
++                'quantity'          => (int) $so->quantity,
++                'special_order_id'  => $so->id,
++                'so_number'         => $so->so_number,
++            ],
++        ]);
++    }
++
++    /** Who would be told, and how — for the "Tell customer" dialog. */
++    public function notifyRows(Request $request): JsonResponse
++    {
++        $tenant = tenant();
++        $this->assertRetailEnabled($tenant);
++        $data = $request->validate(['ids' => ['required', 'array', 'min:1', 'max:200'], 'ids.*' => ['uuid']]);
++
++        $orders = TenantSpecialOrder::where('tenant_id', $tenant->id)->whereIn('id', $data['ids'])
++            ->where('status', TenantSpecialOrder::STATUS_ARRIVED)->get();
++        $n = \App\Services\Tenant\SpecialOrderNotifier::forTenant($tenant);
++
++        return response()->json(['ok' => true, 'rows' => $n->rows($orders), 'message' => $n->defaultMessage()]);
++    }
++
++    /** Send "your part is here". */
++    public function notify(Request $request): RedirectResponse|JsonResponse
++    {
++        $tenant = tenant();
++        $this->assertRetailEnabled($tenant);
++        $data = $request->validate([
++            'ids'     => ['required', 'array', 'min:1', 'max:200'],
++            'ids.*'   => ['uuid'],
++            'picks'   => ['nullable', 'array'],
++            'message' => ['nullable', 'string', 'max:1000'],
++        ]);
++
++        $orders = TenantSpecialOrder::where('tenant_id', $tenant->id)->whereIn('id', $data['ids'])
++            ->where('status', TenantSpecialOrder::STATUS_ARRIVED)->get();
++        $picks = [];
++        foreach ((array) ($data['picks'] ?? []) as $soId => $ch) {
++            $ch = (array) $ch;
++            $picks[$soId] = [
++                'email' => filter_var($ch['email'] ?? false, FILTER_VALIDATE_BOOLEAN),
++                'sms'   => filter_var($ch['sms'] ?? false, FILTER_VALIDATE_BOOLEAN),
++                'staff' => filter_var($ch['staff'] ?? false, FILTER_VALIDATE_BOOLEAN),
++            ];
++        }
++        $c = \App\Services\Tenant\SpecialOrderNotifier::forTenant($tenant)->send($orders, $picks, $data['message'] ?? null);
++
++        $parts = [];
++        foreach (['email' => 'email', 'sms' => 'text', 'staff' => 'staff alert'] as $k => $w) {
++            if ($c[$k]) {
++                $parts[] = $c[$k] . ' ' . $w . ($c[$k] === 1 ? '' : 's');
+             }
+-            return back()->with('flash', ['type' => 'error', 'message' => $e->getMessage()]);
++        }
++        $msg = $parts ? 'Sent ' . implode(', ', $parts) . '.' : 'Nothing was sent.';
++        if ($c['none'] && $parts) {
++            $msg .= " {$c['none']} not told.";
+         }
+ 
+         if ($request->wantsJson()) {
+-            return response()->json(['ok' => true]);
++            return response()->json(['ok' => true, 'message' => $msg, 'counts' => $c]);
+         }
+ 
+-        return redirect()->route('tenant.special-orders.show', ['id' => $id])
+-            ->with('flash', ['type' => 'success', 'message' => 'Special order cancelled.']);
++        return back()->with('flash', ['type' => $parts ? 'success' : 'error', 'message' => $msg]);
+     }
+ 
+     /**
+diff --git a/app/Http/Controllers/Tenant/StaffAlertController.php b/app/Http/Controllers/Tenant/StaffAlertController.php
+index 67a2fa18..3f2ab612 100644
+--- a/app/Http/Controllers/Tenant/StaffAlertController.php
++++ b/app/Http/Controllers/Tenant/StaffAlertController.php
+@@ -32,6 +32,7 @@ class StaffAlertController extends Controller
+         'timeoff.decided'        => 'Your time-off request was decided',
+         'timeoff.withdrawn'      => 'Time-off request withdrawn (reviewers)',
+         'note.mention'           => 'Someone @mentioned you in a note', // MARKER-NOTE-MENTIONS
++        'special_order.arrived'  => 'A special-order part for a work order arrived', // MARKER-SO-HANDOVER
+     ];
+ 
+     /** full notifications page (grouped, paginated). */
+diff --git a/app/Models/Tenant/TenantInventoryReservation.php b/app/Models/Tenant/TenantInventoryReservation.php
+index 154e631f..3b23d8fa 100644
+--- a/app/Models/Tenant/TenantInventoryReservation.php
++++ b/app/Models/Tenant/TenantInventoryReservation.php
+@@ -17,6 +17,7 @@ class TenantInventoryReservation extends Model
+ 
+     protected $fillable = [
+         'tenant_id', 'inventory_item_id', 'location_id', 'sale_id', 'sale_item_id',
++        'special_order_id', // MARKER-SO-HANDOVER: a hold for a special order with no sale
+         'quantity', 'status', 'released_reason', 'created_at', 'ended_at',
+     ];
+ 
+@@ -40,6 +41,11 @@ class TenantInventoryReservation extends Model
+         return $this->belongsTo(TenantSale::class, 'sale_id');
+     }
+ 
++    public function specialOrder(): BelongsTo
++    {
++        return $this->belongsTo(TenantSpecialOrder::class, 'special_order_id');
++    }
++
+     public function scopeActive($q)
+     {
+         return $q->where('status', self::ACTIVE);
+diff --git a/app/Models/Tenant/TenantSpecialOrder.php b/app/Models/Tenant/TenantSpecialOrder.php
+index cf40fdc0..11254b26 100644
+--- a/app/Models/Tenant/TenantSpecialOrder.php
++++ b/app/Models/Tenant/TenantSpecialOrder.php
+@@ -47,6 +47,7 @@ class TenantSpecialOrder extends Model
+         'location_id', // MARKER-SO-REPAIRS
+         'sale_id',
+         'sale_item_id',
++        'line_stock_deferred', 'notified_at', 'notified_via', 'handed_over_by_user_id', 'handover_note', // MARKER-SO-HANDOVER
+         'source_confirmed_at', 'source_confirmed_by_user_id',
+         'vendor_assigned_rule',
+         'vendor_id',
+@@ -81,6 +82,8 @@ class TenantSpecialOrder extends Model
+         'pulled_at'                 => 'datetime',
+         'cancelled_at'              => 'datetime',
+         // columns removed; nothing to cast.
++        'notified_at'               => 'datetime',
++        'line_stock_deferred'       => 'boolean',
+     ];
+ 
+     public const STATUS_NEEDED    = 'needed';
+@@ -101,6 +104,19 @@ class TenantSpecialOrder extends Model
+     public function appointment(): BelongsTo { return $this->belongsTo(TenantAppointment::class, 'appointment_id'); }
+     public function vendor(): BelongsTo      { return $this->belongsTo(TenantVendor::class, 'vendor_id'); }
+     public function location(): BelongsTo    { return $this->belongsTo(TenantLocation::class, 'location_id'); }
++    public function sale(): BelongsTo        { return $this->belongsTo(TenantSale::class, 'sale_id'); }
++    public function saleItem(): BelongsTo    { return $this->belongsTo(TenantSaleItem::class, 'sale_item_id'); }
++    /** MARKER-SO-HANDOVER: the holds this order has (active or ended). */
++    public function holds(): HasMany          { return $this->hasMany(TenantInventoryReservation::class, 'special_order_id'); }
++
++    /** Label for staff screens: "Handed over" for the stored "pulled". */
++    public function statusLabel(): string
++    {
++        return [
++            self::STATUS_NEEDED => 'Needed', self::STATUS_ORDERED => 'Ordered', self::STATUS_ARRIVED => 'Arrived',
++            self::STATUS_PULLED => 'Handed over', self::STATUS_CANCELLED => 'Cancelled',
++        ][$this->status] ?? ucfirst((string) $this->status);
++    }
+     public function createdBy(): BelongsTo   { return $this->belongsTo(TenantUser::class, 'created_by_user_id'); }
+     public function notes(): HasMany         { return $this->hasMany(TenantSpecialOrderNote::class, 'special_order_id')->orderBy('created_at'); }
+ 
+diff --git a/app/Models/Tenant/TenantTransferRequest.php b/app/Models/Tenant/TenantTransferRequest.php
+index 6b7dad9d..0a24dcf2 100644
+--- a/app/Models/Tenant/TenantTransferRequest.php
++++ b/app/Models/Tenant/TenantTransferRequest.php
+@@ -33,6 +33,7 @@ class TenantTransferRequest extends Model
+         'quantity',
+         'requested_by_user_id',
+         'sale_id',
++        'special_order_id', // MARKER-SO-HANDOVER
+         'status',
+         'notes',
+         'fulfilled_at',
+diff --git a/app/Services/EmailService.php b/app/Services/EmailService.php
+index 5477e8be..0a08d971 100644
+--- a/app/Services/EmailService.php
++++ b/app/Services/EmailService.php
+@@ -682,6 +682,14 @@ HTML;
+ <p>— The {$shop} team</p>",
+             ],
+ 
++            // MARKER-SO-HANDOVER: a special order arrived for the customer
++            'special_order_arrived' => [
++                'subject'   => '{{shop_name}}: your {{item}} is here',
++                'body_html' => "<p>Hi {{first_name}},</p>
++<p>Your <strong>{{item}}</strong> is here and waiting for you at {{location}}.</p>
++<p>— The {$shop} team</p>",
++            ],
++
+             // internal delivery scheduling notifications
+             'delivery_pickup_scheduled' => [
+                 'subject'   => 'Pickup scheduled — {{date_short}} at {{time_start}}',
+diff --git a/app/Services/Tenant/AppointmentInventoryService.php b/app/Services/Tenant/AppointmentInventoryService.php
+index 25a3184d..3d9992ad 100644
+--- a/app/Services/Tenant/AppointmentInventoryService.php
++++ b/app/Services/Tenant/AppointmentInventoryService.php
+@@ -38,6 +38,41 @@ class AppointmentInventoryService
+             return;
+         }
+ 
++        // MARKER-SO-HANDOVER: a special-order part that hasn't arrived can't
++        // be used. Ask once: complete without it (it stays the customer's
++        // order, linked to this job, handed over when it arrives) or wait.
++        $waiting = \App\Models\Tenant\TenantSpecialOrder::where('tenant_id', $appointment->tenant_id)
++            ->whereIn('id', $appointment->parts()->whereNull('committed_at')->whereNotNull('special_order_id')->pluck('special_order_id'))
++            ->whereIn('status', [\App\Models\Tenant\TenantSpecialOrder::STATUS_NEEDED, \App\Models\Tenant\TenantSpecialOrder::STATUS_ORDERED])
++            ->get();
++        if ($waiting->isNotEmpty()) {
++            $fields = [];
++            foreach ($waiting as $so) {
++                $picked = \App\Exceptions\SpecialOrderChoiceRequired::picked($so->id);
++                if ($picked === 'wait') {
++                    throw new InventoryStockException("left in progress — {$so->item_name_snapshot} ({$so->so_number}) hasn't arrived.");
++                }
++                if ($picked !== 'without') {
++                    $fields[] = [
++                        'id' => $so->id, 'label' => "{$so->so_number} · {$so->item_name_snapshot}",
++                        'note' => $so->status === 'ordered' ? 'on order' . ($so->expected_arrival_date ? ', due ' . $so->expected_arrival_date->format('M j') : '') : 'not ordered yet',
++                        'options' => [
++                            ['value' => 'without', 'label' => 'Complete without it', 'help' => 'It stays the customer\'s special order, linked to this job. Hand it over when it arrives.'],
++                            ['value' => 'wait', 'label' => 'Wait for the part', 'help' => 'Leave the work order in progress.'],
++                        ],
++                        'default' => 'without',
++                    ];
++                }
++            }
++            if ($fields) {
++                throw new \App\Exceptions\SpecialOrderChoiceRequired(
++                    'Complete ' . ($appointment->ra_number ?: 'this work order') . '?',
++                    count($fields) === 1 ? 'A special-order part on it hasn\'t arrived.' : count($fields) . ' special-order parts on it haven\'t arrived.',
++                    $fields, 'Continue'
++                );
++            }
++        }
++
+         DB::transaction(function () use ($appointment, $locationId) {
+             // Reload parts inside the transaction so we get a consistent view
+             // and avoid acting on stale Eloquent state.
+diff --git a/app/Services/Tenant/InventoryService.php b/app/Services/Tenant/InventoryService.php
+index aa541a7d..cf406ee3 100644
+--- a/app/Services/Tenant/InventoryService.php
++++ b/app/Services/Tenant/InventoryService.php
+@@ -38,17 +38,41 @@ class InventoryService
+      * quietly ignoring them, so the other plan's line is visibly without stock
+      * instead of invisibly so.
+      */
+-    public function decrementForSaleItem(TenantSale $sale, TenantSaleItem $item, string $locationId, bool $overrideReserved = false): void
++    public function decrementForSaleItem(TenantSale $sale, TenantSaleItem $item, string $locationId, bool $overrideReserved = false, ?int $qtyOverride = null): void
+     {
+         if ($item->type !== 'product' || !$item->inventory_item_id) {
+             return; // service / open_item / gift_card lines don't touch inventory
+         }
+ 
+-        $qty = (int) ceil((float) $item->quantity);
++        $qty = $qtyOverride ?? (int) ceil((float) $item->quantity);
+         if ($qty <= 0) {
+             return;
+         }
+ 
++        // MARKER-SO-HANDOVER: a line that is a special order. Units not here
++        // yet take no stock now — they take it at handover — so a pre-paid
++        // order no longer drives stock negative. Units that have arrived are
++        // handed over now: their hold is used and the order is closed.
++        // (A $qtyOverride call IS the handover of deferred units: skip this.)
++        $handedOverSo = null;
++        if ($qtyOverride === null) {
++            $so = \App\Services\Tenant\SpecialOrderService::linkToSaleLine($sale, $item);
++            if ($so) {
++                if (in_array($so->status, [\App\Models\Tenant\TenantSpecialOrder::STATUS_NEEDED, \App\Models\Tenant\TenantSpecialOrder::STATUS_ORDERED], true)) {
++                    $deferred = min((int) $so->quantity, $qty);
++                    $so->forceFill(['line_stock_deferred' => true])->save();
++                    $qty -= $deferred;
++                    if ($qty <= 0) {
++                        return;
++                    }
++                } elseif ($so->status === \App\Models\Tenant\TenantSpecialOrder::STATUS_ARRIVED) {
++                    // its own hold may sit on the order rather than this line
++                    app(ReservationService::class)->consumeForSpecialOrder($so->id);
++                    $handedOverSo = $so;
++                }
++            }
++        }
++
+         $invItem = TenantInventoryItem::where('id', $item->inventory_item_id)
+             ->where('tenant_id', $sale->tenant_id)
+             ->first();
+@@ -99,7 +123,8 @@ class InventoryService
+             $blocking = \App\Models\Tenant\TenantInventoryReservation::active()
+                 ->where('inventory_item_id', $invItem->id)
+                 ->where('location_id', $locationId)
+-                ->where('sale_id', '!=', $sale->id)
++                // MARKER-SO-HANDOVER: a special-order hold has no sale; != alone skips NULL
++                ->where(fn ($q) => $q->whereNull('sale_id')->orWhere('sale_id', '!=', $sale->id))
+                 ->orderByDesc('created_at') // the newest promise is the least settled
+                 ->get();
+ 
+@@ -110,6 +135,12 @@ class InventoryService
+                 app(ReservationService::class)->release($res, 'sold_to_another_customer');
+                 $freed += $res->quantity;
+                 $affected[] = $res->sale_id;
++                if ($res->special_order_id) {
++                    // MARKER-SO-HANDOVER: their part is gone; the order needs placing again
++                    app(\App\Services\Tenant\SpecialOrderService::class)->backToNeeded(
++                        $res->special_order_id, 'Its part was sold to another customer on ' . ($sale->sale_number ?: 'a register sale') . '. Order it again.'
++                    );
++                }
+             }
+ 
+             \Illuminate\Support\Facades\Log::warning('reserve-override: reserved stock sold to another customer', [
+@@ -155,18 +186,24 @@ class InventoryService
+         $loc->save();
+ 
+         $invItem->decrement('computed_stock_count', $qty);
++
++        if ($handedOverSo) {
++            app(\App\Services\Tenant\SpecialOrderService::class)->markHandedOver($handedOverSo, 'Handed over on sale ' . ($sale->sale_number ?: 'at the register') . '.');
++        }
+     }
+ 
+     /**
+      * Increment inventory for a refunded product line.
+      */
+-    public function incrementForRefund(TenantSale $refund, TenantSaleItem $item, string $locationId): void
++    public function incrementForRefund(TenantSale $refund, TenantSaleItem $item, string $locationId, ?int $qtyOverride = null): void
+     {
+         if ($item->type !== 'product' || !$item->inventory_item_id) {
+             return;
+         }
+ 
+-        $qty = (int) ceil((float) $item->quantity);
++        // MARKER-SO-HANDOVER: a caller may return fewer units than the line —
++        // special-order units that never left stock are not "returned".
++        $qty = $qtyOverride ?? (int) ceil((float) $item->quantity);
+         if ($qty <= 0) {
+             return;
+         }
+@@ -251,6 +288,27 @@ class InventoryService
+             return;
+         }
+ 
++        // MARKER-SO-HANDOVER: a part that is a special order. Not here yet →
++        // it is not used now (the person already chose "complete without it");
++        // it is used when it arrives and is handed over. Here → its hold is
++        // used and the order is handed over with the job.
++        $partSo = $part->special_order_id
++            ? \App\Models\Tenant\TenantSpecialOrder::where('tenant_id', $appointment->tenant_id)->find($part->special_order_id)
++            : null;
++        if ($partSo && in_array($partSo->status, [\App\Models\Tenant\TenantSpecialOrder::STATUS_NEEDED, \App\Models\Tenant\TenantSpecialOrder::STATUS_ORDERED], true)) {
++            return;
++        }
++        if ($partSo && $partSo->status === \App\Models\Tenant\TenantSpecialOrder::STATUS_ARRIVED) {
++            // the part is used where it is held, whichever store the job is at
++            $heldAt = app(ReservationService::class)->activeForSpecialOrder($partSo->id)->first()?->location_id;
++            if ($heldAt) {
++                $locationId = $heldAt;
++            }
++            app(ReservationService::class)->consumeForSpecialOrder($partSo->id);
++        } else {
++            $partSo = null;
++        }
++
+         $invItem = TenantInventoryItem::where('id', $part->inventory_item_id)
+             ->where('tenant_id', $appointment->tenant_id)
+             ->first();
+@@ -314,6 +372,10 @@ class InventoryService
+ 
+         $part->committed_at = now();
+         $part->save();
++
++        if ($partSo) {
++            app(\App\Services\Tenant\SpecialOrderService::class)->markHandedOver($partSo, 'Used on work order ' . ($appointment->ra_number ?: '') . '.');
++        }
+     }
+ 
+     /**
+@@ -342,6 +404,16 @@ class InventoryService
+             return;
+         }
+ 
++        // MARKER-SO-HANDOVER: give it back where it was taken (a held special
++        // order is used at the store holding it, which may not be the job's).
++        $takenAt = DB::table('tenant_inventory_movements')
++            ->where('reference_type', 'appointment_part')->where('reference_id', $part->id)
++            ->where('movement_type', 'appointment')
++            ->orderByDesc('created_at')->value('location_id');
++        if ($takenAt) {
++            $locationId = $takenAt;
++        }
++
+         $invItem = TenantInventoryItem::where('id', $part->inventory_item_id)
+             ->where('tenant_id', $appointment->tenant_id)
+             ->first();
+@@ -394,5 +466,11 @@ class InventoryService
+ 
+         $part->committed_at = null;
+         $part->save();
++
++        // MARKER-SO-HANDOVER: the job was reopened, so a special-order part it
++        // used is back on the bench for this customer, held again.
++        if ($part->special_order_id) {
++            app(\App\Services\Tenant\SpecialOrderService::class)->backToArrived($part->special_order_id, $locationId, 'Back on the bench: work order ' . ($appointment->ra_number ?: '') . ' was reopened.');
++        }
+     }
+ }
+diff --git a/app/Services/Tenant/ReservationService.php b/app/Services/Tenant/ReservationService.php
+index ea4f4678..2a19ff03 100644
+--- a/app/Services/Tenant/ReservationService.php
++++ b/app/Services/Tenant/ReservationService.php
+@@ -29,7 +29,7 @@ class ReservationService
+      * Hold $qty of the line's item at $locationId for this sale.
+      * Throws InventoryStockException if that many are not available.
+      */
+-    public function reserve(TenantSale $sale, TenantSaleItem $line, string $locationId, ?int $qty = null): TenantInventoryReservation
++    public function reserve(TenantSale $sale, TenantSaleItem $line, string $locationId, ?int $qty = null, ?string $specialOrderId = null): TenantInventoryReservation
+     {
+         if ($line->type !== 'product' || ! $line->inventory_item_id) {
+             throw new \InvalidArgumentException('Only product lines can be reserved.');
+@@ -70,12 +70,12 @@ class ReservationService
+         }
+ 
+         $res = TenantInventoryReservation::create([
+-            'id'                => (string) Str::uuid(),
+             'tenant_id'         => $sale->tenant_id,
+             'inventory_item_id' => $item->id,
+             'location_id'       => $locationId,
+             'sale_id'           => $sale->id,
+             'sale_item_id'      => $line->id,
++            'special_order_id'  => $specialOrderId, // MARKER-SO-HANDOVER
+             'quantity'          => $qty,
+             'status'            => TenantInventoryReservation::ACTIVE,
+             'created_at'        => now(),
+@@ -160,6 +160,88 @@ class ReservationService
+             ->get();
+     }
+ 
++    // ────────────────────────────────────────────────────────
++    //  MARKER-SO-HANDOVER: holds for special orders
++    // ────────────────────────────────────────────────────────
++
++    /**
++     * Hold an arrived special order's units at $locationId for its customer
++     * when there is no sale line to hang the hold on (a work-order part, or an
++     * order for a customer who hasn't been rung up yet). Unlike a layaway,
++     * the units are already counted in stock (they were just received), so
++     * this never refuses for "not enough": it holds what the order is for.
++     */
++    public function reserveForSpecialOrder(\App\Models\Tenant\TenantSpecialOrder $so, string $locationId, ?int $qty = null): TenantInventoryReservation
++    {
++        $qty = $qty ?? (int) $so->quantity;
++        if ($qty <= 0 || ! $so->inventory_item_id) {
++            throw new \InvalidArgumentException('Only a cataloged item with a quantity can be held.');
++        }
++
++        $item = TenantInventoryItem::where('id', $so->inventory_item_id)->where('tenant_id', $so->tenant_id)->firstOrFail();
++
++        $loc = TenantInventoryItemLocation::where('inventory_item_id', $item->id)
++            ->where('location_id', $locationId)
++            ->lockForUpdate()
++            ->first();
++        if (! $loc) {
++            $loc = TenantInventoryItemLocation::create([
++                'tenant_id' => $so->tenant_id, 'inventory_item_id' => $item->id, 'location_id' => $locationId,
++                'computed_stock_count' => 0, 'reserved_count' => 0, 'is_active' => true,
++            ]);
++            $loc = TenantInventoryItemLocation::where('id', $loc->id)->lockForUpdate()->first();
++        }
++
++        $res = TenantInventoryReservation::create([
++            'tenant_id'         => $so->tenant_id,
++            'inventory_item_id' => $item->id,
++            'location_id'       => $locationId,
++            'sale_id'           => null,
++            'sale_item_id'      => null,
++            'special_order_id'  => $so->id,
++            'quantity'          => $qty,
++            'status'            => TenantInventoryReservation::ACTIVE,
++            'created_at'        => now(),
++        ]);
++
++        $this->movement($so->tenant_id, $item, $locationId, 'reserve', $qty, $res->id, 'Held for special order ' . $so->so_number);
++
++        $loc->reserved_count += $qty;
++        $loc->save();
++
++        return $res;
++    }
++
++    /** Active holds a special order has, at any location. */
++    public function activeForSpecialOrder(string $specialOrderId): \Illuminate\Support\Collection
++    {
++        return TenantInventoryReservation::active()->where('special_order_id', $specialOrderId)->get();
++    }
++
++    /** Release every active hold of a special order. Returns units released. */
++    public function releaseForSpecialOrder(string $specialOrderId, string $reason): int
++    {
++        $n = 0;
++        foreach ($this->activeForSpecialOrder($specialOrderId) as $res) {
++            $this->release($res, $reason);
++            $n += (int) $res->quantity;
++        }
++
++        return $n;
++    }
++
++    /** Consume every active hold of a special order (the units leave with it). */
++    public function consumeForSpecialOrder(string $specialOrderId): int
++    {
++        $n = 0;
++        foreach ($this->activeForSpecialOrder($specialOrderId) as $res) {
++            $this->consume($res);
++            $n += (int) $res->quantity;
++        }
++
++        return $n;
++    }
++
+     /** Release everything a sale holds. Used on cancel. */
+     public function releaseAllForSale(TenantSale $sale, string $reason): int
+     {
+diff --git a/app/Services/Tenant/SaleService.php b/app/Services/Tenant/SaleService.php
+index 36580c67..b599d829 100644
+--- a/app/Services/Tenant/SaleService.php
++++ b/app/Services/Tenant/SaleService.php
+@@ -1010,8 +1010,29 @@ class SaleService
+                 // only sellable dispositions put goods
+                 // back on the shelf. The rest record where the item went; the
+                 // vendor-return / warranty workflows consume that data later.
+-                if ($line->type === 'product' && in_array($dispo, self::DISPOSITIONS_RESTOCK, true)) {
+-                    $this->inventory->incrementForRefund($refund, $line, $refundLocationId);
++                // MARKER-SO-HANDOVER: a refunded line that is a special order not
++                // yet handed over. Units that waited for handover never left
++                // stock, so they aren't "returned"; and the order itself needs
++                // a next step (asked once, then applied).
++                $restockQty = null;
++                if ($line->type === 'product') {
++                    $lineSo = \App\Models\Tenant\TenantSpecialOrder::where('tenant_id', $tenantId)
++                        ->where('sale_item_id', $orig->id)
++                        ->whereIn('status', [\App\Models\Tenant\TenantSpecialOrder::STATUS_NEEDED, \App\Models\Tenant\TenantSpecialOrder::STATUS_ORDERED, \App\Models\Tenant\TenantSpecialOrder::STATUS_ARRIVED])
++                        ->first();
++                    if ($lineSo) {
++                        if ($lineSo->line_stock_deferred) {
++                            $restockQty = max(0, (int) ceil($qty) - min((int) $lineSo->quantity, (int) ceil($qty)));
++                        }
++                        app(\App\Services\Tenant\SpecialOrderService::class)->resolveForRemoval(
++                            $lineSo, 'refund', 'Its sale was refunded on ' . $refund->sale_number . '.'
++                        );
++                    }
++                }
++
++                if ($line->type === 'product' && in_array($dispo, self::DISPOSITIONS_RESTOCK, true)
++                    && ($restockQty === null || $restockQty > 0)) {
++                    $this->inventory->incrementForRefund($refund, $line, $refundLocationId, $restockQty);
+                 }
+             }
+ 
+diff --git a/app/Services/Tenant/SpecialOrderNotifier.php b/app/Services/Tenant/SpecialOrderNotifier.php
+new file mode 100644
+index 00000000..15bbb394
+--- /dev/null
++++ b/app/Services/Tenant/SpecialOrderNotifier.php
+@@ -0,0 +1,190 @@
++<?php
++
++namespace App\Services\Tenant;
++
++use App\Models\Tenant;
++use App\Models\Tenant\TenantEmailTemplate;
++use App\Models\Tenant\TenantSpecialOrder;
++use App\Services\EmailService;
++use App\Services\Sms\SmsService;
++use Illuminate\Support\Collection;
++use Illuminate\Support\Facades\Log;
++
++/**
++ * MARKER-SO-HANDOVER: "your part is here".
++ *
++ * A prompt, not an automatic send: after a shipment fills special orders (or
++ * from the Arrived bench) the person sees who would be told and how, can
++ * change the wording, and sends or skips. Channels follow the customer's
++ * details and the shop's notification settings (Communication Center →
++ * Special order arrived). A work-order part can also alert the team.
++ */
++class SpecialOrderNotifier
++{
++    public const TEMPLATE = 'special_order_arrived';
++
++    public const DEFAULT_SUBJECT = '{{shop_name}}: your {{item}} is here';
++
++    public const DEFAULT_BODY = "Hi {{first_name}}, your {{item}} is here and waiting for you at {{location}}. — {{shop_name}}";
++
++    public function __construct(private readonly Tenant $tenant) {}
++
++    public static function forTenant(Tenant $tenant): self
++    {
++        return new self($tenant);
++    }
++
++    private function smsReady(): bool
++    {
++        return (bool) ($this->tenant->sms_enabled && $this->tenant->twilio_account_sid && $this->tenant->twilio_auth_token);
++    }
++
++    /** The wording shown in the dialog: the shop's own template if it has one, else the default. */
++    public function defaultMessage(): string
++    {
++        $tpl = TenantEmailTemplate::where('tenant_id', $this->tenant->id)->where('template_type', self::TEMPLATE)->first();
++        if ($tpl && $tpl->is_enabled && trim((string) $tpl->body_html) !== '') {
++            $text = trim(preg_replace("/\n{3,}/", "\n\n", html_entity_decode(strip_tags(str_replace(['</p>', '<br>', '<br/>', '<br />'], "\n", (string) $tpl->body_html)))));
++            if ($text !== '') {
++                return $text;
++            }
++        }
++
++        return self::DEFAULT_BODY;
++    }
++
++    public function subject(): string
++    {
++        $tpl = TenantEmailTemplate::where('tenant_id', $this->tenant->id)->where('template_type', self::TEMPLATE)->first();
++
++        return ($tpl && $tpl->is_enabled && trim((string) $tpl->subject) !== '') ? (string) $tpl->subject : self::DEFAULT_SUBJECT;
++    }
++
++    /**
++     * One row per order for the dialog.
++     *
++     * @param  Collection<int, TenantSpecialOrder>  $orders
++     */
++    public function rows(Collection $orders): array
++    {
++        $emailOn = $this->tenant->notificationEnabled(self::TEMPLATE . '_email');
++        $smsOn   = $this->tenant->notificationEnabled(self::TEMPLATE . '_sms');
++        $smsReady = $this->smsReady();
++
++        return $orders->map(function (TenantSpecialOrder $so) use ($emailOn, $smsOn, $smsReady) {
++            $so->loadMissing('customer', 'appointment', 'location');
++            $c = $so->customer;
++            $email = $c?->email;
++            $phone = $c?->phone;
++            $notes = [];
++            if ($so->appointment) {
++                $notes[] = $so->appointment->ra_number;
++            }
++            $hold = SpecialOrderService::holdState($so);
++            if ($so->location && $hold['at'] && $hold['at'] !== $so->location->name) {
++                $notes[] = 'picks up at ' . $so->location->name;
++            }
++
++            $channels = [];
++            $channels[] = [
++                'key' => 'email', 'label' => 'Email',
++                'available' => (bool) $email,
++                'on' => (bool) $email && $emailOn,
++                'why' => $email ? null : 'No email on file',
++            ];
++            $smsWhy = ! $phone ? 'No mobile number on file' : (! $smsReady ? 'Texting is not set up' : null);
++            $channels[] = [
++                'key' => 'sms', 'label' => 'Text',
++                'available' => $smsWhy === null,
++                'on' => $smsWhy === null && $smsOn,
++                'why' => $smsWhy,
++            ];
++            if ($so->appointment_id) {
++                $channels[] = ['key' => 'staff', 'label' => 'Alert staff', 'available' => true, 'on' => true, 'why' => null];
++            }
++
++            return [
++                'id'        => $so->id,
++                'so_number' => $so->so_number,
++                'item'      => $so->item_name_snapshot,
++                'who'       => $c ? trim(($c->first_name ?? '') . ' ' . ($c->last_name ?? '')) : ($so->appointment ? 'Work order ' . $so->appointment->ra_number : 'Shop stock'),
++                'note'      => implode(' · ', $notes),
++                'channels'  => $channels,
++                'told'      => $so->notified_at ? ($so->notified_via . ' · ' . tlocal_date($so->notified_at)) : null,
++            ];
++        })->values()->all();
++    }
++
++    /**
++     * Send. $picks: [orderId => ['email' => bool, 'sms' => bool, 'staff' => bool]].
++     * Returns ['email' => n, 'sms' => n, 'staff' => n, 'none' => n].
++     */
++    public function send(Collection $orders, array $picks, ?string $message): array
++    {
++        $message = trim((string) $message) !== '' ? mb_substr(trim((string) $message), 0, 1000) : $this->defaultMessage();
++        $subjectTpl = $this->subject();
++        $count = ['email' => 0, 'sms' => 0, 'staff' => 0, 'none' => 0];
++        $svc = app(SpecialOrderService::class);
++
++        foreach ($orders as $so) {
++            $so->loadMissing('customer', 'appointment', 'location');
++            $want = (array) ($picks[$so->id] ?? []);
++            $c = $so->customer;
++            $hold = SpecialOrderService::holdState($so);
++            $vars = [
++                'first_name' => $c?->first_name ?: 'there',
++                'item'       => $so->item_name_snapshot,
++                'location'   => $so->location?->name ?: ($hold['at'] ?: $this->tenant->name),
++                'shop_name'  => $this->tenant->name,
++                'so_number'  => $so->so_number,
++            ];
++            $text = self::fill($message, $vars);
++            $via = [];
++
++            if (! empty($want['email']) && $c?->email && $this->tenant->notificationEnabled(self::TEMPLATE . '_email')) {
++                try {
++                    $mail = EmailService::forTenant($this->tenant);
++                    $html = $mail->renderHtml(nl2br(e($text)));
++                    if ($mail->sendRendered(self::TEMPLATE, $c->email, self::fill($subjectTpl, $vars), $html)) {
++                        $via[] = 'Email';
++                        $count['email']++;
++                    }
++                } catch (\Throwable $e) {
++                    Log::error('special_order.notify_email_failed', ['so' => $so->id, 'error' => $e->getMessage()]);
++                }
++            }
++            if (! empty($want['sms']) && $c?->phone && $this->smsReady() && $this->tenant->notificationEnabled(self::TEMPLATE . '_sms')) {
++                try {
++                    SmsService::send($this->tenant, $c->phone, $text . ' Reply STOP to opt out.', 'other');
++                    $via[] = 'Text';
++                    $count['sms']++;
++                } catch (\Throwable $e) {
++                    Log::error('special_order.notify_sms_failed', ['so' => $so->id, 'error' => $e->getMessage()]);
++                }
++            }
++            if (! empty($want['staff']) && $so->appointment_id) {
++                app(StaffAlertService::class)->emit($this->tenant, 'special_order.arrived', [
++                    'title' => "Part arrived for {$so->appointment?->ra_number}: {$so->item_name_snapshot}",
++                    'body'  => "{$so->so_number} is on the bench" . ($hold['at'] ? " at {$hold['at']}" : '') . '.',
++                    'link'  => route('tenant.special-orders.show', ['id' => $so->id]),
++                ]);
++                $via[] = 'Staff alerted';
++                $count['staff']++;
++            }
++
++            if ($via) {
++                $so->forceFill(['notified_at' => now(), 'notified_via' => implode(', ', $via)])->save();
++                $svc->addNote($so->id, null, 'Told: ' . implode(', ', $via) . '.', true);
++            } else {
++                $count['none']++;
++            }
++        }
++
++        return $count;
++    }
++
++    public static function fill(string $text, array $vars): string
++    {
++        return preg_replace_callback('/\{\{\s*([a-z_]+)\s*\}\}/', fn ($m) => (string) ($vars[$m[1]] ?? $m[0]), $text);
++    }
++}
+diff --git a/app/Services/Tenant/SpecialOrderService.php b/app/Services/Tenant/SpecialOrderService.php
+index 23c434c4..ab919f5d 100644
+--- a/app/Services/Tenant/SpecialOrderService.php
++++ b/app/Services/Tenant/SpecialOrderService.php
+@@ -4,6 +4,7 @@ namespace App\Services\Tenant;
+ 
+ use App\Models\Tenant\TenantInventoryItem;
+ use App\Models\Tenant\TenantInventoryItemVendor;
++use App\Models\Tenant\TenantInventoryReservation;
+ use App\Models\Tenant\TenantSpecialOrder;
+ use App\Models\Tenant\TenantSpecialOrderCounter;
+ use App\Models\Tenant\TenantSpecialOrderNote;
+@@ -303,8 +304,10 @@ class SpecialOrderService
+             $this->cancel($linked->id, 'Removed from work order (part special-order unchecked).');
+             $part->forceFill(['special_order_id' => null])->saveQuietly();
+         } elseif ($linkedIsLive) {
+-            // Already ordered/arrived — can't un-order from a checkbox; re-check it.
+-            $part->forceFill(['is_special_order' => true])->saveQuietly();
++            // MARKER-SO-HANDOVER: already ordered/arrived. It used to be forced
++            // back on; now the person chooses what happens to it (asked once).
++            $this->resolveForRemoval($linked, 'part_removed', 'Unticked on work order ' . ($appt->ra_number ?: '') . '.');
++            $part->forceFill(['special_order_id' => null])->saveQuietly();
+         } else {
+             $part->forceFill(['special_order_id' => null])->saveQuietly();
+         }
+@@ -393,9 +396,10 @@ class SpecialOrderService
+         ?string $vendorInvoiceNumber = null,
+         ?string $vendorInvoiceDate = null,
+         bool $moveStock = false,
+-        ?\App\Models\Tenant\TenantUser $byUser = null
++        ?\App\Models\Tenant\TenantUser $byUser = null,
++        ?string $atLocationId = null
+     ): TenantSpecialOrder {
+-        $result = DB::transaction(function () use ($id, $receivedQty, $actualUnitCostCents, $vendorInvoiceNumber, $vendorInvoiceDate, $moveStock, $byUser) {
++        $result = DB::transaction(function () use ($id, $receivedQty, $actualUnitCostCents, $vendorInvoiceNumber, $vendorInvoiceDate, $moveStock, $byUser, $atLocationId) {
+             $so = $this->findOrFail($id);
+             $this->validateTransition($so, TenantSpecialOrder::STATUS_ARRIVED);
+ 
+@@ -436,6 +440,16 @@ class SpecialOrderService
+                 'vendor_invoice_date'    => $vendorInvoiceDate ?? $so->vendor_invoice_date,
+             ]);
+ 
++            // MARKER-SO-HANDOVER: hold the units for whoever is waiting, where
++            // they actually landed (the shipment's location, or the pickup
++            // location for a hand arrival).
++            if ($so->inventory_item_id) {
++                $holdAt = $atLocationId ?: ($so->location_id ?: self::defaultLocationId($so->tenant_id));
++                if ($holdAt) {
++                    $stockNote .= $this->holdOnArrival($so->fresh(), $holdAt);
++                }
++            }
++
+             // Vendor pivot housekeeping — update last_ordered_at for
+             // the (item, vendor) pair so future "preferred vendor" reads
+             // can recompute lead time fresh.
+@@ -682,6 +696,540 @@ class SpecialOrderService
+         }
+     }
+ 
++    // ────────────────────────────────────────────────────────
++    //  MARKER-SO-HANDOVER: holds, handover, release, notices
++    // ────────────────────────────────────────────────────────
++
++    /**
++     * The open special order behind a sale line, linking it on first sight.
++     * A special order raised from the register (or attached to a cart from
++     * "Ready for pickup") carries the sale it belongs to; the line it maps to
++     * is found by item. Returns null when the line is ordinary stock.
++     */
++    public static function linkToSaleLine(\App\Models\Tenant\TenantSale $sale, \App\Models\Tenant\TenantSaleItem $line): ?TenantSpecialOrder
++    {
++        if ($line->type !== 'product' || ! $line->inventory_item_id) {
++            return null;
++        }
++        $open = [TenantSpecialOrder::STATUS_NEEDED, TenantSpecialOrder::STATUS_ORDERED, TenantSpecialOrder::STATUS_ARRIVED];
++
++        $so = TenantSpecialOrder::where('tenant_id', $sale->tenant_id)
++            ->where('sale_item_id', $line->id)
++            ->whereIn('status', $open)
++            ->first();
++        if ($so) {
++            return $so;
++        }
++
++        // first sight: an order on this sale, same item, no line yet (or a
++        // line id from a draft whose lines were rewritten)
++        $so = TenantSpecialOrder::where('tenant_id', $sale->tenant_id)
++            ->where('sale_id', $sale->id)
++            ->where('inventory_item_id', $line->inventory_item_id)
++            ->whereIn('status', $open)
++            ->where(function ($q) use ($sale) {
++                $q->whereNull('sale_item_id')
++                  ->orWhereNotIn('sale_item_id', \App\Models\Tenant\TenantSaleItem::where('sale_id', $sale->id)->select('id'));
++            })
++            ->orderBy('created_at')
++            ->first();
++        if ($so) {
++            $so->forceFill(['sale_item_id' => $line->id])->save();
++        }
++
++        return $so;
++    }
++
++    /** True when the sale line behind this order already took its stock at checkout (pre-handover rule). */
++    public static function stockAlreadyTaken(TenantSpecialOrder $so): bool
++    {
++        if (! $so->sale_item_id || $so->line_stock_deferred) {
++            return false;
++        }
++
++        return DB::table('tenant_inventory_movements')
++            ->where('reference_type', 'sale_item')
++            ->where('reference_id', $so->sale_item_id)
++            ->where('movement_type', 'sale')
++            ->exists();
++    }
++
++    /**
++     * After the units arrive at $atLocationId: hold them for whoever is
++     * waiting, at that location. Shop-stock orders hold nothing. When the
++     * customer picks up somewhere else, a transfer request carries the part
++     * (and its hold) to that store.
++     */
++    public function holdOnArrival(TenantSpecialOrder $so, string $atLocationId): string
++    {
++        if (! $so->inventory_item_id) {
++            return ''; // not cataloged: nothing in stock to hold
++        }
++        if (! $so->customer_id && ! $so->appointment_id && ! $so->sale_id) {
++            return ''; // shop stock
++        }
++        if (self::stockAlreadyTaken($so)) {
++            return ' Already counted out of stock on its sale, so no hold is needed.';
++        }
++
++        $res = app(ReservationService::class);
++        $line = $so->sale_item_id ? \App\Models\Tenant\TenantSaleItem::find($so->sale_item_id) : null;
++        $sale = $line ? \App\Models\Tenant\TenantSale::find($line->sale_id) : null;
++        if ($line && $sale) {
++            $res->reserve($sale, $line, $atLocationId, (int) $so->quantity, $so->id);
++        } else {
++            $res->reserveForSpecialOrder($so, $atLocationId);
++        }
++        $locName = \App\Models\Tenant\TenantLocation::where('id', $atLocationId)->value('name') ?? 'this location';
++        $note = " Held for {$this->whoFor($so)} at {$locName}.";
++
++        if ($so->location_id && $so->location_id !== $atLocationId) {
++            $tr = app(TransferRequestService::class)->create([
++                'tenant_id'         => $so->tenant_id,
++                'inventory_item_id' => $so->inventory_item_id,
++                'to_location_id'    => $so->location_id,
++                'from_location_id'  => $atLocationId,
++                'quantity'          => (int) $so->quantity,
++                'sale_id'           => $so->sale_id,
++                'special_order_id'  => $so->id,
++                'notes'             => "Special order {$so->so_number} picks up here",
++            ]);
++            $pickup = \App\Models\Tenant\TenantLocation::where('id', $so->location_id)->value('name') ?? 'its pickup location';
++            $note .= " Picks up at {$pickup}: transfer request made.";
++        }
++
++        return $note;
++    }
++
++    /** A transfer delivered the part to its pickup store: hold it there. */
++    public function holdAtPickup(string $soId, string $locationId): void
++    {
++        $so = TenantSpecialOrder::find($soId);
++        if (! $so || $so->status !== TenantSpecialOrder::STATUS_ARRIVED) {
++            return;
++        }
++        if (app(ReservationService::class)->activeForSpecialOrder($so->id)->isNotEmpty()) {
++            return;
++        }
++        $line = $so->sale_item_id ? \App\Models\Tenant\TenantSaleItem::find($so->sale_item_id) : null;
++        $sale = $line ? \App\Models\Tenant\TenantSale::find($line->sale_id) : null;
++        if ($line && $sale) {
++            app(ReservationService::class)->reserve($sale, $line, $locationId, (int) $so->quantity, $so->id);
++        } elseif ($so->customer_id || $so->appointment_id) {
++            app(ReservationService::class)->reserveForSpecialOrder($so, $locationId);
++        }
++        $name = \App\Models\Tenant\TenantLocation::where('id', $locationId)->value('name') ?? 'the pickup location';
++        $this->writeSystemNote($so, "Arrived at {$name} by transfer; held there.");
++    }
++
++    /** Close an order as handed over. Holds must already be used. */
++    public function markHandedOver(TenantSpecialOrder $so, string $note, ?string $byUserId = null): void
++    {
++        $so->forceFill([
++            'status'                 => TenantSpecialOrder::STATUS_PULLED,
++            'pulled_at'              => now(),
++            'line_stock_deferred'    => false,
++            'handed_over_by_user_id' => $byUserId ?? \Illuminate\Support\Facades\Auth::guard('tenant')->id(),
++        ])->save();
++        $this->writeSystemNote($so, $note);
++    }
++
++    /**
++     * Hand an arrived order to its customer outside a new sale:
++     *  - paid on a sale → the line takes its stock now (if it waited)
++     *  - a work order that is already complete → the part is used now
++     *  - otherwise only with a reason (a warranty swap, paid elsewhere)
++     */
++    public function handOver(string $id, ?string $reason = null): TenantSpecialOrder
++    {
++        return DB::transaction(function () use ($id, $reason) {
++            $so = TenantSpecialOrder::lockForUpdate()->findOrFail($id);
++            if ($so->status !== TenantSpecialOrder::STATUS_ARRIVED) {
++                throw new SpecialOrderValidationException("{$so->so_number} isn't on the bench (it's {$so->statusLabel()}).");
++            }
++            // shop stock: it went into stock when it arrived and nobody is
++            // waiting for it, so closing it changes no stock
++            if (! $so->customer_id && ! $so->appointment_id && ! $so->sale_id) {
++                $this->markHandedOver($so, 'Put away as shop stock. Stock was already counted when it arrived.');
++                return $so->fresh();
++            }
++            $inv = app(InventoryService::class);
++            $line = $so->sale_item_id ? \App\Models\Tenant\TenantSaleItem::find($so->sale_item_id) : null;
++            $sale = $line ? \App\Models\Tenant\TenantSale::find($line->sale_id) : null;
++
++            if ($sale && in_array($sale->payment_status, ['paid', 'partial'], true) && $sale->refund_of_sale_id === null) {
++                $plan = \App\Models\Tenant\TenantLayawayPlan::where('sale_id', $sale->id)->whereIn('status', ['active', 'ready'])->first();
++                if ($plan) {
++                    throw new SpecialOrderValidationException("{$so->so_number} is on a layaway. Hand the layaway over at the register; that hands this over too.");
++                }
++                if ($so->line_stock_deferred) {
++                    $hold = app(ReservationService::class)->activeForSpecialOrder($so->id)->first();
++                    $loc = $hold?->location_id ?? $so->location_id ?? $sale->location_id;
++                    $inv->decrementForSaleItem($sale, $line, $loc, false, (int) $so->quantity);
++                }
++                app(ReservationService::class)->consumeForSpecialOrder($so->id);
++                $this->markHandedOver($so, 'Handed over (paid on ' . ($sale->sale_number ?: 'its sale') . ').' . ($reason ? " {$reason}" : ''));
++                return $so->fresh();
++            }
++
++            if ($so->appointment_id) {
++                $appt = \App\Models\Tenant\TenantAppointment::where('tenant_id', $so->tenant_id)->find($so->appointment_id);
++                $part = \App\Models\Tenant\TenantAppointmentPart::where('special_order_id', $so->id)->whereNull('committed_at')->first();
++                if ($appt && $part && \App\Services\Tenant\AppointmentInventoryService::isCommittedStatus($appt->status)) {
++                    $hold = app(ReservationService::class)->activeForSpecialOrder($so->id)->first();
++                    $loc = $hold?->location_id ?? $so->location_id ?? self::defaultLocationId($so->tenant_id);
++                    $inv->decrementForAppointmentPart($appt, $part, $loc); // uses the hold, marks handed over
++                    return $so->fresh();
++                }
++                if ($appt && $part) {
++                    throw new SpecialOrderValidationException("Complete work order {$appt->ra_number} to hand this over; completing it uses the part.");
++                }
++            }
++
++            if (! $reason) {
++                throw new SpecialOrderValidationException('This order has not been paid. Ring it up at the register, or give a reason to hand it over without a sale.');
++            }
++            // without a sale: the units leave stock as an adjustment with the reason
++            $hold = app(ReservationService::class)->activeForSpecialOrder($so->id)->first();
++            $locId = $hold?->location_id ?? $so->location_id ?? self::defaultLocationId($so->tenant_id);
++            app(ReservationService::class)->consumeForSpecialOrder($so->id);
++            if ($so->inventory_item_id && $locId) {
++                $tenant = \App\Models\Tenant::findOrFail($so->tenant_id);
++                $item = \App\Models\Tenant\TenantInventoryItem::where('tenant_id', $so->tenant_id)->findOrFail($so->inventory_item_id);
++                $location = \App\Models\Tenant\TenantLocation::where('tenant_id', $so->tenant_id)->findOrFail($locId);
++                app(\App\Services\Pos\InventoryService::class)->decrementStock(
++                    tenant: $tenant, item: $item, location: $location, quantity: (int) $so->quantity,
++                    referenceType: 'special_order', referenceId: $so->id,
++                    tenantUser: \Illuminate\Support\Facades\Auth::guard('tenant')->user(),
++                    reason: 'Handed over without a sale', notes: "{$so->so_number}: {$reason}", movementType: 'adjustment',
++                );
++            }
++            $so->forceFill(['handover_note' => $reason])->save();
++            $this->markHandedOver($so, "Handed over without a sale: {$reason}");
++            return $so->fresh();
++        });
++    }
++
++    /**
++     * What happens to an order when what it was for goes away (a cancel, a
++     * refund, a removed line or part, a cancelled job). Returns the question
++     * to ask, or null when there is nothing to choose (a needed order simply
++     * cancels).
++     */
++    public function choiceField(TenantSpecialOrder $so, string $context): ?array
++    {
++        $first = $so->customer?->first_name ?: 'the customer';
++        $label = "{$so->so_number} · {$so->item_name_snapshot}";
++        if ($so->status === TenantSpecialOrder::STATUS_ORDERED) {
++            $opts = [['value' => 'stock', 'label' => 'Keep it coming as shop stock', 'help' => 'It still arrives and goes into stock. Nobody is waiting for it.']];
++            if ($context !== 'cancel' && $so->customer_id) {
++                $opts[] = ['value' => 'customer', 'label' => "Keep it ordered for {$first}", 'help' => 'It stays their special order, unpaid. Ring it up when it arrives.'];
++            }
++            $note = 'on order' . ($so->expected_arrival_date ? ', due ' . $so->expected_arrival_date->format('M j') : '');
++        } elseif ($so->status === TenantSpecialOrder::STATUS_ARRIVED) {
++            $opts = [['value' => 'stock', 'label' => 'Put it into shop stock', 'help' => 'The hold is released and the part stays in stock for anyone to buy.']];
++            if ($context !== 'cancel' && $so->customer_id) {
++                $opts[] = ['value' => 'customer', 'label' => "Keep it held for {$first}", 'help' => 'It stays their special order on its own. Hand it over at the register.'];
++            }
++            $note = 'on the bench';
++        } else {
++            return null;
++        }
++
++        return ['id' => $so->id, 'label' => $label, 'note' => $note, 'options' => $opts, 'default' => $opts[0]['value']];
++    }
++
++    /**
++     * Apply a choice. 'stock': the order stops being anyone's (an ordered part
++     * becomes shop stock on the way; an arrived one is released into stock and
++     * the order closes). 'customer': it stays the customer's own order,
++     * detached from the sale or job it was on. A needed order just cancels.
++     */
++    public function release(TenantSpecialOrder $so, string $mode, string $why): void
++    {
++        $res = app(ReservationService::class);
++        if ($so->status === TenantSpecialOrder::STATUS_NEEDED) {
++            $this->cancel($so->id, $why);
++            return;
++        }
++        if (! in_array($so->status, [TenantSpecialOrder::STATUS_ORDERED, TenantSpecialOrder::STATUS_ARRIVED], true)) {
++            return;
++        }
++
++        if ($mode === 'customer' && $so->customer_id) {
++            $locId = $res->activeForSpecialOrder($so->id)->first()?->location_id;
++            $res->releaseForSpecialOrder($so->id, 'moved_to_order');
++            $so->forceFill(['sale_id' => null, 'sale_item_id' => null, 'appointment_id' => null, 'line_stock_deferred' => false])->save();
++            if ($so->status === TenantSpecialOrder::STATUS_ARRIVED && $so->inventory_item_id && $locId) {
++                $res->reserveForSpecialOrder($so->fresh(), $locId);
++            }
++            $this->writeSystemNote($so, "{$why} Kept for {$this->whoFor($so)} as their own order (unpaid).");
++            return;
++        }
++
++        if ($so->status === TenantSpecialOrder::STATUS_ARRIVED) {
++            $res->releaseForSpecialOrder($so->id, 'released_to_stock');
++            $so->forceFill([
++                'status' => TenantSpecialOrder::STATUS_CANCELLED, 'cancelled_at' => now(),
++                'cancellation_reason' => mb_substr("Released to shop stock. {$why}", 0, 500), 'line_stock_deferred' => false,
++            ])->save();
++            $this->writeSystemNote($so, "Released to shop stock. {$why}");
++            return;
++        }
++
++        // ordered → shop stock on the way
++        $so->forceFill(['customer_id' => null, 'appointment_id' => null, 'sale_id' => null, 'sale_item_id' => null, 'line_stock_deferred' => false])->save();
++        $this->writeSystemNote($so, "Now shop stock: it still arrives and goes into stock. {$why}");
++    }
++
++    /**
++     * Cancel from the bench or the order page. A placed order can't be
++     * cancelled with the vendor from here, so it stays coming as shop stock;
++     * an arrived one is released into stock.
++     */
++    public function cancelWithChoice(string $id, ?string $reason): TenantSpecialOrder
++    {
++        return DB::transaction(function () use ($id, $reason) {
++            $so = TenantSpecialOrder::lockForUpdate()->findOrFail($id);
++            $why = $reason ? "Cancelled: {$reason}." : 'Cancelled.';
++            if ($so->status === TenantSpecialOrder::STATUS_NEEDED) {
++                return $this->cancel($so->id, $reason);
++            }
++            if ($so->status === TenantSpecialOrder::STATUS_ORDERED && ! $so->customer_id && ! $so->appointment_id && ! $so->sale_id) {
++                // already shop stock: nothing to keep; it just stops being tracked
++                $this->cancel($so->id, ($reason ? "{$reason}. " : '') . 'If it still arrives, receive it as normal stock.');
++                return $so->fresh();
++            }
++            $field = $this->choiceField($so, 'cancel');
++            if ($field && ! \App\Exceptions\SpecialOrderChoiceRequired::picked($so->id)) {
++                $paid = $so->sale_id ? \App\Models\Tenant\TenantSale::where('id', $so->sale_id)->whereIn('payment_status', ['paid', 'partial'])->value('sale_number') : null;
++                throw new \App\Exceptions\SpecialOrderChoiceRequired(
++                    "Cancel {$so->so_number}?",
++                    $so->status === TenantSpecialOrder::STATUS_ARRIVED
++                        ? "{$so->item_name_snapshot} is on the bench, held for {$this->whoFor($so)}." . ($paid ? " It was paid on {$paid}; cancelling doesn't refund it — refund it from the sale." : '')
++                        : "{$so->item_name_snapshot} is already on order, and Intake can't cancel it with the vendor." . ($paid ? " It was paid on {$paid}; cancelling doesn't refund it — refund it from the sale." : ''),
++                    [$field], 'Cancel order', true, ['required' => false, 'placeholder' => 'Reason (optional)']
++                );
++            }
++            $this->release($so, 'stock', $why);
++            return $so->fresh();
++        });
++    }
++
++    /** Before an order on a line/part/job goes away, ask what happens to it (or apply the answer). */
++    public function resolveForRemoval(TenantSpecialOrder $so, string $context, string $why): void
++    {
++        $field = $this->choiceField($so, $context);
++        if (! $field) {
++            $this->release($so, 'stock', $why);
++            return;
++        }
++        $picked = \App\Exceptions\SpecialOrderChoiceRequired::picked($so->id);
++        if (! $picked) {
++            $titles = [
++                'line_removed' => "Remove {$so->item_name_snapshot}?",
++                'part_removed' => "Remove {$so->item_name_snapshot} from the work order?",
++                'refund'       => 'What happens to the special order?',
++            ];
++            throw new \App\Exceptions\SpecialOrderChoiceRequired(
++                $titles[$context] ?? 'What happens to the special order?',
++                "{$so->so_number} is " . $field['note'] . '.',
++                [$field], $context === 'refund' ? 'Continue' : 'Remove', $context !== 'refund'
++            );
++        }
++        $this->release($so, $picked === 'customer' ? 'customer' : 'stock', $why);
++    }
++
++    /** A register line with an order was removed: ask (or apply) what happens to the order. */
++    public function removeFromSale(string $id, string $why): TenantSpecialOrder
++    {
++        return DB::transaction(function () use ($id, $why) {
++            $so = TenantSpecialOrder::lockForUpdate()->findOrFail($id);
++            if (in_array($so->status, TenantSpecialOrder::STATUSES_OPEN, true)) {
++                $this->resolveForRemoval($so, 'line_removed', $why);
++            }
++            return $so->fresh();
++        });
++    }
++
++    /** Several orders at once (a cancelled job, a refund with several lines). */
++    public function resolveManyForRemoval(iterable $orders, string $title, string $message, string $confirm, string $why): void
++    {
++        $fields = [];
++        $todo = [];
++        foreach ($orders as $so) {
++            $field = $this->choiceField($so, 'removed');
++            if ($field && ! \App\Exceptions\SpecialOrderChoiceRequired::picked($so->id)) {
++                $fields[] = $field;
++            }
++            $todo[] = [$so, $field];
++        }
++        if ($fields) {
++            throw new \App\Exceptions\SpecialOrderChoiceRequired($title, $message, $fields, $confirm, true);
++        }
++        foreach ($todo as [$so, $field]) {
++            $picked = $field ? \App\Exceptions\SpecialOrderChoiceRequired::picked($so->id) : null;
++            $this->release($so, $picked === 'customer' ? 'customer' : 'stock', $why);
++        }
++    }
++
++    /** The part was sold to someone else (hold overridden): order it again. */
++    public function backToNeeded(string $soId, string $note): void
++    {
++        $so = TenantSpecialOrder::find($soId);
++        if (! $so || $so->status !== TenantSpecialOrder::STATUS_ARRIVED) {
++            return;
++        }
++        app(ReservationService::class)->releaseForSpecialOrder($so->id, 'back_to_needed');
++        $so->forceFill(['status' => TenantSpecialOrder::STATUS_NEEDED, 'arrived_at' => null, 'ordered_at' => null, 'notified_at' => null, 'notified_via' => null])->save();
++        $this->writeSystemNote($so, $note);
++    }
++
++    /** A job that used the part was reopened: the part is back on the bench, held. */
++    public function backToArrived(string $soId, string $locationId, string $note): void
++    {
++        $so = TenantSpecialOrder::find($soId);
++        if (! $so || $so->status !== TenantSpecialOrder::STATUS_PULLED) {
++            return;
++        }
++        $so->forceFill(['status' => TenantSpecialOrder::STATUS_ARRIVED, 'pulled_at' => null, 'handed_over_by_user_id' => null])->save();
++        if ($so->inventory_item_id) {
++            app(ReservationService::class)->reserveForSpecialOrder($so->fresh(), $locationId);
++        }
++        $this->writeSystemNote($so, $note);
++    }
++
++    /**
++     * Hold an order that arrived before holds existed, after the person
++     * checked the shelf. Refuses when the stock isn't there to hold.
++     */
++    public function holdNow(string $id): TenantSpecialOrder
++    {
++        return DB::transaction(function () use ($id) {
++            $so = TenantSpecialOrder::lockForUpdate()->findOrFail($id);
++            if ($so->status !== TenantSpecialOrder::STATUS_ARRIVED || ! $so->inventory_item_id) {
++                throw new SpecialOrderValidationException('Only an arrived, cataloged order can be held.');
++            }
++            if (! $so->customer_id && ! $so->appointment_id && ! $so->sale_id) {
++                throw new SpecialOrderValidationException("{$so->so_number} is shop stock; nobody is waiting for it, so there's nothing to hold.");
++            }
++            if (app(ReservationService::class)->activeForSpecialOrder($so->id)->isNotEmpty() || self::stockAlreadyTaken($so)) {
++                return $so; // nothing to do
++            }
++            $locId = $so->location_id ?: self::defaultLocationId($so->tenant_id);
++            $loc = \App\Models\Tenant\TenantInventoryItemLocation::where('inventory_item_id', $so->inventory_item_id)->where('location_id', $locId)->lockForUpdate()->first();
++            $available = $loc ? (int) $loc->computed_stock_count - (int) $loc->reserved_count : 0;
++            if ($available < (int) $so->quantity) {
++                throw new SpecialOrderValidationException("There isn't {$so->quantity} available to hold (" . max(0, $available) . ' free in stock). If it isn\'t on the shelf, mark it missing.');
++            }
++            $note = $this->holdOnArrivalNoTransfer($so, $locId);
++            $this->writeSystemNote($so, 'Held after a shelf check.' . $note);
++            return $so->fresh();
++        });
++    }
++
++    private function holdOnArrivalNoTransfer(TenantSpecialOrder $so, string $locId): string
++    {
++        $loc = $so->location_id;
++        $so->location_id = $locId; // same store: no transfer
++        $note = $this->holdOnArrival($so, $locId);
++        $so->location_id = $loc;
++        return $note;
++    }
++
++    /** It isn't on the shelf: the order goes back to Needed so it can be ordered again. */
++    public function markMissing(string $id): TenantSpecialOrder
++    {
++        return DB::transaction(function () use ($id) {
++            $so = TenantSpecialOrder::lockForUpdate()->findOrFail($id);
++            if ($so->status !== TenantSpecialOrder::STATUS_ARRIVED) {
++                throw new SpecialOrderValidationException("{$so->so_number} isn't on the bench.");
++            }
++            $this->backToNeeded($so->id, "Marked missing from the shelf. Order it again. Stock for {$so->item_name_snapshot} wasn't changed; count it if it's wrong.");
++            return $so->fresh();
++        });
++    }
++
++    /** Put an arrived order for a customer onto the sale being rung up ("Ready for pickup"). */
++    public function attachToSale(string $id, string $saleId): TenantSpecialOrder
++    {
++        return DB::transaction(function () use ($id, $saleId) {
++            $so = TenantSpecialOrder::lockForUpdate()->findOrFail($id);
++            $sale = \App\Models\Tenant\TenantSale::where('tenant_id', $so->tenant_id)->findOrFail($saleId);
++            if ($so->status !== TenantSpecialOrder::STATUS_ARRIVED) {
++                throw new SpecialOrderValidationException("{$so->so_number} isn't on the bench.");
++            }
++            if ($so->sale_id && $so->sale_id !== $sale->id) {
++                throw new SpecialOrderValidationException("{$so->so_number} already belongs to another sale. Hand it over from there.");
++            }
++            if (! in_array($sale->payment_status, ['draft', 'quote', 'unpaid'], true)) {
++                throw new SpecialOrderValidationException('Add it to a sale that is still being rung up.');
++            }
++            $so->forceFill(['sale_id' => $sale->id, 'sale_item_id' => null])->save();
++            $this->writeSystemNote($so, 'Added to sale ' . ($sale->sale_number ?: 'at the register') . ' for handover at checkout.');
++            return $so->fresh();
++        });
++    }
++
++    /** "the customer's name" or "work order RA-1" or "shop stock". */
++    public function whoFor(TenantSpecialOrder $so): string
++    {
++        $so->loadMissing('customer', 'appointment');
++        if ($so->customer) {
++            return trim(($so->customer->first_name ?? '') . ' ' . ($so->customer->last_name ?? '')) ?: 'the customer';
++        }
++        if ($so->appointment) {
++            return 'work order ' . $so->appointment->ra_number;
++        }
++        return 'shop stock';
++    }
++
++    /**
++     * How an arrived order gets to its person, for the bench and the order
++     * page: kind = paid | unpaid | job | layaway | stock, with a short label
++     * and where to go when the handover happens elsewhere.
++     */
++    public static function handoverContext(TenantSpecialOrder $so): array
++    {
++        $so->loadMissing('appointment');
++        $sale = $so->sale_id ? \App\Models\Tenant\TenantSale::find($so->sale_id) : null;
++        if ($sale) {
++            $plan = \App\Models\Tenant\TenantLayawayPlan::where('sale_id', $sale->id)->whereIn('status', ['active', 'ready'])->first();
++            if ($plan) {
++                return ['kind' => 'layaway', 'label' => 'Layaway ' . ($sale->sale_number ?: ''), 'url' => route('tenant.register.layaways.show', ['plan' => $plan->id]), 'sale' => $sale->sale_number];
++            }
++            if (in_array($sale->payment_status, ['paid', 'partial'], true) && $sale->refund_of_sale_id === null) {
++                return ['kind' => 'paid', 'label' => 'Paid on ' . ($sale->sale_number ?: 'its sale'), 'url' => null, 'sale' => $sale->sale_number];
++            }
++        }
++        if ($so->appointment_id && $so->appointment) {
++            return ['kind' => 'job', 'label' => $so->appointment->ra_number ?: 'Work order', 'url' => route('tenant.appointments.show', $so->appointment_id), 'sale' => null];
++        }
++        if ($so->customer_id) {
++            return ['kind' => 'unpaid', 'label' => 'Not paid yet', 'url' => null, 'sale' => $sale?->sale_number];
++        }
++
++        return ['kind' => 'stock', 'label' => 'Shop stock', 'url' => null, 'sale' => null];
++    }
++
++    /**
++     * The bench row's hold state: ['state' => held|taken|none, 'at' => location name].
++     */
++    public static function holdState(TenantSpecialOrder $so): array
++    {
++        $hold = TenantInventoryReservation::active()->where('special_order_id', $so->id)->first();
++        if (! $hold && $so->inventory_item_id && ! $so->customer_id && ! $so->appointment_id && ! $so->sale_id) {
++            return ['state' => 'stock', 'at' => null]; // nobody waiting: nothing to hold
++        }
++        if ($hold) {
++            return ['state' => 'held', 'at' => \App\Models\Tenant\TenantLocation::where('id', $hold->location_id)->value('name')];
++        }
++        if (self::stockAlreadyTaken($so)) {
++            return ['state' => 'taken', 'at' => null];
++        }
++        return ['state' => $so->inventory_item_id ? 'none' : 'uncataloged', 'at' => null];
++    }
++
+     // ────────────────────────────────────────────────────────
+     //  MARKER-SO-REPAIRS helpers
+     // ────────────────────────────────────────────────────────
+diff --git a/app/Services/Tenant/StaffAlertService.php b/app/Services/Tenant/StaffAlertService.php
+index c3d8d39e..218c4999 100644
+--- a/app/Services/Tenant/StaffAlertService.php
++++ b/app/Services/Tenant/StaffAlertService.php
+@@ -59,6 +59,7 @@ class StaffAlertService
+         'timeoff.decided'        => ['in_app' => true,  'sms' => false],
+         'timeoff.withdrawn'      => ['in_app' => true,  'sms' => false],
+         'note.mention'           => ['in_app' => true,  'sms' => false], // MARKER-NOTE-MENTIONS
++        'special_order.arrived'  => ['in_app' => true,  'sms' => false], // MARKER-SO-HANDOVER
+     ];
+ 
+     public function __construct(
+diff --git a/app/Services/Tenant/TransferRequestService.php b/app/Services/Tenant/TransferRequestService.php
+index 3ebdc7f3..678e4e69 100644
+--- a/app/Services/Tenant/TransferRequestService.php
++++ b/app/Services/Tenant/TransferRequestService.php
+@@ -59,7 +59,6 @@ class TransferRequestService
+             }
+ 
+             return TenantTransferRequest::create([
+-                'id'                   => (string) Str::uuid(),
+                 'tenant_id'            => $data['tenant_id'],
+                 'inventory_item_id'    => $data['inventory_item_id'],
+                 'to_location_id'       => $data['to_location_id'],
+@@ -67,6 +66,7 @@ class TransferRequestService
+                 'quantity'             => max(1, (int) $data['quantity']),
+                 'requested_by_user_id' => $data['requested_by_user_id'] ?? null,
+                 'sale_id'              => $data['sale_id'] ?? null,
++                'special_order_id'     => $data['special_order_id'] ?? null, // MARKER-SO-HANDOVER
+                 'status'               => TenantTransferRequest::STATUS_PENDING,
+                 'notes'                => $data['notes'] ?? null,
+             ]);
+@@ -120,6 +120,13 @@ class TransferRequestService
+                 throw new InvalidArgumentException('Transfer request tenant not found.');
+             }
+ 
++            // MARKER-SO-HANDOVER: a special order's part travels with its hold.
++            // Release it at the source here; markReceived holds it again at
++            // the pickup store.
++            if (!empty($tr->special_order_id)) {
++                app(ReservationService::class)->releaseForSpecialOrder($tr->special_order_id, 'moving_to_pickup');
++            }
++
+             // Decrement source stock — uses the Pos InventoryService primitive,
+             // which writes a movement row with referenceType='transfer_request'.
+             app(\App\Services\Pos\InventoryService::class)->decrementStock(
+@@ -195,6 +202,11 @@ class TransferRequestService
+             $tr->fulfilled_at = now();
+             $tr->fulfilled_by_user_id = $byUserId;
+             $tr->save();
++
++            // MARKER-SO-HANDOVER: the special order's part is now at its pickup store.
++            if (!empty($tr->special_order_id)) {
++                app(SpecialOrderService::class)->holdAtPickup($tr->special_order_id, $toLoc->id);
++            }
+             return $tr;
+         });
+     }
+diff --git a/app/Support/Dashboard/CustomBlocks.php b/app/Support/Dashboard/CustomBlocks.php
+index 38849aef..09fa8c49 100644
+--- a/app/Support/Dashboard/CustomBlocks.php
++++ b/app/Support/Dashboard/CustomBlocks.php
+@@ -188,7 +188,7 @@ class CustomBlocks
+                 'base' => fn (Builder $q) => $q->whereNull('tenant_special_orders.deleted_at'),
+                 'date' => ['col' => 'tenant_special_orders.created_at', 'utc' => true], 'periods' => self::DATED,
+                 'fields' => [
+-                    'status'  => ['label' => 'Status', 'type' => 'enum', 'options' => ['needed' => 'Needed', 'ordered' => 'Ordered', 'arrived' => 'Arrived', 'pulled' => 'Picked up', 'cancelled' => 'Cancelled'],
++                    'status'  => ['label' => 'Status', 'type' => 'enum', 'options' => ['needed' => 'Needed', 'ordered' => 'Ordered', 'arrived' => 'Arrived', 'pulled' => 'Handed over', 'cancelled' => 'Cancelled'],
+                         'apply' => self::col('tenant_special_orders.status')],
+                     'late'    => ['label' => 'Arrival', 'type' => 'enum', 'options' => $yesNo('Past its expected date', 'Not late'),
+                         'apply' => self::flag(fn ($q) => $q->where('tenant_special_orders.status', 'ordered')->whereNotNull('tenant_special_orders.expected_arrival_date')
+diff --git a/database/migrations/2026_11_04_000200_special_order_handover.php b/database/migrations/2026_11_04_000200_special_order_handover.php
+new file mode 100644
+index 00000000..3219629c
+--- /dev/null
++++ b/database/migrations/2026_11_04_000200_special_order_handover.php
+@@ -0,0 +1,95 @@
++<?php
++
++use Illuminate\Database\Migrations\Migration;
++use Illuminate\Database\Schema\Blueprint;
++use Illuminate\Support\Facades\DB;
++use Illuminate\Support\Facades\Schema;
++
++/**
++ * MARKER-SO-HANDOVER: holds, handover and customer notices for special orders.
++ *
++ *  - A hold can belong to a special order with no sale (a work-order part, or
++ *    an order for a customer who hasn't been rung up), so the reservation's
++ *    sale columns become nullable and it gains special_order_id.
++ *  - The order records when and how the customer was told, who handed it
++ *    over and why (a hand-over without a sale needs a reason), and whether
++ *    its sale line's stock was left for handover.
++ *  - A transfer request can carry the special order it moves, so the hold
++ *    follows the part from the receiving store to the pickup store.
++ *  - tenant_inventory_items.committed_count is dropped: nothing has ever
++ *    written or read it (holds live in reserved_count).
++ *
++ * Everything is additive except the committed_count drop, which only runs
++ * when no row carries a non-zero value.
++ */
++return new class extends Migration
++{
++    public function up(): void
++    {
++        // Nullability only (no type change), which MySQL allows on a column
++        // that carries a foreign key. Raw SQL so no other attribute changes.
++        DB::statement('ALTER TABLE tenant_inventory_reservations MODIFY sale_id CHAR(36) NULL');
++        DB::statement('ALTER TABLE tenant_inventory_reservations MODIFY sale_item_id CHAR(36) NULL');
++
++        if (! Schema::hasColumn('tenant_inventory_reservations', 'special_order_id')) {
++            Schema::table('tenant_inventory_reservations', function (Blueprint $t) {
++                $t->uuid('special_order_id')->nullable()->after('sale_item_id');
++                $t->index(['special_order_id', 'status'], 'tir_so_status_idx');
++            });
++        }
++
++        Schema::table('tenant_special_orders', function (Blueprint $t) {
++            if (! Schema::hasColumn('tenant_special_orders', 'notified_at')) {
++                $t->timestamp('notified_at')->nullable()->after('arrived_at');
++                $t->string('notified_via', 64)->nullable()->after('notified_at');
++            }
++            if (! Schema::hasColumn('tenant_special_orders', 'handed_over_by_user_id')) {
++                $t->uuid('handed_over_by_user_id')->nullable()->after('pulled_at');
++                $t->string('handover_note', 255)->nullable()->after('handed_over_by_user_id');
++            }
++            if (! Schema::hasColumn('tenant_special_orders', 'line_stock_deferred')) {
++                // true when the sale line skipped taking stock at checkout
++                // because the part was not here yet; it takes it at handover.
++                $t->boolean('line_stock_deferred')->default(false)->after('sale_item_id');
++            }
++        });
++
++        if (! Schema::hasColumn('tenant_transfer_requests', 'special_order_id')) {
++            Schema::table('tenant_transfer_requests', function (Blueprint $t) {
++                $t->uuid('special_order_id')->nullable()->after('sale_id');
++                $t->index('special_order_id', 'ttr_so_idx');
++            });
++        }
++
++        if (Schema::hasColumn('tenant_inventory_items', 'committed_count')
++            && ! DB::table('tenant_inventory_items')->where('committed_count', '!=', 0)->exists()) {
++            Schema::table('tenant_inventory_items', function (Blueprint $t) {
++                $t->dropColumn('committed_count');
++            });
++        }
++    }
++
++    public function down(): void
++    {
++        if (Schema::hasColumn('tenant_transfer_requests', 'special_order_id')) {
++            Schema::table('tenant_transfer_requests', function (Blueprint $t) {
++                $t->dropIndex('ttr_so_idx');
++                $t->dropColumn('special_order_id');
++            });
++        }
++        Schema::table('tenant_special_orders', function (Blueprint $t) {
++            foreach (['notified_at', 'notified_via', 'handed_over_by_user_id', 'handover_note', 'line_stock_deferred'] as $c) {
++                if (Schema::hasColumn('tenant_special_orders', $c)) {
++                    $t->dropColumn($c);
++                }
++            }
++        });
++        if (Schema::hasColumn('tenant_inventory_reservations', 'special_order_id')) {
++            Schema::table('tenant_inventory_reservations', function (Blueprint $t) {
++                $t->dropIndex('tir_so_status_idx');
++                $t->dropColumn('special_order_id');
++            });
++        }
++        // sale_id / sale_item_id stay nullable: rows written since may have none.
++    }
++};
+diff --git a/resources/views/layouts/tenant/_so-choices.blade.php b/resources/views/layouts/tenant/_so-choices.blade.php
+new file mode 100644
+index 00000000..06b6cc71
+--- /dev/null
++++ b/resources/views/layouts/tenant/_so-choices.blade.php
+@@ -0,0 +1,312 @@
++{{--
++  MARKER-SO-HANDOVER: shared special-order dialogs, on every tenant page.
++
++  1. Choice dialog. When an action would leave a special order without a
++     next step, the server answers 409 { needs_choice, choice }. The fetch
++     wrapper below shows the question and sends the same request again with
++     so_choice[<order id>] = <option> (and so_reason). Closing the dialog
++     changes nothing; the caller gets { ok:false, dismissed:true }.
++  2. "Tell customer" dialog. IntakeSO.notify([ids]) shows who would be told
++     and how, with the wording, and sends or skips. It opens by itself after
++     a receipt or a hand arrival that filled orders people are waiting for.
++--}}
++<style>
++.so-dlg .ia-confirm-card{max-width:560px;max-height:calc(100vh - 32px);overflow:auto}
++.so-dlg-field{margin-bottom:14px}
++.so-dlg-field-h{font-size:13px;font-weight:600;color:var(--ia-text);margin-bottom:6px}
++.so-dlg-field-h span{font-weight:400;color:var(--ia-text-dim);font-size:12px;margin-left:6px}
++.so-choice{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);margin-bottom:8px;cursor:pointer}
++.so-choice:has(input:checked){border-color:var(--ia-accent)}
++.so-choice input{margin-top:3px;accent-color:var(--ia-accent)}
++.so-choice b{display:block;font-size:13.5px;font-weight:600;color:var(--ia-text)}
++.so-choice span{font-size:12.5px;color:var(--ia-text-muted);line-height:1.45}
++.so-nt{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:12px}
++.so-nt td{padding:9px 6px;border-bottom:0.5px solid var(--ia-border);vertical-align:top;color:var(--ia-text)}
++.so-nt td:first-child{padding-left:0}
++.so-nt .so-sub{display:block;font-size:11.5px;color:var(--ia-text-muted)}
++.so-nt label{display:inline-flex;gap:5px;align-items:center;margin-right:10px;font-size:12.5px;color:var(--ia-text)}
++.so-nt label.dis{opacity:.4}
++.so-nt input{accent-color:var(--ia-accent)}
++.so-msg{width:100%;min-height:96px;background:var(--ia-input-bg);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);color:var(--ia-text);font:inherit;font-size:13px;padding:10px;box-sizing:border-box;resize:vertical}
++.so-fine{font-size:11.5px;color:var(--ia-text-dim);margin:6px 0 14px;line-height:1.5}
++</style>
++<script>
++(function () {
++  'use strict';
++  if (window.IntakeSO) { return; }
++
++  var CSRF = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
++  var ROUTES = {
++    rows:   @json(route('tenant.special-orders.notify-rows')),
++    notify: @json(route('tenant.special-orders.notify')),
++  };
++
++  function el(tag, cls, text) {
++    var n = document.createElement(tag);
++    if (cls) { n.className = cls; }
++    if (text != null) { n.textContent = text; }
++    return n;
++  }
++
++  // One modal shell, the same look as IntakeConfirm.
++  function shell(title, message) {
++    var back = el('div', 'ia-confirm-backdrop so-dlg');
++    var card = el('div', 'ia-confirm-card');
++    card.setAttribute('role', 'dialog');
++    card.setAttribute('aria-modal', 'true');
++    card.appendChild(el('div', 'ia-confirm-title', title));
++    if (message) { card.appendChild(el('div', 'ia-confirm-message', message)); }
++    back.appendChild(card);
++    document.body.appendChild(back);
++    void back.offsetWidth;
++    back.classList.add('is-shown');
++    return { back: back, card: card };
++  }
++  function close(s) {
++    s.back.classList.remove('is-shown');
++    setTimeout(function () { if (s.back.parentNode) { s.back.parentNode.removeChild(s.back); } }, 160);
++  }
++  function actions(card, cancelText, okText, danger) {
++    var row = el('div', 'ia-confirm-actions');
++    var no = el('button', 'ia-confirm-btn', cancelText); no.type = 'button';
++    var ok = el('button', 'ia-confirm-btn ' + (danger ? 'ia-confirm-btn--danger' : 'ia-confirm-btn--primary'), okText); ok.type = 'button';
++    row.appendChild(no); row.appendChild(ok);
++    card.appendChild(row);
++    return { no: no, ok: ok };
++  }
++
++  /** Ask a choice. Resolves { picks: {id: value}, reason } or null when closed. */
++  function choose(choice) {
++    return new Promise(function (resolve) {
++      var s = shell(choice.title || 'Choose what happens', choice.message || '');
++      var groups = [];
++      (choice.fields || []).forEach(function (f, i) {
++        var box = el('div', 'so-dlg-field');
++        if (f.label || f.note) {
++          var h = el('div', 'so-dlg-field-h', f.label || '');
++          if (f.note) { h.appendChild(el('span', null, f.note)); }
++          box.appendChild(h);
++        }
++        (f.options || []).forEach(function (o) {
++          var lab = el('label', 'so-choice');
++          var r = el('input'); r.type = 'radio'; r.name = 'so_c_' + i; r.value = o.value;
++          if (o.value === (f['default'] || (f.options[0] || {}).value)) { r.checked = true; }
++          var txt = el('div');
++          txt.appendChild(el('b', null, o.label));
++          if (o.help) { txt.appendChild(el('span', null, o.help)); }
++          lab.appendChild(r); lab.appendChild(txt);
++          box.appendChild(lab);
++        });
++        groups.push({ id: f.id, box: box });
++        s.card.appendChild(box);
++      });
++      var reason = null;
++      if (choice.reason) {
++        reason = el('input', 'ia-confirm-input');
++        reason.type = 'text';
++        reason.maxLength = 255;
++        reason.placeholder = choice.reason.placeholder || 'Reason';
++        reason.style.margin = '0 0 16px';
++        s.card.appendChild(reason);
++      }
++      var b = actions(s.card, 'Go back', choice.confirm || 'Continue', !!choice.danger);
++      function done(v) { close(s); document.removeEventListener('keydown', onKey); resolve(v); }
++      function onKey(e) { if (e.key === 'Escape') { done(null); } }
++      b.no.addEventListener('click', function () { done(null); });
++      s.back.addEventListener('click', function (e) { if (e.target === s.back) { done(null); } });
++      document.addEventListener('keydown', onKey);
++      b.ok.addEventListener('click', function () {
++        var picks = {};
++        groups.forEach(function (g) {
++          var c = g.box.querySelector('input:checked');
++          if (c) { picks[g.id] = c.value; }
++        });
++        // required always, or only when a given option is picked
++        var need = reason && (choice.reason.required
++          || (choice.reason.when && Object.keys(picks).some(function (k) { return picks[k] === choice.reason.when; })));
++        if (need && !reason.value.trim()) {
++          reason.style.borderColor = '#F87171';
++          reason.focus();
++          return;
++        }
++        done({ picks: picks, reason: reason ? reason.value.trim() : '' });
++      });
++      setTimeout(function () { b.ok.focus(); }, 50);
++    });
++  }
++
++  // Same request again, with the answers added. JSON, FormData and
++  // urlencoded bodies are handled; anything else can't be repeated.
++  function withAnswers(init, ans) {
++    var body = init.body;
++    var next = Object.assign({}, init);
++    if (typeof body === 'string') {
++      var t = body.trim();
++      if (t.charAt(0) === '{') {
++        var o = JSON.parse(t);
++        o.so_choice = Object.assign({}, o.so_choice || {}, ans.picks);
++        if (ans.reason) { o.so_reason = ans.reason; }
++        next.body = JSON.stringify(o);
++        return next;
++      }
++      var p = new URLSearchParams(t);
++      Object.keys(ans.picks).forEach(function (k) { p.set('so_choice[' + k + ']', ans.picks[k]); });
++      if (ans.reason) { p.set('so_reason', ans.reason); }
++      next.body = p.toString();
++      return next;
++    }
++    if (body instanceof FormData) {
++      var fd = new FormData();
++      body.forEach(function (v, k) { fd.append(k, v); });
++      Object.keys(ans.picks).forEach(function (k) { fd.set('so_choice[' + k + ']', ans.picks[k]); });
++      if (ans.reason) { fd.set('so_reason', ans.reason); }
++      next.body = fd;
++      return next;
++    }
++    if (body instanceof URLSearchParams) {
++      var q = new URLSearchParams(body.toString());
++      Object.keys(ans.picks).forEach(function (k) { q.set('so_choice[' + k + ']', ans.picks[k]); });
++      if (ans.reason) { q.set('so_reason', ans.reason); }
++      next.body = q;
++      return next;
++    }
++    if (body == null) {
++      next.method = next.method || 'POST';
++      next.headers = Object.assign({ 'Content-Type': 'application/json' }, next.headers || {});
++      next.body = JSON.stringify({ so_choice: ans.picks, so_reason: ans.reason || undefined });
++      return next;
++    }
++    return null;
++  }
++
++  function jsonResponse(obj, status) {
++    return new Response(JSON.stringify(obj), { status: status, headers: { 'Content-Type': 'application/json' } });
++  }
++
++  var raw = window.fetch.bind(window);
++  window.fetch = function (input, init) {
++    return raw(input, init).then(function (res) {
++      if (res.status !== 409) { return res; }
++      var ct = res.headers.get('content-type') || '';
++      if (ct.indexOf('json') === -1) { return res; }
++      return res.clone().json().then(function (d) {
++        if (!d || !d.needs_choice || !d.choice) { return res; }
++        if (typeof input !== 'string' && !(input instanceof URL)) { return res; } // a Request object can't be rebuilt
++        return choose(d.choice).then(function (ans) {
++          if (!ans) { return jsonResponse({ ok: false, dismissed: true, error: 'Nothing was changed.', message: 'Nothing was changed.' }, 409); }
++          var again = withAnswers(init || {}, ans);
++          if (!again) { return res; }
++          return window.fetch(input, again); // may ask again (several orders)
++        });
++      }, function () { return res; });
++    });
++  };
++
++  // ── "Tell customer" ──────────────────────────────────────
++  function notify(ids, opts) {
++    opts = opts || {};
++    ids = (ids || []).filter(Boolean);
++    if (!ids.length) { return Promise.resolve(null); }
++    return raw(ROUTES.rows, {
++      method: 'POST',
++      headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': CSRF },
++      body: JSON.stringify({ ids: ids }),
++    }).then(function (r) { return r.json(); }).then(function (d) {
++      if (!d || !d.ok || !d.rows || !d.rows.length) { return null; }
++      return show(d.rows, d.message, opts);
++    }).catch(function () {
++      if (window.IntakeToast) { IntakeToast.error('Couldn\'t load who to tell.'); }
++      return null;
++    });
++  }
++
++  function show(rows, message, opts) {
++    return new Promise(function (resolve) {
++      var n = rows.length;
++      var s = shell(opts.title || (n === 1 ? 'Tell ' + (rows[0].who || 'the customer') + ' it\'s here?' : 'Tell ' + n + ' people their part is here?'),
++        opts.message || (n === 1 ? (rows[0].so_number + ' · ' + rows[0].item) : 'These orders just arrived. Untick anyone you\'d rather call yourself.'));
++      var table = el('table', 'so-nt');
++      var tb = el('tbody');
++      rows.forEach(function (row) {
++        var tr = el('tr');
++        var who = el('td');
++        who.appendChild(document.createTextNode(row.who || ''));
++        who.appendChild(el('span', 'so-sub', row.so_number + ' · ' + row.item + (row.note ? ' · ' + row.note : '')));
++        if (row.told) { who.appendChild(el('span', 'so-sub', 'Already told: ' + row.told)); }
++        var ch = el('td');
++        (row.channels || []).forEach(function (c) {
++          var lab = el('label', c.available ? null : 'dis');
++          var cb = el('input'); cb.type = 'checkbox';
++          cb.dataset.so = row.id; cb.dataset.ch = c.key;
++          cb.checked = !!c.on && !row.told; cb.disabled = !c.available;
++          lab.appendChild(cb);
++          lab.appendChild(document.createTextNode(c.label));
++          if (c.why) { lab.title = c.why; }
++          ch.appendChild(lab);
++          if (!c.available && c.why) { ch.appendChild(el('span', 'so-sub', c.label + ': ' + c.why)); }
++        });
++        tr.appendChild(who); tr.appendChild(ch);
++        tb.appendChild(tr);
++      });
++      table.appendChild(tb);
++      s.card.appendChild(table);
++      var ta = el('textarea', 'so-msg');
++      ta.value = message || '';
++      ta.maxLength = 1000;
++      s.card.appendChild(ta);
++      s.card.appendChild(el('div', 'so-fine',
++        '{{ '{' }}{first_name}}, {{ '{' }}{item}} and {{ '{' }}{location}} fill in per person. Texts end with "Reply STOP to opt out." Channels that are greyed out aren\'t available for that person; email and text can be switched off for everyone in Communication Center → Special order arrived.'));
++      var b = actions(s.card, 'Skip', 'Send', false);
++      function done(v) { close(s); resolve(v); }
++      b.no.addEventListener('click', function () { done(null); });
++      b.ok.addEventListener('click', function () {
++        var picks = {};
++        s.card.querySelectorAll('input[type=checkbox][data-so]').forEach(function (cb) {
++          picks[cb.dataset.so] = picks[cb.dataset.so] || {};
++          picks[cb.dataset.so][cb.dataset.ch] = cb.checked && !cb.disabled;
++        });
++        b.ok.disabled = true;
++        raw(ROUTES.notify, {
++          method: 'POST',
++          headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': CSRF },
++          body: JSON.stringify({ ids: rows.map(function (r) { return r.id; }), picks: picks, message: ta.value }),
++        }).then(function (r) { return r.json(); }).then(function (d) {
++          if (window.IntakeToast && d && d.message) { IntakeToast[(d.counts && (d.counts.email + d.counts.sms + d.counts.staff) > 0) ? 'success' : 'error'](d.message); }
++          done(d);
++          if (opts.reload) { location.reload(); }
++        }).catch(function () {
++          b.ok.disabled = false;
++          if (window.IntakeToast) { IntakeToast.error('Couldn\'t send. Nothing was sent.'); }
++        });
++      });
++    });
++  }
++
++  /**
++   * Post to a special-order action and report the outcome. The choice
++   * dialog, if needed, happens inside fetch. Resolves the JSON.
++   */
++  function act(url, body) {
++    return window.fetch(url, {
++      method: 'POST',
++      headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': CSRF },
++      body: JSON.stringify(body || {}),
++    }).then(function (r) { return r.json().catch(function () { return { ok: false, error: 'Something went wrong.' }; }); })
++      .then(function (d) {
++        if (d && d.ok) {
++          if (window.IntakeToast && d.message) { IntakeToast.success(d.message); }
++        } else if (d && !d.dismissed) {
++          IntakeConfirm.alert({ title: 'Couldn\'t do that', message: (d && (d.error || d.message)) || 'Something went wrong.' });
++        }
++        return d || { ok: false };
++      });
++  }
++
++  window.IntakeSO = { choose: choose, notify: notify, act: act };
++
++  @php $soNotify = array_values(array_filter((array) session('so_notify', []))); @endphp
++  @if (! empty($soNotify))
++  document.addEventListener('DOMContentLoaded', function () { notify(@json($soNotify), { reload: true }); });
++  @endif
++})();
++</script>
+diff --git a/resources/views/layouts/tenant/app.blade.php b/resources/views/layouts/tenant/app.blade.php
+index 17852d2d..4394f57f 100644
+--- a/resources/views/layouts/tenant/app.blade.php
++++ b/resources/views/layouts/tenant/app.blade.php
+@@ -235,6 +235,8 @@ window.IntakeOfflineConfig = {
+ 
+ <x-tenant.bulk-working />
+ 
++@include('layouts.tenant._so-choices') {{-- MARKER-SO-HANDOVER --}}
++
+ @stack('scripts')
+ 
+ @include('tenant._onboarding_modal')
+diff --git a/resources/views/tenant/appointments/show-multi-asset.blade.php b/resources/views/tenant/appointments/show-multi-asset.blade.php
+index d0438fc6..4f2c7f83 100644
+--- a/resources/views/tenant/appointments/show-multi-asset.blade.php
++++ b/resources/views/tenant/appointments/show-multi-asset.blade.php
+@@ -2346,7 +2346,7 @@ input.ma-asset-name-edit:focus {
+                     <td><strong>{{ $so->item_name_snapshot }}</strong></td>
+                     <td class="num">{{ $so->quantity }}</td>
+                     <td>
+-                      <span class="ma-so-status ma-so-status--{{ $isOverdue ? 'overdue' : $so->status }}">{{ $isOverdue ? 'Overdue' : ucfirst($so->status) }}</span>
++                      <span class="ma-so-status ma-so-status--{{ $isOverdue ? 'overdue' : $so->status }}">{{ $isOverdue ? 'Overdue' : $so->statusLabel() }}</span>
+                     </td>
+                     <td style="color: var(--ia-text-dim); font-size: 12px;">
+                       @if($so->expected_arrival_date){{ $so->expected_arrival_date->format('M j') }}@else — @endif
+diff --git a/resources/views/tenant/appointments/show.blade.php b/resources/views/tenant/appointments/show.blade.php
+index 6cdf6f4f..0f17c14f 100644
+--- a/resources/views/tenant/appointments/show.blade.php
++++ b/resources/views/tenant/appointments/show.blade.php
+@@ -1543,7 +1543,7 @@ document.addEventListener('DOMContentLoaded', function () {
+                   </td>
+                   <td class="ia-num">{{ $so->quantity }}</td>
+                   <td>
+-                    <span class="so-status so-status--{{ $isOverdue ? 'overdue' : $so->status }}">{{ $isOverdue ? 'Overdue' : ucfirst($so->status) }}</span>
++                    <span class="so-status so-status--{{ $isOverdue ? 'overdue' : $so->status }}">{{ $isOverdue ? 'Overdue' : $so->statusLabel() }}</span>
+                   </td>
+                   <td style="color:var(--ia-text-muted);font-size:12px">
+                     @if($so->expected_arrival_date){{ $so->expected_arrival_date->format('M j') }}@else — @endif
+diff --git a/resources/views/tenant/customers/show.blade.php b/resources/views/tenant/customers/show.blade.php
+index 0c0eff46..f2c15fa5 100644
+--- a/resources/views/tenant/customers/show.blade.php
++++ b/resources/views/tenant/customers/show.blade.php
+@@ -1831,7 +1831,7 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
+                       @php
+                         $isOverdue = $so->status === 'ordered' && $so->expected_arrival_date && $so->expected_arrival_date->isPast();
+                       @endphp
+-                      <span class="so-status so-status--{{ $isOverdue ? 'overdue' : $so->status }}">{{ $isOverdue ? 'Overdue' : ucfirst($so->status) }}</span>
++                      <span class="so-status so-status--{{ $isOverdue ? 'overdue' : $so->status }}">{{ $isOverdue ? 'Overdue' : $so->statusLabel() }}</span>
+                     </td>
+                     <td style="color:var(--ia-text-muted);font-size:12px">
+                       @if($so->expected_arrival_date){{ $so->expected_arrival_date->format('M j') }}@else — @endif
+@@ -1853,7 +1853,7 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
+                     <tr style="cursor:pointer;opacity:.65" onclick="window.location.href='{{ route('tenant.special-orders.show', ['id' => $so->id]) }}'">
+                       <td><strong>{{ $so->so_number }}</strong></td>
+                       <td>{{ $so->item_name_snapshot }} <span style="color:var(--ia-text-muted)">×{{ $so->quantity }}</span></td>
+-                      <td><span class="so-status so-status--{{ $so->status }}">{{ ucfirst($so->status) }}</span></td>
++                      <td><span class="so-status so-status--{{ $so->status }}">{{ $so->statusLabel() }}</span></td>
+                       <td style="color:var(--ia-text-muted);font-size:12px">{{ $so->updated_at->format('M j, Y') }}</td>
+                     </tr>
+                   @endforeach
+diff --git a/resources/views/tenant/inventory/show.blade.php b/resources/views/tenant/inventory/show.blade.php
+index b6b5f290..576aecc0 100644
+--- a/resources/views/tenant/inventory/show.blade.php
++++ b/resources/views/tenant/inventory/show.blade.php
+@@ -779,7 +779,7 @@
+               <td>{{ $so->vendor?->name ?? '—' }}</td>
+               <td>
+                 @php $isOverdue = $so->status === 'ordered' && $so->expected_arrival_date && $so->expected_arrival_date->isPast(); @endphp
+-                <span class="so-status so-status--{{ $isOverdue ? 'overdue' : $so->status }}">{{ $isOverdue ? 'Overdue' : ucfirst($so->status) }}</span>
++                <span class="so-status so-status--{{ $isOverdue ? 'overdue' : $so->status }}">{{ $isOverdue ? 'Overdue' : $so->statusLabel() }}</span>
+               </td>
+               <td style="color:var(--ia-text-muted);font-size:12px">@if($so->expected_arrival_date){{ $so->expected_arrival_date->format('M j') }}@else — @endif</td>
+             </tr>
+@@ -800,7 +800,7 @@
+                 <td><strong>{{ $so->so_number }}</strong></td>
+                 <td>{{ $so->quantity }}</td>
+                 <td>{{ $so->customer ? $so->customer->fullName() : 'Stock' }}</td>
+-                <td><span class="so-status so-status--{{ $so->status }}">{{ ucfirst($so->status) }}</span></td>
++                <td><span class="so-status so-status--{{ $so->status }}">{{ $so->statusLabel() }}</span></td>
+                 <td style="color:var(--ia-text-muted);font-size:12px">{{ $so->updated_at->format('M j, Y') }}</td>
+               </tr>
+             @endforeach
+diff --git a/resources/views/tenant/register/index.blade.php b/resources/views/tenant/register/index.blade.php
+index 6c718dce..c260d206 100644
+--- a/resources/views/tenant/register/index.blade.php
++++ b/resources/views/tenant/register/index.blade.php
+@@ -93,6 +93,10 @@
+     cursor: pointer; transition: background 120ms ease;
+   }
+   .reg-oversell-btn:hover { background: var(--ia-hover); }
++  /* MARKER-SO-HANDOVER: a cart line that is a special order */
++  .reg-soline { font-size: 11px; margin-top: 3px; color: var(--ia-text-dim); }
++  .reg-soline b { color: var(--ia-accent); font-weight: 600; }
++  body.ia-theme-b .reg-soline b { color: #3B6D11; }
+   .reg-oversell-pill {
+     display: inline-block;
+     font-size: 11px; padding: 3px 10px;
+@@ -1389,6 +1393,17 @@
+       cart.customer = @json($preAttachCustomer);
+       if (typeof renderCart === 'function') renderCart();
+       if (typeof queueDraftSave === 'function') queueDraftSave();
++      if (typeof loadCustomerOpen === 'function') loadCustomerOpen(cart.customer.id);
++      // MARKER-SO-HANDOVER: "Ring it up" from a special order puts it in the cart
++      @if(request()->query('pickup'))
++      fetch(ROUTES.customerOpen.replace('__ID__', cart.customer.id), { headers: { Accept: 'application/json' } })
++        .then(function (r) { return r.json(); })
++        .then(function (d) {
++          var p = ((d && d.pickups) || []).find(function (x) { return x.id === @json((string) request()->query('pickup')); });
++          if (p && !p.paid && p.inventory_item_id && typeof addPickupToSale === 'function') { addPickupToSale(p); }
++        })
++        .catch(function () {});
++      @endif
+     }
+   });
+ </script>
+@@ -1479,6 +1494,9 @@ const ROUTES = {
+   discountValidate: @json(route('tenant.register.discount.validate')),
+   storeSale:   @json(route('tenant.register.sales.store')),
+   customerOpen:    @json(route('tenant.register.customer.open', ['customer' => '__ID__'])),
++  soHandOver:      @json(route('tenant.special-orders.hand-over', ['id' => '__ID__'])), // MARKER-SO-HANDOVER
++  soAttach:        @json(route('tenant.special-orders.attach-to-sale', ['id' => '__ID__'])),
++  soShow:          @json(route('tenant.special-orders.show', ['id' => '__ID__'])),
+   layawayOpen:     @json(route('tenant.register.layaway.open')),
+   layawayPay:      @json(route('tenant.register.layaway.pay', ['plan' => '__ID__'])),
+   layawayComplete: @json(route('tenant.register.layaway.complete', ['plan' => '__ID__'])),
+@@ -2919,29 +2937,21 @@ function removeLine(key) {
+     return;
+   }
+ 
+-  // a line that requested a special order takes that
+-  // request with it. Only retracts orders still in "needed"; anything already
+-  // placed with a vendor is left alone and reported, since goods may be
+-  // inbound. Same rule as removing a part from an appointment.
++  // MARKER-SO-HANDOVER: a line with a special order takes it along only
++  // after the person says what happens to it. A needed order is simply
++  // retracted; an ordered or arrived one asks (shop stock, or kept for the
++  // customer) and the line stays if they back out.
+   const line = cart.items.find(i => i.key === key);
+-  if (line && line.special_order_id) {
+-    const soUrl = @json(route('tenant.special-orders.cancel', ['id' => '__ID__']));
+-    fetch(soUrl.replace('__ID__', line.special_order_id), {
+-      method: 'POST',
+-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+-      body: JSON.stringify({ reason: 'Line removed from register sale.' }),
+-    })
+-      .then(r => r.json())
+-      .then(d => {
+-        if (d && d.ok) {
+-          if (window.IntakeToast) IntakeToast.success('Special order ' + (line.so_number || '') + ' cancelled');
+-        } else if (window.IntakeToast) {
+-          IntakeToast.error('Line removed, but ' + (line.so_number || 'the special order') + ' is already placed — check Special orders');
+-        }
+-      })
+-      .catch(() => {
+-        if (window.IntakeToast) IntakeToast.error('Line removed, but ' + (line.so_number || 'the special order') + ' may still be open');
+-      });
++  if (line && line.special_order_id && window.IntakeSO) {
++    const soUrl = @json(route('tenant.special-orders.remove-from-sale', ['id' => '__ID__']));
++    IntakeSO.act(soUrl.replace('__ID__', line.special_order_id), {}).then(d => {
++      if (!d || !d.ok) { return; } // backed out, or it failed: the line stays
++      cart.items = cart.items.filter(i => i.key !== key);
++      renderCart();
++      queueDraftSave();
++      if (typeof loadPickups === 'function') { loadPickups(); }
++    });
++    return;
+   }
+ 
+   cart.items = cart.items.filter(i => i.key !== key);
+@@ -3185,6 +3195,7 @@ function renderCart() {
+             <div class="name">${escapeHtml(i.name)}${i.type === 'product' && i.source_id ? ` <button type="button" class="reg-info-btn reg-cart-info" data-item-id="${escapeHtml(String(i.source_id))}" title="Item details" aria-label="Item details">i</button>` : ''} ${badge}</div>
+             <div class="meta">${priceMeta} ${priceBtn}</div>
+             ${actionRow}
++            ${(i.special_order_id && !actionRow) ? `<div class="reg-soline">Special order <b>${escapeHtml(i.so_number || '')}</b>${i.pickup ? ' · picking up now' : ''}</div>` : ''}
+           </div>
+           <input type="text" class="qty" value="${i.qty}" data-key="${i.key}" inputmode="decimal">
+           <div style="display:flex;align-items:center;gap:6px">
+@@ -3389,8 +3400,9 @@ async function loadCustomerOpen(customerId) {
+   try {
+     const r = await fetch(ROUTES.customerOpen.replace('__ID__', customerId), { headers: { Accept: 'application/json' } });
+     const d = await r.json();
+-    if (!d.ok || !d.open.length) { box.innerHTML = ''; return; }
+-    box.innerHTML = '<div style="font-size:10.5px;letter-spacing:.09em;color:var(--ia-text-dim);margin:10px 0 6px">OPEN WITH THIS CUSTOMER</div>'
++    const pickups = (d && d.pickups) || [];
++    if (!d.ok || (!d.open.length && !pickups.length)) { box.innerHTML = ''; return; }
++    box.innerHTML = renderPickups(pickups) + (d.open.length ? '<div style="font-size:10.5px;letter-spacing:.09em;color:var(--ia-text-dim);margin:10px 0 6px">OPEN WITH THIS CUSTOMER</div>' : '')
+       + d.open.map(o => {
+           const meta = o.kind === 'layaway'
+             ? (o.status === 'ready' ? (o.awaiting ? 'Paid · waiting on a special order' : 'Paid · ready to hand over')
+@@ -3412,9 +3424,76 @@ async function loadCustomerOpen(customerId) {
+       openTenderForPlan();
+     }));
+     box.querySelectorAll('[data-handover]').forEach(b => b.addEventListener('click', () => handOverLayaway(b.dataset.handover)));
++    box.querySelectorAll('[data-pickup-hand]').forEach(b => b.addEventListener('click', () => handOverPickup(b.dataset.pickupHand)));
++    box.querySelectorAll('[data-pickup-add]').forEach(b => b.addEventListener('click', () => {
++      const p = pickups.find(x => x.id === b.dataset.pickupAdd);
++      if (p) { addPickupToSale(p); }
++    }));
+   } catch (e) { box.innerHTML = ''; }
+ }
+ 
++// MARKER-SO-HANDOVER: "Ready for pickup" — special orders on the bench for
++// this customer. Paid ones hand over straight from here; unpaid ones go onto
++// this sale and hand over when it's paid.
++function renderPickups(pickups) {
++  if (!pickups.length) { return ''; }
++  return '<div style="font-size:10.5px;letter-spacing:.09em;color:var(--ia-text-dim);margin:10px 0 6px">READY FOR PICKUP</div>'
++    + pickups.map(p => {
++      const inCart = cart.items.some(i => i.special_order_id === p.id);
++      const where = p.held_at ? 'held at ' + escapeHtml(p.held_at) : (p.pickup_at ? 'picks up at ' + escapeHtml(p.pickup_at) : '');
++      const meta = (p.paid ? 'Paid on ' + escapeHtml(p.paid_on) : (p.price_cents != null ? fmt(p.price_cents * p.quantity) + ' · not paid' : 'Not paid'))
++        + (where ? ' · ' + where : '');
++      let btn;
++      if (p.paid) {
++        btn = `<button type="button" class="reg-btn-primary" style="padding:4px 10px;font-size:12px" data-pickup-hand="${p.id}">Hand over</button>`;
++      } else if (inCart) {
++        btn = '<span class="reg-oversell-pill">✓ On this sale</span>';
++      } else if (p.inventory_item_id) {
++        btn = `<button type="button" class="reg-btn-secondary" style="padding:4px 10px;font-size:12px" data-pickup-add="${p.id}">Add to sale</button>`;
++      } else {
++        btn = `<a class="reg-btn-secondary" style="padding:4px 10px;font-size:12px;text-decoration:none" href="${ROUTES.soShow.replace('__ID__', p.id)}" title="Not in your catalog, so it can't be rung up as an item. Hand it over from the order.">Open</a>`;
++      }
++      return `<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:0.5px solid var(--ia-border);border-radius:8px;margin-bottom:6px;font-size:12.5px">
++        <div style="flex:1"><div>${escapeHtml(p.name)}${p.quantity > 1 ? ' × ' + p.quantity : ''} <span style="color:var(--ia-text-dim)">· ${escapeHtml(p.so_number)}</span></div>
++        <div style="font-size:11.5px;color:var(--ia-text-dim)">${meta}</div></div>${btn}</div>`;
++    }).join('');
++}
++
++async function handOverPickup(soId) {
++  const ok = window.iaConfirm ? await iaConfirm('Hand it over now? It comes off its hold and out of stock.') : true;
++  if (!ok || !window.IntakeSO) { return; }
++  const d = await IntakeSO.act(ROUTES.soHandOver.replace('__ID__', soId), {});
++  if (d && d.ok && cart.customer) { loadCustomerOpen(cart.customer.id); }
++}
++
++async function addPickupToSale(p) {
++  if (cart.items.some(i => i.special_order_id === p.id)) { return; }
++  const line = {
++    key: ++lineKey, type: 'product', source_id: p.inventory_item_id,
++    name: p.name, price_cents: p.price_cents || 0, qty: p.quantity || 1,
++    is_taxable: p.is_taxable !== false,
++    current_location_stock: null, reserved_here: 0, on_hand_here: null, current_location_name: null,
++    transfer_request_id: null, transfer_request_from: null,
++    special_order_id: p.id, so_number: p.so_number, pickup: true,
++  };
++  cart.items.push(line);
++  renderCart();
++  const undo = (msg) => {
++    cart.items = cart.items.filter(i => i.key !== line.key);
++    renderCart();
++    queueDraftSave();
++    if (msg && window.IntakeToast) { IntakeToast.error(msg); }
++  };
++  // the order is linked to the sale being rung up, so the sale has to exist
++  if (typeof fireDraftSave === 'function') { try { await fireDraftSave(); } catch (e) {} }
++  if (!cart.draft_id) { undo('Couldn\'t save this sale, so the order wasn\'t added. Try again.'); return; }
++  const d = await IntakeSO.act(ROUTES.soAttach.replace('__ID__', p.id), { sale_id: cart.draft_id });
++  if (!d || !d.ok) { undo(null); return; }
++  queueDraftSave();
++  if (cart.customer) { loadCustomerOpen(cart.customer.id); }
++}
++window.loadPickups = function () { if (cart.customer) { loadCustomerOpen(cart.customer.id); } };
++
+ function openTenderForPlan() {
+   const t = cart.layaway_target;
+   document.getElementById('tenderRefInput').value = '';
+@@ -5932,6 +6011,9 @@ async function resumeDraft(id) {
+       tax_cents: i.tax_cents || 0,
+       tax_rate_snapshot: i.tax_rate_snapshot,
+       pass: i.class_pass || undefined, // MARKER-CLASSES-P1
++      special_order_id: i.special_order_id || null, // MARKER-SO-HANDOVER
++      so_number: i.so_number || null,
++      pickup: !!i.so_pickup,
+     }));
+     closeModal('draftsModal');
+     renderCart();
+diff --git a/resources/views/tenant/special-orders/_bench.blade.php b/resources/views/tenant/special-orders/_bench.blade.php
+new file mode 100644
+index 00000000..23d12b8f
+--- /dev/null
++++ b/resources/views/tenant/special-orders/_bench.blade.php
+@@ -0,0 +1,111 @@
++{{-- MARKER-SO-HANDOVER: the Arrived bench. Each row says whether the part
++     is held, who it's for and how it gets to them, whether they've been told,
++     and offers the next step. Expects $sos and $bench. --}}
++<style>
++  .so-flat{background:transparent;border:0;box-shadow:none}
++  .so-flat .ia-table{border-top:1px solid var(--ia-border)}
++  .so-hold{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;border-radius:99px;padding:2px 9px;white-space:nowrap}
++  .so-hold.on{background:rgba(190,242,100,.10);color:var(--ia-accent)}
++  body.ia-theme-b .so-hold.on{background:rgba(59,109,17,.10);color:#3B6D11}
++  .so-hold.off{background:rgba(245,196,81,.12);color:#c9972a}
++  .so-hold.na{background:var(--ia-surface);color:var(--ia-text-muted)}
++  .so-sub{display:block;font-size:11.5px;color:var(--ia-text-muted);font-weight:400}
++  .so-acts{display:flex;gap:6px;justify-content:flex-end;align-items:center;white-space:nowrap}
++  .so-nw{white-space:nowrap}
++  .so-bench-btns{display:flex;gap:6px;margin-top:4px;flex-wrap:wrap}
++</style>
++
++@php
++  $holdHtml = function ($b) {
++      $h = $b['hold'];
++      return match ($h['state']) {
++          'held'        => '<span class="so-hold on">Held' . ($h['at'] ? ' at ' . e($h['at']) : '') . '</span>',
++          'taken'       => '<span class="so-hold na">Counted out at sale</span><span class="so-sub">Its sale took the stock already</span>',
++          'uncataloged' => '<span class="so-hold na">Not in catalog</span><span class="so-sub">Nothing in stock to hold</span>',
++          'stock'       => '<span class="so-hold na">In stock</span><span class="so-sub">Nobody is waiting for it</span>',
++          default       => '<span class="so-hold off">Not held</span><span class="so-sub">Check the shelf, then hold it</span>',
++      };
++  };
++@endphp
++
++{{-- Desktop --}}
++<div class="ia-card so-flat so-desktop-only">
++  <table class="ia-table">
++    <thead><tr><th>SO</th><th>Item</th><th>For</th><th>Hold</th><th>Arrived</th><th>Customer told</th><th></th></tr></thead>
++    <tbody>
++      @foreach($sos as $so)
++        @php
++          $b = $bench[$so->id];
++          $ctx = $b['ctx'];
++          $who = $so->customer ? $so->customer->fullName() : ($so->appointment ? 'Work order ' . $so->appointment->ra_number : 'Shop stock');
++        @endphp
++        <tr data-so-row="{{ $so->id }}">
++          <td class="so-nw"><a href="{{ route('tenant.special-orders.show', ['id' => $so->id]) }}" style="color:inherit;text-decoration:none"><strong>{{ $so->so_number }}</strong></a></td>
++          <td><strong>{{ $so->item_name_snapshot }}</strong>@if($so->quantity > 1) <span class="ia-text-muted">×{{ $so->quantity }}</span>@endif
++            @if($so->item && $so->item->sku)<span class="so-sub">{{ $so->item->sku }}</span>@endif</td>
++          <td><strong>{{ $who }}</strong>@if($ctx['label'] !== $who)<span class="so-sub">{{ $ctx['label'] }}</span>@endif</td>
++          <td>{!! $holdHtml($b) !!}
++            @if($b['hold']['state'] === 'none')
++              <div class="so-bench-btns">
++                <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" data-so-act="hold" data-id="{{ $so->id }}">Hold now</button>
++                <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" data-so-act="missing" data-id="{{ $so->id }}" data-so="{{ $so->so_number }}">Not on shelf</button>
++              </div>
++            @endif
++          </td>
++          <td class="so-nw">{{ $so->arrived_at ? tlocal_date($so->arrived_at, 'M j') : '—' }}</td>
++          <td>
++            @if($so->notified_at)
++              {{ $so->notified_via }} <span class="so-sub">{{ tlocal_date($so->notified_at, 'M j') }}</span>
++            @elseif($so->customer_id || $so->appointment_id)
++              <span class="ia-text-muted">Not yet</span>
++            @else
++              <span class="ia-text-muted">—</span>
++            @endif
++            @if($so->customer_id || $so->appointment_id)
++              <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" data-so-act="tell" data-id="{{ $so->id }}">{{ $so->notified_at ? 'Again' : 'Tell' }}</button>
++            @endif
++          </td>
++          <td>
++            <div class="so-acts">
++              @include('tenant.special-orders._handover-button', ['so' => $so, 'ctx' => $ctx, 'who' => $who, 'hold' => $b['hold'], 'size' => 'sm'])
++              <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" data-so-act="cancel" data-id="{{ $so->id }}">Cancel</button>
++            </div>
++          </td>
++        </tr>
++      @endforeach
++    </tbody>
++  </table>
++</div>
++
++{{-- Mobile --}}
++<div class="so-mobile-only so-cards">
++  @foreach($sos as $so)
++    @php
++      $b = $bench[$so->id];
++      $ctx = $b['ctx'];
++      $who = $so->customer ? $so->customer->fullName() : ($so->appointment ? 'Work order ' . $so->appointment->ra_number : 'Shop stock');
++    @endphp
++    <div class="so-card">
++      <div class="so-card-top">
++        <a class="so-card-num" href="{{ route('tenant.special-orders.show', ['id' => $so->id]) }}" style="text-decoration:none">{{ $so->so_number }}</a>
++        {!! $holdHtml(['hold' => ['state' => $b['hold']['state'], 'at' => $b['hold']['at']]]) !!}
++      </div>
++      <div class="so-card-item">{{ $so->item_name_snapshot }} <span class="ia-text-muted">×{{ $so->quantity }}</span></div>
++      <div class="so-card-meta">{{ $who }}@if($ctx['label'] !== $who) · {{ $ctx['label'] }}@endif
++        @if($so->customer_id || $so->appointment_id) · {{ $so->notified_at ? 'Told: ' . $so->notified_via : 'Not told yet' }}@endif</div>
++      <div class="so-bench-btns" style="margin-top:10px">
++        @include('tenant.special-orders._handover-button', ['so' => $so, 'ctx' => $ctx, 'who' => $who, 'hold' => $b['hold'], 'size' => 'sm'])
++        @if($so->customer_id || $so->appointment_id)
++          <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" data-so-act="tell" data-id="{{ $so->id }}">{{ $so->notified_at ? 'Tell again' : 'Tell' }}</button>
++        @endif
++        @if($b['hold']['state'] === 'none')
++          <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" data-so-act="hold" data-id="{{ $so->id }}">Hold now</button>
++          <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" data-so-act="missing" data-id="{{ $so->id }}" data-so="{{ $so->so_number }}">Not on shelf</button>
++        @endif
++        <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" data-so-act="cancel" data-id="{{ $so->id }}">Cancel</button>
++      </div>
++    </div>
++  @endforeach
++</div>
++
++@include('tenant.special-orders._handover-js')
+diff --git a/resources/views/tenant/special-orders/_handover-button.blade.php b/resources/views/tenant/special-orders/_handover-button.blade.php
+new file mode 100644
+index 00000000..80926dd6
+--- /dev/null
++++ b/resources/views/tenant/special-orders/_handover-button.blade.php
+@@ -0,0 +1,23 @@
++{{-- MARKER-SO-HANDOVER: the next step for an arrived order, by how it gets
++     to its person. Paid or unpaid → Hand over (asks as needed); a work-order
++     part → the job; a layaway → the layaway. --}}
++@php $sz = ($size ?? null) === 'sm' ? ' ia-btn--sm' : ''; @endphp
++@if($ctx['kind'] === 'stock')
++  <button type="button" class="ia-btn ia-btn--secondary{{ $sz }}" data-so-act="putaway" data-id="{{ $so->id }}" data-so="{{ $so->so_number }}"
++          title="It's already in stock and nobody is waiting for it. This closes the order.">Put away</button>
++@elseif(in_array($ctx['kind'], ['paid', 'unpaid'], true))
++  <button type="button" class="ia-btn ia-btn--primary{{ $sz }}" data-so-act="handover"
++          data-id="{{ $so->id }}"
++          data-so="{{ $so->so_number }}"
++          data-who="{{ $who }}"
++          data-item="{{ $so->item_name_snapshot }}"
++          data-qty="{{ (int) $so->quantity }}"
++          data-kind="{{ $ctx['kind'] }}"
++          data-sale="{{ $ctx['sale'] }}"
++          data-at="{{ $hold['at'] ?? '' }}"
++          data-customer="{{ $so->customer_id }}"
++          data-cataloged="{{ $so->inventory_item_id ? '1' : '0' }}">Hand over</button>
++@elseif($ctx['url'])
++  <a class="ia-btn ia-btn--secondary{{ $sz }}" href="{{ $ctx['url'] }}"
++     title="{{ $ctx['kind'] === 'job' ? 'Completing the work order uses the part' : 'Handing the layaway over hands this over too' }}">Open {{ $ctx['kind'] === 'job' ? $ctx['label'] : 'layaway' }}</a>
++@endif
+diff --git a/resources/views/tenant/special-orders/_handover-js.blade.php b/resources/views/tenant/special-orders/_handover-js.blade.php
+new file mode 100644
+index 00000000..83be665c
+--- /dev/null
++++ b/resources/views/tenant/special-orders/_handover-js.blade.php
+@@ -0,0 +1,78 @@
++{{-- MARKER-SO-HANDOVER: actions on arrived orders, shared by the Arrived
++     bench and the order page. Buttons carry data-so-act; the server decides
++     and the shared dialog (layouts/tenant/_so-choices) asks when it must. --}}
++@once
++<script>
++(function () {
++  'use strict';
++  var R = {
++    handover: @json(route('tenant.special-orders.hand-over', ['id' => '__ID__'])),
++    cancel:   @json(route('tenant.special-orders.cancel', ['id' => '__ID__'])),
++    hold:     @json(route('tenant.special-orders.hold-now', ['id' => '__ID__'])),
++    missing:  @json(route('tenant.special-orders.missing', ['id' => '__ID__'])),
++    register: @json(route('tenant.register.index')),
++  };
++  function url(k, id) { return R[k].replace('__ID__', id); }
++  function after(d) { if (d && d.ok) { setTimeout(function () { location.reload(); }, 600); } }
++
++  function handOver(b) {
++    var d = b.dataset;
++    var qty = parseInt(d.qty || '1', 10);
++    var units = qty + ' ' + d.item;
++    if (d.kind === 'paid') {
++      IntakeConfirm.show({
++        title: 'Hand over ' + d.so + ' to ' + d.who + '?',
++        message: 'It\'s paid on ' + (d.sale || 'its sale') + '. The hold is released and ' + units + ' leaves stock' + (d.at ? ' at ' + d.at : '') + '. Nothing is charged.',
++        confirmText: 'Hand over', cancelText: 'Not now',
++      }).then(function (ok) { if (ok) { IntakeSO.act(url('handover', d.id), {}).then(after); } });
++      return;
++    }
++    var canRing = d.kind === 'unpaid' && d.customer && d.cataloged === '1';
++    var opts = [];
++    if (canRing) {
++      opts.push({ value: 'ring', label: 'Ring it up at the register', help: 'Opens the register with ' + d.who + ' attached and this part in the cart. It\'s handed over at checkout.' });
++    }
++    opts.push({ value: 'free', label: 'Hand over without a sale', help: 'For a warranty swap or a part paid somewhere else. A reason is required and is kept on the order. ' + units + ' leaves stock.' });
++    IntakeSO.choose({
++      title: d.so + ' hasn\'t been paid',
++      message: d.who + ' owes for this one.' + (canRing ? ' Ringing it up hands it over at checkout.' : ''),
++      fields: [{ id: 'ho', label: '', options: opts, 'default': opts[0].value }],
++      reason: { placeholder: 'Reason (required for hand over without a sale)', when: 'free' },
++      confirm: 'Continue',
++    }).then(function (ans) {
++      if (!ans) { return; }
++      if (ans.picks.ho === 'ring') {
++        location.href = R.register + '?customer_id=' + encodeURIComponent(d.customer) + '&pickup=' + encodeURIComponent(d.id);
++        return;
++      }
++      IntakeSO.act(url('handover', d.id), { reason: ans.reason }).then(after);
++    });
++  }
++
++  document.addEventListener('click', function (e) {
++    var b = e.target.closest('[data-so-act]');
++    if (!b || !window.IntakeSO) { return; }
++    var act = b.dataset.soAct, id = b.dataset.id;
++    e.preventDefault();
++    if (act === 'handover') { handOver(b); }
++    else if (act === 'putaway') {
++      IntakeConfirm.show({
++        title: 'Put ' + (b.dataset.so || 'it') + ' away?',
++        message: 'It\'s shop stock and already counted in stock. This closes the order; stock doesn\'t change.',
++        confirmText: 'Put away', cancelText: 'Go back',
++      }).then(function (ok) { if (ok) { IntakeSO.act(url('handover', id), {}).then(after); } });
++    }
++    else if (act === 'tell') { IntakeSO.notify([id], { reload: true }); }
++    else if (act === 'hold') { IntakeSO.act(url('hold', id), {}).then(after); }
++    else if (act === 'missing') {
++      IntakeConfirm.show({
++        title: 'Not on the shelf?',
++        message: (b.dataset.so || 'This order') + ' goes back to Needed so it can be ordered again. Stock isn\'t changed; count it if the number is wrong.',
++        confirmText: 'Back to Needed', cancelText: 'Go back', danger: true,
++      }).then(function (ok) { if (ok) { IntakeSO.act(url('missing', id), {}).then(after); } });
++    }
++    else if (act === 'cancel') { IntakeSO.act(url('cancel', id), {}).then(after); }
++  });
++})();
++</script>
++@endonce
+diff --git a/resources/views/tenant/special-orders/index.blade.php b/resources/views/tenant/special-orders/index.blade.php
+index 599e624b..34b053ab 100644
+--- a/resources/views/tenant/special-orders/index.blade.php
++++ b/resources/views/tenant/special-orders/index.blade.php
+@@ -40,7 +40,7 @@
+       'open'          => ['label' => 'All open',      'count' => $counts['open']],
+       'arrived_bench' => ['label' => 'Arrived bench', 'count' => $counts['arrived_bench']],
+       'overdue'       => ['label' => 'Overdue',       'count' => $counts['overdue']],
+-      'pulled'        => ['label' => 'Pulled',        'count' => $counts['pulled']],
++      'pulled'        => ['label' => 'Handed over',   'count' => $counts['pulled']],
+       'cancelled'     => ['label' => 'Cancelled',     'count' => $counts['cancelled']],
+     ];
+   @endphp
+@@ -53,13 +53,22 @@
+   @endforeach
+ </div>
+ 
++{{-- MARKER-SO-HANDOVER --}}
++@if($view === 'arrived_bench')
++  <div class="so-legend">
++    <b>Held parts are in stock but can't be sold to anyone else.</b> They leave stock when they're handed over: rung up at the register, used on the work order, picked up on a layaway, or handed over here for a sale that's already paid.
++  </div>
++@elseif($view === 'pulled')
++  <div class="so-legend">Handed over means the part left the shop with its person, and its stock came off then.</div>
++@endif
++
+ {{-- ========== LIST ========== --}}
+ @if($sos->isEmpty())
+   <div class="ia-empty">
+     <p>No special orders in this view.</p>
+     <p class="ia-empty-sub">
+       @if($view === 'open')
+-        Create one with "+ New special order" above. Or wait — SOs will appear here as they're created from the register, appointments, or item detail pages (those flows ship in upcoming stages).
++        Create one with "+ New special order" above. Orders also appear here when they're raised from the register, a work order, or an item's page.
+       @else
+         Try a different tab.
+       @endif
+@@ -84,6 +93,8 @@
+      orders are never shown twice, and it works on phones as well as desktop. --}}
+ @if($grouped) {{-- open orders ARE the grouped screen --}}
+   @include('tenant.special-orders._vendor_groups')
++@elseif($view === 'arrived_bench')
++  @include('tenant.special-orders._bench')
+ @else
+ 
+   {{-- Desktop table --}}
+@@ -167,7 +178,7 @@
+               @if($isOverdue)
+                 <span class="so-status so-status--overdue">Overdue</span>
+               @else
+-                <span class="so-status so-status--{{ $so->status }}">{{ ucfirst($so->status) }}</span>
++                <span class="so-status so-status--{{ $so->status }}">{{ $so->statusLabel() }}</span>
+               @endif
+             </td>
+             <td class="ia-text-muted" style="font-size:12px">
+@@ -196,7 +207,7 @@
+           @if($isOverdue)
+             <span class="so-status so-status--overdue">Overdue</span>
+           @else
+-            <span class="so-status so-status--{{ $so->status }}">{{ ucfirst($so->status) }}</span>
++            <span class="so-status so-status--{{ $so->status }}">{{ $so->statusLabel() }}</span>
+           @endif
+         </div>
+         <div class="so-card-item">{{ $so->item_name_snapshot }} <span class="ia-text-muted">×{{ $so->quantity }}</span></div>
+@@ -321,6 +332,8 @@
+ .so-status--pulled   { background: rgba(200,200,200,0.06); color: var(--ia-text-muted); }
+ .so-status--cancelled{ background: rgba(248,113,113,0.10); color: #F87171; text-decoration: line-through; }
+ .so-status--overdue  { background: rgba(248,113,113,0.15); color: #F87171; }
++.so-legend { font-size: 12.5px; color: var(--ia-text-muted); line-height: 1.55; border-left: 2px solid var(--ia-border-strong, var(--ia-border)); padding: 2px 0 2px 12px; margin: 0 0 18px; max-width: 880px; }
++.so-legend b { color: var(--ia-text); font-weight: 600; }
+ 
+ /* Mobile cards */
+ .so-cards { flex-direction: column; gap: 8px; }
+diff --git a/resources/views/tenant/special-orders/show.blade.php b/resources/views/tenant/special-orders/show.blade.php
+index ffdd0902..016fe5c6 100644
+--- a/resources/views/tenant/special-orders/show.blade.php
++++ b/resources/views/tenant/special-orders/show.blade.php
+@@ -23,7 +23,7 @@
+ 
+ {{-- ========== STATE STRIP ========== --}}
+ @php
+-  $stages = ['needed' => 'Needed', 'ordered' => 'Ordered', 'arrived' => 'Arrived', 'pulled' => 'Pulled'];
++  $stages = ['needed' => 'Needed', 'ordered' => 'Ordered', 'arrived' => 'Arrived', 'pulled' => 'Handed over'];
+   $stageIdx = array_search($so->status, array_keys($stages));
+   $isCancelled = $so->status === 'cancelled';
+ @endphp
+@@ -52,7 +52,7 @@
+     <div class="ia-card">
+       <div class="ia-card-head">
+         <span class="ia-card-title">Order details</span>
+-        <span class="so-status so-status--{{ $so->status }}">{{ ucfirst($so->status) }}</span>
++        <span class="so-status so-status--{{ $so->status }}">{{ $so->statusLabel() }}</span>
+       </div>
+       <div class="ia-card-body">
+         <div class="so-detail-grid">
+@@ -74,6 +74,50 @@
+             <div class="so-detail-label">Pickup location</div>
+             <div class="so-detail-value">{{ $so->location?->name ?? '—' }}</div>
+           </div>
++          {{-- MARKER-SO-HANDOVER: hold, sale, and whether they've been told --}}
++          @if(in_array($so->status, ['arrived', 'pulled'], true))
++            <div>
++              <div class="so-detail-label">Hold</div>
++              <div class="so-detail-value">
++                @if($so->status === 'pulled')
++                  <span class="ia-text-muted">Used at handover</span>
++                @elseif($hold['state'] === 'held')
++                  <span class="so-hold on">Held{{ $hold['at'] ? ' at ' . $hold['at'] : '' }}</span>
++                @elseif($hold['state'] === 'taken')
++                  <span class="ia-text-muted">Counted out at sale</span>
++                @elseif($hold['state'] === 'uncataloged')
++                  <span class="ia-text-muted">Not in catalog</span>
++                @elseif($hold['state'] === 'stock')
++                  <span class="ia-text-muted">In stock · nobody waiting</span>
++                @else
++                  <span class="so-hold off">Not held</span>
++                  <div class="so-bench-btns">
++                    <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" data-so-act="hold" data-id="{{ $so->id }}">Hold now</button>
++                    <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" data-so-act="missing" data-id="{{ $so->id }}" data-so="{{ $so->so_number }}">Not on shelf</button>
++                  </div>
++                @endif
++              </div>
++            </div>
++            <div>
++              <div class="so-detail-label">Customer told</div>
++              <div class="so-detail-value">
++                @if($so->notified_at){{ $so->notified_via }} · {{ tlocal_datetime($so->notified_at, 'M j, g:i a') }}@else<span class="ia-text-muted">Not yet</span>@endif
++              </div>
++            </div>
++          @endif
++          @if($so->sale_id)
++            @php $soSale = \App\Models\Tenant\TenantSale::find($so->sale_id); @endphp
++            <div>
++              <div class="so-detail-label">Sale</div>
++              <div class="so-detail-value">
++                @if($soSale)
++                  {{ $soSale->sale_number ?: 'At the register' }} · {{ in_array($soSale->payment_status, ['paid', 'partial'], true) ? ($soSale->payment_status === 'paid' ? 'paid in full' : 'part paid') : 'not paid' }}
++                @else
++                  <span class="ia-text-muted">Removed</span>
++                @endif
++              </div>
++            </div>
++          @endif
+           <div>
+             <div class="so-detail-label">Vendor</div>
+             <div class="so-detail-value">
+@@ -228,7 +272,7 @@
+                   @endif
+                 </td>
+                 <td>{{ $sib->quantity }}</td>
+-                <td><span class="so-status so-status--{{ $sib->status }}">{{ ucfirst($sib->status) }}</span></td>
++                <td><span class="so-status so-status--{{ $sib->status }}">{{ $sib->statusLabel() }}</span></td>
+               </tr>
+             @endforeach
+           </tbody>
+@@ -256,15 +300,27 @@
+           @endif
+ 
+           @if($so->status === 'arrived')
+-            <form method="POST" action="{{ route('tenant.special-orders.mark-pulled', ['id' => $so->id]) }}">
+-              @csrf
+-              <button type="submit" class="ia-btn ia-btn--primary" style="width:100%">Mark pulled</button>
+-            </form>
++            {{-- MARKER-SO-HANDOVER --}}
++            @include('tenant.special-orders._handover-button', ['ctx' => $ctx, 'who' => $so->customer ? $so->customer->fullName() : ($so->appointment ? 'work order ' . $so->appointment->ra_number : 'shop stock'), 'hold' => $hold])
++            @if($so->customer_id || $so->appointment_id)
++              <button type="button" class="ia-btn ia-btn--secondary" data-so-act="tell" data-id="{{ $so->id }}">{{ $so->notified_at ? 'Tell customer again' : 'Tell customer' }}</button>
++            @endif
+           @endif
+ 
+           <button type="button" class="ia-btn ia-btn--danger" onclick="SoActions.openCancel()">Cancel order</button>
+         </div>
+       </div>
++      @if($so->status === 'arrived')
++        <div class="so-legend" style="margin-top:14px">
++          @switch($ctx['kind'])
++            @case('paid') Paid on {{ $ctx['sale'] ?: 'its sale' }}, so handing over just releases the hold and takes the unit out of stock. Nothing is charged. @break
++            @case('unpaid') Not paid yet. Ring it up at the register to hand it over at checkout, or hand it over without a sale with a reason (a warranty swap, a part paid elsewhere). @break
++            @case('job') It's a part for {{ $ctx['label'] }}. Completing the work order uses it and takes it out of stock. @break
++            @case('layaway') It's on a layaway. Handing the layaway over at the register hands this over too. @break
++            @default It's shop stock and already counted in stock. Putting it away closes the order; stock doesn't change.
++          @endswitch
++        </div>
++      @endif
+     @endif
+ 
+     {{-- Linked to card --}}
+@@ -328,8 +384,10 @@
+           @endif
+           @if($so->pulled_at)
+             <div>
+-              <div class="so-detail-label">Pulled</div>
+-              <div class="so-detail-value" style="font-size:12px">{{ $so->pulled_at->format('M j, Y g:i a') }}</div>
++              <div class="so-detail-label">Handed over</div>
++              <div class="so-detail-value" style="font-size:12px">{{ $so->pulled_at->format('M j, Y g:i a') }}@if($handedOverBy) · {{ $handedOverBy }}@endif
++                @if($so->handover_note)<div class="ia-text-muted" style="font-size:11.5px">{{ $so->handover_note }}</div>@endif
++              </div>
+             </div>
+           @endif
+           @if($so->cancelled_at)
+@@ -467,14 +525,17 @@
+ <div id="so-cancel-modal" class="ia-modal" style="display:none">
+   <div class="ia-modal-backdrop" onclick="SoActions.closeCancel()"></div>
+   <div class="ia-modal-panel" style="max-width:500px">
+-    <form method="POST" action="{{ route('tenant.special-orders.cancel', ['id' => $so->id]) }}">
++    <form method="POST" action="{{ route('tenant.special-orders.cancel', ['id' => $so->id]) }}" id="so-cancel-form">
+       @csrf
+       <div class="ia-modal-head">
+         <h3 class="ia-modal-title">Cancel special order</h3>
+       </div>
+       <div class="ia-modal-body">
+         <p class="ia-text-muted" style="font-size:13px;margin-bottom:14px">
+-          This won't refund any deposit — handle that separately. The SO row stays in history.
++          Cancelling doesn't refund anything — refund from the sale if it was paid. The order stays in history.
++          @if(in_array($so->status, ['ordered', 'arrived'], true))
++            It's {{ $so->status === 'ordered' ? 'already on order, so it will still arrive' : 'on the bench' }}; you'll choose what happens to it next.
++          @endif
+         </p>
+         <div class="ia-form-group">
+           <label class="ia-form-label">Reason (optional)</label>
+@@ -504,8 +565,18 @@ document.addEventListener('keydown', function (e) {
+     SoActions.closeOrdered(); SoActions.closeArrived(); SoActions.closeCancel();
+   }
+ });
++// MARKER-SO-HANDOVER: cancel goes through the shared dialog, so an ordered
++// or arrived order asks what happens to it instead of bouncing back.
++document.getElementById('so-cancel-form')?.addEventListener('submit', function (e) {
++  if (!window.IntakeSO) { return; }
++  e.preventDefault();
++  var reason = this.querySelector('[name=reason]').value;
++  SoActions.closeCancel();
++  IntakeSO.act(this.action, { reason: reason }).then(function (d) { if (d && d.ok) { location.reload(); } });
++});
+ </script>
+ @endpush
++@include('tenant.special-orders._handover-js')
+ 
+ @push('styles')
+ <style>
+@@ -554,6 +625,12 @@ document.addEventListener('keydown', function (e) {
+   grid-template-columns: 1fr 1fr;
+   gap: 14px 18px;
+ }
++.so-legend { font-size: 12.5px; color: var(--ia-text-muted); line-height: 1.55; border-left: 2px solid var(--ia-border-strong, var(--ia-border)); padding: 2px 0 2px 12px; }
++.so-hold { display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:600; border-radius:99px; padding:2px 9px; white-space:nowrap; }
++.so-hold.on { background: rgba(190,242,100,.10); color: var(--ia-accent); }
++body.ia-theme-b .so-hold.on { background: rgba(59,109,17,.10); color: #3B6D11; }
++.so-hold.off { background: rgba(245,196,81,.12); color: #c9972a; }
++.so-bench-btns { display:flex; gap:6px; margin-top:6px; flex-wrap:wrap; }
+ .so-detail-label {
+   font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em;
+   color: var(--ia-text-muted); font-weight: 600; margin-bottom: 4px;
+diff --git a/resources/views/tenant/vendors/show.blade.php b/resources/views/tenant/vendors/show.blade.php
+index 93c74dc5..3810801c 100644
+--- a/resources/views/tenant/vendors/show.blade.php
++++ b/resources/views/tenant/vendors/show.blade.php
+@@ -159,7 +159,7 @@
+                   @if($so->quantity > 1)<span class="ia-text-muted"> ×{{ $so->quantity }}</span>@endif
+                 </td>
+                 <td>
+-                  <span class="so-status so-status--{{ $so->status }}">{{ ucfirst($so->status) }}</span>
++                  <span class="so-status so-status--{{ $so->status }}">{{ $so->statusLabel() }}</span>
+                 </td>
+                 <td class="ia-text-muted" style="font-size:12px">
+                   @if($so->expected_arrival_date)
+diff --git a/routes/web.php b/routes/web.php
+index 3f644d1a..47882342 100644
+--- a/routes/web.php
++++ b/routes/web.php
+@@ -1054,6 +1054,14 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
+                 Route::post('/{id}/mark-arrived',                  [TenantControllers\SpecialOrderController::class, 'markArrived'])->name('mark-arrived');
+                 Route::post('/{id}/mark-pulled',                   [TenantControllers\SpecialOrderController::class, 'markPulled'])->name('mark-pulled');
+                 Route::post('/{id}/cancel',                        [TenantControllers\SpecialOrderController::class, 'cancel'])->name('cancel');
++                // MARKER-SO-HANDOVER
++                Route::post('/notify/rows',                        [TenantControllers\SpecialOrderController::class, 'notifyRows'])->name('notify-rows');
++                Route::post('/notify',                             [TenantControllers\SpecialOrderController::class, 'notify'])->name('notify');
++                Route::post('/{id}/hand-over',                     [TenantControllers\SpecialOrderController::class, 'handOver'])->name('hand-over');
++                Route::post('/{id}/hold-now',                      [TenantControllers\SpecialOrderController::class, 'holdNow'])->name('hold-now');
++                Route::post('/{id}/missing',                       [TenantControllers\SpecialOrderController::class, 'markMissing'])->name('missing');
++                Route::post('/{id}/remove-from-sale',              [TenantControllers\SpecialOrderController::class, 'removeFromSale'])->name('remove-from-sale');
++                Route::post('/{id}/attach-to-sale',                [TenantControllers\SpecialOrderController::class, 'attachToSale'])->name('attach-to-sale');
+                 Route::post('/{id}/confirm-source',                [TenantControllers\SpecialOrderController::class, 'confirmSource'])->name('confirm-source');
+                 Route::post('/{id}/assign-vendor',                 [TenantControllers\SpecialOrderController::class, 'assignVendor'])->name('assign-vendor');
+                 Route::post('/placement/mark-ordered-batch',       [TenantControllers\SpecialOrderController::class, 'markOrderedBatch'])->name('mark-ordered-batch');

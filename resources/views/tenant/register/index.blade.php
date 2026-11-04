@@ -93,6 +93,10 @@
     cursor: pointer; transition: background 120ms ease;
   }
   .reg-oversell-btn:hover { background: var(--ia-hover); }
+  /* MARKER-SO-HANDOVER: a cart line that is a special order */
+  .reg-soline { font-size: 11px; margin-top: 3px; color: var(--ia-text-dim); }
+  .reg-soline b { color: var(--ia-accent); font-weight: 600; }
+  body.ia-theme-b .reg-soline b { color: #3B6D11; }
   .reg-oversell-pill {
     display: inline-block;
     font-size: 11px; padding: 3px 10px;
@@ -1389,6 +1393,17 @@
       cart.customer = @json($preAttachCustomer);
       if (typeof renderCart === 'function') renderCart();
       if (typeof queueDraftSave === 'function') queueDraftSave();
+      if (typeof loadCustomerOpen === 'function') loadCustomerOpen(cart.customer.id);
+      // MARKER-SO-HANDOVER: "Ring it up" from a special order puts it in the cart
+      @if(request()->query('pickup'))
+      fetch(ROUTES.customerOpen.replace('__ID__', cart.customer.id), { headers: { Accept: 'application/json' } })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          var p = ((d && d.pickups) || []).find(function (x) { return x.id === @json((string) request()->query('pickup')); });
+          if (p && !p.paid && p.inventory_item_id && typeof addPickupToSale === 'function') { addPickupToSale(p); }
+        })
+        .catch(function () {});
+      @endif
     }
   });
 </script>
@@ -1479,6 +1494,9 @@ const ROUTES = {
   discountValidate: @json(route('tenant.register.discount.validate')),
   storeSale:   @json(route('tenant.register.sales.store')),
   customerOpen:    @json(route('tenant.register.customer.open', ['customer' => '__ID__'])),
+  soHandOver:      @json(route('tenant.special-orders.hand-over', ['id' => '__ID__'])), // MARKER-SO-HANDOVER
+  soAttach:        @json(route('tenant.special-orders.attach-to-sale', ['id' => '__ID__'])),
+  soShow:          @json(route('tenant.special-orders.show', ['id' => '__ID__'])),
   layawayOpen:     @json(route('tenant.register.layaway.open')),
   layawayPay:      @json(route('tenant.register.layaway.pay', ['plan' => '__ID__'])),
   layawayComplete: @json(route('tenant.register.layaway.complete', ['plan' => '__ID__'])),
@@ -2919,29 +2937,21 @@ function removeLine(key) {
     return;
   }
 
-  // a line that requested a special order takes that
-  // request with it. Only retracts orders still in "needed"; anything already
-  // placed with a vendor is left alone and reported, since goods may be
-  // inbound. Same rule as removing a part from an appointment.
+  // MARKER-SO-HANDOVER: a line with a special order takes it along only
+  // after the person says what happens to it. A needed order is simply
+  // retracted; an ordered or arrived one asks (shop stock, or kept for the
+  // customer) and the line stays if they back out.
   const line = cart.items.find(i => i.key === key);
-  if (line && line.special_order_id) {
-    const soUrl = @json(route('tenant.special-orders.cancel', ['id' => '__ID__']));
-    fetch(soUrl.replace('__ID__', line.special_order_id), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
-      body: JSON.stringify({ reason: 'Line removed from register sale.' }),
-    })
-      .then(r => r.json())
-      .then(d => {
-        if (d && d.ok) {
-          if (window.IntakeToast) IntakeToast.success('Special order ' + (line.so_number || '') + ' cancelled');
-        } else if (window.IntakeToast) {
-          IntakeToast.error('Line removed, but ' + (line.so_number || 'the special order') + ' is already placed — check Special orders');
-        }
-      })
-      .catch(() => {
-        if (window.IntakeToast) IntakeToast.error('Line removed, but ' + (line.so_number || 'the special order') + ' may still be open');
-      });
+  if (line && line.special_order_id && window.IntakeSO) {
+    const soUrl = @json(route('tenant.special-orders.remove-from-sale', ['id' => '__ID__']));
+    IntakeSO.act(soUrl.replace('__ID__', line.special_order_id), {}).then(d => {
+      if (!d || !d.ok) { return; } // backed out, or it failed: the line stays
+      cart.items = cart.items.filter(i => i.key !== key);
+      renderCart();
+      queueDraftSave();
+      if (typeof loadPickups === 'function') { loadPickups(); }
+    });
+    return;
   }
 
   cart.items = cart.items.filter(i => i.key !== key);
@@ -3185,6 +3195,7 @@ function renderCart() {
             <div class="name">${escapeHtml(i.name)}${i.type === 'product' && i.source_id ? ` <button type="button" class="reg-info-btn reg-cart-info" data-item-id="${escapeHtml(String(i.source_id))}" title="Item details" aria-label="Item details">i</button>` : ''} ${badge}</div>
             <div class="meta">${priceMeta} ${priceBtn}</div>
             ${actionRow}
+            ${(i.special_order_id && !actionRow) ? `<div class="reg-soline">Special order <b>${escapeHtml(i.so_number || '')}</b>${i.pickup ? ' · picking up now' : ''}</div>` : ''}
           </div>
           <input type="text" class="qty" value="${i.qty}" data-key="${i.key}" inputmode="decimal">
           <div style="display:flex;align-items:center;gap:6px">
@@ -3389,8 +3400,9 @@ async function loadCustomerOpen(customerId) {
   try {
     const r = await fetch(ROUTES.customerOpen.replace('__ID__', customerId), { headers: { Accept: 'application/json' } });
     const d = await r.json();
-    if (!d.ok || !d.open.length) { box.innerHTML = ''; return; }
-    box.innerHTML = '<div style="font-size:10.5px;letter-spacing:.09em;color:var(--ia-text-dim);margin:10px 0 6px">OPEN WITH THIS CUSTOMER</div>'
+    const pickups = (d && d.pickups) || [];
+    if (!d.ok || (!d.open.length && !pickups.length)) { box.innerHTML = ''; return; }
+    box.innerHTML = renderPickups(pickups) + (d.open.length ? '<div style="font-size:10.5px;letter-spacing:.09em;color:var(--ia-text-dim);margin:10px 0 6px">OPEN WITH THIS CUSTOMER</div>' : '')
       + d.open.map(o => {
           const meta = o.kind === 'layaway'
             ? (o.status === 'ready' ? (o.awaiting ? 'Paid · waiting on a special order' : 'Paid · ready to hand over')
@@ -3412,8 +3424,75 @@ async function loadCustomerOpen(customerId) {
       openTenderForPlan();
     }));
     box.querySelectorAll('[data-handover]').forEach(b => b.addEventListener('click', () => handOverLayaway(b.dataset.handover)));
+    box.querySelectorAll('[data-pickup-hand]').forEach(b => b.addEventListener('click', () => handOverPickup(b.dataset.pickupHand)));
+    box.querySelectorAll('[data-pickup-add]').forEach(b => b.addEventListener('click', () => {
+      const p = pickups.find(x => x.id === b.dataset.pickupAdd);
+      if (p) { addPickupToSale(p); }
+    }));
   } catch (e) { box.innerHTML = ''; }
 }
+
+// MARKER-SO-HANDOVER: "Ready for pickup" — special orders on the bench for
+// this customer. Paid ones hand over straight from here; unpaid ones go onto
+// this sale and hand over when it's paid.
+function renderPickups(pickups) {
+  if (!pickups.length) { return ''; }
+  return '<div style="font-size:10.5px;letter-spacing:.09em;color:var(--ia-text-dim);margin:10px 0 6px">READY FOR PICKUP</div>'
+    + pickups.map(p => {
+      const inCart = cart.items.some(i => i.special_order_id === p.id);
+      const where = p.held_at ? 'held at ' + escapeHtml(p.held_at) : (p.pickup_at ? 'picks up at ' + escapeHtml(p.pickup_at) : '');
+      const meta = (p.paid ? 'Paid on ' + escapeHtml(p.paid_on) : (p.price_cents != null ? fmt(p.price_cents * p.quantity) + ' · not paid' : 'Not paid'))
+        + (where ? ' · ' + where : '');
+      let btn;
+      if (p.paid) {
+        btn = `<button type="button" class="reg-btn-primary" style="padding:4px 10px;font-size:12px" data-pickup-hand="${p.id}">Hand over</button>`;
+      } else if (inCart) {
+        btn = '<span class="reg-oversell-pill">✓ On this sale</span>';
+      } else if (p.inventory_item_id) {
+        btn = `<button type="button" class="reg-btn-secondary" style="padding:4px 10px;font-size:12px" data-pickup-add="${p.id}">Add to sale</button>`;
+      } else {
+        btn = `<a class="reg-btn-secondary" style="padding:4px 10px;font-size:12px;text-decoration:none" href="${ROUTES.soShow.replace('__ID__', p.id)}" title="Not in your catalog, so it can't be rung up as an item. Hand it over from the order.">Open</a>`;
+      }
+      return `<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:0.5px solid var(--ia-border);border-radius:8px;margin-bottom:6px;font-size:12.5px">
+        <div style="flex:1"><div>${escapeHtml(p.name)}${p.quantity > 1 ? ' × ' + p.quantity : ''} <span style="color:var(--ia-text-dim)">· ${escapeHtml(p.so_number)}</span></div>
+        <div style="font-size:11.5px;color:var(--ia-text-dim)">${meta}</div></div>${btn}</div>`;
+    }).join('');
+}
+
+async function handOverPickup(soId) {
+  const ok = window.iaConfirm ? await iaConfirm('Hand it over now? It comes off its hold and out of stock.') : true;
+  if (!ok || !window.IntakeSO) { return; }
+  const d = await IntakeSO.act(ROUTES.soHandOver.replace('__ID__', soId), {});
+  if (d && d.ok && cart.customer) { loadCustomerOpen(cart.customer.id); }
+}
+
+async function addPickupToSale(p) {
+  if (cart.items.some(i => i.special_order_id === p.id)) { return; }
+  const line = {
+    key: ++lineKey, type: 'product', source_id: p.inventory_item_id,
+    name: p.name, price_cents: p.price_cents || 0, qty: p.quantity || 1,
+    is_taxable: p.is_taxable !== false,
+    current_location_stock: null, reserved_here: 0, on_hand_here: null, current_location_name: null,
+    transfer_request_id: null, transfer_request_from: null,
+    special_order_id: p.id, so_number: p.so_number, pickup: true,
+  };
+  cart.items.push(line);
+  renderCart();
+  const undo = (msg) => {
+    cart.items = cart.items.filter(i => i.key !== line.key);
+    renderCart();
+    queueDraftSave();
+    if (msg && window.IntakeToast) { IntakeToast.error(msg); }
+  };
+  // the order is linked to the sale being rung up, so the sale has to exist
+  if (typeof fireDraftSave === 'function') { try { await fireDraftSave(); } catch (e) {} }
+  if (!cart.draft_id) { undo('Couldn\'t save this sale, so the order wasn\'t added. Try again.'); return; }
+  const d = await IntakeSO.act(ROUTES.soAttach.replace('__ID__', p.id), { sale_id: cart.draft_id });
+  if (!d || !d.ok) { undo(null); return; }
+  queueDraftSave();
+  if (cart.customer) { loadCustomerOpen(cart.customer.id); }
+}
+window.loadPickups = function () { if (cart.customer) { loadCustomerOpen(cart.customer.id); } };
 
 function openTenderForPlan() {
   const t = cart.layaway_target;
@@ -5932,6 +6011,9 @@ async function resumeDraft(id) {
       tax_cents: i.tax_cents || 0,
       tax_rate_snapshot: i.tax_rate_snapshot,
       pass: i.class_pass || undefined, // MARKER-CLASSES-P1
+      special_order_id: i.special_order_id || null, // MARKER-SO-HANDOVER
+      so_number: i.so_number || null,
+      pickup: !!i.so_pickup,
     }));
     closeModal('draftsModal');
     renderCart();

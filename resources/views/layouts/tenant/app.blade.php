@@ -235,6 +235,8 @@ window.IntakeOfflineConfig = {
 
 <x-tenant.bulk-working />
 
+@include('layouts.tenant._so-choices') {{-- MARKER-SO-HANDOVER --}}
+
 @stack('scripts')
 
 @include('tenant._onboarding_modal')

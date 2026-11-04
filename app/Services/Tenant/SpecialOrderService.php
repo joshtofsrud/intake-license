@@ -4,6 +4,7 @@ namespace App\Services\Tenant;
 
 use App\Models\Tenant\TenantInventoryItem;
 use App\Models\Tenant\TenantInventoryItemVendor;
+use App\Models\Tenant\TenantInventoryReservation;
 use App\Models\Tenant\TenantSpecialOrder;
 use App\Models\Tenant\TenantSpecialOrderCounter;
 use App\Models\Tenant\TenantSpecialOrderNote;
@@ -303,8 +304,10 @@ class SpecialOrderService
             $this->cancel($linked->id, 'Removed from work order (part special-order unchecked).');
             $part->forceFill(['special_order_id' => null])->saveQuietly();
         } elseif ($linkedIsLive) {
-            // Already ordered/arrived — can't un-order from a checkbox; re-check it.
-            $part->forceFill(['is_special_order' => true])->saveQuietly();
+            // MARKER-SO-HANDOVER: already ordered/arrived. It used to be forced
+            // back on; now the person chooses what happens to it (asked once).
+            $this->resolveForRemoval($linked, 'part_removed', 'Unticked on work order ' . ($appt->ra_number ?: '') . '.');
+            $part->forceFill(['special_order_id' => null])->saveQuietly();
         } else {
             $part->forceFill(['special_order_id' => null])->saveQuietly();
         }
@@ -393,9 +396,10 @@ class SpecialOrderService
         ?string $vendorInvoiceNumber = null,
         ?string $vendorInvoiceDate = null,
         bool $moveStock = false,
-        ?\App\Models\Tenant\TenantUser $byUser = null
+        ?\App\Models\Tenant\TenantUser $byUser = null,
+        ?string $atLocationId = null
     ): TenantSpecialOrder {
-        $result = DB::transaction(function () use ($id, $receivedQty, $actualUnitCostCents, $vendorInvoiceNumber, $vendorInvoiceDate, $moveStock, $byUser) {
+        $result = DB::transaction(function () use ($id, $receivedQty, $actualUnitCostCents, $vendorInvoiceNumber, $vendorInvoiceDate, $moveStock, $byUser, $atLocationId) {
             $so = $this->findOrFail($id);
             $this->validateTransition($so, TenantSpecialOrder::STATUS_ARRIVED);
 
@@ -435,6 +439,16 @@ class SpecialOrderService
                 'vendor_invoice_number'  => $vendorInvoiceNumber ?? $so->vendor_invoice_number,
                 'vendor_invoice_date'    => $vendorInvoiceDate ?? $so->vendor_invoice_date,
             ]);
+
+            // MARKER-SO-HANDOVER: hold the units for whoever is waiting, where
+            // they actually landed (the shipment's location, or the pickup
+            // location for a hand arrival).
+            if ($so->inventory_item_id) {
+                $holdAt = $atLocationId ?: ($so->location_id ?: self::defaultLocationId($so->tenant_id));
+                if ($holdAt) {
+                    $stockNote .= $this->holdOnArrival($so->fresh(), $holdAt);
+                }
+            }
 
             // Vendor pivot housekeeping — update last_ordered_at for
             // the (item, vendor) pair so future "preferred vendor" reads
@@ -680,6 +694,540 @@ class SpecialOrderService
                 'exception' => $e->getMessage(),
             ]);
         }
+    }
+
+    // ────────────────────────────────────────────────────────
+    //  MARKER-SO-HANDOVER: holds, handover, release, notices
+    // ────────────────────────────────────────────────────────
+
+    /**
+     * The open special order behind a sale line, linking it on first sight.
+     * A special order raised from the register (or attached to a cart from
+     * "Ready for pickup") carries the sale it belongs to; the line it maps to
+     * is found by item. Returns null when the line is ordinary stock.
+     */
+    public static function linkToSaleLine(\App\Models\Tenant\TenantSale $sale, \App\Models\Tenant\TenantSaleItem $line): ?TenantSpecialOrder
+    {
+        if ($line->type !== 'product' || ! $line->inventory_item_id) {
+            return null;
+        }
+        $open = [TenantSpecialOrder::STATUS_NEEDED, TenantSpecialOrder::STATUS_ORDERED, TenantSpecialOrder::STATUS_ARRIVED];
+
+        $so = TenantSpecialOrder::where('tenant_id', $sale->tenant_id)
+            ->where('sale_item_id', $line->id)
+            ->whereIn('status', $open)
+            ->first();
+        if ($so) {
+            return $so;
+        }
+
+        // first sight: an order on this sale, same item, no line yet (or a
+        // line id from a draft whose lines were rewritten)
+        $so = TenantSpecialOrder::where('tenant_id', $sale->tenant_id)
+            ->where('sale_id', $sale->id)
+            ->where('inventory_item_id', $line->inventory_item_id)
+            ->whereIn('status', $open)
+            ->where(function ($q) use ($sale) {
+                $q->whereNull('sale_item_id')
+                  ->orWhereNotIn('sale_item_id', \App\Models\Tenant\TenantSaleItem::where('sale_id', $sale->id)->select('id'));
+            })
+            ->orderBy('created_at')
+            ->first();
+        if ($so) {
+            $so->forceFill(['sale_item_id' => $line->id])->save();
+        }
+
+        return $so;
+    }
+
+    /** True when the sale line behind this order already took its stock at checkout (pre-handover rule). */
+    public static function stockAlreadyTaken(TenantSpecialOrder $so): bool
+    {
+        if (! $so->sale_item_id || $so->line_stock_deferred) {
+            return false;
+        }
+
+        return DB::table('tenant_inventory_movements')
+            ->where('reference_type', 'sale_item')
+            ->where('reference_id', $so->sale_item_id)
+            ->where('movement_type', 'sale')
+            ->exists();
+    }
+
+    /**
+     * After the units arrive at $atLocationId: hold them for whoever is
+     * waiting, at that location. Shop-stock orders hold nothing. When the
+     * customer picks up somewhere else, a transfer request carries the part
+     * (and its hold) to that store.
+     */
+    public function holdOnArrival(TenantSpecialOrder $so, string $atLocationId): string
+    {
+        if (! $so->inventory_item_id) {
+            return ''; // not cataloged: nothing in stock to hold
+        }
+        if (! $so->customer_id && ! $so->appointment_id && ! $so->sale_id) {
+            return ''; // shop stock
+        }
+        if (self::stockAlreadyTaken($so)) {
+            return ' Already counted out of stock on its sale, so no hold is needed.';
+        }
+
+        $res = app(ReservationService::class);
+        $line = $so->sale_item_id ? \App\Models\Tenant\TenantSaleItem::find($so->sale_item_id) : null;
+        $sale = $line ? \App\Models\Tenant\TenantSale::find($line->sale_id) : null;
+        if ($line && $sale) {
+            $res->reserve($sale, $line, $atLocationId, (int) $so->quantity, $so->id);
+        } else {
+            $res->reserveForSpecialOrder($so, $atLocationId);
+        }
+        $locName = \App\Models\Tenant\TenantLocation::where('id', $atLocationId)->value('name') ?? 'this location';
+        $note = " Held for {$this->whoFor($so)} at {$locName}.";
+
+        if ($so->location_id && $so->location_id !== $atLocationId) {
+            $tr = app(TransferRequestService::class)->create([
+                'tenant_id'         => $so->tenant_id,
+                'inventory_item_id' => $so->inventory_item_id,
+                'to_location_id'    => $so->location_id,
+                'from_location_id'  => $atLocationId,
+                'quantity'          => (int) $so->quantity,
+                'sale_id'           => $so->sale_id,
+                'special_order_id'  => $so->id,
+                'notes'             => "Special order {$so->so_number} picks up here",
+            ]);
+            $pickup = \App\Models\Tenant\TenantLocation::where('id', $so->location_id)->value('name') ?? 'its pickup location';
+            $note .= " Picks up at {$pickup}: transfer request made.";
+        }
+
+        return $note;
+    }
+
+    /** A transfer delivered the part to its pickup store: hold it there. */
+    public function holdAtPickup(string $soId, string $locationId): void
+    {
+        $so = TenantSpecialOrder::find($soId);
+        if (! $so || $so->status !== TenantSpecialOrder::STATUS_ARRIVED) {
+            return;
+        }
+        if (app(ReservationService::class)->activeForSpecialOrder($so->id)->isNotEmpty()) {
+            return;
+        }
+        $line = $so->sale_item_id ? \App\Models\Tenant\TenantSaleItem::find($so->sale_item_id) : null;
+        $sale = $line ? \App\Models\Tenant\TenantSale::find($line->sale_id) : null;
+        if ($line && $sale) {
+            app(ReservationService::class)->reserve($sale, $line, $locationId, (int) $so->quantity, $so->id);
+        } elseif ($so->customer_id || $so->appointment_id) {
+            app(ReservationService::class)->reserveForSpecialOrder($so, $locationId);
+        }
+        $name = \App\Models\Tenant\TenantLocation::where('id', $locationId)->value('name') ?? 'the pickup location';
+        $this->writeSystemNote($so, "Arrived at {$name} by transfer; held there.");
+    }
+
+    /** Close an order as handed over. Holds must already be used. */
+    public function markHandedOver(TenantSpecialOrder $so, string $note, ?string $byUserId = null): void
+    {
+        $so->forceFill([
+            'status'                 => TenantSpecialOrder::STATUS_PULLED,
+            'pulled_at'              => now(),
+            'line_stock_deferred'    => false,
+            'handed_over_by_user_id' => $byUserId ?? \Illuminate\Support\Facades\Auth::guard('tenant')->id(),
+        ])->save();
+        $this->writeSystemNote($so, $note);
+    }
+
+    /**
+     * Hand an arrived order to its customer outside a new sale:
+     *  - paid on a sale → the line takes its stock now (if it waited)
+     *  - a work order that is already complete → the part is used now
+     *  - otherwise only with a reason (a warranty swap, paid elsewhere)
+     */
+    public function handOver(string $id, ?string $reason = null): TenantSpecialOrder
+    {
+        return DB::transaction(function () use ($id, $reason) {
+            $so = TenantSpecialOrder::lockForUpdate()->findOrFail($id);
+            if ($so->status !== TenantSpecialOrder::STATUS_ARRIVED) {
+                throw new SpecialOrderValidationException("{$so->so_number} isn't on the bench (it's {$so->statusLabel()}).");
+            }
+            // shop stock: it went into stock when it arrived and nobody is
+            // waiting for it, so closing it changes no stock
+            if (! $so->customer_id && ! $so->appointment_id && ! $so->sale_id) {
+                $this->markHandedOver($so, 'Put away as shop stock. Stock was already counted when it arrived.');
+                return $so->fresh();
+            }
+            $inv = app(InventoryService::class);
+            $line = $so->sale_item_id ? \App\Models\Tenant\TenantSaleItem::find($so->sale_item_id) : null;
+            $sale = $line ? \App\Models\Tenant\TenantSale::find($line->sale_id) : null;
+
+            if ($sale && in_array($sale->payment_status, ['paid', 'partial'], true) && $sale->refund_of_sale_id === null) {
+                $plan = \App\Models\Tenant\TenantLayawayPlan::where('sale_id', $sale->id)->whereIn('status', ['active', 'ready'])->first();
+                if ($plan) {
+                    throw new SpecialOrderValidationException("{$so->so_number} is on a layaway. Hand the layaway over at the register; that hands this over too.");
+                }
+                if ($so->line_stock_deferred) {
+                    $hold = app(ReservationService::class)->activeForSpecialOrder($so->id)->first();
+                    $loc = $hold?->location_id ?? $so->location_id ?? $sale->location_id;
+                    $inv->decrementForSaleItem($sale, $line, $loc, false, (int) $so->quantity);
+                }
+                app(ReservationService::class)->consumeForSpecialOrder($so->id);
+                $this->markHandedOver($so, 'Handed over (paid on ' . ($sale->sale_number ?: 'its sale') . ').' . ($reason ? " {$reason}" : ''));
+                return $so->fresh();
+            }
+
+            if ($so->appointment_id) {
+                $appt = \App\Models\Tenant\TenantAppointment::where('tenant_id', $so->tenant_id)->find($so->appointment_id);
+                $part = \App\Models\Tenant\TenantAppointmentPart::where('special_order_id', $so->id)->whereNull('committed_at')->first();
+                if ($appt && $part && \App\Services\Tenant\AppointmentInventoryService::isCommittedStatus($appt->status)) {
+                    $hold = app(ReservationService::class)->activeForSpecialOrder($so->id)->first();
+                    $loc = $hold?->location_id ?? $so->location_id ?? self::defaultLocationId($so->tenant_id);
+                    $inv->decrementForAppointmentPart($appt, $part, $loc); // uses the hold, marks handed over
+                    return $so->fresh();
+                }
+                if ($appt && $part) {
+                    throw new SpecialOrderValidationException("Complete work order {$appt->ra_number} to hand this over; completing it uses the part.");
+                }
+            }
+
+            if (! $reason) {
+                throw new SpecialOrderValidationException('This order has not been paid. Ring it up at the register, or give a reason to hand it over without a sale.');
+            }
+            // without a sale: the units leave stock as an adjustment with the reason
+            $hold = app(ReservationService::class)->activeForSpecialOrder($so->id)->first();
+            $locId = $hold?->location_id ?? $so->location_id ?? self::defaultLocationId($so->tenant_id);
+            app(ReservationService::class)->consumeForSpecialOrder($so->id);
+            if ($so->inventory_item_id && $locId) {
+                $tenant = \App\Models\Tenant::findOrFail($so->tenant_id);
+                $item = \App\Models\Tenant\TenantInventoryItem::where('tenant_id', $so->tenant_id)->findOrFail($so->inventory_item_id);
+                $location = \App\Models\Tenant\TenantLocation::where('tenant_id', $so->tenant_id)->findOrFail($locId);
+                app(\App\Services\Pos\InventoryService::class)->decrementStock(
+                    tenant: $tenant, item: $item, location: $location, quantity: (int) $so->quantity,
+                    referenceType: 'special_order', referenceId: $so->id,
+                    tenantUser: \Illuminate\Support\Facades\Auth::guard('tenant')->user(),
+                    reason: 'Handed over without a sale', notes: "{$so->so_number}: {$reason}", movementType: 'adjustment',
+                );
+            }
+            $so->forceFill(['handover_note' => $reason])->save();
+            $this->markHandedOver($so, "Handed over without a sale: {$reason}");
+            return $so->fresh();
+        });
+    }
+
+    /**
+     * What happens to an order when what it was for goes away (a cancel, a
+     * refund, a removed line or part, a cancelled job). Returns the question
+     * to ask, or null when there is nothing to choose (a needed order simply
+     * cancels).
+     */
+    public function choiceField(TenantSpecialOrder $so, string $context): ?array
+    {
+        $first = $so->customer?->first_name ?: 'the customer';
+        $label = "{$so->so_number} · {$so->item_name_snapshot}";
+        if ($so->status === TenantSpecialOrder::STATUS_ORDERED) {
+            $opts = [['value' => 'stock', 'label' => 'Keep it coming as shop stock', 'help' => 'It still arrives and goes into stock. Nobody is waiting for it.']];
+            if ($context !== 'cancel' && $so->customer_id) {
+                $opts[] = ['value' => 'customer', 'label' => "Keep it ordered for {$first}", 'help' => 'It stays their special order, unpaid. Ring it up when it arrives.'];
+            }
+            $note = 'on order' . ($so->expected_arrival_date ? ', due ' . $so->expected_arrival_date->format('M j') : '');
+        } elseif ($so->status === TenantSpecialOrder::STATUS_ARRIVED) {
+            $opts = [['value' => 'stock', 'label' => 'Put it into shop stock', 'help' => 'The hold is released and the part stays in stock for anyone to buy.']];
+            if ($context !== 'cancel' && $so->customer_id) {
+                $opts[] = ['value' => 'customer', 'label' => "Keep it held for {$first}", 'help' => 'It stays their special order on its own. Hand it over at the register.'];
+            }
+            $note = 'on the bench';
+        } else {
+            return null;
+        }
+
+        return ['id' => $so->id, 'label' => $label, 'note' => $note, 'options' => $opts, 'default' => $opts[0]['value']];
+    }
+
+    /**
+     * Apply a choice. 'stock': the order stops being anyone's (an ordered part
+     * becomes shop stock on the way; an arrived one is released into stock and
+     * the order closes). 'customer': it stays the customer's own order,
+     * detached from the sale or job it was on. A needed order just cancels.
+     */
+    public function release(TenantSpecialOrder $so, string $mode, string $why): void
+    {
+        $res = app(ReservationService::class);
+        if ($so->status === TenantSpecialOrder::STATUS_NEEDED) {
+            $this->cancel($so->id, $why);
+            return;
+        }
+        if (! in_array($so->status, [TenantSpecialOrder::STATUS_ORDERED, TenantSpecialOrder::STATUS_ARRIVED], true)) {
+            return;
+        }
+
+        if ($mode === 'customer' && $so->customer_id) {
+            $locId = $res->activeForSpecialOrder($so->id)->first()?->location_id;
+            $res->releaseForSpecialOrder($so->id, 'moved_to_order');
+            $so->forceFill(['sale_id' => null, 'sale_item_id' => null, 'appointment_id' => null, 'line_stock_deferred' => false])->save();
+            if ($so->status === TenantSpecialOrder::STATUS_ARRIVED && $so->inventory_item_id && $locId) {
+                $res->reserveForSpecialOrder($so->fresh(), $locId);
+            }
+            $this->writeSystemNote($so, "{$why} Kept for {$this->whoFor($so)} as their own order (unpaid).");
+            return;
+        }
+
+        if ($so->status === TenantSpecialOrder::STATUS_ARRIVED) {
+            $res->releaseForSpecialOrder($so->id, 'released_to_stock');
+            $so->forceFill([
+                'status' => TenantSpecialOrder::STATUS_CANCELLED, 'cancelled_at' => now(),
+                'cancellation_reason' => mb_substr("Released to shop stock. {$why}", 0, 500), 'line_stock_deferred' => false,
+            ])->save();
+            $this->writeSystemNote($so, "Released to shop stock. {$why}");
+            return;
+        }
+
+        // ordered → shop stock on the way
+        $so->forceFill(['customer_id' => null, 'appointment_id' => null, 'sale_id' => null, 'sale_item_id' => null, 'line_stock_deferred' => false])->save();
+        $this->writeSystemNote($so, "Now shop stock: it still arrives and goes into stock. {$why}");
+    }
+
+    /**
+     * Cancel from the bench or the order page. A placed order can't be
+     * cancelled with the vendor from here, so it stays coming as shop stock;
+     * an arrived one is released into stock.
+     */
+    public function cancelWithChoice(string $id, ?string $reason): TenantSpecialOrder
+    {
+        return DB::transaction(function () use ($id, $reason) {
+            $so = TenantSpecialOrder::lockForUpdate()->findOrFail($id);
+            $why = $reason ? "Cancelled: {$reason}." : 'Cancelled.';
+            if ($so->status === TenantSpecialOrder::STATUS_NEEDED) {
+                return $this->cancel($so->id, $reason);
+            }
+            if ($so->status === TenantSpecialOrder::STATUS_ORDERED && ! $so->customer_id && ! $so->appointment_id && ! $so->sale_id) {
+                // already shop stock: nothing to keep; it just stops being tracked
+                $this->cancel($so->id, ($reason ? "{$reason}. " : '') . 'If it still arrives, receive it as normal stock.');
+                return $so->fresh();
+            }
+            $field = $this->choiceField($so, 'cancel');
+            if ($field && ! \App\Exceptions\SpecialOrderChoiceRequired::picked($so->id)) {
+                $paid = $so->sale_id ? \App\Models\Tenant\TenantSale::where('id', $so->sale_id)->whereIn('payment_status', ['paid', 'partial'])->value('sale_number') : null;
+                throw new \App\Exceptions\SpecialOrderChoiceRequired(
+                    "Cancel {$so->so_number}?",
+                    $so->status === TenantSpecialOrder::STATUS_ARRIVED
+                        ? "{$so->item_name_snapshot} is on the bench, held for {$this->whoFor($so)}." . ($paid ? " It was paid on {$paid}; cancelling doesn't refund it — refund it from the sale." : '')
+                        : "{$so->item_name_snapshot} is already on order, and Intake can't cancel it with the vendor." . ($paid ? " It was paid on {$paid}; cancelling doesn't refund it — refund it from the sale." : ''),
+                    [$field], 'Cancel order', true, ['required' => false, 'placeholder' => 'Reason (optional)']
+                );
+            }
+            $this->release($so, 'stock', $why);
+            return $so->fresh();
+        });
+    }
+
+    /** Before an order on a line/part/job goes away, ask what happens to it (or apply the answer). */
+    public function resolveForRemoval(TenantSpecialOrder $so, string $context, string $why): void
+    {
+        $field = $this->choiceField($so, $context);
+        if (! $field) {
+            $this->release($so, 'stock', $why);
+            return;
+        }
+        $picked = \App\Exceptions\SpecialOrderChoiceRequired::picked($so->id);
+        if (! $picked) {
+            $titles = [
+                'line_removed' => "Remove {$so->item_name_snapshot}?",
+                'part_removed' => "Remove {$so->item_name_snapshot} from the work order?",
+                'refund'       => 'What happens to the special order?',
+            ];
+            throw new \App\Exceptions\SpecialOrderChoiceRequired(
+                $titles[$context] ?? 'What happens to the special order?',
+                "{$so->so_number} is " . $field['note'] . '.',
+                [$field], $context === 'refund' ? 'Continue' : 'Remove', $context !== 'refund'
+            );
+        }
+        $this->release($so, $picked === 'customer' ? 'customer' : 'stock', $why);
+    }
+
+    /** A register line with an order was removed: ask (or apply) what happens to the order. */
+    public function removeFromSale(string $id, string $why): TenantSpecialOrder
+    {
+        return DB::transaction(function () use ($id, $why) {
+            $so = TenantSpecialOrder::lockForUpdate()->findOrFail($id);
+            if (in_array($so->status, TenantSpecialOrder::STATUSES_OPEN, true)) {
+                $this->resolveForRemoval($so, 'line_removed', $why);
+            }
+            return $so->fresh();
+        });
+    }
+
+    /** Several orders at once (a cancelled job, a refund with several lines). */
+    public function resolveManyForRemoval(iterable $orders, string $title, string $message, string $confirm, string $why): void
+    {
+        $fields = [];
+        $todo = [];
+        foreach ($orders as $so) {
+            $field = $this->choiceField($so, 'removed');
+            if ($field && ! \App\Exceptions\SpecialOrderChoiceRequired::picked($so->id)) {
+                $fields[] = $field;
+            }
+            $todo[] = [$so, $field];
+        }
+        if ($fields) {
+            throw new \App\Exceptions\SpecialOrderChoiceRequired($title, $message, $fields, $confirm, true);
+        }
+        foreach ($todo as [$so, $field]) {
+            $picked = $field ? \App\Exceptions\SpecialOrderChoiceRequired::picked($so->id) : null;
+            $this->release($so, $picked === 'customer' ? 'customer' : 'stock', $why);
+        }
+    }
+
+    /** The part was sold to someone else (hold overridden): order it again. */
+    public function backToNeeded(string $soId, string $note): void
+    {
+        $so = TenantSpecialOrder::find($soId);
+        if (! $so || $so->status !== TenantSpecialOrder::STATUS_ARRIVED) {
+            return;
+        }
+        app(ReservationService::class)->releaseForSpecialOrder($so->id, 'back_to_needed');
+        $so->forceFill(['status' => TenantSpecialOrder::STATUS_NEEDED, 'arrived_at' => null, 'ordered_at' => null, 'notified_at' => null, 'notified_via' => null])->save();
+        $this->writeSystemNote($so, $note);
+    }
+
+    /** A job that used the part was reopened: the part is back on the bench, held. */
+    public function backToArrived(string $soId, string $locationId, string $note): void
+    {
+        $so = TenantSpecialOrder::find($soId);
+        if (! $so || $so->status !== TenantSpecialOrder::STATUS_PULLED) {
+            return;
+        }
+        $so->forceFill(['status' => TenantSpecialOrder::STATUS_ARRIVED, 'pulled_at' => null, 'handed_over_by_user_id' => null])->save();
+        if ($so->inventory_item_id) {
+            app(ReservationService::class)->reserveForSpecialOrder($so->fresh(), $locationId);
+        }
+        $this->writeSystemNote($so, $note);
+    }
+
+    /**
+     * Hold an order that arrived before holds existed, after the person
+     * checked the shelf. Refuses when the stock isn't there to hold.
+     */
+    public function holdNow(string $id): TenantSpecialOrder
+    {
+        return DB::transaction(function () use ($id) {
+            $so = TenantSpecialOrder::lockForUpdate()->findOrFail($id);
+            if ($so->status !== TenantSpecialOrder::STATUS_ARRIVED || ! $so->inventory_item_id) {
+                throw new SpecialOrderValidationException('Only an arrived, cataloged order can be held.');
+            }
+            if (! $so->customer_id && ! $so->appointment_id && ! $so->sale_id) {
+                throw new SpecialOrderValidationException("{$so->so_number} is shop stock; nobody is waiting for it, so there's nothing to hold.");
+            }
+            if (app(ReservationService::class)->activeForSpecialOrder($so->id)->isNotEmpty() || self::stockAlreadyTaken($so)) {
+                return $so; // nothing to do
+            }
+            $locId = $so->location_id ?: self::defaultLocationId($so->tenant_id);
+            $loc = \App\Models\Tenant\TenantInventoryItemLocation::where('inventory_item_id', $so->inventory_item_id)->where('location_id', $locId)->lockForUpdate()->first();
+            $available = $loc ? (int) $loc->computed_stock_count - (int) $loc->reserved_count : 0;
+            if ($available < (int) $so->quantity) {
+                throw new SpecialOrderValidationException("There isn't {$so->quantity} available to hold (" . max(0, $available) . ' free in stock). If it isn\'t on the shelf, mark it missing.');
+            }
+            $note = $this->holdOnArrivalNoTransfer($so, $locId);
+            $this->writeSystemNote($so, 'Held after a shelf check.' . $note);
+            return $so->fresh();
+        });
+    }
+
+    private function holdOnArrivalNoTransfer(TenantSpecialOrder $so, string $locId): string
+    {
+        $loc = $so->location_id;
+        $so->location_id = $locId; // same store: no transfer
+        $note = $this->holdOnArrival($so, $locId);
+        $so->location_id = $loc;
+        return $note;
+    }
+
+    /** It isn't on the shelf: the order goes back to Needed so it can be ordered again. */
+    public function markMissing(string $id): TenantSpecialOrder
+    {
+        return DB::transaction(function () use ($id) {
+            $so = TenantSpecialOrder::lockForUpdate()->findOrFail($id);
+            if ($so->status !== TenantSpecialOrder::STATUS_ARRIVED) {
+                throw new SpecialOrderValidationException("{$so->so_number} isn't on the bench.");
+            }
+            $this->backToNeeded($so->id, "Marked missing from the shelf. Order it again. Stock for {$so->item_name_snapshot} wasn't changed; count it if it's wrong.");
+            return $so->fresh();
+        });
+    }
+
+    /** Put an arrived order for a customer onto the sale being rung up ("Ready for pickup"). */
+    public function attachToSale(string $id, string $saleId): TenantSpecialOrder
+    {
+        return DB::transaction(function () use ($id, $saleId) {
+            $so = TenantSpecialOrder::lockForUpdate()->findOrFail($id);
+            $sale = \App\Models\Tenant\TenantSale::where('tenant_id', $so->tenant_id)->findOrFail($saleId);
+            if ($so->status !== TenantSpecialOrder::STATUS_ARRIVED) {
+                throw new SpecialOrderValidationException("{$so->so_number} isn't on the bench.");
+            }
+            if ($so->sale_id && $so->sale_id !== $sale->id) {
+                throw new SpecialOrderValidationException("{$so->so_number} already belongs to another sale. Hand it over from there.");
+            }
+            if (! in_array($sale->payment_status, ['draft', 'quote', 'unpaid'], true)) {
+                throw new SpecialOrderValidationException('Add it to a sale that is still being rung up.');
+            }
+            $so->forceFill(['sale_id' => $sale->id, 'sale_item_id' => null])->save();
+            $this->writeSystemNote($so, 'Added to sale ' . ($sale->sale_number ?: 'at the register') . ' for handover at checkout.');
+            return $so->fresh();
+        });
+    }
+
+    /** "the customer's name" or "work order RA-1" or "shop stock". */
+    public function whoFor(TenantSpecialOrder $so): string
+    {
+        $so->loadMissing('customer', 'appointment');
+        if ($so->customer) {
+            return trim(($so->customer->first_name ?? '') . ' ' . ($so->customer->last_name ?? '')) ?: 'the customer';
+        }
+        if ($so->appointment) {
+            return 'work order ' . $so->appointment->ra_number;
+        }
+        return 'shop stock';
+    }
+
+    /**
+     * How an arrived order gets to its person, for the bench and the order
+     * page: kind = paid | unpaid | job | layaway | stock, with a short label
+     * and where to go when the handover happens elsewhere.
+     */
+    public static function handoverContext(TenantSpecialOrder $so): array
+    {
+        $so->loadMissing('appointment');
+        $sale = $so->sale_id ? \App\Models\Tenant\TenantSale::find($so->sale_id) : null;
+        if ($sale) {
+            $plan = \App\Models\Tenant\TenantLayawayPlan::where('sale_id', $sale->id)->whereIn('status', ['active', 'ready'])->first();
+            if ($plan) {
+                return ['kind' => 'layaway', 'label' => 'Layaway ' . ($sale->sale_number ?: ''), 'url' => route('tenant.register.layaways.show', ['plan' => $plan->id]), 'sale' => $sale->sale_number];
+            }
+            if (in_array($sale->payment_status, ['paid', 'partial'], true) && $sale->refund_of_sale_id === null) {
+                return ['kind' => 'paid', 'label' => 'Paid on ' . ($sale->sale_number ?: 'its sale'), 'url' => null, 'sale' => $sale->sale_number];
+            }
+        }
+        if ($so->appointment_id && $so->appointment) {
+            return ['kind' => 'job', 'label' => $so->appointment->ra_number ?: 'Work order', 'url' => route('tenant.appointments.show', $so->appointment_id), 'sale' => null];
+        }
+        if ($so->customer_id) {
+            return ['kind' => 'unpaid', 'label' => 'Not paid yet', 'url' => null, 'sale' => $sale?->sale_number];
+        }
+
+        return ['kind' => 'stock', 'label' => 'Shop stock', 'url' => null, 'sale' => null];
+    }
+
+    /**
+     * The bench row's hold state: ['state' => held|taken|none, 'at' => location name].
+     */
+    public static function holdState(TenantSpecialOrder $so): array
+    {
+        $hold = TenantInventoryReservation::active()->where('special_order_id', $so->id)->first();
+        if (! $hold && $so->inventory_item_id && ! $so->customer_id && ! $so->appointment_id && ! $so->sale_id) {
+            return ['state' => 'stock', 'at' => null]; // nobody waiting: nothing to hold
+        }
+        if ($hold) {
+            return ['state' => 'held', 'at' => \App\Models\Tenant\TenantLocation::where('id', $hold->location_id)->value('name')];
+        }
+        if (self::stockAlreadyTaken($so)) {
+            return ['state' => 'taken', 'at' => null];
+        }
+        return ['state' => $so->inventory_item_id ? 'none' : 'uncataloged', 'at' => null];
     }
 
     // ────────────────────────────────────────────────────────

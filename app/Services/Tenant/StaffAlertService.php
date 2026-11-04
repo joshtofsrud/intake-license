@@ -59,6 +59,7 @@ class StaffAlertService
         'timeoff.decided'        => ['in_app' => true,  'sms' => false],
         'timeoff.withdrawn'      => ['in_app' => true,  'sms' => false],
         'note.mention'           => ['in_app' => true,  'sms' => false], // MARKER-NOTE-MENTIONS
+        'special_order.arrived'  => ['in_app' => true,  'sms' => false], // MARKER-SO-HANDOVER
     ];
 
     public function __construct(

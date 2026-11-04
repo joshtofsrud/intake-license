@@ -1543,7 +1543,7 @@ document.addEventListener('DOMContentLoaded', function () {
                   </td>
                   <td class="ia-num">{{ $so->quantity }}</td>
                   <td>
-                    <span class="so-status so-status--{{ $isOverdue ? 'overdue' : $so->status }}">{{ $isOverdue ? 'Overdue' : ucfirst($so->status) }}</span>
+                    <span class="so-status so-status--{{ $isOverdue ? 'overdue' : $so->status }}">{{ $isOverdue ? 'Overdue' : $so->statusLabel() }}</span>
                   </td>
                   <td style="color:var(--ia-text-muted);font-size:12px">
                     @if($so->expected_arrival_date){{ $so->expected_arrival_date->format('M j') }}@else — @endif

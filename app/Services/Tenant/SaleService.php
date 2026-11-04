@@ -1010,8 +1010,29 @@ class SaleService
                 // only sellable dispositions put goods
                 // back on the shelf. The rest record where the item went; the
                 // vendor-return / warranty workflows consume that data later.
-                if ($line->type === 'product' && in_array($dispo, self::DISPOSITIONS_RESTOCK, true)) {
-                    $this->inventory->incrementForRefund($refund, $line, $refundLocationId);
+                // MARKER-SO-HANDOVER: a refunded line that is a special order not
+                // yet handed over. Units that waited for handover never left
+                // stock, so they aren't "returned"; and the order itself needs
+                // a next step (asked once, then applied).
+                $restockQty = null;
+                if ($line->type === 'product') {
+                    $lineSo = \App\Models\Tenant\TenantSpecialOrder::where('tenant_id', $tenantId)
+                        ->where('sale_item_id', $orig->id)
+                        ->whereIn('status', [\App\Models\Tenant\TenantSpecialOrder::STATUS_NEEDED, \App\Models\Tenant\TenantSpecialOrder::STATUS_ORDERED, \App\Models\Tenant\TenantSpecialOrder::STATUS_ARRIVED])
+                        ->first();
+                    if ($lineSo) {
+                        if ($lineSo->line_stock_deferred) {
+                            $restockQty = max(0, (int) ceil($qty) - min((int) $lineSo->quantity, (int) ceil($qty)));
+                        }
+                        app(\App\Services\Tenant\SpecialOrderService::class)->resolveForRemoval(
+                            $lineSo, 'refund', 'Its sale was refunded on ' . $refund->sale_number . '.'
+                        );
+                    }
+                }
+
+                if ($line->type === 'product' && in_array($dispo, self::DISPOSITIONS_RESTOCK, true)
+                    && ($restockQty === null || $restockQty > 0)) {
+                    $this->inventory->incrementForRefund($refund, $line, $refundLocationId, $restockQty);
                 }
             }
 

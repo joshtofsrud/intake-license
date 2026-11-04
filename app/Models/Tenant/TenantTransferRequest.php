@@ -33,6 +33,7 @@ class TenantTransferRequest extends Model
         'quantity',
         'requested_by_user_id',
         'sale_id',
+        'special_order_id', // MARKER-SO-HANDOVER
         'status',
         'notes',
         'fulfilled_at',

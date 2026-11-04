@@ -38,6 +38,41 @@ class AppointmentInventoryService
             return;
         }
 
+        // MARKER-SO-HANDOVER: a special-order part that hasn't arrived can't
+        // be used. Ask once: complete without it (it stays the customer's
+        // order, linked to this job, handed over when it arrives) or wait.
+        $waiting = \App\Models\Tenant\TenantSpecialOrder::where('tenant_id', $appointment->tenant_id)
+            ->whereIn('id', $appointment->parts()->whereNull('committed_at')->whereNotNull('special_order_id')->pluck('special_order_id'))
+            ->whereIn('status', [\App\Models\Tenant\TenantSpecialOrder::STATUS_NEEDED, \App\Models\Tenant\TenantSpecialOrder::STATUS_ORDERED])
+            ->get();
+        if ($waiting->isNotEmpty()) {
+            $fields = [];
+            foreach ($waiting as $so) {
+                $picked = \App\Exceptions\SpecialOrderChoiceRequired::picked($so->id);
+                if ($picked === 'wait') {
+                    throw new InventoryStockException("left in progress — {$so->item_name_snapshot} ({$so->so_number}) hasn't arrived.");
+                }
+                if ($picked !== 'without') {
+                    $fields[] = [
+                        'id' => $so->id, 'label' => "{$so->so_number} · {$so->item_name_snapshot}",
+                        'note' => $so->status === 'ordered' ? 'on order' . ($so->expected_arrival_date ? ', due ' . $so->expected_arrival_date->format('M j') : '') : 'not ordered yet',
+                        'options' => [
+                            ['value' => 'without', 'label' => 'Complete without it', 'help' => 'It stays the customer\'s special order, linked to this job. Hand it over when it arrives.'],
+                            ['value' => 'wait', 'label' => 'Wait for the part', 'help' => 'Leave the work order in progress.'],
+                        ],
+                        'default' => 'without',
+                    ];
+                }
+            }
+            if ($fields) {
+                throw new \App\Exceptions\SpecialOrderChoiceRequired(
+                    'Complete ' . ($appointment->ra_number ?: 'this work order') . '?',
+                    count($fields) === 1 ? 'A special-order part on it hasn\'t arrived.' : count($fields) . ' special-order parts on it haven\'t arrived.',
+                    $fields, 'Continue'
+                );
+            }
+        }
+
         DB::transaction(function () use ($appointment, $locationId) {
             // Reload parts inside the transaction so we get a consistent view
             // and avoid acting on stale Eloquent state.

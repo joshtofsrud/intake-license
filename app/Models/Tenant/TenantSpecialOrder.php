@@ -47,6 +47,7 @@ class TenantSpecialOrder extends Model
         'location_id', // MARKER-SO-REPAIRS
         'sale_id',
         'sale_item_id',
+        'line_stock_deferred', 'notified_at', 'notified_via', 'handed_over_by_user_id', 'handover_note', // MARKER-SO-HANDOVER
         'source_confirmed_at', 'source_confirmed_by_user_id',
         'vendor_assigned_rule',
         'vendor_id',
@@ -81,6 +82,8 @@ class TenantSpecialOrder extends Model
         'pulled_at'                 => 'datetime',
         'cancelled_at'              => 'datetime',
         // columns removed; nothing to cast.
+        'notified_at'               => 'datetime',
+        'line_stock_deferred'       => 'boolean',
     ];
 
     public const STATUS_NEEDED    = 'needed';
@@ -101,6 +104,19 @@ class TenantSpecialOrder extends Model
     public function appointment(): BelongsTo { return $this->belongsTo(TenantAppointment::class, 'appointment_id'); }
     public function vendor(): BelongsTo      { return $this->belongsTo(TenantVendor::class, 'vendor_id'); }
     public function location(): BelongsTo    { return $this->belongsTo(TenantLocation::class, 'location_id'); }
+    public function sale(): BelongsTo        { return $this->belongsTo(TenantSale::class, 'sale_id'); }
+    public function saleItem(): BelongsTo    { return $this->belongsTo(TenantSaleItem::class, 'sale_item_id'); }
+    /** MARKER-SO-HANDOVER: the holds this order has (active or ended). */
+    public function holds(): HasMany          { return $this->hasMany(TenantInventoryReservation::class, 'special_order_id'); }
+
+    /** Label for staff screens: "Handed over" for the stored "pulled". */
+    public function statusLabel(): string
+    {
+        return [
+            self::STATUS_NEEDED => 'Needed', self::STATUS_ORDERED => 'Ordered', self::STATUS_ARRIVED => 'Arrived',
+            self::STATUS_PULLED => 'Handed over', self::STATUS_CANCELLED => 'Cancelled',
+        ][$this->status] ?? ucfirst((string) $this->status);
+    }
     public function createdBy(): BelongsTo   { return $this->belongsTo(TenantUser::class, 'created_by_user_id'); }
     public function notes(): HasMany         { return $this->hasMany(TenantSpecialOrderNote::class, 'special_order_id')->orderBy('created_at'); }
 

@@ -779,7 +779,7 @@
               <td>{{ $so->vendor?->name ?? '—' }}</td>
               <td>
                 @php $isOverdue = $so->status === 'ordered' && $so->expected_arrival_date && $so->expected_arrival_date->isPast(); @endphp
-                <span class="so-status so-status--{{ $isOverdue ? 'overdue' : $so->status }}">{{ $isOverdue ? 'Overdue' : ucfirst($so->status) }}</span>
+                <span class="so-status so-status--{{ $isOverdue ? 'overdue' : $so->status }}">{{ $isOverdue ? 'Overdue' : $so->statusLabel() }}</span>
               </td>
               <td style="color:var(--ia-text-muted);font-size:12px">@if($so->expected_arrival_date){{ $so->expected_arrival_date->format('M j') }}@else — @endif</td>
             </tr>
@@ -800,7 +800,7 @@
                 <td><strong>{{ $so->so_number }}</strong></td>
                 <td>{{ $so->quantity }}</td>
                 <td>{{ $so->customer ? $so->customer->fullName() : 'Stock' }}</td>
-                <td><span class="so-status so-status--{{ $so->status }}">{{ ucfirst($so->status) }}</span></td>
+                <td><span class="so-status so-status--{{ $so->status }}">{{ $so->statusLabel() }}</span></td>
                 <td style="color:var(--ia-text-muted);font-size:12px">{{ $so->updated_at->format('M j, Y') }}</td>
               </tr>
             @endforeach

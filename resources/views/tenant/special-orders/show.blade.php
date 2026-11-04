@@ -23,7 +23,7 @@
 
 {{-- ========== STATE STRIP ========== --}}
 @php
-  $stages = ['needed' => 'Needed', 'ordered' => 'Ordered', 'arrived' => 'Arrived', 'pulled' => 'Pulled'];
+  $stages = ['needed' => 'Needed', 'ordered' => 'Ordered', 'arrived' => 'Arrived', 'pulled' => 'Handed over'];
   $stageIdx = array_search($so->status, array_keys($stages));
   $isCancelled = $so->status === 'cancelled';
 @endphp
@@ -52,7 +52,7 @@
     <div class="ia-card">
       <div class="ia-card-head">
         <span class="ia-card-title">Order details</span>
-        <span class="so-status so-status--{{ $so->status }}">{{ ucfirst($so->status) }}</span>
+        <span class="so-status so-status--{{ $so->status }}">{{ $so->statusLabel() }}</span>
       </div>
       <div class="ia-card-body">
         <div class="so-detail-grid">
@@ -74,6 +74,50 @@
             <div class="so-detail-label">Pickup location</div>
             <div class="so-detail-value">{{ $so->location?->name ?? '—' }}</div>
           </div>
+          {{-- MARKER-SO-HANDOVER: hold, sale, and whether they've been told --}}
+          @if(in_array($so->status, ['arrived', 'pulled'], true))
+            <div>
+              <div class="so-detail-label">Hold</div>
+              <div class="so-detail-value">
+                @if($so->status === 'pulled')
+                  <span class="ia-text-muted">Used at handover</span>
+                @elseif($hold['state'] === 'held')
+                  <span class="so-hold on">Held{{ $hold['at'] ? ' at ' . $hold['at'] : '' }}</span>
+                @elseif($hold['state'] === 'taken')
+                  <span class="ia-text-muted">Counted out at sale</span>
+                @elseif($hold['state'] === 'uncataloged')
+                  <span class="ia-text-muted">Not in catalog</span>
+                @elseif($hold['state'] === 'stock')
+                  <span class="ia-text-muted">In stock · nobody waiting</span>
+                @else
+                  <span class="so-hold off">Not held</span>
+                  <div class="so-bench-btns">
+                    <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" data-so-act="hold" data-id="{{ $so->id }}">Hold now</button>
+                    <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" data-so-act="missing" data-id="{{ $so->id }}" data-so="{{ $so->so_number }}">Not on shelf</button>
+                  </div>
+                @endif
+              </div>
+            </div>
+            <div>
+              <div class="so-detail-label">Customer told</div>
+              <div class="so-detail-value">
+                @if($so->notified_at){{ $so->notified_via }} · {{ tlocal_datetime($so->notified_at, 'M j, g:i a') }}@else<span class="ia-text-muted">Not yet</span>@endif
+              </div>
+            </div>
+          @endif
+          @if($so->sale_id)
+            @php $soSale = \App\Models\Tenant\TenantSale::find($so->sale_id); @endphp
+            <div>
+              <div class="so-detail-label">Sale</div>
+              <div class="so-detail-value">
+                @if($soSale)
+                  {{ $soSale->sale_number ?: 'At the register' }} · {{ in_array($soSale->payment_status, ['paid', 'partial'], true) ? ($soSale->payment_status === 'paid' ? 'paid in full' : 'part paid') : 'not paid' }}
+                @else
+                  <span class="ia-text-muted">Removed</span>
+                @endif
+              </div>
+            </div>
+          @endif
           <div>
             <div class="so-detail-label">Vendor</div>
             <div class="so-detail-value">
@@ -228,7 +272,7 @@
                   @endif
                 </td>
                 <td>{{ $sib->quantity }}</td>
-                <td><span class="so-status so-status--{{ $sib->status }}">{{ ucfirst($sib->status) }}</span></td>
+                <td><span class="so-status so-status--{{ $sib->status }}">{{ $sib->statusLabel() }}</span></td>
               </tr>
             @endforeach
           </tbody>
@@ -256,15 +300,27 @@
           @endif
 
           @if($so->status === 'arrived')
-            <form method="POST" action="{{ route('tenant.special-orders.mark-pulled', ['id' => $so->id]) }}">
-              @csrf
-              <button type="submit" class="ia-btn ia-btn--primary" style="width:100%">Mark pulled</button>
-            </form>
+            {{-- MARKER-SO-HANDOVER --}}
+            @include('tenant.special-orders._handover-button', ['ctx' => $ctx, 'who' => $so->customer ? $so->customer->fullName() : ($so->appointment ? 'work order ' . $so->appointment->ra_number : 'shop stock'), 'hold' => $hold])
+            @if($so->customer_id || $so->appointment_id)
+              <button type="button" class="ia-btn ia-btn--secondary" data-so-act="tell" data-id="{{ $so->id }}">{{ $so->notified_at ? 'Tell customer again' : 'Tell customer' }}</button>
+            @endif
           @endif
 
           <button type="button" class="ia-btn ia-btn--danger" onclick="SoActions.openCancel()">Cancel order</button>
         </div>
       </div>
+      @if($so->status === 'arrived')
+        <div class="so-legend" style="margin-top:14px">
+          @switch($ctx['kind'])
+            @case('paid') Paid on {{ $ctx['sale'] ?: 'its sale' }}, so handing over just releases the hold and takes the unit out of stock. Nothing is charged. @break
+            @case('unpaid') Not paid yet. Ring it up at the register to hand it over at checkout, or hand it over without a sale with a reason (a warranty swap, a part paid elsewhere). @break
+            @case('job') It's a part for {{ $ctx['label'] }}. Completing the work order uses it and takes it out of stock. @break
+            @case('layaway') It's on a layaway. Handing the layaway over at the register hands this over too. @break
+            @default It's shop stock and already counted in stock. Putting it away closes the order; stock doesn't change.
+          @endswitch
+        </div>
+      @endif
     @endif
 
     {{-- Linked to card --}}
@@ -328,8 +384,10 @@
           @endif
           @if($so->pulled_at)
             <div>
-              <div class="so-detail-label">Pulled</div>
-              <div class="so-detail-value" style="font-size:12px">{{ $so->pulled_at->format('M j, Y g:i a') }}</div>
+              <div class="so-detail-label">Handed over</div>
+              <div class="so-detail-value" style="font-size:12px">{{ $so->pulled_at->format('M j, Y g:i a') }}@if($handedOverBy) · {{ $handedOverBy }}@endif
+                @if($so->handover_note)<div class="ia-text-muted" style="font-size:11.5px">{{ $so->handover_note }}</div>@endif
+              </div>
             </div>
           @endif
           @if($so->cancelled_at)
@@ -467,14 +525,17 @@
 <div id="so-cancel-modal" class="ia-modal" style="display:none">
   <div class="ia-modal-backdrop" onclick="SoActions.closeCancel()"></div>
   <div class="ia-modal-panel" style="max-width:500px">
-    <form method="POST" action="{{ route('tenant.special-orders.cancel', ['id' => $so->id]) }}">
+    <form method="POST" action="{{ route('tenant.special-orders.cancel', ['id' => $so->id]) }}" id="so-cancel-form">
       @csrf
       <div class="ia-modal-head">
         <h3 class="ia-modal-title">Cancel special order</h3>
       </div>
       <div class="ia-modal-body">
         <p class="ia-text-muted" style="font-size:13px;margin-bottom:14px">
-          This won't refund any deposit — handle that separately. The SO row stays in history.
+          Cancelling doesn't refund anything — refund from the sale if it was paid. The order stays in history.
+          @if(in_array($so->status, ['ordered', 'arrived'], true))
+            It's {{ $so->status === 'ordered' ? 'already on order, so it will still arrive' : 'on the bench' }}; you'll choose what happens to it next.
+          @endif
         </p>
         <div class="ia-form-group">
           <label class="ia-form-label">Reason (optional)</label>
@@ -504,8 +565,18 @@ document.addEventListener('keydown', function (e) {
     SoActions.closeOrdered(); SoActions.closeArrived(); SoActions.closeCancel();
   }
 });
+// MARKER-SO-HANDOVER: cancel goes through the shared dialog, so an ordered
+// or arrived order asks what happens to it instead of bouncing back.
+document.getElementById('so-cancel-form')?.addEventListener('submit', function (e) {
+  if (!window.IntakeSO) { return; }
+  e.preventDefault();
+  var reason = this.querySelector('[name=reason]').value;
+  SoActions.closeCancel();
+  IntakeSO.act(this.action, { reason: reason }).then(function (d) { if (d && d.ok) { location.reload(); } });
+});
 </script>
 @endpush
+@include('tenant.special-orders._handover-js')
 
 @push('styles')
 <style>
@@ -554,6 +625,12 @@ document.addEventListener('keydown', function (e) {
   grid-template-columns: 1fr 1fr;
   gap: 14px 18px;
 }
+.so-legend { font-size: 12.5px; color: var(--ia-text-muted); line-height: 1.55; border-left: 2px solid var(--ia-border-strong, var(--ia-border)); padding: 2px 0 2px 12px; }
+.so-hold { display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:600; border-radius:99px; padding:2px 9px; white-space:nowrap; }
+.so-hold.on { background: rgba(190,242,100,.10); color: var(--ia-accent); }
+body.ia-theme-b .so-hold.on { background: rgba(59,109,17,.10); color: #3B6D11; }
+.so-hold.off { background: rgba(245,196,81,.12); color: #c9972a; }
+.so-bench-btns { display:flex; gap:6px; margin-top:6px; flex-wrap:wrap; }
 .so-detail-label {
   font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em;
   color: var(--ia-text-muted); font-weight: 600; margin-bottom: 4px;

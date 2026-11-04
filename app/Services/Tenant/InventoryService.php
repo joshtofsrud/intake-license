@@ -38,15 +38,39 @@ class InventoryService
      * quietly ignoring them, so the other plan's line is visibly without stock
      * instead of invisibly so.
      */
-    public function decrementForSaleItem(TenantSale $sale, TenantSaleItem $item, string $locationId, bool $overrideReserved = false): void
+    public function decrementForSaleItem(TenantSale $sale, TenantSaleItem $item, string $locationId, bool $overrideReserved = false, ?int $qtyOverride = null): void
     {
         if ($item->type !== 'product' || !$item->inventory_item_id) {
             return; // service / open_item / gift_card lines don't touch inventory
         }
 
-        $qty = (int) ceil((float) $item->quantity);
+        $qty = $qtyOverride ?? (int) ceil((float) $item->quantity);
         if ($qty <= 0) {
             return;
+        }
+
+        // MARKER-SO-HANDOVER: a line that is a special order. Units not here
+        // yet take no stock now — they take it at handover — so a pre-paid
+        // order no longer drives stock negative. Units that have arrived are
+        // handed over now: their hold is used and the order is closed.
+        // (A $qtyOverride call IS the handover of deferred units: skip this.)
+        $handedOverSo = null;
+        if ($qtyOverride === null) {
+            $so = \App\Services\Tenant\SpecialOrderService::linkToSaleLine($sale, $item);
+            if ($so) {
+                if (in_array($so->status, [\App\Models\Tenant\TenantSpecialOrder::STATUS_NEEDED, \App\Models\Tenant\TenantSpecialOrder::STATUS_ORDERED], true)) {
+                    $deferred = min((int) $so->quantity, $qty);
+                    $so->forceFill(['line_stock_deferred' => true])->save();
+                    $qty -= $deferred;
+                    if ($qty <= 0) {
+                        return;
+                    }
+                } elseif ($so->status === \App\Models\Tenant\TenantSpecialOrder::STATUS_ARRIVED) {
+                    // its own hold may sit on the order rather than this line
+                    app(ReservationService::class)->consumeForSpecialOrder($so->id);
+                    $handedOverSo = $so;
+                }
+            }
         }
 
         $invItem = TenantInventoryItem::where('id', $item->inventory_item_id)
@@ -99,7 +123,8 @@ class InventoryService
             $blocking = \App\Models\Tenant\TenantInventoryReservation::active()
                 ->where('inventory_item_id', $invItem->id)
                 ->where('location_id', $locationId)
-                ->where('sale_id', '!=', $sale->id)
+                // MARKER-SO-HANDOVER: a special-order hold has no sale; != alone skips NULL
+                ->where(fn ($q) => $q->whereNull('sale_id')->orWhere('sale_id', '!=', $sale->id))
                 ->orderByDesc('created_at') // the newest promise is the least settled
                 ->get();
 
@@ -110,6 +135,12 @@ class InventoryService
                 app(ReservationService::class)->release($res, 'sold_to_another_customer');
                 $freed += $res->quantity;
                 $affected[] = $res->sale_id;
+                if ($res->special_order_id) {
+                    // MARKER-SO-HANDOVER: their part is gone; the order needs placing again
+                    app(\App\Services\Tenant\SpecialOrderService::class)->backToNeeded(
+                        $res->special_order_id, 'Its part was sold to another customer on ' . ($sale->sale_number ?: 'a register sale') . '. Order it again.'
+                    );
+                }
             }
 
             \Illuminate\Support\Facades\Log::warning('reserve-override: reserved stock sold to another customer', [
@@ -155,18 +186,24 @@ class InventoryService
         $loc->save();
 
         $invItem->decrement('computed_stock_count', $qty);
+
+        if ($handedOverSo) {
+            app(\App\Services\Tenant\SpecialOrderService::class)->markHandedOver($handedOverSo, 'Handed over on sale ' . ($sale->sale_number ?: 'at the register') . '.');
+        }
     }
 
     /**
      * Increment inventory for a refunded product line.
      */
-    public function incrementForRefund(TenantSale $refund, TenantSaleItem $item, string $locationId): void
+    public function incrementForRefund(TenantSale $refund, TenantSaleItem $item, string $locationId, ?int $qtyOverride = null): void
     {
         if ($item->type !== 'product' || !$item->inventory_item_id) {
             return;
         }
 
-        $qty = (int) ceil((float) $item->quantity);
+        // MARKER-SO-HANDOVER: a caller may return fewer units than the line —
+        // special-order units that never left stock are not "returned".
+        $qty = $qtyOverride ?? (int) ceil((float) $item->quantity);
         if ($qty <= 0) {
             return;
         }
@@ -251,6 +288,27 @@ class InventoryService
             return;
         }
 
+        // MARKER-SO-HANDOVER: a part that is a special order. Not here yet →
+        // it is not used now (the person already chose "complete without it");
+        // it is used when it arrives and is handed over. Here → its hold is
+        // used and the order is handed over with the job.
+        $partSo = $part->special_order_id
+            ? \App\Models\Tenant\TenantSpecialOrder::where('tenant_id', $appointment->tenant_id)->find($part->special_order_id)
+            : null;
+        if ($partSo && in_array($partSo->status, [\App\Models\Tenant\TenantSpecialOrder::STATUS_NEEDED, \App\Models\Tenant\TenantSpecialOrder::STATUS_ORDERED], true)) {
+            return;
+        }
+        if ($partSo && $partSo->status === \App\Models\Tenant\TenantSpecialOrder::STATUS_ARRIVED) {
+            // the part is used where it is held, whichever store the job is at
+            $heldAt = app(ReservationService::class)->activeForSpecialOrder($partSo->id)->first()?->location_id;
+            if ($heldAt) {
+                $locationId = $heldAt;
+            }
+            app(ReservationService::class)->consumeForSpecialOrder($partSo->id);
+        } else {
+            $partSo = null;
+        }
+
         $invItem = TenantInventoryItem::where('id', $part->inventory_item_id)
             ->where('tenant_id', $appointment->tenant_id)
             ->first();
@@ -314,6 +372,10 @@ class InventoryService
 
         $part->committed_at = now();
         $part->save();
+
+        if ($partSo) {
+            app(\App\Services\Tenant\SpecialOrderService::class)->markHandedOver($partSo, 'Used on work order ' . ($appointment->ra_number ?: '') . '.');
+        }
     }
 
     /**
@@ -340,6 +402,16 @@ class InventoryService
         $qty = (int) $part->quantity;
         if ($qty <= 0) {
             return;
+        }
+
+        // MARKER-SO-HANDOVER: give it back where it was taken (a held special
+        // order is used at the store holding it, which may not be the job's).
+        $takenAt = DB::table('tenant_inventory_movements')
+            ->where('reference_type', 'appointment_part')->where('reference_id', $part->id)
+            ->where('movement_type', 'appointment')
+            ->orderByDesc('created_at')->value('location_id');
+        if ($takenAt) {
+            $locationId = $takenAt;
         }
 
         $invItem = TenantInventoryItem::where('id', $part->inventory_item_id)
@@ -394,5 +466,11 @@ class InventoryService
 
         $part->committed_at = null;
         $part->save();
+
+        // MARKER-SO-HANDOVER: the job was reopened, so a special-order part it
+        // used is back on the bench for this customer, held again.
+        if ($part->special_order_id) {
+            app(\App\Services\Tenant\SpecialOrderService::class)->backToArrived($part->special_order_id, $locationId, 'Back on the bench: work order ' . ($appointment->ra_number ?: '') . ' was reopened.');
+        }
     }
 }

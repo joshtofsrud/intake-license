@@ -251,7 +251,20 @@ class SpecialOrderController extends Controller
             }
         }
 
+        // MARKER-SO-HANDOVER: the Arrived bench shows each order's hold and
+        // how it gets to its person.
+        $bench = [];
+        if ($view === 'arrived_bench') {
+            foreach ($sos as $so) {
+                $bench[$so->id] = [
+                    'hold' => SpecialOrderService::holdState($so),
+                    'ctx'  => SpecialOrderService::handoverContext($so),
+                ];
+            }
+        }
+
         return view('tenant.special-orders.index', [
+            'bench'         => $bench,
             'orphanIds'     => $orphanIds ?? [],
             'cleanupDays'   => \App\Support\SpecialOrderCleanup::days($tenant),
             'cleanupLabel'  => \App\Support\SpecialOrderCleanup::describe($tenant),
@@ -281,7 +294,7 @@ class SpecialOrderController extends Controller
         $this->assertRetailEnabled($tenant);
 
         $so = TenantSpecialOrder::where('tenant_id', $tenant->id)
-            ->with(['vendor', 'customer', 'appointment', 'item', 'notes.user', 'parent', 'children'])
+            ->with(['vendor', 'customer', 'appointment', 'item', 'notes.user', 'parent', 'children', 'location'])
             ->findOrFail($id);
 
         // If this SO is part of a batch, fetch siblings for the "linked rows" panel
@@ -302,6 +315,11 @@ class SpecialOrderController extends Controller
                 ->get(['id', 'name'])->map(fn ($v) => ['id' => $v->id, 'name' => $v->name, 'sku' => null, 'cost_cents' => null, 'avail' => null, 'preferred' => false, 'lead' => null])->all();
 
         return view('tenant.special-orders.show', [
+            // MARKER-SO-HANDOVER
+            'hold'          => SpecialOrderService::holdState($so),
+            'ctx'           => SpecialOrderService::handoverContext($so),
+            'handedOverBy'  => $so->handed_over_by_user_id
+                ? \App\Models\Tenant\TenantUser::where('id', $so->handed_over_by_user_id)->value('name') : null,
             'so'            => $so,
             'batchSiblings' => $batchSiblings,
             'vendorOptions' => $vendorOptions,
@@ -534,7 +552,7 @@ class SpecialOrderController extends Controller
 
         try {
             // MARKER-SO-REPAIRS: a hand arrival puts the units in stock.
-            $this->service->markArrived(
+            $arrived = $this->service->markArrived(
                 $id,
                 $data['received_quantity'] ?? null, // null = full receipt
                 $actualCents,
@@ -547,55 +565,224 @@ class SpecialOrderController extends Controller
             return back()->with('flash', ['type' => 'error', 'message' => $e->getMessage()]);
         }
 
+        // MARKER-SO-HANDOVER: someone is waiting → offer to tell them
+        $tell = ($arrived->customer_id || $arrived->appointment_id) ? [$arrived->id] : [];
+
         return redirect()->route('tenant.special-orders.show', ['id' => $id])
-            ->with('flash', ['type' => 'success', 'message' => 'Marked arrived.']);
+            ->with('flash', ['type' => 'success', 'message' => 'Marked arrived.'])
+            ->with('so_notify', $tell);
     }
 
-    public function markPulled(Request $request, string $id): RedirectResponse
+    /** Old route name kept: "mark pulled" is now a real handover. */
+    public function markPulled(Request $request, string $id): RedirectResponse|JsonResponse
     {
-        $tenant = tenant();
-        $this->assertRetailEnabled($tenant);
+        return $this->handOver($request, $id);
+    }
 
-        $this->ensureBelongsToTenant($id, $tenant->id);
+    // ────────────────────────────────────────────────────────
+    //  MARKER-SO-HANDOVER endpoints. Each answers JSON to fetch callers
+    //  (the bench, the order page, the register) and redirects a plain form.
+    //  A SpecialOrderChoiceRequired thrown inside renders itself (409).
+    // ────────────────────────────────────────────────────────
 
-        try {
-            $this->service->markPulled($id);
-        } catch (SpecialOrderValidationException $e) {
-            return back()->with('flash', ['type' => 'error', 'message' => $e->getMessage()]);
+    private function done(Request $request, string $id, string $message): RedirectResponse|JsonResponse
+    {
+        if ($request->wantsJson()) {
+            return response()->json(['ok' => true, 'message' => $message]);
         }
 
         return redirect()->route('tenant.special-orders.show', ['id' => $id])
-            ->with('flash', ['type' => 'success', 'message' => 'Marked pulled.']);
+            ->with('flash', ['type' => 'success', 'message' => $message]);
     }
 
-    // returns JSON for the register's inline cleanup,
-    // and keeps redirecting for the normal admin form post.
-    public function cancel(Request $request, string $id): RedirectResponse|\Illuminate\Http\JsonResponse
+    private function failed(Request $request, string $message): RedirectResponse|JsonResponse
+    {
+        if ($request->wantsJson()) {
+            return response()->json(['ok' => false, 'error' => $message, 'message' => $message], 422);
+        }
+
+        return back()->with('flash', ['type' => 'error', 'message' => $message]);
+    }
+
+    /** Hand an arrived order over (paid, a finished job, or with a reason). */
+    public function handOver(Request $request, string $id): RedirectResponse|JsonResponse
     {
         $tenant = tenant();
         $this->assertRetailEnabled($tenant);
+        $this->ensureBelongsToTenant($id, $tenant->id);
+        $data = $request->validate(['reason' => ['nullable', 'string', 'max:255']]);
 
+        try {
+            $so = $this->service->handOver($id, $data['reason'] ?? null);
+        } catch (SpecialOrderValidationException|\App\Services\Tenant\InventoryStockException $e) {
+            return $this->failed($request, $e->getMessage());
+        }
+
+        return $this->done($request, $id, "{$so->so_number} handed over.");
+    }
+
+    // returns JSON for the register's inline cleanup and the bench,
+    // and keeps redirecting for a plain form post.
+    public function cancel(Request $request, string $id): RedirectResponse|JsonResponse
+    {
+        $tenant = tenant();
+        $this->assertRetailEnabled($tenant);
         $this->ensureBelongsToTenant($id, $tenant->id);
 
         $data = $request->validate([
-            'reason' => ['nullable', 'string', 'max:500'],
+            'reason'    => ['nullable', 'string', 'max:500'],
+            'so_reason' => ['nullable', 'string', 'max:255'],
         ]);
 
         try {
-            $this->service->cancel($id, $data['reason'] ?? null);
+            $so = $this->service->cancelWithChoice($id, ($data['reason'] ?? null) ?: ($data['so_reason'] ?? null));
         } catch (SpecialOrderValidationException $e) {
-            if ($request->wantsJson()) {
-                return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+            return $this->failed($request, $e->getMessage());
+        }
+
+        return $this->done($request, $id, $so->status === TenantSpecialOrder::STATUS_CANCELLED
+            ? "{$so->so_number} cancelled."
+            : "{$so->so_number} is now shop stock on the way.");
+    }
+
+    /** The register took the order's line off the sale. */
+    public function removeFromSale(Request $request, string $id): JsonResponse
+    {
+        $tenant = tenant();
+        $this->assertRetailEnabled($tenant);
+        $this->ensureBelongsToTenant($id, $tenant->id);
+
+        try {
+            $so = $this->service->removeFromSale($id, 'Line removed from register sale.');
+        } catch (SpecialOrderValidationException $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        }
+
+        $msg = match (true) {
+            $so->status === TenantSpecialOrder::STATUS_CANCELLED => "{$so->so_number} cancelled.",
+            $so->customer_id && ! $so->sale_id                    => "{$so->so_number} kept for {$this->service->whoFor($so)}.",
+            ! $so->customer_id && ! $so->appointment_id           => "{$so->so_number} is now shop stock on the way.",
+            default                                               => "{$so->so_number} updated.",
+        };
+
+        return response()->json(['ok' => true, 'message' => $msg]);
+    }
+
+    /** Hold an arrived order after checking the shelf. */
+    public function holdNow(Request $request, string $id): RedirectResponse|JsonResponse
+    {
+        $tenant = tenant();
+        $this->assertRetailEnabled($tenant);
+        $this->ensureBelongsToTenant($id, $tenant->id);
+
+        try {
+            $so = $this->service->holdNow($id);
+        } catch (SpecialOrderValidationException $e) {
+            return $this->failed($request, $e->getMessage());
+        }
+
+        return $this->done($request, $id, "{$so->so_number} is held.");
+    }
+
+    /** Not on the shelf: back to Needed so it can be ordered again. */
+    public function markMissing(Request $request, string $id): RedirectResponse|JsonResponse
+    {
+        $tenant = tenant();
+        $this->assertRetailEnabled($tenant);
+        $this->ensureBelongsToTenant($id, $tenant->id);
+
+        try {
+            $so = $this->service->markMissing($id);
+        } catch (SpecialOrderValidationException $e) {
+            return $this->failed($request, $e->getMessage());
+        }
+
+        return $this->done($request, $id, "{$so->so_number} is back in Needed. Order it again.");
+    }
+
+    /** Register "Ready for pickup" → Add to sale. The register adds the item line itself. */
+    public function attachToSale(Request $request, string $id): JsonResponse
+    {
+        $tenant = tenant();
+        $this->assertRetailEnabled($tenant);
+        $this->ensureBelongsToTenant($id, $tenant->id);
+        $data = $request->validate([
+            'sale_id' => ['required', 'uuid', Rule::exists('tenant_sales', 'id')->where(fn ($q) => $q->where('tenant_id', $tenant->id))],
+        ]);
+
+        try {
+            $so = $this->service->attachToSale($id, $data['sale_id']);
+        } catch (SpecialOrderValidationException $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'ok'   => true,
+            'line' => [
+                'inventory_item_id' => $so->inventory_item_id,
+                'name'              => $so->item_name_snapshot,
+                'quantity'          => (int) $so->quantity,
+                'special_order_id'  => $so->id,
+                'so_number'         => $so->so_number,
+            ],
+        ]);
+    }
+
+    /** Who would be told, and how — for the "Tell customer" dialog. */
+    public function notifyRows(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $this->assertRetailEnabled($tenant);
+        $data = $request->validate(['ids' => ['required', 'array', 'min:1', 'max:200'], 'ids.*' => ['uuid']]);
+
+        $orders = TenantSpecialOrder::where('tenant_id', $tenant->id)->whereIn('id', $data['ids'])
+            ->where('status', TenantSpecialOrder::STATUS_ARRIVED)->get();
+        $n = \App\Services\Tenant\SpecialOrderNotifier::forTenant($tenant);
+
+        return response()->json(['ok' => true, 'rows' => $n->rows($orders), 'message' => $n->defaultMessage()]);
+    }
+
+    /** Send "your part is here". */
+    public function notify(Request $request): RedirectResponse|JsonResponse
+    {
+        $tenant = tenant();
+        $this->assertRetailEnabled($tenant);
+        $data = $request->validate([
+            'ids'     => ['required', 'array', 'min:1', 'max:200'],
+            'ids.*'   => ['uuid'],
+            'picks'   => ['nullable', 'array'],
+            'message' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $orders = TenantSpecialOrder::where('tenant_id', $tenant->id)->whereIn('id', $data['ids'])
+            ->where('status', TenantSpecialOrder::STATUS_ARRIVED)->get();
+        $picks = [];
+        foreach ((array) ($data['picks'] ?? []) as $soId => $ch) {
+            $ch = (array) $ch;
+            $picks[$soId] = [
+                'email' => filter_var($ch['email'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                'sms'   => filter_var($ch['sms'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                'staff' => filter_var($ch['staff'] ?? false, FILTER_VALIDATE_BOOLEAN),
+            ];
+        }
+        $c = \App\Services\Tenant\SpecialOrderNotifier::forTenant($tenant)->send($orders, $picks, $data['message'] ?? null);
+
+        $parts = [];
+        foreach (['email' => 'email', 'sms' => 'text', 'staff' => 'staff alert'] as $k => $w) {
+            if ($c[$k]) {
+                $parts[] = $c[$k] . ' ' . $w . ($c[$k] === 1 ? '' : 's');
             }
-            return back()->with('flash', ['type' => 'error', 'message' => $e->getMessage()]);
+        }
+        $msg = $parts ? 'Sent ' . implode(', ', $parts) . '.' : 'Nothing was sent.';
+        if ($c['none'] && $parts) {
+            $msg .= " {$c['none']} not told.";
         }
 
         if ($request->wantsJson()) {
-            return response()->json(['ok' => true]);
+            return response()->json(['ok' => true, 'message' => $msg, 'counts' => $c]);
         }
 
-        return redirect()->route('tenant.special-orders.show', ['id' => $id])
-            ->with('flash', ['type' => 'success', 'message' => 'Special order cancelled.']);
+        return back()->with('flash', ['type' => $parts ? 'success' : 'error', 'message' => $msg]);
     }
 
     /**

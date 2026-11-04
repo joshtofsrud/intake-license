@@ -1054,6 +1054,14 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::post('/{id}/mark-arrived',                  [TenantControllers\SpecialOrderController::class, 'markArrived'])->name('mark-arrived');
                 Route::post('/{id}/mark-pulled',                   [TenantControllers\SpecialOrderController::class, 'markPulled'])->name('mark-pulled');
                 Route::post('/{id}/cancel',                        [TenantControllers\SpecialOrderController::class, 'cancel'])->name('cancel');
+                // MARKER-SO-HANDOVER
+                Route::post('/notify/rows',                        [TenantControllers\SpecialOrderController::class, 'notifyRows'])->name('notify-rows');
+                Route::post('/notify',                             [TenantControllers\SpecialOrderController::class, 'notify'])->name('notify');
+                Route::post('/{id}/hand-over',                     [TenantControllers\SpecialOrderController::class, 'handOver'])->name('hand-over');
+                Route::post('/{id}/hold-now',                      [TenantControllers\SpecialOrderController::class, 'holdNow'])->name('hold-now');
+                Route::post('/{id}/missing',                       [TenantControllers\SpecialOrderController::class, 'markMissing'])->name('missing');
+                Route::post('/{id}/remove-from-sale',              [TenantControllers\SpecialOrderController::class, 'removeFromSale'])->name('remove-from-sale');
+                Route::post('/{id}/attach-to-sale',                [TenantControllers\SpecialOrderController::class, 'attachToSale'])->name('attach-to-sale');
                 Route::post('/{id}/confirm-source',                [TenantControllers\SpecialOrderController::class, 'confirmSource'])->name('confirm-source');
                 Route::post('/{id}/assign-vendor',                 [TenantControllers\SpecialOrderController::class, 'assignVendor'])->name('assign-vendor');
                 Route::post('/placement/mark-ordered-batch',       [TenantControllers\SpecialOrderController::class, 'markOrderedBatch'])->name('mark-ordered-batch');

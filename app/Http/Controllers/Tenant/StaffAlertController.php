@@ -32,6 +32,7 @@ class StaffAlertController extends Controller
         'timeoff.decided'        => 'Your time-off request was decided',
         'timeoff.withdrawn'      => 'Time-off request withdrawn (reviewers)',
         'note.mention'           => 'Someone @mentioned you in a note', // MARKER-NOTE-MENTIONS
+        'special_order.arrived'  => 'A special-order part for a work order arrived', // MARKER-SO-HANDOVER
     ];
 
     /** full notifications page (grouped, paginated). */

@@ -17,6 +17,7 @@ class TenantInventoryReservation extends Model
 
     protected $fillable = [
         'tenant_id', 'inventory_item_id', 'location_id', 'sale_id', 'sale_item_id',
+        'special_order_id', // MARKER-SO-HANDOVER: a hold for a special order with no sale
         'quantity', 'status', 'released_reason', 'created_at', 'ended_at',
     ];
 
@@ -38,6 +39,11 @@ class TenantInventoryReservation extends Model
     public function sale(): BelongsTo
     {
         return $this->belongsTo(TenantSale::class, 'sale_id');
+    }
+
+    public function specialOrder(): BelongsTo
+    {
+        return $this->belongsTo(TenantSpecialOrder::class, 'special_order_id');
     }
 
     public function scopeActive($q)

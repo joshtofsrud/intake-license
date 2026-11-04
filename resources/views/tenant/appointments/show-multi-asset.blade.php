@@ -2346,7 +2346,7 @@ input.ma-asset-name-edit:focus {
                     <td><strong>{{ $so->item_name_snapshot }}</strong></td>
                     <td class="num">{{ $so->quantity }}</td>
                     <td>
-                      <span class="ma-so-status ma-so-status--{{ $isOverdue ? 'overdue' : $so->status }}">{{ $isOverdue ? 'Overdue' : ucfirst($so->status) }}</span>
+                      <span class="ma-so-status ma-so-status--{{ $isOverdue ? 'overdue' : $so->status }}">{{ $isOverdue ? 'Overdue' : $so->statusLabel() }}</span>
                     </td>
                     <td style="color: var(--ia-text-dim); font-size: 12px;">
                       @if($so->expected_arrival_date){{ $so->expected_arrival_date->format('M j') }}@else — @endif

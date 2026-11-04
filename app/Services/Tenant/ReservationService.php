@@ -29,7 +29,7 @@ class ReservationService
      * Hold $qty of the line's item at $locationId for this sale.
      * Throws InventoryStockException if that many are not available.
      */
-    public function reserve(TenantSale $sale, TenantSaleItem $line, string $locationId, ?int $qty = null): TenantInventoryReservation
+    public function reserve(TenantSale $sale, TenantSaleItem $line, string $locationId, ?int $qty = null, ?string $specialOrderId = null): TenantInventoryReservation
     {
         if ($line->type !== 'product' || ! $line->inventory_item_id) {
             throw new \InvalidArgumentException('Only product lines can be reserved.');
@@ -70,12 +70,12 @@ class ReservationService
         }
 
         $res = TenantInventoryReservation::create([
-            'id'                => (string) Str::uuid(),
             'tenant_id'         => $sale->tenant_id,
             'inventory_item_id' => $item->id,
             'location_id'       => $locationId,
             'sale_id'           => $sale->id,
             'sale_item_id'      => $line->id,
+            'special_order_id'  => $specialOrderId, // MARKER-SO-HANDOVER
             'quantity'          => $qty,
             'status'            => TenantInventoryReservation::ACTIVE,
             'created_at'        => now(),
@@ -158,6 +158,88 @@ class ReservationService
             ->where('sale_item_id', $line->id)
             ->where('location_id', $locationId)
             ->get();
+    }
+
+    // ────────────────────────────────────────────────────────
+    //  MARKER-SO-HANDOVER: holds for special orders
+    // ────────────────────────────────────────────────────────
+
+    /**
+     * Hold an arrived special order's units at $locationId for its customer
+     * when there is no sale line to hang the hold on (a work-order part, or an
+     * order for a customer who hasn't been rung up yet). Unlike a layaway,
+     * the units are already counted in stock (they were just received), so
+     * this never refuses for "not enough": it holds what the order is for.
+     */
+    public function reserveForSpecialOrder(\App\Models\Tenant\TenantSpecialOrder $so, string $locationId, ?int $qty = null): TenantInventoryReservation
+    {
+        $qty = $qty ?? (int) $so->quantity;
+        if ($qty <= 0 || ! $so->inventory_item_id) {
+            throw new \InvalidArgumentException('Only a cataloged item with a quantity can be held.');
+        }
+
+        $item = TenantInventoryItem::where('id', $so->inventory_item_id)->where('tenant_id', $so->tenant_id)->firstOrFail();
+
+        $loc = TenantInventoryItemLocation::where('inventory_item_id', $item->id)
+            ->where('location_id', $locationId)
+            ->lockForUpdate()
+            ->first();
+        if (! $loc) {
+            $loc = TenantInventoryItemLocation::create([
+                'tenant_id' => $so->tenant_id, 'inventory_item_id' => $item->id, 'location_id' => $locationId,
+                'computed_stock_count' => 0, 'reserved_count' => 0, 'is_active' => true,
+            ]);
+            $loc = TenantInventoryItemLocation::where('id', $loc->id)->lockForUpdate()->first();
+        }
+
+        $res = TenantInventoryReservation::create([
+            'tenant_id'         => $so->tenant_id,
+            'inventory_item_id' => $item->id,
+            'location_id'       => $locationId,
+            'sale_id'           => null,
+            'sale_item_id'      => null,
+            'special_order_id'  => $so->id,
+            'quantity'          => $qty,
+            'status'            => TenantInventoryReservation::ACTIVE,
+            'created_at'        => now(),
+        ]);
+
+        $this->movement($so->tenant_id, $item, $locationId, 'reserve', $qty, $res->id, 'Held for special order ' . $so->so_number);
+
+        $loc->reserved_count += $qty;
+        $loc->save();
+
+        return $res;
+    }
+
+    /** Active holds a special order has, at any location. */
+    public function activeForSpecialOrder(string $specialOrderId): \Illuminate\Support\Collection
+    {
+        return TenantInventoryReservation::active()->where('special_order_id', $specialOrderId)->get();
+    }
+
+    /** Release every active hold of a special order. Returns units released. */
+    public function releaseForSpecialOrder(string $specialOrderId, string $reason): int
+    {
+        $n = 0;
+        foreach ($this->activeForSpecialOrder($specialOrderId) as $res) {
+            $this->release($res, $reason);
+            $n += (int) $res->quantity;
+        }
+
+        return $n;
+    }
+
+    /** Consume every active hold of a special order (the units leave with it). */
+    public function consumeForSpecialOrder(string $specialOrderId): int
+    {
+        $n = 0;
+        foreach ($this->activeForSpecialOrder($specialOrderId) as $res) {
+            $this->consume($res);
+            $n += (int) $res->quantity;
+        }
+
+        return $n;
     }
 
     /** Release everything a sale holds. Used on cancel. */

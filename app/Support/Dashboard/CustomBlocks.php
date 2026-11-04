@@ -188,7 +188,7 @@ class CustomBlocks
                 'base' => fn (Builder $q) => $q->whereNull('tenant_special_orders.deleted_at'),
                 'date' => ['col' => 'tenant_special_orders.created_at', 'utc' => true], 'periods' => self::DATED,
                 'fields' => [
-                    'status'  => ['label' => 'Status', 'type' => 'enum', 'options' => ['needed' => 'Needed', 'ordered' => 'Ordered', 'arrived' => 'Arrived', 'pulled' => 'Picked up', 'cancelled' => 'Cancelled'],
+                    'status'  => ['label' => 'Status', 'type' => 'enum', 'options' => ['needed' => 'Needed', 'ordered' => 'Ordered', 'arrived' => 'Arrived', 'pulled' => 'Handed over', 'cancelled' => 'Cancelled'],
                         'apply' => self::col('tenant_special_orders.status')],
                     'late'    => ['label' => 'Arrival', 'type' => 'enum', 'options' => $yesNo('Past its expected date', 'Not late'),
                         'apply' => self::flag(fn ($q) => $q->where('tenant_special_orders.status', 'ordered')->whereNotNull('tenant_special_orders.expected_arrival_date')

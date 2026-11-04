@@ -516,7 +516,8 @@ class ReceiveShipmentController extends Controller
         $tenantUserId = $tenantUser?->id;
 
         try {
-            DB::transaction(function () use ($tenant, $shipment, $tenantUser, $tenantUserId) {
+            $arrivedForPeople = []; // MARKER-SO-HANDOVER: orders to tell people about
+            DB::transaction(function () use ($tenant, $shipment, $tenantUser, $tenantUserId, &$arrivedForPeople) {
                 $locked = TenantInventoryReceiveShipment::where('id', $shipment->id)
                     ->where('tenant_id', $tenant->id)
                     ->lockForUpdate()
@@ -618,7 +619,13 @@ class ReceiveShipmentController extends Controller
                                 $lineCost !== null ? (int) $lineCost : $lockedSo->unit_cost_cents_estimated,
                                 null,  // invoice number — not captured at receiving v1
                                 null,  // invoice date — same
+                                false, // stock already moved by this commit
+                                $tenantUser,
+                                $shipment->location_id, // MARKER-SO-HANDOVER: held where it landed
                             );
+                            if ($lockedSo->customer_id || $lockedSo->appointment_id) {
+                                $arrivedForPeople[] = $lockedSo->id;
+                            }
                         } catch (\App\Services\Tenant\SpecialOrderValidationException $e) {
                             // Log + continue. Don't blow up the entire commit
                             // because one SO transition failed.
@@ -650,7 +657,8 @@ class ReceiveShipmentController extends Controller
 
         return redirect()
             ->route('tenant.inventory.receiving.show', ['id' => $shipment->id])
-            ->with('flash', ['type' => 'success', 'message' => 'Shipment committed.']);
+            ->with('flash', ['type' => 'success', 'message' => 'Shipment committed.'])
+            ->with('so_notify', $arrivedForPeople); // opens "Tell customers" on the shipment page
     }
 
     public function quickShowItem(string $id): JsonResponse
