@@ -15,6 +15,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class SpecialOrderController extends Controller
@@ -92,7 +94,7 @@ class SpecialOrderController extends Controller
         ];
 
         $q = TenantSpecialOrder::where('tenant_id', $tenant->id)
-            ->with(['vendor', 'customer', 'appointment', 'item']);
+            ->with(['vendor', 'customer', 'appointment', 'item', 'location']);
 
         switch ($view) {
             case 'arrived_bench':
@@ -292,9 +294,17 @@ class SpecialOrderController extends Controller
                 ->get();
         }
 
+        // MARKER-SO-REPAIRS: only vendors that carry this item can be picked.
+        // A not-yet-cataloged order has no source rows, so any active vendor.
+        $vendorOptions = $so->inventory_item_id
+            ? self::vendorOptionsForItem($tenant->id, $so->inventory_item_id)
+            : TenantVendor::where('tenant_id', $tenant->id)->where('is_active', true)->orderBy('name')
+                ->get(['id', 'name'])->map(fn ($v) => ['id' => $v->id, 'name' => $v->name, 'sku' => null, 'cost_cents' => null, 'avail' => null, 'preferred' => false, 'lead' => null])->all();
+
         return view('tenant.special-orders.show', [
             'so'            => $so,
             'batchSiblings' => $batchSiblings,
+            'vendorOptions' => $vendorOptions,
         ]);
     }
 
@@ -311,21 +321,45 @@ class SpecialOrderController extends Controller
     {
         $tenant = tenant();
         $this->assertRetailEnabled($tenant);
+        $tid = $tenant->id;
+
+        // MARKER-SO-REPAIRS: every id is checked against this shop. These
+        // were plain strings, so another shop's customer, job, vendor or item
+        // could be attached to an order here.
+        $own = fn (string $table) => Rule::exists($table, 'id')->where(fn ($q) => $q->where('tenant_id', $tid));
 
         $data = $request->validate([
-            'inventory_item_id'         => ['nullable', 'string'],
+            'inventory_item_id'         => ['nullable', 'uuid', $own('tenant_inventory_items')],
             'item_name'                 => ['required', 'string', 'max:255'],
-            'vendor_id'                 => ['nullable', 'string'],
+            'vendor_id'                 => ['nullable', 'uuid', $own('tenant_vendors')],
             'po_number'                 => ['nullable', 'string', 'max:64'],
             'expected_arrival_date'     => ['nullable', 'date'],
+            // the drawer now takes dollars; cents is kept for any older caller.
+            'unit_cost_estimated'       => ['nullable', 'numeric', 'min:0', 'max:1000000'],
             'unit_cost_cents_estimated' => ['nullable', 'integer', 'min:0'],
-            'allocations'               => ['required', 'array', 'min:1'],
+            'origin'                    => ['nullable', 'in:item,appointment,manual'],
+            'allocations'               => ['required', 'array', 'min:1', 'max:50'],
             'allocations.*.mode'        => ['required', 'in:customer,customer_appt,stock'],
-            'allocations.*.customer_id' => ['nullable', 'string'],
-            'allocations.*.appointment_id' => ['nullable', 'string'],
-            'allocations.*.quantity'    => ['required', 'integer', 'min:1'],
-            'notes'                     => ['nullable', 'string'],
+            'allocations.*.customer_id' => ['nullable', 'uuid', $own('tenant_customers')],
+            'allocations.*.appointment_id' => ['nullable', 'uuid', $own('tenant_appointments')],
+            'allocations.*.quantity'    => ['required', 'integer', 'min:1', 'max:9999'],
+            'notes'                     => ['nullable', 'string', 'max:2000'],
         ]);
+
+        // a customer row needs a customer, a job row needs a job.
+        foreach ($data['allocations'] as $i => $alloc) {
+            $n = $i + 1;
+            if ($alloc['mode'] !== 'stock' && empty($alloc['customer_id'])) {
+                return back()->withInput()->with('flash', ['type' => 'error', 'message' => "Row {$n}: pick a customer, or switch the row to Stock."]);
+            }
+            if ($alloc['mode'] === 'customer_appt' && empty($alloc['appointment_id'])) {
+                return back()->withInput()->with('flash', ['type' => 'error', 'message' => "Row {$n}: pick the work order, or switch the row to Customer."]);
+            }
+        }
+
+        $costCents = isset($data['unit_cost_estimated']) && $data['unit_cost_estimated'] !== null && $data['unit_cost_estimated'] !== ''
+            ? (int) round(((float) $data['unit_cost_estimated']) * 100)
+            : ($data['unit_cost_cents_estimated'] ?? null);
 
         // Determine initial status: if vendor + PO + ETA provided → 'ordered'.
         // Otherwise → 'needed'.
@@ -340,28 +374,42 @@ class SpecialOrderController extends Controller
         // Generate a batch_id if >1 allocation row
         $batchId = count($data['allocations']) > 1 ? \Illuminate\Support\Str::uuid()->toString() : null;
 
+        // where the order was started from, so its history says so.
+        $createdFrom = in_array($data['origin'] ?? null, ['item', 'appointment'], true) ? $data['origin'] : 'manual';
+
+        // pickup location: the register/admin's current one, when this shop has it.
+        $locationId = $request->session()->get('current_location_id');
+        if ($locationId && ! \App\Models\Tenant\TenantLocation::where('tenant_id', $tid)->where('id', $locationId)->exists()) {
+            $locationId = null;
+        }
+
         try {
-            $created = [];
-            foreach ($data['allocations'] as $alloc) {
-                $row = [
-                    'tenant_id'                 => $tenant->id,
-                    'inventory_item_id'         => $data['inventory_item_id'] ?? null,
-                    'item_name_snapshot'        => $data['item_name'],
-                    'quantity'                  => (int) $alloc['quantity'],
-                    'customer_id'               => $alloc['mode'] === 'stock' ? null : ($alloc['customer_id'] ?? null),
-                    'appointment_id'            => $alloc['mode'] === 'customer_appt' ? ($alloc['appointment_id'] ?? null) : null,
-                    'vendor_id'                 => $data['vendor_id'] ?? null,
-                    'po_number'                 => $data['po_number'] ?? null,
-                    'expected_arrival_date'     => $data['expected_arrival_date'] ?? null,
-                    'unit_cost_cents_estimated' => $data['unit_cost_cents_estimated'] ?? null,
-                    'status'                    => $initialStatus,
-                    'created_from'              => 'manual',
-                    'batch_id'                  => $batchId,
-                    'created_by_user_id'        => Auth::guard('tenant')->id(),
-                    'notes'                     => $data['notes'] ?? null,
-                ];
-                $created[] = $this->service->create($row);
-            }
+            // all rows or none: a failure part-way used to leave some created.
+            $created = DB::transaction(function () use ($data, $tid, $initialStatus, $batchId, $createdFrom, $costCents, $locationId) {
+                $rows = [];
+                foreach ($data['allocations'] as $alloc) {
+                    $rows[] = $this->service->create([
+                        'tenant_id'                 => $tid,
+                        'inventory_item_id'         => $data['inventory_item_id'] ?? null,
+                        'item_name_snapshot'        => $data['item_name'],
+                        'quantity'                  => (int) $alloc['quantity'],
+                        'customer_id'               => $alloc['mode'] === 'stock' ? null : ($alloc['customer_id'] ?? null),
+                        'appointment_id'            => $alloc['mode'] === 'customer_appt' ? ($alloc['appointment_id'] ?? null) : null,
+                        // a work-order row picks up at the job's location.
+                        'location_id'               => $alloc['mode'] === 'customer_appt' ? null : $locationId,
+                        'vendor_id'                 => $data['vendor_id'] ?? null,
+                        'po_number'                 => $data['po_number'] ?? null,
+                        'expected_arrival_date'     => $data['expected_arrival_date'] ?? null,
+                        'unit_cost_cents_estimated' => $costCents,
+                        'status'                    => $initialStatus,
+                        'created_from'              => $createdFrom,
+                        'batch_id'                  => $batchId,
+                        'created_by_user_id'        => Auth::guard('tenant')->id(),
+                        'notes'                     => $data['notes'] ?? null,
+                    ]);
+                }
+                return $rows;
+            });
         } catch (SpecialOrderValidationException $e) {
             return back()
                 ->withInput()
@@ -375,6 +423,52 @@ class SpecialOrderController extends Controller
 
         return redirect()->route('tenant.special-orders.index')
             ->with('flash', ['type' => 'success', 'message' => $msg]);
+    }
+
+    /**
+     * MARKER-SO-REPAIRS: the vendors that carry an item, for the drawer and
+     * the order page. Only this shop's active vendors with a source row for
+     * the item; in-stock first, then preferred, then cheapest.
+     */
+    public function vendorsForItem(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $this->assertRetailEnabled($tenant);
+
+        $itemId = (string) $request->query('item_id', '');
+        $item = $itemId !== '' ? TenantInventoryItem::where('tenant_id', $tenant->id)->find($itemId) : null;
+        if (! $item) {
+            return response()->json(['ok' => false, 'error' => 'Item not found.'], 404);
+        }
+
+        return response()->json(['ok' => true, 'vendors' => self::vendorOptionsForItem($tenant->id, $item->id)]);
+    }
+
+    /** @return array<int, array{id:string,name:string,sku:?string,cost_cents:?int,avail:?int,preferred:bool,lead:?int}> */
+    public static function vendorOptionsForItem(string $tenantId, string $itemId): array
+    {
+        $vendors = TenantVendor::where('tenant_id', $tenantId)->where('is_active', true)->get()->keyBy('id');
+        $rows = \App\Models\Tenant\TenantInventoryItemVendor::where('inventory_item_id', $itemId)
+            ->whereIn('vendor_id', $vendors->keys())
+            ->get();
+
+        return $rows->map(function ($r) use ($vendors) {
+            $v = $vendors->get($r->vendor_id);
+            $list = $r->live_cost_cents ?? $r->unit_cost_cents;
+            return [
+                'id'         => $r->vendor_id,
+                'name'       => $v->name,
+                'sku'        => $r->vendor_sku,
+                'cost_cents' => $list !== null ? ($v->netCostCents($list) ?? $list) : null,
+                'avail'      => $r->live_avail !== null ? (int) $r->live_avail : null,
+                'preferred'  => (bool) $r->is_preferred,
+                'lead'       => $r->lead_time_days,
+            ];
+        })->sortBy([
+            fn ($a, $b) => (($b['avail'] ?? 0) > 0) <=> (($a['avail'] ?? 0) > 0),
+            fn ($a, $b) => $b['preferred'] <=> $a['preferred'],
+            fn ($a, $b) => ($a['cost_cents'] ?? PHP_INT_MAX) <=> ($b['cost_cents'] ?? PHP_INT_MAX),
+        ])->values()->all();
     }
 
     /**
@@ -392,12 +486,18 @@ class SpecialOrderController extends Controller
         $this->ensureBelongsToTenant($id, $tenant->id);
 
         $data = $request->validate([
-            'vendor_id'             => ['required', 'string'],
+            'vendor_id'             => ['required', 'uuid', Rule::exists('tenant_vendors', 'id')->where(fn ($q) => $q->where('tenant_id', $tenant->id))],
             'po_number'             => ['required', 'string', 'max:64'],
             'expected_arrival_date' => ['required', 'date'],
             'vendor_reference'      => ['nullable', 'string', 'max:64'],
+            'unit_cost_estimated'   => ['nullable', 'numeric', 'min:0', 'max:1000000'],
             'unit_cost_cents_estimated' => ['nullable', 'integer', 'min:0'],
         ]);
+        // MARKER-SO-REPAIRS: dollars in the form, cents in the row.
+        if (isset($data['unit_cost_estimated']) && $data['unit_cost_estimated'] !== null) {
+            $data['unit_cost_cents_estimated'] = (int) round(((float) $data['unit_cost_estimated']) * 100);
+        }
+        unset($data['unit_cost_estimated']);
 
         try {
             $this->service->markOrdered($id, $data);
@@ -422,18 +522,26 @@ class SpecialOrderController extends Controller
         $this->ensureBelongsToTenant($id, $tenant->id);
 
         $data = $request->validate([
+            'received_quantity'      => ['nullable', 'integer', 'min:1', 'max:9999'],
+            'unit_cost_actual'       => ['nullable', 'numeric', 'min:0', 'max:1000000'],
             'unit_cost_cents_actual' => ['nullable', 'integer', 'min:0'],
             'vendor_invoice_number'  => ['nullable', 'string', 'max:64'],
             'vendor_invoice_date'    => ['nullable', 'date'],
         ]);
+        $actualCents = (isset($data['unit_cost_actual']) && $data['unit_cost_actual'] !== null)
+            ? (int) round(((float) $data['unit_cost_actual']) * 100)
+            : ($data['unit_cost_cents_actual'] ?? null);
 
         try {
+            // MARKER-SO-REPAIRS: a hand arrival puts the units in stock.
             $this->service->markArrived(
                 $id,
-                null, // null = full receipt
-                $data['unit_cost_cents_actual'] ?? null,
+                $data['received_quantity'] ?? null, // null = full receipt
+                $actualCents,
                 $data['vendor_invoice_number'] ?? null,
                 $data['vendor_invoice_date'] ?? null,
+                true,
+                Auth::guard('tenant')->user(),
             );
         } catch (SpecialOrderValidationException $e) {
             return back()->with('flash', ['type' => 'error', 'message' => $e->getMessage()]);
@@ -577,6 +685,10 @@ class SpecialOrderController extends Controller
         $so = TenantSpecialOrder::where('tenant_id', $tenant->id)->findOrFail($id);
         if ($so->status !== TenantSpecialOrder::STATUS_NEEDED) {
             return response()->json(['ok' => false, 'error' => 'Only needed orders can be reassigned.'], 422);
+        }
+        // MARKER-SO-REPAIRS
+        if ($so->inventory_item_id && ! SpecialOrderService::vendorCarriesItem($tenant->id, $data['vendor_id'], $so->inventory_item_id)) {
+            return response()->json(['ok' => false, 'error' => 'That vendor does not carry this item.'], 422);
         }
 
         $so->forceFill(['vendor_id' => $data['vendor_id']])->save();

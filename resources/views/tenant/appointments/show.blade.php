@@ -1502,7 +1502,7 @@ document.addEventListener('DOMContentLoaded', function () {
         <div class="appt-section-label" style="display:flex;align-items:center;justify-content:space-between;gap:10px">
           <span>Special orders</span>
           <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm"
-                  onclick='SoDrawer.open({customer_id: @json($appointment->customer_id), customer_label: @json($appointment->customerName()), appointment_id: @json($appointment->id), alloc_mode: "customer_appt"})'>
+                  onclick='SoDrawer.open({customer_id: @json($appointment->customer_id), customer_label: @json($appointment->customerName()), appointment_id: @json($appointment->id), alloc_mode: "customer_appt", origin: "appointment"})'>
             + SO for this appointment
           </button>
         </div>

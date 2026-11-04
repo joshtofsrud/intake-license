@@ -1,0 +1,1122 @@
+diff --git a/app/Http/Controllers/Tenant/ReceiveShipmentController.php b/app/Http/Controllers/Tenant/ReceiveShipmentController.php
+index b8f3a2f2..99f5bae3 100644
+--- a/app/Http/Controllers/Tenant/ReceiveShipmentController.php
++++ b/app/Http/Controllers/Tenant/ReceiveShipmentController.php
+@@ -604,11 +604,18 @@ class ReceiveShipmentController extends Controller
+                         // line goes to general stock (already incremented above).
+                         $clamped = min($receivedQty, (int) $lockedSo->quantity);
+ 
++                        // MARKER-SO-REPAIRS: the cost is what this shipment's
++                        // line says was paid, not the estimate typed when the
++                        // order was raised. Estimate only when the line has none.
++                        $lineCost = $shipment->items
++                            ->first(fn ($l) => $l->inventory_item_id && $l->inventory_item_id === $lockedSo->inventory_item_id && $l->unit_cost_cents !== null)
++                            ?->unit_cost_cents;
++
+                         try {
+                             $soService->markArrived(
+                                 $lockedSo->id,
+                                 $clamped,
+-                                $lockedSo->unit_cost_cents_estimated,
++                                $lineCost !== null ? (int) $lineCost : $lockedSo->unit_cost_cents_estimated,
+                                 null,  // invoice number — not captured at receiving v1
+                                 null,  // invoice date — same
+                             );
+diff --git a/app/Http/Controllers/Tenant/SpecialOrderController.php b/app/Http/Controllers/Tenant/SpecialOrderController.php
+index 5d1990be..e958e899 100644
+--- a/app/Http/Controllers/Tenant/SpecialOrderController.php
++++ b/app/Http/Controllers/Tenant/SpecialOrderController.php
+@@ -15,6 +15,8 @@ use Illuminate\Http\JsonResponse;
+ use Illuminate\Http\RedirectResponse;
+ use Illuminate\Http\Request;
+ use Illuminate\Support\Facades\Auth;
++use Illuminate\Support\Facades\DB;
++use Illuminate\Validation\Rule;
+ use Illuminate\View\View;
+ 
+ class SpecialOrderController extends Controller
+@@ -92,7 +94,7 @@ class SpecialOrderController extends Controller
+         ];
+ 
+         $q = TenantSpecialOrder::where('tenant_id', $tenant->id)
+-            ->with(['vendor', 'customer', 'appointment', 'item']);
++            ->with(['vendor', 'customer', 'appointment', 'item', 'location']);
+ 
+         switch ($view) {
+             case 'arrived_bench':
+@@ -292,9 +294,17 @@ class SpecialOrderController extends Controller
+                 ->get();
+         }
+ 
++        // MARKER-SO-REPAIRS: only vendors that carry this item can be picked.
++        // A not-yet-cataloged order has no source rows, so any active vendor.
++        $vendorOptions = $so->inventory_item_id
++            ? self::vendorOptionsForItem($tenant->id, $so->inventory_item_id)
++            : TenantVendor::where('tenant_id', $tenant->id)->where('is_active', true)->orderBy('name')
++                ->get(['id', 'name'])->map(fn ($v) => ['id' => $v->id, 'name' => $v->name, 'sku' => null, 'cost_cents' => null, 'avail' => null, 'preferred' => false, 'lead' => null])->all();
++
+         return view('tenant.special-orders.show', [
+             'so'            => $so,
+             'batchSiblings' => $batchSiblings,
++            'vendorOptions' => $vendorOptions,
+         ]);
+     }
+ 
+@@ -311,22 +321,46 @@ class SpecialOrderController extends Controller
+     {
+         $tenant = tenant();
+         $this->assertRetailEnabled($tenant);
++        $tid = $tenant->id;
++
++        // MARKER-SO-REPAIRS: every id is checked against this shop. These
++        // were plain strings, so another shop's customer, job, vendor or item
++        // could be attached to an order here.
++        $own = fn (string $table) => Rule::exists($table, 'id')->where(fn ($q) => $q->where('tenant_id', $tid));
+ 
+         $data = $request->validate([
+-            'inventory_item_id'         => ['nullable', 'string'],
++            'inventory_item_id'         => ['nullable', 'uuid', $own('tenant_inventory_items')],
+             'item_name'                 => ['required', 'string', 'max:255'],
+-            'vendor_id'                 => ['nullable', 'string'],
++            'vendor_id'                 => ['nullable', 'uuid', $own('tenant_vendors')],
+             'po_number'                 => ['nullable', 'string', 'max:64'],
+             'expected_arrival_date'     => ['nullable', 'date'],
++            // the drawer now takes dollars; cents is kept for any older caller.
++            'unit_cost_estimated'       => ['nullable', 'numeric', 'min:0', 'max:1000000'],
+             'unit_cost_cents_estimated' => ['nullable', 'integer', 'min:0'],
+-            'allocations'               => ['required', 'array', 'min:1'],
++            'origin'                    => ['nullable', 'in:item,appointment,manual'],
++            'allocations'               => ['required', 'array', 'min:1', 'max:50'],
+             'allocations.*.mode'        => ['required', 'in:customer,customer_appt,stock'],
+-            'allocations.*.customer_id' => ['nullable', 'string'],
+-            'allocations.*.appointment_id' => ['nullable', 'string'],
+-            'allocations.*.quantity'    => ['required', 'integer', 'min:1'],
+-            'notes'                     => ['nullable', 'string'],
++            'allocations.*.customer_id' => ['nullable', 'uuid', $own('tenant_customers')],
++            'allocations.*.appointment_id' => ['nullable', 'uuid', $own('tenant_appointments')],
++            'allocations.*.quantity'    => ['required', 'integer', 'min:1', 'max:9999'],
++            'notes'                     => ['nullable', 'string', 'max:2000'],
+         ]);
+ 
++        // a customer row needs a customer, a job row needs a job.
++        foreach ($data['allocations'] as $i => $alloc) {
++            $n = $i + 1;
++            if ($alloc['mode'] !== 'stock' && empty($alloc['customer_id'])) {
++                return back()->withInput()->with('flash', ['type' => 'error', 'message' => "Row {$n}: pick a customer, or switch the row to Stock."]);
++            }
++            if ($alloc['mode'] === 'customer_appt' && empty($alloc['appointment_id'])) {
++                return back()->withInput()->with('flash', ['type' => 'error', 'message' => "Row {$n}: pick the work order, or switch the row to Customer."]);
++            }
++        }
++
++        $costCents = isset($data['unit_cost_estimated']) && $data['unit_cost_estimated'] !== null && $data['unit_cost_estimated'] !== ''
++            ? (int) round(((float) $data['unit_cost_estimated']) * 100)
++            : ($data['unit_cost_cents_estimated'] ?? null);
++
+         // Determine initial status: if vendor + PO + ETA provided → 'ordered'.
+         // Otherwise → 'needed'.
+         $hasFullOrderInfo = !empty($data['vendor_id'])
+@@ -340,28 +374,42 @@ class SpecialOrderController extends Controller
+         // Generate a batch_id if >1 allocation row
+         $batchId = count($data['allocations']) > 1 ? \Illuminate\Support\Str::uuid()->toString() : null;
+ 
++        // where the order was started from, so its history says so.
++        $createdFrom = in_array($data['origin'] ?? null, ['item', 'appointment'], true) ? $data['origin'] : 'manual';
++
++        // pickup location: the register/admin's current one, when this shop has it.
++        $locationId = $request->session()->get('current_location_id');
++        if ($locationId && ! \App\Models\Tenant\TenantLocation::where('tenant_id', $tid)->where('id', $locationId)->exists()) {
++            $locationId = null;
++        }
++
+         try {
+-            $created = [];
+-            foreach ($data['allocations'] as $alloc) {
+-                $row = [
+-                    'tenant_id'                 => $tenant->id,
+-                    'inventory_item_id'         => $data['inventory_item_id'] ?? null,
+-                    'item_name_snapshot'        => $data['item_name'],
+-                    'quantity'                  => (int) $alloc['quantity'],
+-                    'customer_id'               => $alloc['mode'] === 'stock' ? null : ($alloc['customer_id'] ?? null),
+-                    'appointment_id'            => $alloc['mode'] === 'customer_appt' ? ($alloc['appointment_id'] ?? null) : null,
+-                    'vendor_id'                 => $data['vendor_id'] ?? null,
+-                    'po_number'                 => $data['po_number'] ?? null,
+-                    'expected_arrival_date'     => $data['expected_arrival_date'] ?? null,
+-                    'unit_cost_cents_estimated' => $data['unit_cost_cents_estimated'] ?? null,
+-                    'status'                    => $initialStatus,
+-                    'created_from'              => 'manual',
+-                    'batch_id'                  => $batchId,
+-                    'created_by_user_id'        => Auth::guard('tenant')->id(),
+-                    'notes'                     => $data['notes'] ?? null,
+-                ];
+-                $created[] = $this->service->create($row);
+-            }
++            // all rows or none: a failure part-way used to leave some created.
++            $created = DB::transaction(function () use ($data, $tid, $initialStatus, $batchId, $createdFrom, $costCents, $locationId) {
++                $rows = [];
++                foreach ($data['allocations'] as $alloc) {
++                    $rows[] = $this->service->create([
++                        'tenant_id'                 => $tid,
++                        'inventory_item_id'         => $data['inventory_item_id'] ?? null,
++                        'item_name_snapshot'        => $data['item_name'],
++                        'quantity'                  => (int) $alloc['quantity'],
++                        'customer_id'               => $alloc['mode'] === 'stock' ? null : ($alloc['customer_id'] ?? null),
++                        'appointment_id'            => $alloc['mode'] === 'customer_appt' ? ($alloc['appointment_id'] ?? null) : null,
++                        // a work-order row picks up at the job's location.
++                        'location_id'               => $alloc['mode'] === 'customer_appt' ? null : $locationId,
++                        'vendor_id'                 => $data['vendor_id'] ?? null,
++                        'po_number'                 => $data['po_number'] ?? null,
++                        'expected_arrival_date'     => $data['expected_arrival_date'] ?? null,
++                        'unit_cost_cents_estimated' => $costCents,
++                        'status'                    => $initialStatus,
++                        'created_from'              => $createdFrom,
++                        'batch_id'                  => $batchId,
++                        'created_by_user_id'        => Auth::guard('tenant')->id(),
++                        'notes'                     => $data['notes'] ?? null,
++                    ]);
++                }
++                return $rows;
++            });
+         } catch (SpecialOrderValidationException $e) {
+             return back()
+                 ->withInput()
+@@ -377,6 +425,52 @@ class SpecialOrderController extends Controller
+             ->with('flash', ['type' => 'success', 'message' => $msg]);
+     }
+ 
++    /**
++     * MARKER-SO-REPAIRS: the vendors that carry an item, for the drawer and
++     * the order page. Only this shop's active vendors with a source row for
++     * the item; in-stock first, then preferred, then cheapest.
++     */
++    public function vendorsForItem(Request $request): JsonResponse
++    {
++        $tenant = tenant();
++        $this->assertRetailEnabled($tenant);
++
++        $itemId = (string) $request->query('item_id', '');
++        $item = $itemId !== '' ? TenantInventoryItem::where('tenant_id', $tenant->id)->find($itemId) : null;
++        if (! $item) {
++            return response()->json(['ok' => false, 'error' => 'Item not found.'], 404);
++        }
++
++        return response()->json(['ok' => true, 'vendors' => self::vendorOptionsForItem($tenant->id, $item->id)]);
++    }
++
++    /** @return array<int, array{id:string,name:string,sku:?string,cost_cents:?int,avail:?int,preferred:bool,lead:?int}> */
++    public static function vendorOptionsForItem(string $tenantId, string $itemId): array
++    {
++        $vendors = TenantVendor::where('tenant_id', $tenantId)->where('is_active', true)->get()->keyBy('id');
++        $rows = \App\Models\Tenant\TenantInventoryItemVendor::where('inventory_item_id', $itemId)
++            ->whereIn('vendor_id', $vendors->keys())
++            ->get();
++
++        return $rows->map(function ($r) use ($vendors) {
++            $v = $vendors->get($r->vendor_id);
++            $list = $r->live_cost_cents ?? $r->unit_cost_cents;
++            return [
++                'id'         => $r->vendor_id,
++                'name'       => $v->name,
++                'sku'        => $r->vendor_sku,
++                'cost_cents' => $list !== null ? ($v->netCostCents($list) ?? $list) : null,
++                'avail'      => $r->live_avail !== null ? (int) $r->live_avail : null,
++                'preferred'  => (bool) $r->is_preferred,
++                'lead'       => $r->lead_time_days,
++            ];
++        })->sortBy([
++            fn ($a, $b) => (($b['avail'] ?? 0) > 0) <=> (($a['avail'] ?? 0) > 0),
++            fn ($a, $b) => $b['preferred'] <=> $a['preferred'],
++            fn ($a, $b) => ($a['cost_cents'] ?? PHP_INT_MAX) <=> ($b['cost_cents'] ?? PHP_INT_MAX),
++        ])->values()->all();
++    }
++
+     /**
+      * Mark an SO as ordered (needed → ordered).
+      * If the SO already has vendor + PO + ETA from creation, this is
+@@ -392,12 +486,18 @@ class SpecialOrderController extends Controller
+         $this->ensureBelongsToTenant($id, $tenant->id);
+ 
+         $data = $request->validate([
+-            'vendor_id'             => ['required', 'string'],
++            'vendor_id'             => ['required', 'uuid', Rule::exists('tenant_vendors', 'id')->where(fn ($q) => $q->where('tenant_id', $tenant->id))],
+             'po_number'             => ['required', 'string', 'max:64'],
+             'expected_arrival_date' => ['required', 'date'],
+             'vendor_reference'      => ['nullable', 'string', 'max:64'],
++            'unit_cost_estimated'   => ['nullable', 'numeric', 'min:0', 'max:1000000'],
+             'unit_cost_cents_estimated' => ['nullable', 'integer', 'min:0'],
+         ]);
++        // MARKER-SO-REPAIRS: dollars in the form, cents in the row.
++        if (isset($data['unit_cost_estimated']) && $data['unit_cost_estimated'] !== null) {
++            $data['unit_cost_cents_estimated'] = (int) round(((float) $data['unit_cost_estimated']) * 100);
++        }
++        unset($data['unit_cost_estimated']);
+ 
+         try {
+             $this->service->markOrdered($id, $data);
+@@ -422,18 +522,26 @@ class SpecialOrderController extends Controller
+         $this->ensureBelongsToTenant($id, $tenant->id);
+ 
+         $data = $request->validate([
++            'received_quantity'      => ['nullable', 'integer', 'min:1', 'max:9999'],
++            'unit_cost_actual'       => ['nullable', 'numeric', 'min:0', 'max:1000000'],
+             'unit_cost_cents_actual' => ['nullable', 'integer', 'min:0'],
+             'vendor_invoice_number'  => ['nullable', 'string', 'max:64'],
+             'vendor_invoice_date'    => ['nullable', 'date'],
+         ]);
++        $actualCents = (isset($data['unit_cost_actual']) && $data['unit_cost_actual'] !== null)
++            ? (int) round(((float) $data['unit_cost_actual']) * 100)
++            : ($data['unit_cost_cents_actual'] ?? null);
+ 
+         try {
++            // MARKER-SO-REPAIRS: a hand arrival puts the units in stock.
+             $this->service->markArrived(
+                 $id,
+-                null, // null = full receipt
+-                $data['unit_cost_cents_actual'] ?? null,
++                $data['received_quantity'] ?? null, // null = full receipt
++                $actualCents,
+                 $data['vendor_invoice_number'] ?? null,
+                 $data['vendor_invoice_date'] ?? null,
++                true,
++                Auth::guard('tenant')->user(),
+             );
+         } catch (SpecialOrderValidationException $e) {
+             return back()->with('flash', ['type' => 'error', 'message' => $e->getMessage()]);
+@@ -578,6 +686,10 @@ class SpecialOrderController extends Controller
+         if ($so->status !== TenantSpecialOrder::STATUS_NEEDED) {
+             return response()->json(['ok' => false, 'error' => 'Only needed orders can be reassigned.'], 422);
+         }
++        // MARKER-SO-REPAIRS
++        if ($so->inventory_item_id && ! SpecialOrderService::vendorCarriesItem($tenant->id, $data['vendor_id'], $so->inventory_item_id)) {
++            return response()->json(['ok' => false, 'error' => 'That vendor does not carry this item.'], 422);
++        }
+ 
+         $so->forceFill(['vendor_id' => $data['vendor_id']])->save();
+ 
+diff --git a/app/Models/Tenant/TenantSpecialOrder.php b/app/Models/Tenant/TenantSpecialOrder.php
+index 13e8982c..cf40fdc0 100644
+--- a/app/Models/Tenant/TenantSpecialOrder.php
++++ b/app/Models/Tenant/TenantSpecialOrder.php
+@@ -44,6 +44,7 @@ class TenantSpecialOrder extends Model
+         'quantity',
+         'customer_id',
+         'appointment_id',
++        'location_id', // MARKER-SO-REPAIRS
+         'sale_id',
+         'sale_item_id',
+         'source_confirmed_at', 'source_confirmed_by_user_id',
+@@ -99,6 +100,7 @@ class TenantSpecialOrder extends Model
+     public function customer(): BelongsTo    { return $this->belongsTo(TenantCustomer::class, 'customer_id'); }
+     public function appointment(): BelongsTo { return $this->belongsTo(TenantAppointment::class, 'appointment_id'); }
+     public function vendor(): BelongsTo      { return $this->belongsTo(TenantVendor::class, 'vendor_id'); }
++    public function location(): BelongsTo    { return $this->belongsTo(TenantLocation::class, 'location_id'); }
+     public function createdBy(): BelongsTo   { return $this->belongsTo(TenantUser::class, 'created_by_user_id'); }
+     public function notes(): HasMany         { return $this->hasMany(TenantSpecialOrderNote::class, 'special_order_id')->orderBy('created_at'); }
+ 
+diff --git a/app/Services/Tenant/SpecialOrderService.php b/app/Services/Tenant/SpecialOrderService.php
+index 02d021ee..23c434c4 100644
+--- a/app/Services/Tenant/SpecialOrderService.php
++++ b/app/Services/Tenant/SpecialOrderService.php
+@@ -42,13 +42,20 @@ use Illuminate\Support\Str;
+  *   with the original row. The sibling has its own short history starting
+  *   from its creation.
+  *
+- * VENDOR LEAD-TIME LEARNING:
++ * VENDOR LEAD TIME:
+  *   When an SO transitions to 'arrived', the pivot row for (item, vendor)
+- *   gets last_ordered_at updated. The lead_time_days field on the pivot
+- *   is computed on-demand by averaging actual ordered-to-arrived days
+- *   for that pair — we don't try to maintain a running average. Cheap
+- *   enough at read time; reconsider if a tenant ever has 10k+ SOs per
+- *   vendor.
++ *   gets last_ordered_at updated. lead_time_days on the pivot is what the
++ *   shop TYPES on the item's sources; nothing computes it from history yet.
++ *
++ * MARKER-SO-REPAIRS — rules this service now enforces for every caller:
++ *   - every id it is handed (item, customer, appointment, sale, vendor,
++ *     location) must belong to the order's tenant;
++ *   - a vendor must carry the item (a row in tenant_inventory_item_vendors)
++ *     when the order names a cataloged item. System callers that pass a
++ *     default vendor fall back to the auto-assign rule instead of failing;
++ *   - every order gets a pickup location;
++ *   - an arrival recorded by hand from the order page moves stock (receiving
++ *     already does; a hand arrival used to leave the part to go negative).
+  */
+ class SpecialOrderService
+ {
+@@ -115,15 +122,31 @@ class SpecialOrderService
+      */
+     public function create(array $data): TenantSpecialOrder
+     {
++        if (empty($data['tenant_id'])) {
++            throw new SpecialOrderValidationException('tenant_id is required.');
++        }
++
++        // MARKER-SO-REPAIRS: nothing from another shop can be attached.
++        $this->assertOwnedByTenant($data);
++
++        // a vendor that does not carry a cataloged item cannot be
++        // ordered from. A person choosing it is told so; a system caller
++        // handing over a default vendor falls back to the shop's rule.
++        if (! empty($data['vendor_id']) && ! empty($data['inventory_item_id'])
++            && ! self::vendorCarriesItem($data['tenant_id'], $data['vendor_id'], $data['inventory_item_id'])) {
++            if (in_array($data['created_from'] ?? 'manual', ['manual', 'item'], true)) {
++                throw new SpecialOrderValidationException('That vendor does not carry this item. Pick a vendor listed for it, or add the vendor to the item first.');
++            }
++            $data['vendor_id'] = null;
++        }
++
+         // resolve the vendor once, up front, so the
+         // rule that chose it can be recorded alongside it.
+         $auto = empty($data['vendor_id'])
+             ? self::autoAssignVendor($data['tenant_id'], $data['inventory_item_id'] ?? null)
+             : ['vendor_id' => null, 'rule' => null];
+ 
+-        if (empty($data['tenant_id'])) {
+-            throw new SpecialOrderValidationException('tenant_id is required.');
+-        }
++        $data['location_id'] = $this->resolveLocationId($data);
+         if (empty($data['item_name_snapshot'])) {
+             throw new SpecialOrderValidationException('item_name_snapshot is required.');
+         }
+@@ -152,7 +175,10 @@ class SpecialOrderService
+             }
+         }
+ 
+-        return DB::transaction(function () use ($data, $status) {
++        // MARKER-SO-REPAIRS: $auto must be in the use list. It was not, so the
++        // auto-assigned vendor was always null inside the closure and no
++        // special order ever got its vendor from the shop's rule.
++        return DB::transaction(function () use ($data, $status, $auto) {
+             $soNumber = $this->nextSpecialOrderNumber($data['tenant_id']);
+ 
+             $so = TenantSpecialOrder::create([
+@@ -163,6 +189,7 @@ class SpecialOrderService
+                 'quantity'                  => (int) $data['quantity'],
+                 'customer_id'               => $data['customer_id'] ?? null,
+                 'appointment_id'            => $data['appointment_id'] ?? null,
++                'location_id'               => $data['location_id'] ?? null,
+                 'sale_id'                   => $data['sale_id'] ?? null,
+                 'sale_item_id'              => $data['sale_item_id'] ?? null,
+                 // an order with no vendor cannot be
+@@ -309,6 +336,13 @@ class SpecialOrderService
+                     'vendor_id is required to mark an SO ordered.'
+                 );
+             }
++            // MARKER-SO-REPAIRS
++            if (! \App\Models\Tenant\TenantVendor::where('tenant_id', $so->tenant_id)->where('id', $data['vendor_id'])->exists()) {
++                throw new SpecialOrderValidationException('That vendor is not one of this shop\'s vendors.');
++            }
++            if ($so->inventory_item_id && ! self::vendorCarriesItem($so->tenant_id, $data['vendor_id'], $so->inventory_item_id)) {
++                throw new SpecialOrderValidationException("That vendor does not carry {$so->item_name_snapshot}. Pick a vendor listed for it.");
++            }
+             if (empty($data['po_number'])) {
+                 throw new SpecialOrderValidationException(
+                     'po_number is required to mark an SO ordered.'
+@@ -357,9 +391,11 @@ class SpecialOrderService
+         ?int $receivedQty = null,
+         ?int $actualUnitCostCents = null,
+         ?string $vendorInvoiceNumber = null,
+-        ?string $vendorInvoiceDate = null
++        ?string $vendorInvoiceDate = null,
++        bool $moveStock = false,
++        ?\App\Models\Tenant\TenantUser $byUser = null
+     ): TenantSpecialOrder {
+-        $result = DB::transaction(function () use ($id, $receivedQty, $actualUnitCostCents, $vendorInvoiceNumber, $vendorInvoiceDate) {
++        $result = DB::transaction(function () use ($id, $receivedQty, $actualUnitCostCents, $vendorInvoiceNumber, $vendorInvoiceDate, $moveStock, $byUser) {
+             $so = $this->findOrFail($id);
+             $this->validateTransition($so, TenantSpecialOrder::STATUS_ARRIVED);
+ 
+@@ -384,6 +420,14 @@ class SpecialOrderService
+                 $so = $so->fresh();
+             }
+ 
++            // MARKER-SO-REPAIRS: arrival recorded by hand puts the units in
++            // stock at the pickup location, exactly as receiving would. The
++            // receiving commit passes moveStock=false because it already did.
++            $stockNote = '';
++            if ($moveStock && $so->inventory_item_id) {
++                $stockNote = $this->receiveIntoStock($so, $received, $actualUnitCostCents ?? $so->unit_cost_cents_estimated, $byUser);
++            }
++
+             $so->update([
+                 'status'                 => TenantSpecialOrder::STATUS_ARRIVED,
+                 'arrived_at'             => now(),
+@@ -400,7 +444,7 @@ class SpecialOrderService
+             $partialNote = $received < $totalQty
+                 ? " (partial: {$received} of {$totalQty})"
+                 : '';
+-            $this->writeSystemNote($so->fresh(), "Marked arrived{$partialNote}.");
++            $this->writeSystemNote($so->fresh(), "Marked arrived{$partialNote}.{$stockNote}");
+ 
+             return $so->fresh();
+         });
+@@ -507,6 +551,9 @@ class SpecialOrderService
+                 'quantity'                  => $remaining,
+                 'customer_id'               => $so->customer_id,
+                 'appointment_id'            => $so->appointment_id,
++                'location_id'               => $so->location_id,
++                'sale_id'                   => $so->sale_id,
++                'sale_item_id'              => $so->sale_item_id,
+                 'vendor_id'                 => $so->vendor_id,
+                 'po_number'                 => $so->po_number,
+                 'vendor_reference'          => $so->vendor_reference,
+@@ -635,6 +682,129 @@ class SpecialOrderService
+         }
+     }
+ 
++    // ────────────────────────────────────────────────────────
++    //  MARKER-SO-REPAIRS helpers
++    // ────────────────────────────────────────────────────────
++
++    /** True when the vendor is this shop's and has a source row for the item. */
++    public static function vendorCarriesItem(string $tenantId, string $vendorId, string $inventoryItemId): bool
++    {
++        $isShopsVendor = \App\Models\Tenant\TenantVendor::where('tenant_id', $tenantId)->where('id', $vendorId)->exists();
++        $isShopsItem   = \App\Models\Tenant\TenantInventoryItem::where('tenant_id', $tenantId)->where('id', $inventoryItemId)->exists();
++
++        return $isShopsVendor && $isShopsItem
++            && TenantInventoryItemVendor::where('inventory_item_id', $inventoryItemId)->where('vendor_id', $vendorId)->exists();
++    }
++
++    /**
++     * Every id handed to create() must be the order's own tenant's. The
++     * controllers validate too; this is the backstop for every other caller.
++     */
++    protected function assertOwnedByTenant(array $data): void
++    {
++        $tid = $data['tenant_id'];
++        $checks = [
++            'inventory_item_id' => \App\Models\Tenant\TenantInventoryItem::class,
++            'customer_id'       => \App\Models\Tenant\TenantCustomer::class,
++            'appointment_id'    => \App\Models\Tenant\TenantAppointment::class,
++            'sale_id'           => \App\Models\Tenant\TenantSale::class,
++            'vendor_id'         => \App\Models\Tenant\TenantVendor::class,
++            'location_id'       => \App\Models\Tenant\TenantLocation::class,
++        ];
++        foreach ($checks as $key => $model) {
++            if (empty($data[$key])) {
++                continue;
++            }
++            if (! $model::where('tenant_id', $tid)->where('id', $data[$key])->exists()) {
++                throw new SpecialOrderValidationException("That {$this->labelFor($key)} is not one of this shop's.");
++            }
++        }
++
++        // a job must belong to the customer it is ordered for.
++        if (! empty($data['appointment_id']) && ! empty($data['customer_id'])) {
++            $apptCustomer = \App\Models\Tenant\TenantAppointment::where('id', $data['appointment_id'])->value('customer_id');
++            if ($apptCustomer && $apptCustomer !== $data['customer_id']) {
++                throw new SpecialOrderValidationException('That work order belongs to a different customer.');
++            }
++        }
++    }
++
++    private function labelFor(string $key): string
++    {
++        return [
++            'inventory_item_id' => 'item', 'customer_id' => 'customer', 'appointment_id' => 'work order',
++            'sale_id' => 'sale', 'vendor_id' => 'vendor', 'location_id' => 'location',
++        ][$key] ?? 'record';
++    }
++
++    /**
++     * Pickup location: what the caller named, else the sale's, else the work
++     * order's, else the shop's default (or first active) location.
++     */
++    protected function resolveLocationId(array $data): ?string
++    {
++        if (! empty($data['location_id'])) {
++            return $data['location_id'];
++        }
++        $tid = $data['tenant_id'];
++        if (! empty($data['sale_id'])) {
++            $loc = \App\Models\Tenant\TenantSale::where('tenant_id', $tid)->where('id', $data['sale_id'])->value('location_id');
++            if ($loc) {
++                return $loc;
++            }
++        }
++        if (! empty($data['appointment_id'])) {
++            $loc = \App\Models\Tenant\TenantAppointment::where('tenant_id', $tid)->where('id', $data['appointment_id'])->value('location_id');
++            if ($loc) {
++                return $loc;
++            }
++        }
++
++        return self::defaultLocationId($tid);
++    }
++
++    public static function defaultLocationId(string $tenantId): ?string
++    {
++        return \App\Models\Tenant\TenantLocation::where('tenant_id', $tenantId)
++            ->orderByDesc('is_default')->orderByDesc('is_active')->orderBy('sort_order')->orderBy('created_at')
++            ->value('id');
++    }
++
++    /**
++     * Put $qty of the order's item into stock at its pickup location, as a
++     * 'receive' movement that points back at this order. Returns the note
++     * text to append to the order's history.
++     */
++    protected function receiveIntoStock(TenantSpecialOrder $so, int $qty, ?int $unitCostCents, ?\App\Models\Tenant\TenantUser $byUser): string
++    {
++        $tenant = \App\Models\Tenant::findOrFail($so->tenant_id);
++        $item = \App\Models\Tenant\TenantInventoryItem::where('tenant_id', $so->tenant_id)->findOrFail($so->inventory_item_id);
++        $locationId = $so->location_id ?: self::defaultLocationId($so->tenant_id);
++        if (! $locationId) {
++            throw new SpecialOrderValidationException('Add a location before receiving stock.');
++        }
++        $location = \App\Models\Tenant\TenantLocation::where('tenant_id', $so->tenant_id)->findOrFail($locationId);
++
++        $inv = app(\App\Services\Pos\InventoryService::class);
++        $inv->incrementStock(
++            tenant: $tenant,
++            item: $item,
++            location: $location,
++            quantity: $qty,
++            referenceType: 'special_order',
++            referenceId: $so->id,
++            tenantUser: $byUser,
++            costCentsAtTime: $unitCostCents,
++            movementType: 'receive',
++            notes: "Special order {$so->so_number} received by hand",
++        );
++        if ($unitCostCents !== null) {
++            $inv->recordReceivedCost($tenant, $item, $qty, (int) $unitCostCents, 'special_order');
++        }
++
++        return " {$qty} added to stock at {$location->name}.";
++    }
++
+     /**
+      * the vendor this tenant would normally buy this
+      * item from: the preferred row in the item-vendor catalog, else the most
+diff --git a/app/Support/ImportFieldRegistry.php b/app/Support/ImportFieldRegistry.php
+index 573f363f..73b58824 100644
+--- a/app/Support/ImportFieldRegistry.php
++++ b/app/Support/ImportFieldRegistry.php
+@@ -27,8 +27,9 @@ class ImportFieldRegistry
+     /**
+      * inventory fields.
+      *
+-     * Absent on purpose: computed_stock_count and committed_count (maintained
+-     * by InventoryService under locks — stock arrives as a MOVEMENT, see the
++     * Absent on purpose: computed_stock_count (maintained by InventoryService
++     * under locks) and committed_count (unused — nothing writes or reads it;
++     * held stock lives in reserved_count) — stock arrives as a MOVEMENT, see the
+      * 'stock' pseudo-field), every catalog_* column (owned by distributor sync
+      * and clobbered on its next run), price_ack_at/by (an audit trail), and
+      * distributor_catalog_id / default_vendor_id (set by linking, not typing).
+diff --git a/database/migrations/2026_11_04_000100_add_location_to_special_orders.php b/database/migrations/2026_11_04_000100_add_location_to_special_orders.php
+new file mode 100644
+index 00000000..9fe4fcb5
+--- /dev/null
++++ b/database/migrations/2026_11_04_000100_add_location_to_special_orders.php
+@@ -0,0 +1,67 @@
++<?php
++
++use Illuminate\Database\Migrations\Migration;
++use Illuminate\Database\Schema\Blueprint;
++use Illuminate\Support\Facades\DB;
++use Illuminate\Support\Facades\Schema;
++
++/**
++ * MARKER-SO-REPAIRS: where a special order is picked up.
++ *
++ * A special order had no location, so a shop with more than one could not
++ * tell which store a part was going to. Additive only: a nullable column,
++ * then a backfill from what the order already knows — the sale it came from,
++ * else its work order, else the shop's default location.
++ */
++return new class extends Migration
++{
++    public function up(): void
++    {
++        if (! Schema::hasColumn('tenant_special_orders', 'location_id')) {
++            Schema::table('tenant_special_orders', function (Blueprint $t) {
++                $t->uuid('location_id')->nullable()->after('appointment_id');
++                $t->index(['tenant_id', 'location_id', 'status'], 'tso_tenant_loc_status_idx');
++            });
++        }
++
++        // 1. From the sale it was raised on.
++        DB::statement("
++            UPDATE tenant_special_orders so
++            JOIN tenant_sales s ON s.id = so.sale_id AND s.tenant_id = so.tenant_id
++            SET so.location_id = s.location_id
++            WHERE so.location_id IS NULL AND s.location_id IS NOT NULL
++        ");
++
++        // 2. From its work order.
++        DB::statement("
++            UPDATE tenant_special_orders so
++            JOIN tenant_appointments a ON a.id = so.appointment_id AND a.tenant_id = so.tenant_id
++            SET so.location_id = a.location_id
++            WHERE so.location_id IS NULL AND a.location_id IS NOT NULL
++        ");
++
++        // 3. The shop's default location (else its first active one).
++        DB::statement("
++            UPDATE tenant_special_orders so
++            JOIN (
++                SELECT l.tenant_id,
++                       SUBSTRING_INDEX(GROUP_CONCAT(l.id ORDER BY l.is_default DESC, l.is_active DESC, l.sort_order, l.created_at), ',', 1) AS loc_id
++                FROM tenant_locations l
++                WHERE l.deleted_at IS NULL
++                GROUP BY l.tenant_id
++            ) d ON d.tenant_id = so.tenant_id
++            SET so.location_id = d.loc_id
++            WHERE so.location_id IS NULL
++        ");
++    }
++
++    public function down(): void
++    {
++        if (Schema::hasColumn('tenant_special_orders', 'location_id')) {
++            Schema::table('tenant_special_orders', function (Blueprint $t) {
++                $t->dropIndex('tso_tenant_loc_status_idx');
++                $t->dropColumn('location_id');
++            });
++        }
++    }
++};
+diff --git a/resources/views/tenant/appointments/show-multi-asset.blade.php b/resources/views/tenant/appointments/show-multi-asset.blade.php
+index c9620a94..d0438fc6 100644
+--- a/resources/views/tenant/appointments/show-multi-asset.blade.php
++++ b/resources/views/tenant/appointments/show-multi-asset.blade.php
+@@ -2309,7 +2309,7 @@ input.ma-asset-name-edit:focus {
+           <div class="ma-so-head">
+             <div class="ma-section-title">Special-order parts</div>
+             <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm"
+-                    onclick='SoDrawer.open({customer_id: @json($appointment->customer_id), customer_label: @json(trim(($appointment->customer->first_name ?? "") . " " . ($appointment->customer->last_name ?? ""))), appointment_id: @json($appointment->id), alloc_mode: "customer_appt"})'>
++                    onclick='SoDrawer.open({customer_id: @json($appointment->customer_id), customer_label: @json(trim(($appointment->customer->first_name ?? "") . " " . ($appointment->customer->last_name ?? ""))), appointment_id: @json($appointment->id), alloc_mode: "customer_appt", origin: "appointment"})'>
+               + SO for this appointment
+             </button>
+           </div>
+diff --git a/resources/views/tenant/appointments/show.blade.php b/resources/views/tenant/appointments/show.blade.php
+index e831bc09..6cdf6f4f 100644
+--- a/resources/views/tenant/appointments/show.blade.php
++++ b/resources/views/tenant/appointments/show.blade.php
+@@ -1502,7 +1502,7 @@ document.addEventListener('DOMContentLoaded', function () {
+         <div class="appt-section-label" style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+           <span>Special orders</span>
+           <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm"
+-                  onclick='SoDrawer.open({customer_id: @json($appointment->customer_id), customer_label: @json($appointment->customerName()), appointment_id: @json($appointment->id), alloc_mode: "customer_appt"})'>
++                  onclick='SoDrawer.open({customer_id: @json($appointment->customer_id), customer_label: @json($appointment->customerName()), appointment_id: @json($appointment->id), alloc_mode: "customer_appt", origin: "appointment"})'>
+             + SO for this appointment
+           </button>
+         </div>
+diff --git a/resources/views/tenant/inventory/_sources.blade.php b/resources/views/tenant/inventory/_sources.blade.php
+index 88ba78cd..fee6c213 100644
+--- a/resources/views/tenant/inventory/_sources.blade.php
++++ b/resources/views/tenant/inventory/_sources.blade.php
+@@ -13,7 +13,7 @@
+   $preferredId = optional($srcRows->firstWhere('is_preferred', true))->id;
+ @endphp
+ 
+-<div class="ia-card" style="margin-bottom:18px">
++<div class="ia-card" id="item-sources" style="margin-bottom:18px">{{-- MARKER-SO-REPAIRS: anchor for "Add a vendor to this item" --}}
+   <div class="ia-card-head">
+     <span class="ia-card-title">Where you buy this</span>
+     <span style="margin-left:auto;font-size:11.5px;color:var(--ia-text-dim)">
+diff --git a/resources/views/tenant/inventory/show.blade.php b/resources/views/tenant/inventory/show.blade.php
+index 5ff244fa..b6b5f290 100644
+--- a/resources/views/tenant/inventory/show.blade.php
++++ b/resources/views/tenant/inventory/show.blade.php
+@@ -764,7 +764,7 @@
+           <div style="font-size:13px;color:var(--ia-text-muted)">on order across {{ $openSos->count() }} SO{{ $openSos->count() === 1 ? '' : 's' }}</div>
+         </div>
+       </div>
+-      <button type="button" class="ia-btn ia-btn--primary ia-btn--sm" onclick='SoDrawer.open({item_id: @json($item->id), item_name: @json($item->name)})'>+ Special order this item</button>
++      <button type="button" class="ia-btn ia-btn--primary ia-btn--sm" onclick='SoDrawer.open({item_id: @json($item->id), item_name: @json($item->name), origin: "item"})'>+ Special order this item</button>
+     </div>
+ 
+     @if($openSos->count() > 0)
+diff --git a/resources/views/tenant/special-orders/_drawer.blade.php b/resources/views/tenant/special-orders/_drawer.blade.php
+index c076159c..8c8e453f 100644
+--- a/resources/views/tenant/special-orders/_drawer.blade.php
++++ b/resources/views/tenant/special-orders/_drawer.blade.php
+@@ -9,6 +9,8 @@
+   <div class="so-drawer-panel">
+     <form id="so-drawer-form" method="POST" action="{{ route('tenant.special-orders.store') }}">
+       @csrf
++      {{-- MARKER-SO-REPAIRS: where the drawer was opened from (item / appointment / manual) --}}
++      <input type="hidden" name="origin" id="so-origin" value="manual">
+ 
+       <div class="so-drawer-head">
+         <h3>New special order</h3>
+@@ -44,17 +46,18 @@
+           </button>
+         </div>
+ 
+-        {{-- VENDOR + PO + ETA + COST --}}
++        {{-- VENDOR + PO + ETA + COST
++             MARKER-SO-REPAIRS: the vendor list is the vendors that CARRY the
++             picked item (its sources), filled when an item is picked. A
++             not-yet-cataloged item has no sources, so any active vendor. --}}
+         <div class="ia-input-grid-2">
+           <div class="ia-form-group">
+             <label class="ia-form-label">Vendor</label>
+-            <select name="vendor_id" class="ia-select">
+-              <option value="">— TBD (will be needed, not ordered) —</option>
+-              @foreach($vendors as $v)
+-                <option value="{{ $v->id }}">{{ $v->name }}</option>
+-              @endforeach
++            <select name="vendor_id" id="so-vendor-select" class="ia-select" disabled>
++              <option value="">Pick an item first</option>
+             </select>
+-            <div class="ia-form-help">If selected with PO + ETA, SO starts as "ordered". Otherwise "needed".</div>
++            <div class="ia-form-help" id="so-vendor-help">Only vendors that carry the item are listed. With a PO # and expected date it starts as "ordered"; otherwise "needed".</div>
++            <a id="so-vendor-add-link" class="ia-form-help" style="display:none;color:var(--ia-accent)" href="#">Add a vendor to this item</a>
+           </div>
+           <div class="ia-form-group">
+             <label class="ia-form-label">Our PO #</label>
+@@ -68,8 +71,8 @@
+             <input type="date" name="expected_arrival_date" class="ia-input">
+           </div>
+           <div class="ia-form-group">
+-            <label class="ia-form-label">Est. unit cost (cents)</label>
+-            <input type="number" name="unit_cost_cents_estimated" class="ia-input" min="0" placeholder="e.g. 1250 = $12.50">
++            <label class="ia-form-label">Est. unit cost ($)</label>
++            <input type="number" name="unit_cost_estimated" id="so-cost" class="ia-input" min="0" step="0.01" placeholder="e.g. 12.50">
+           </div>
+         </div>
+ 
+@@ -131,7 +134,11 @@
+     itemSearch: '{{ route("tenant.inventory.items.search") }}',
+     customerSearch: '{{ route("tenant.customers.search") }}',
+     apptsForCustomer: '{{ route("tenant.special-orders.appointments-for-customer") }}',
++    vendorsForItem: '{{ route("tenant.special-orders.vendors-for-item") }}',
++    itemEdit: @json(route('tenant.inventory.edit', ['id' => '__ID__'])),
+   };
++  // every active vendor, for a not-yet-cataloged item only
++  var ALL_VENDORS = {!! json_encode(collect($vendors ?? [])->map(fn ($v) => ['id' => $v->id, 'name' => $v->name])->values(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) !!};
+ 
+   // ── Drawer open/close ─────────────────────────────────
+   // open() accepts an optional prefill object from entry-point buttons:
+@@ -141,6 +148,8 @@
+   window.SoDrawer = {
+     open: function (opts) {
+       opts = opts || {};
++      resetDrawer(); // MARKER-SO-REPAIRS: a reopened drawer used to keep the last item and rows
++      document.getElementById('so-origin').value = opts.origin || 'manual';
+       document.getElementById('so-drawer').style.display = 'flex';
+       document.body.style.overflow = 'hidden';
+ 
+@@ -155,6 +164,7 @@
+         document.getElementById('so-selected-item-sku').textContent = '';
+         document.getElementById('so-item-selected').style.display = 'flex';
+         document.getElementById('so-item-search').style.display = 'none';
++        fillVendors(null);
+       }
+ 
+       // Ensure at least one allocation row exists
+@@ -182,10 +192,9 @@
+           // If appointment was passed too, set it directly (no need for picker)
+           if (opts.appointment_id) {
+             firstRow.querySelector('input[name^="allocations"][name$="[appointment_id]"]').value = opts.appointment_id;
+-            // Load + select the matching option in the appt picker so user sees it
+-            loadApptsForCustomer(firstRow, opts.customer_id);
+-            // After load completes (async), the prefilled appointment_id is honored
+-            // by hidden input; UI lag is minor and the form submits correctly.
++            // Load the picker and select the passed job in it, so what is
++            // shown matches what is submitted.
++            loadApptsForCustomer(firstRow, opts.customer_id, opts.appointment_id);
+           } else if (opts.alloc_mode === 'customer_appt') {
+             loadApptsForCustomer(firstRow, opts.customer_id);
+           }
+@@ -201,6 +210,7 @@
+     clearItem: function () {
+       document.getElementById('so-item-id').value = '';
+       document.getElementById('so-item-name').value = '';
++      resetVendors('Pick an item first');
+       document.getElementById('so-item-selected').style.display = 'none';
+       document.getElementById('so-item-search').style.display = 'block';
+       document.getElementById('so-item-search').value = '';
+@@ -216,6 +226,7 @@
+       document.getElementById('so-item-search').style.display = 'none';
+       document.getElementById('so-item-results').style.display = 'none';
+       document.getElementById('so-item-freeform-btn').style.display = 'none';
++      fillVendors(id);
+     },
+ 
+     useFreeformItem: function () {
+@@ -229,6 +240,7 @@
+       document.getElementById('so-item-search').style.display = 'none';
+       document.getElementById('so-item-results').style.display = 'none';
+       document.getElementById('so-item-freeform-btn').style.display = 'none';
++      fillVendors(null);
+     },
+ 
+     // ── Allocations ─────────────────────────────────────
+@@ -389,7 +401,8 @@
+         box.innerHTML = data.customers.map(function (c) {
+           var label = (c.label || '').trim() || '(unnamed)';
+           var meta  = [c.email, c.phone].filter(Boolean).join(' · ');
+-          return '<div class="so-search-row" data-cust-id="' + c.id + '" data-cust-label=' + JSON.stringify(label) + '>' +
++          // MARKER-SO-REPAIRS: escaped attribute; JSON.stringify broke on a name with a quote
++          return '<div class="so-search-row" data-cust-id="' + escapeHtml(c.id) + '" data-cust-label="' + escapeHtml(label) + '">' +
+             '<strong>' + escapeHtml(label) + '</strong>' +
+             (meta ? '<div class="ia-text-muted" style="font-size:11px">' + escapeHtml(meta) + '</div>' : '') +
+             '</div>';
+@@ -437,7 +450,7 @@
+     if (apptSelect) apptSelect.innerHTML = '<option value="">— pick an appointment —</option>';
+   };
+ 
+-  function loadApptsForCustomer(row, customerId) {
++  function loadApptsForCustomer(row, customerId, selectedId) {
+     fetch(ROUTES.apptsForCustomer + '?customer_id=' + encodeURIComponent(customerId), {
+       headers: { 'X-Requested-With': 'XMLHttpRequest' },
+     })
+@@ -452,13 +465,99 @@
+           });
+         }
+         sel.innerHTML = html;
+-        sel.addEventListener('change', function () {
++        if (selectedId) {
++          var hasIt = Array.prototype.some.call(sel.options, function (o) { return o.value === selectedId; });
++          if (!hasIt) {
++            // the job passed in is outside the 60-day list; still show it
++            var o = document.createElement('option');
++            o.value = selectedId; o.textContent = 'This work order';
++            sel.appendChild(o);
++          }
++          sel.value = selectedId;
++        }
++        // one listener per select, not one more per load
++        sel.onchange = function () {
+           row.querySelector('input[name^="allocations"][name$="[appointment_id]"]').value = this.value;
+-        });
++        };
+       })
+       .catch(function () { /* silent */ });
+   }
+ 
++  // ── Vendors (MARKER-SO-REPAIRS) ───────────────────────
++  function resetVendors(placeholder) {
++    var sel = document.getElementById('so-vendor-select');
++    sel.innerHTML = '<option value="">' + escapeHtml(placeholder) + '</option>';
++    sel.disabled = true;
++    document.getElementById('so-vendor-add-link').style.display = 'none';
++  }
++
++  function money(c) { return '$' + (c / 100).toFixed(2); }
++
++  function fillVendors(itemId) {
++    var sel = document.getElementById('so-vendor-select');
++    var link = document.getElementById('so-vendor-add-link');
++    var help = document.getElementById('so-vendor-help');
++    if (!itemId) {
++      // not yet cataloged: there are no sources to check against
++      var html = '<option value="">Decide later (order stays "needed")</option>';
++      ALL_VENDORS.forEach(function (v) { html += '<option value="' + escapeHtml(v.id) + '">' + escapeHtml(v.name) + '</option>'; });
++      sel.innerHTML = html;
++      sel.disabled = false;
++      link.style.display = 'none';
++      help.textContent = 'This item is not in your inventory yet, so any vendor can be picked.';
++      return;
++    }
++    resetVendors('Loading vendors…');
++    fetch(ROUTES.vendorsForItem + '?item_id=' + encodeURIComponent(itemId), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
++      .then(function (r) { return r.json(); })
++      .then(function (data) {
++        var list = (data && data.ok && data.vendors) ? data.vendors : [];
++        if (!list.length) {
++          resetVendors('No vendor carries this item yet');
++          help.textContent = 'The order will be "needed" until a vendor is added to the item.';
++          link.href = ROUTES.itemEdit.replace('__ID__', encodeURIComponent(itemId)) + '#item-sources';
++          link.style.display = 'inline-block';
++          return;
++        }
++        var html = '<option value="">Decide later (order stays "needed")</option>';
++        list.forEach(function (v) {
++          var bits = [];
++          if (v.avail !== null) bits.push(v.avail > 0 ? v.avail + ' available' : 'none available');
++          if (v.cost_cents !== null) bits.push(money(v.cost_cents));
++          if (v.preferred) bits.push('preferred');
++          html += '<option value="' + escapeHtml(v.id) + '">' + escapeHtml(v.name + (bits.length ? ' — ' + bits.join(' · ') : '')) + '</option>';
++        });
++        sel.innerHTML = html;
++        sel.disabled = false;
++        help.textContent = 'Only vendors that carry this item are listed. With a PO # and expected date it starts as "ordered"; otherwise "needed".';
++        // pre-pick the first (in stock, preferred, cheapest) and its cost
++        sel.value = list[0].id;
++        var cost = document.getElementById('so-cost');
++        if (cost && !cost.value && list[0].cost_cents !== null) cost.value = (list[0].cost_cents / 100).toFixed(2);
++        sel.onchange = function () {
++          var pick = list.find(function (v) { return v.id === sel.value; });
++          if (pick && pick.cost_cents !== null && cost) cost.value = (pick.cost_cents / 100).toFixed(2);
++        };
++      })
++      .catch(function () {
++        resetVendors('Could not load vendors — try again');
++      });
++  }
++
++  function resetDrawer() {
++    var form = document.getElementById('so-drawer-form');
++    form.reset();
++    document.getElementById('so-item-id').value = '';
++    document.getElementById('so-item-name').value = '';
++    document.getElementById('so-item-selected').style.display = 'none';
++    document.getElementById('so-item-search').style.display = 'block';
++    document.getElementById('so-item-results').style.display = 'none';
++    document.getElementById('so-item-freeform-btn').style.display = 'none';
++    document.getElementById('so-allocations').innerHTML = '';
++    allocationRows = [];
++    resetVendors('Pick an item first');
++  }
++
+   // ── Util ──────────────────────────────────────────────
+   function escapeHtml(s) {
+     return String(s).replace(/[&<>"']/g, function (c) {
+@@ -574,7 +673,7 @@
+   color: var(--ia-text-muted);
+ }
+ .so-mode-btn.active {
+-  background: var(--ia-accent); color: #000; border-color: var(--ia-accent);
++  background: var(--ia-accent); color: var(--ia-accent-text, #000); border-color: var(--ia-accent);
+   font-weight: 600;
+ }
+ .so-alloc-body { position: relative; }
+diff --git a/resources/views/tenant/special-orders/index.blade.php b/resources/views/tenant/special-orders/index.blade.php
+index 2c691a66..599e624b 100644
+--- a/resources/views/tenant/special-orders/index.blade.php
++++ b/resources/views/tenant/special-orders/index.blade.php
+@@ -128,6 +128,10 @@
+               @else
+                 <span class="ia-text-muted">Shop stock</span>
+               @endif
++              {{-- MARKER-SO-REPAIRS: pickup location, for shops with more than one --}}
++              @if(($currentTenant->multi_location_active ?? false) && $so->location)
++                <div class="ia-text-muted" style="font-size:11.5px">at {{ $so->location->name }}</div>
++              @endif
+             </td>
+             <td>
+               @if($so->vendor)
+@@ -204,6 +208,7 @@
+           @endif
+           @if($so->vendor) · {{ $so->vendor->name }} @endif
+           @if($so->expected_arrival_date) · ETA {{ $so->expected_arrival_date->format('M j') }} @endif
++          @if(($currentTenant->multi_location_active ?? false) && $so->location) · at {{ $so->location->name }} @endif
+         </div>
+         {{-- the desktop table showed origin and its
+              actions; the cards did not, which is where triage actually
+diff --git a/resources/views/tenant/special-orders/show.blade.php b/resources/views/tenant/special-orders/show.blade.php
+index dcb1e3a7..ffdd0902 100644
+--- a/resources/views/tenant/special-orders/show.blade.php
++++ b/resources/views/tenant/special-orders/show.blade.php
+@@ -69,6 +69,11 @@
+             <div class="so-detail-label">Quantity</div>
+             <div class="so-detail-value"><strong>{{ $so->quantity }}</strong></div>
+           </div>
++          {{-- MARKER-SO-REPAIRS: where it is picked up --}}
++          <div>
++            <div class="so-detail-label">Pickup location</div>
++            <div class="so-detail-value">{{ $so->location?->name ?? '—' }}</div>
++          </div>
+           <div>
+             <div class="so-detail-label">Vendor</div>
+             <div class="so-detail-value">
+@@ -352,13 +357,34 @@
+       <div class="ia-modal-body">
+         <div class="ia-form-group">
+           <label class="ia-form-label">Vendor <span class="ia-required">*</span></label>
+-          <select name="vendor_id" class="ia-select" required>
+-            <option value="">— select —</option>
+-            @php $allVendors = \App\Models\Tenant\TenantVendor::where('tenant_id', tenant()->id)->where('is_active', true)->orderBy('name')->get(); @endphp
+-            @foreach($allVendors as $v)
+-              <option value="{{ $v->id }}" {{ $so->vendor_id === $v->id ? 'selected' : '' }}>{{ $v->name }}</option>
+-            @endforeach
+-          </select>
++          {{-- MARKER-SO-REPAIRS: only vendors that carry this item --}}
++          @if(empty($vendorOptions))
++            <div class="ia-form-help" style="margin:0">
++              @if($so->inventory_item_id)
++                No vendor carries this item yet.
++                <a href="{{ route('tenant.inventory.edit', ['id' => $so->inventory_item_id]) }}#item-sources" style="color:var(--ia-accent)">Add a vendor to the item</a>, then mark it ordered.
++              @else
++                You have no active vendors yet.
++                <a href="{{ route('tenant.vendors.index') }}" style="color:var(--ia-accent)">Add a vendor</a>, then mark it ordered.
++              @endif
++            </div>
++          @else
++            <select name="vendor_id" class="ia-select" required>
++              <option value="">— select —</option>
++              @foreach($vendorOptions as $v)
++                @php
++                  $bits = [];
++                  if ($v['avail'] !== null) { $bits[] = $v['avail'] > 0 ? $v['avail'] . ' available' : 'none available'; }
++                  if ($v['cost_cents'] !== null) { $bits[] = format_money($v['cost_cents']); }
++                  if ($v['preferred']) { $bits[] = 'preferred'; }
++                @endphp
++                <option value="{{ $v['id'] }}" {{ $so->vendor_id === $v['id'] ? 'selected' : '' }}>{{ $v['name'] }}{{ $bits ? ' — ' . implode(' · ', $bits) : '' }}</option>
++              @endforeach
++            </select>
++            @if($so->inventory_item_id)
++              <div class="ia-form-help">Only vendors that carry this item are listed.</div>
++            @endif
++          @endif
+         </div>
+         <div class="ia-input-grid-2">
+           <div class="ia-form-group">
+@@ -376,14 +402,14 @@
+             <input type="date" name="expected_arrival_date" class="ia-input" required value="{{ $so->expected_arrival_date?->format('Y-m-d') }}">
+           </div>
+           <div class="ia-form-group">
+-            <label class="ia-form-label">Est. unit cost (cents)</label>
+-            <input type="number" name="unit_cost_cents_estimated" class="ia-input" min="0" value="{{ $so->unit_cost_cents_estimated }}">
++            <label class="ia-form-label">Est. unit cost ($)</label>
++            <input type="number" name="unit_cost_estimated" class="ia-input" min="0" step="0.01" value="{{ $so->unit_cost_cents_estimated !== null ? number_format($so->unit_cost_cents_estimated / 100, 2, '.', '') : '' }}">
+           </div>
+         </div>
+       </div>
+       <div class="ia-modal-foot">
+         <button type="button" class="ia-btn ia-btn--ghost" onclick="SoActions.closeOrdered()">Cancel</button>
+-        <button type="submit" class="ia-btn ia-btn--primary">Mark ordered</button>
++        <button type="submit" class="ia-btn ia-btn--primary" @if(empty($vendorOptions)) disabled @endif>Mark ordered</button>
+       </div>
+     </form>
+   </div>
+@@ -399,14 +425,26 @@
+         <h3 class="ia-modal-title">Mark arrived</h3>
+       </div>
+       <div class="ia-modal-body">
++        {{-- MARKER-SO-REPAIRS: legend — what this does to stock --}}
+         <p class="ia-text-muted" style="font-size:12.5px;margin-bottom:14px">
+-          Full receipt only in Stage 4b. Partial receipts ship in Stage 6 with the receiving integration.
++          @if($so->inventory_item_id)
++            Adds what you received to stock at <strong>{{ $so->location?->name ?? 'your main location' }}</strong>. Use this when the part came in without a shipment in Receiving; a shipment that includes it marks it arrived on its own.
++          @else
++            This item isn't in your inventory, so stock doesn't change.
++          @endif
+         </p>
+         <div class="ia-input-grid-2">
+           <div class="ia-form-group">
+-            <label class="ia-form-label">Actual unit cost (cents)</label>
+-            <input type="number" name="unit_cost_cents_actual" class="ia-input" min="0" placeholder="optional">
++            <label class="ia-form-label">Quantity received</label>
++            <input type="number" name="received_quantity" class="ia-input" min="1" max="{{ $so->quantity }}" value="{{ $so->quantity }}" required>
++            <div class="ia-form-help">Fewer than {{ $so->quantity }} keeps the rest on order.</div>
++          </div>
++          <div class="ia-form-group">
++            <label class="ia-form-label">Actual unit cost ($)</label>
++            <input type="number" name="unit_cost_actual" class="ia-input" min="0" step="0.01" placeholder="optional">
+           </div>
++        </div>
++        <div class="ia-input-grid-2">
+           <div class="ia-form-group">
+             <label class="ia-form-label">Invoice date</label>
+             <input type="date" name="vendor_invoice_date" class="ia-input">
+diff --git a/routes/web.php b/routes/web.php
+index 0e87f708..3f644d1a 100644
+--- a/routes/web.php
++++ b/routes/web.php
+@@ -1048,6 +1048,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
+                 Route::post('/clear-orphans',                      [TenantControllers\SpecialOrderController::class, 'clearOrphans'])->name('clear-orphans');
+                 Route::post('/',                                   [TenantControllers\SpecialOrderController::class, 'store'])->name('store');
+                 Route::get('/appointments-for-customer',           [TenantControllers\SpecialOrderController::class, 'appointmentsForCustomer'])->name('appointments-for-customer');
++                Route::get('/vendors-for-item',                    [TenantControllers\SpecialOrderController::class, 'vendorsForItem'])->name('vendors-for-item'); // MARKER-SO-REPAIRS
+                 Route::get('/{id}',                                [TenantControllers\SpecialOrderController::class, 'show'])->name('show');
+                 Route::post('/{id}/mark-ordered',                  [TenantControllers\SpecialOrderController::class, 'markOrdered'])->name('mark-ordered');
+                 Route::post('/{id}/mark-arrived',                  [TenantControllers\SpecialOrderController::class, 'markArrived'])->name('mark-arrived');

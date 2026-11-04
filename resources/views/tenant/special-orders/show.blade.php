@@ -69,6 +69,11 @@
             <div class="so-detail-label">Quantity</div>
             <div class="so-detail-value"><strong>{{ $so->quantity }}</strong></div>
           </div>
+          {{-- MARKER-SO-REPAIRS: where it is picked up --}}
+          <div>
+            <div class="so-detail-label">Pickup location</div>
+            <div class="so-detail-value">{{ $so->location?->name ?? '—' }}</div>
+          </div>
           <div>
             <div class="so-detail-label">Vendor</div>
             <div class="so-detail-value">
@@ -352,13 +357,34 @@
       <div class="ia-modal-body">
         <div class="ia-form-group">
           <label class="ia-form-label">Vendor <span class="ia-required">*</span></label>
-          <select name="vendor_id" class="ia-select" required>
-            <option value="">— select —</option>
-            @php $allVendors = \App\Models\Tenant\TenantVendor::where('tenant_id', tenant()->id)->where('is_active', true)->orderBy('name')->get(); @endphp
-            @foreach($allVendors as $v)
-              <option value="{{ $v->id }}" {{ $so->vendor_id === $v->id ? 'selected' : '' }}>{{ $v->name }}</option>
-            @endforeach
-          </select>
+          {{-- MARKER-SO-REPAIRS: only vendors that carry this item --}}
+          @if(empty($vendorOptions))
+            <div class="ia-form-help" style="margin:0">
+              @if($so->inventory_item_id)
+                No vendor carries this item yet.
+                <a href="{{ route('tenant.inventory.edit', ['id' => $so->inventory_item_id]) }}#item-sources" style="color:var(--ia-accent)">Add a vendor to the item</a>, then mark it ordered.
+              @else
+                You have no active vendors yet.
+                <a href="{{ route('tenant.vendors.index') }}" style="color:var(--ia-accent)">Add a vendor</a>, then mark it ordered.
+              @endif
+            </div>
+          @else
+            <select name="vendor_id" class="ia-select" required>
+              <option value="">— select —</option>
+              @foreach($vendorOptions as $v)
+                @php
+                  $bits = [];
+                  if ($v['avail'] !== null) { $bits[] = $v['avail'] > 0 ? $v['avail'] . ' available' : 'none available'; }
+                  if ($v['cost_cents'] !== null) { $bits[] = format_money($v['cost_cents']); }
+                  if ($v['preferred']) { $bits[] = 'preferred'; }
+                @endphp
+                <option value="{{ $v['id'] }}" {{ $so->vendor_id === $v['id'] ? 'selected' : '' }}>{{ $v['name'] }}{{ $bits ? ' — ' . implode(' · ', $bits) : '' }}</option>
+              @endforeach
+            </select>
+            @if($so->inventory_item_id)
+              <div class="ia-form-help">Only vendors that carry this item are listed.</div>
+            @endif
+          @endif
         </div>
         <div class="ia-input-grid-2">
           <div class="ia-form-group">
@@ -376,14 +402,14 @@
             <input type="date" name="expected_arrival_date" class="ia-input" required value="{{ $so->expected_arrival_date?->format('Y-m-d') }}">
           </div>
           <div class="ia-form-group">
-            <label class="ia-form-label">Est. unit cost (cents)</label>
-            <input type="number" name="unit_cost_cents_estimated" class="ia-input" min="0" value="{{ $so->unit_cost_cents_estimated }}">
+            <label class="ia-form-label">Est. unit cost ($)</label>
+            <input type="number" name="unit_cost_estimated" class="ia-input" min="0" step="0.01" value="{{ $so->unit_cost_cents_estimated !== null ? number_format($so->unit_cost_cents_estimated / 100, 2, '.', '') : '' }}">
           </div>
         </div>
       </div>
       <div class="ia-modal-foot">
         <button type="button" class="ia-btn ia-btn--ghost" onclick="SoActions.closeOrdered()">Cancel</button>
-        <button type="submit" class="ia-btn ia-btn--primary">Mark ordered</button>
+        <button type="submit" class="ia-btn ia-btn--primary" @if(empty($vendorOptions)) disabled @endif>Mark ordered</button>
       </div>
     </form>
   </div>
@@ -399,14 +425,26 @@
         <h3 class="ia-modal-title">Mark arrived</h3>
       </div>
       <div class="ia-modal-body">
+        {{-- MARKER-SO-REPAIRS: legend — what this does to stock --}}
         <p class="ia-text-muted" style="font-size:12.5px;margin-bottom:14px">
-          Full receipt only in Stage 4b. Partial receipts ship in Stage 6 with the receiving integration.
+          @if($so->inventory_item_id)
+            Adds what you received to stock at <strong>{{ $so->location?->name ?? 'your main location' }}</strong>. Use this when the part came in without a shipment in Receiving; a shipment that includes it marks it arrived on its own.
+          @else
+            This item isn't in your inventory, so stock doesn't change.
+          @endif
         </p>
         <div class="ia-input-grid-2">
           <div class="ia-form-group">
-            <label class="ia-form-label">Actual unit cost (cents)</label>
-            <input type="number" name="unit_cost_cents_actual" class="ia-input" min="0" placeholder="optional">
+            <label class="ia-form-label">Quantity received</label>
+            <input type="number" name="received_quantity" class="ia-input" min="1" max="{{ $so->quantity }}" value="{{ $so->quantity }}" required>
+            <div class="ia-form-help">Fewer than {{ $so->quantity }} keeps the rest on order.</div>
           </div>
+          <div class="ia-form-group">
+            <label class="ia-form-label">Actual unit cost ($)</label>
+            <input type="number" name="unit_cost_actual" class="ia-input" min="0" step="0.01" placeholder="optional">
+          </div>
+        </div>
+        <div class="ia-input-grid-2">
           <div class="ia-form-group">
             <label class="ia-form-label">Invoice date</label>
             <input type="date" name="vendor_invoice_date" class="ia-input">

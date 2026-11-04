@@ -128,6 +128,10 @@
               @else
                 <span class="ia-text-muted">Shop stock</span>
               @endif
+              {{-- MARKER-SO-REPAIRS: pickup location, for shops with more than one --}}
+              @if(($currentTenant->multi_location_active ?? false) && $so->location)
+                <div class="ia-text-muted" style="font-size:11.5px">at {{ $so->location->name }}</div>
+              @endif
             </td>
             <td>
               @if($so->vendor)
@@ -204,6 +208,7 @@
           @endif
           @if($so->vendor) · {{ $so->vendor->name }} @endif
           @if($so->expected_arrival_date) · ETA {{ $so->expected_arrival_date->format('M j') }} @endif
+          @if(($currentTenant->multi_location_active ?? false) && $so->location) · at {{ $so->location->name }} @endif
         </div>
         {{-- the desktop table showed origin and its
              actions; the cards did not, which is where triage actually

@@ -604,11 +604,18 @@ class ReceiveShipmentController extends Controller
                         // line goes to general stock (already incremented above).
                         $clamped = min($receivedQty, (int) $lockedSo->quantity);
 
+                        // MARKER-SO-REPAIRS: the cost is what this shipment's
+                        // line says was paid, not the estimate typed when the
+                        // order was raised. Estimate only when the line has none.
+                        $lineCost = $shipment->items
+                            ->first(fn ($l) => $l->inventory_item_id && $l->inventory_item_id === $lockedSo->inventory_item_id && $l->unit_cost_cents !== null)
+                            ?->unit_cost_cents;
+
                         try {
                             $soService->markArrived(
                                 $lockedSo->id,
                                 $clamped,
-                                $lockedSo->unit_cost_cents_estimated,
+                                $lineCost !== null ? (int) $lineCost : $lockedSo->unit_cost_cents_estimated,
                                 null,  // invoice number — not captured at receiving v1
                                 null,  // invoice date — same
                             );

@@ -13,7 +13,7 @@
   $preferredId = optional($srcRows->firstWhere('is_preferred', true))->id;
 @endphp
 
-<div class="ia-card" style="margin-bottom:18px">
+<div class="ia-card" id="item-sources" style="margin-bottom:18px">{{-- MARKER-SO-REPAIRS: anchor for "Add a vendor to this item" --}}
   <div class="ia-card-head">
     <span class="ia-card-title">Where you buy this</span>
     <span style="margin-left:auto;font-size:11.5px;color:var(--ia-text-dim)">

@@ -42,13 +42,20 @@ use Illuminate\Support\Str;
  *   with the original row. The sibling has its own short history starting
  *   from its creation.
  *
- * VENDOR LEAD-TIME LEARNING:
+ * VENDOR LEAD TIME:
  *   When an SO transitions to 'arrived', the pivot row for (item, vendor)
- *   gets last_ordered_at updated. The lead_time_days field on the pivot
- *   is computed on-demand by averaging actual ordered-to-arrived days
- *   for that pair — we don't try to maintain a running average. Cheap
- *   enough at read time; reconsider if a tenant ever has 10k+ SOs per
- *   vendor.
+ *   gets last_ordered_at updated. lead_time_days on the pivot is what the
+ *   shop TYPES on the item's sources; nothing computes it from history yet.
+ *
+ * MARKER-SO-REPAIRS — rules this service now enforces for every caller:
+ *   - every id it is handed (item, customer, appointment, sale, vendor,
+ *     location) must belong to the order's tenant;
+ *   - a vendor must carry the item (a row in tenant_inventory_item_vendors)
+ *     when the order names a cataloged item. System callers that pass a
+ *     default vendor fall back to the auto-assign rule instead of failing;
+ *   - every order gets a pickup location;
+ *   - an arrival recorded by hand from the order page moves stock (receiving
+ *     already does; a hand arrival used to leave the part to go negative).
  */
 class SpecialOrderService
 {
@@ -115,15 +122,31 @@ class SpecialOrderService
      */
     public function create(array $data): TenantSpecialOrder
     {
+        if (empty($data['tenant_id'])) {
+            throw new SpecialOrderValidationException('tenant_id is required.');
+        }
+
+        // MARKER-SO-REPAIRS: nothing from another shop can be attached.
+        $this->assertOwnedByTenant($data);
+
+        // a vendor that does not carry a cataloged item cannot be
+        // ordered from. A person choosing it is told so; a system caller
+        // handing over a default vendor falls back to the shop's rule.
+        if (! empty($data['vendor_id']) && ! empty($data['inventory_item_id'])
+            && ! self::vendorCarriesItem($data['tenant_id'], $data['vendor_id'], $data['inventory_item_id'])) {
+            if (in_array($data['created_from'] ?? 'manual', ['manual', 'item'], true)) {
+                throw new SpecialOrderValidationException('That vendor does not carry this item. Pick a vendor listed for it, or add the vendor to the item first.');
+            }
+            $data['vendor_id'] = null;
+        }
+
         // resolve the vendor once, up front, so the
         // rule that chose it can be recorded alongside it.
         $auto = empty($data['vendor_id'])
             ? self::autoAssignVendor($data['tenant_id'], $data['inventory_item_id'] ?? null)
             : ['vendor_id' => null, 'rule' => null];
 
-        if (empty($data['tenant_id'])) {
-            throw new SpecialOrderValidationException('tenant_id is required.');
-        }
+        $data['location_id'] = $this->resolveLocationId($data);
         if (empty($data['item_name_snapshot'])) {
             throw new SpecialOrderValidationException('item_name_snapshot is required.');
         }
@@ -152,7 +175,10 @@ class SpecialOrderService
             }
         }
 
-        return DB::transaction(function () use ($data, $status) {
+        // MARKER-SO-REPAIRS: $auto must be in the use list. It was not, so the
+        // auto-assigned vendor was always null inside the closure and no
+        // special order ever got its vendor from the shop's rule.
+        return DB::transaction(function () use ($data, $status, $auto) {
             $soNumber = $this->nextSpecialOrderNumber($data['tenant_id']);
 
             $so = TenantSpecialOrder::create([
@@ -163,6 +189,7 @@ class SpecialOrderService
                 'quantity'                  => (int) $data['quantity'],
                 'customer_id'               => $data['customer_id'] ?? null,
                 'appointment_id'            => $data['appointment_id'] ?? null,
+                'location_id'               => $data['location_id'] ?? null,
                 'sale_id'                   => $data['sale_id'] ?? null,
                 'sale_item_id'              => $data['sale_item_id'] ?? null,
                 // an order with no vendor cannot be
@@ -309,6 +336,13 @@ class SpecialOrderService
                     'vendor_id is required to mark an SO ordered.'
                 );
             }
+            // MARKER-SO-REPAIRS
+            if (! \App\Models\Tenant\TenantVendor::where('tenant_id', $so->tenant_id)->where('id', $data['vendor_id'])->exists()) {
+                throw new SpecialOrderValidationException('That vendor is not one of this shop\'s vendors.');
+            }
+            if ($so->inventory_item_id && ! self::vendorCarriesItem($so->tenant_id, $data['vendor_id'], $so->inventory_item_id)) {
+                throw new SpecialOrderValidationException("That vendor does not carry {$so->item_name_snapshot}. Pick a vendor listed for it.");
+            }
             if (empty($data['po_number'])) {
                 throw new SpecialOrderValidationException(
                     'po_number is required to mark an SO ordered.'
@@ -357,9 +391,11 @@ class SpecialOrderService
         ?int $receivedQty = null,
         ?int $actualUnitCostCents = null,
         ?string $vendorInvoiceNumber = null,
-        ?string $vendorInvoiceDate = null
+        ?string $vendorInvoiceDate = null,
+        bool $moveStock = false,
+        ?\App\Models\Tenant\TenantUser $byUser = null
     ): TenantSpecialOrder {
-        $result = DB::transaction(function () use ($id, $receivedQty, $actualUnitCostCents, $vendorInvoiceNumber, $vendorInvoiceDate) {
+        $result = DB::transaction(function () use ($id, $receivedQty, $actualUnitCostCents, $vendorInvoiceNumber, $vendorInvoiceDate, $moveStock, $byUser) {
             $so = $this->findOrFail($id);
             $this->validateTransition($so, TenantSpecialOrder::STATUS_ARRIVED);
 
@@ -384,6 +420,14 @@ class SpecialOrderService
                 $so = $so->fresh();
             }
 
+            // MARKER-SO-REPAIRS: arrival recorded by hand puts the units in
+            // stock at the pickup location, exactly as receiving would. The
+            // receiving commit passes moveStock=false because it already did.
+            $stockNote = '';
+            if ($moveStock && $so->inventory_item_id) {
+                $stockNote = $this->receiveIntoStock($so, $received, $actualUnitCostCents ?? $so->unit_cost_cents_estimated, $byUser);
+            }
+
             $so->update([
                 'status'                 => TenantSpecialOrder::STATUS_ARRIVED,
                 'arrived_at'             => now(),
@@ -400,7 +444,7 @@ class SpecialOrderService
             $partialNote = $received < $totalQty
                 ? " (partial: {$received} of {$totalQty})"
                 : '';
-            $this->writeSystemNote($so->fresh(), "Marked arrived{$partialNote}.");
+            $this->writeSystemNote($so->fresh(), "Marked arrived{$partialNote}.{$stockNote}");
 
             return $so->fresh();
         });
@@ -507,6 +551,9 @@ class SpecialOrderService
                 'quantity'                  => $remaining,
                 'customer_id'               => $so->customer_id,
                 'appointment_id'            => $so->appointment_id,
+                'location_id'               => $so->location_id,
+                'sale_id'                   => $so->sale_id,
+                'sale_item_id'              => $so->sale_item_id,
                 'vendor_id'                 => $so->vendor_id,
                 'po_number'                 => $so->po_number,
                 'vendor_reference'          => $so->vendor_reference,
@@ -633,6 +680,129 @@ class SpecialOrderService
                 'exception' => $e->getMessage(),
             ]);
         }
+    }
+
+    // ────────────────────────────────────────────────────────
+    //  MARKER-SO-REPAIRS helpers
+    // ────────────────────────────────────────────────────────
+
+    /** True when the vendor is this shop's and has a source row for the item. */
+    public static function vendorCarriesItem(string $tenantId, string $vendorId, string $inventoryItemId): bool
+    {
+        $isShopsVendor = \App\Models\Tenant\TenantVendor::where('tenant_id', $tenantId)->where('id', $vendorId)->exists();
+        $isShopsItem   = \App\Models\Tenant\TenantInventoryItem::where('tenant_id', $tenantId)->where('id', $inventoryItemId)->exists();
+
+        return $isShopsVendor && $isShopsItem
+            && TenantInventoryItemVendor::where('inventory_item_id', $inventoryItemId)->where('vendor_id', $vendorId)->exists();
+    }
+
+    /**
+     * Every id handed to create() must be the order's own tenant's. The
+     * controllers validate too; this is the backstop for every other caller.
+     */
+    protected function assertOwnedByTenant(array $data): void
+    {
+        $tid = $data['tenant_id'];
+        $checks = [
+            'inventory_item_id' => \App\Models\Tenant\TenantInventoryItem::class,
+            'customer_id'       => \App\Models\Tenant\TenantCustomer::class,
+            'appointment_id'    => \App\Models\Tenant\TenantAppointment::class,
+            'sale_id'           => \App\Models\Tenant\TenantSale::class,
+            'vendor_id'         => \App\Models\Tenant\TenantVendor::class,
+            'location_id'       => \App\Models\Tenant\TenantLocation::class,
+        ];
+        foreach ($checks as $key => $model) {
+            if (empty($data[$key])) {
+                continue;
+            }
+            if (! $model::where('tenant_id', $tid)->where('id', $data[$key])->exists()) {
+                throw new SpecialOrderValidationException("That {$this->labelFor($key)} is not one of this shop's.");
+            }
+        }
+
+        // a job must belong to the customer it is ordered for.
+        if (! empty($data['appointment_id']) && ! empty($data['customer_id'])) {
+            $apptCustomer = \App\Models\Tenant\TenantAppointment::where('id', $data['appointment_id'])->value('customer_id');
+            if ($apptCustomer && $apptCustomer !== $data['customer_id']) {
+                throw new SpecialOrderValidationException('That work order belongs to a different customer.');
+            }
+        }
+    }
+
+    private function labelFor(string $key): string
+    {
+        return [
+            'inventory_item_id' => 'item', 'customer_id' => 'customer', 'appointment_id' => 'work order',
+            'sale_id' => 'sale', 'vendor_id' => 'vendor', 'location_id' => 'location',
+        ][$key] ?? 'record';
+    }
+
+    /**
+     * Pickup location: what the caller named, else the sale's, else the work
+     * order's, else the shop's default (or first active) location.
+     */
+    protected function resolveLocationId(array $data): ?string
+    {
+        if (! empty($data['location_id'])) {
+            return $data['location_id'];
+        }
+        $tid = $data['tenant_id'];
+        if (! empty($data['sale_id'])) {
+            $loc = \App\Models\Tenant\TenantSale::where('tenant_id', $tid)->where('id', $data['sale_id'])->value('location_id');
+            if ($loc) {
+                return $loc;
+            }
+        }
+        if (! empty($data['appointment_id'])) {
+            $loc = \App\Models\Tenant\TenantAppointment::where('tenant_id', $tid)->where('id', $data['appointment_id'])->value('location_id');
+            if ($loc) {
+                return $loc;
+            }
+        }
+
+        return self::defaultLocationId($tid);
+    }
+
+    public static function defaultLocationId(string $tenantId): ?string
+    {
+        return \App\Models\Tenant\TenantLocation::where('tenant_id', $tenantId)
+            ->orderByDesc('is_default')->orderByDesc('is_active')->orderBy('sort_order')->orderBy('created_at')
+            ->value('id');
+    }
+
+    /**
+     * Put $qty of the order's item into stock at its pickup location, as a
+     * 'receive' movement that points back at this order. Returns the note
+     * text to append to the order's history.
+     */
+    protected function receiveIntoStock(TenantSpecialOrder $so, int $qty, ?int $unitCostCents, ?\App\Models\Tenant\TenantUser $byUser): string
+    {
+        $tenant = \App\Models\Tenant::findOrFail($so->tenant_id);
+        $item = \App\Models\Tenant\TenantInventoryItem::where('tenant_id', $so->tenant_id)->findOrFail($so->inventory_item_id);
+        $locationId = $so->location_id ?: self::defaultLocationId($so->tenant_id);
+        if (! $locationId) {
+            throw new SpecialOrderValidationException('Add a location before receiving stock.');
+        }
+        $location = \App\Models\Tenant\TenantLocation::where('tenant_id', $so->tenant_id)->findOrFail($locationId);
+
+        $inv = app(\App\Services\Pos\InventoryService::class);
+        $inv->incrementStock(
+            tenant: $tenant,
+            item: $item,
+            location: $location,
+            quantity: $qty,
+            referenceType: 'special_order',
+            referenceId: $so->id,
+            tenantUser: $byUser,
+            costCentsAtTime: $unitCostCents,
+            movementType: 'receive',
+            notes: "Special order {$so->so_number} received by hand",
+        );
+        if ($unitCostCents !== null) {
+            $inv->recordReceivedCost($tenant, $item, $qty, (int) $unitCostCents, 'special_order');
+        }
+
+        return " {$qty} added to stock at {$location->name}.";
     }
 
     /**

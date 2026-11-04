@@ -9,6 +9,8 @@
   <div class="so-drawer-panel">
     <form id="so-drawer-form" method="POST" action="{{ route('tenant.special-orders.store') }}">
       @csrf
+      {{-- MARKER-SO-REPAIRS: where the drawer was opened from (item / appointment / manual) --}}
+      <input type="hidden" name="origin" id="so-origin" value="manual">
 
       <div class="so-drawer-head">
         <h3>New special order</h3>
@@ -44,17 +46,18 @@
           </button>
         </div>
 
-        {{-- VENDOR + PO + ETA + COST --}}
+        {{-- VENDOR + PO + ETA + COST
+             MARKER-SO-REPAIRS: the vendor list is the vendors that CARRY the
+             picked item (its sources), filled when an item is picked. A
+             not-yet-cataloged item has no sources, so any active vendor. --}}
         <div class="ia-input-grid-2">
           <div class="ia-form-group">
             <label class="ia-form-label">Vendor</label>
-            <select name="vendor_id" class="ia-select">
-              <option value="">— TBD (will be needed, not ordered) —</option>
-              @foreach($vendors as $v)
-                <option value="{{ $v->id }}">{{ $v->name }}</option>
-              @endforeach
+            <select name="vendor_id" id="so-vendor-select" class="ia-select" disabled>
+              <option value="">Pick an item first</option>
             </select>
-            <div class="ia-form-help">If selected with PO + ETA, SO starts as "ordered". Otherwise "needed".</div>
+            <div class="ia-form-help" id="so-vendor-help">Only vendors that carry the item are listed. With a PO # and expected date it starts as "ordered"; otherwise "needed".</div>
+            <a id="so-vendor-add-link" class="ia-form-help" style="display:none;color:var(--ia-accent)" href="#">Add a vendor to this item</a>
           </div>
           <div class="ia-form-group">
             <label class="ia-form-label">Our PO #</label>
@@ -68,8 +71,8 @@
             <input type="date" name="expected_arrival_date" class="ia-input">
           </div>
           <div class="ia-form-group">
-            <label class="ia-form-label">Est. unit cost (cents)</label>
-            <input type="number" name="unit_cost_cents_estimated" class="ia-input" min="0" placeholder="e.g. 1250 = $12.50">
+            <label class="ia-form-label">Est. unit cost ($)</label>
+            <input type="number" name="unit_cost_estimated" id="so-cost" class="ia-input" min="0" step="0.01" placeholder="e.g. 12.50">
           </div>
         </div>
 
@@ -131,7 +134,11 @@
     itemSearch: '{{ route("tenant.inventory.items.search") }}',
     customerSearch: '{{ route("tenant.customers.search") }}',
     apptsForCustomer: '{{ route("tenant.special-orders.appointments-for-customer") }}',
+    vendorsForItem: '{{ route("tenant.special-orders.vendors-for-item") }}',
+    itemEdit: @json(route('tenant.inventory.edit', ['id' => '__ID__'])),
   };
+  // every active vendor, for a not-yet-cataloged item only
+  var ALL_VENDORS = {!! json_encode(collect($vendors ?? [])->map(fn ($v) => ['id' => $v->id, 'name' => $v->name])->values(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) !!};
 
   // ── Drawer open/close ─────────────────────────────────
   // open() accepts an optional prefill object from entry-point buttons:
@@ -141,6 +148,8 @@
   window.SoDrawer = {
     open: function (opts) {
       opts = opts || {};
+      resetDrawer(); // MARKER-SO-REPAIRS: a reopened drawer used to keep the last item and rows
+      document.getElementById('so-origin').value = opts.origin || 'manual';
       document.getElementById('so-drawer').style.display = 'flex';
       document.body.style.overflow = 'hidden';
 
@@ -155,6 +164,7 @@
         document.getElementById('so-selected-item-sku').textContent = '';
         document.getElementById('so-item-selected').style.display = 'flex';
         document.getElementById('so-item-search').style.display = 'none';
+        fillVendors(null);
       }
 
       // Ensure at least one allocation row exists
@@ -182,10 +192,9 @@
           // If appointment was passed too, set it directly (no need for picker)
           if (opts.appointment_id) {
             firstRow.querySelector('input[name^="allocations"][name$="[appointment_id]"]').value = opts.appointment_id;
-            // Load + select the matching option in the appt picker so user sees it
-            loadApptsForCustomer(firstRow, opts.customer_id);
-            // After load completes (async), the prefilled appointment_id is honored
-            // by hidden input; UI lag is minor and the form submits correctly.
+            // Load the picker and select the passed job in it, so what is
+            // shown matches what is submitted.
+            loadApptsForCustomer(firstRow, opts.customer_id, opts.appointment_id);
           } else if (opts.alloc_mode === 'customer_appt') {
             loadApptsForCustomer(firstRow, opts.customer_id);
           }
@@ -201,6 +210,7 @@
     clearItem: function () {
       document.getElementById('so-item-id').value = '';
       document.getElementById('so-item-name').value = '';
+      resetVendors('Pick an item first');
       document.getElementById('so-item-selected').style.display = 'none';
       document.getElementById('so-item-search').style.display = 'block';
       document.getElementById('so-item-search').value = '';
@@ -216,6 +226,7 @@
       document.getElementById('so-item-search').style.display = 'none';
       document.getElementById('so-item-results').style.display = 'none';
       document.getElementById('so-item-freeform-btn').style.display = 'none';
+      fillVendors(id);
     },
 
     useFreeformItem: function () {
@@ -229,6 +240,7 @@
       document.getElementById('so-item-search').style.display = 'none';
       document.getElementById('so-item-results').style.display = 'none';
       document.getElementById('so-item-freeform-btn').style.display = 'none';
+      fillVendors(null);
     },
 
     // ── Allocations ─────────────────────────────────────
@@ -389,7 +401,8 @@
         box.innerHTML = data.customers.map(function (c) {
           var label = (c.label || '').trim() || '(unnamed)';
           var meta  = [c.email, c.phone].filter(Boolean).join(' · ');
-          return '<div class="so-search-row" data-cust-id="' + c.id + '" data-cust-label=' + JSON.stringify(label) + '>' +
+          // MARKER-SO-REPAIRS: escaped attribute; JSON.stringify broke on a name with a quote
+          return '<div class="so-search-row" data-cust-id="' + escapeHtml(c.id) + '" data-cust-label="' + escapeHtml(label) + '">' +
             '<strong>' + escapeHtml(label) + '</strong>' +
             (meta ? '<div class="ia-text-muted" style="font-size:11px">' + escapeHtml(meta) + '</div>' : '') +
             '</div>';
@@ -437,7 +450,7 @@
     if (apptSelect) apptSelect.innerHTML = '<option value="">— pick an appointment —</option>';
   };
 
-  function loadApptsForCustomer(row, customerId) {
+  function loadApptsForCustomer(row, customerId, selectedId) {
     fetch(ROUTES.apptsForCustomer + '?customer_id=' + encodeURIComponent(customerId), {
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
     })
@@ -452,11 +465,97 @@
           });
         }
         sel.innerHTML = html;
-        sel.addEventListener('change', function () {
+        if (selectedId) {
+          var hasIt = Array.prototype.some.call(sel.options, function (o) { return o.value === selectedId; });
+          if (!hasIt) {
+            // the job passed in is outside the 60-day list; still show it
+            var o = document.createElement('option');
+            o.value = selectedId; o.textContent = 'This work order';
+            sel.appendChild(o);
+          }
+          sel.value = selectedId;
+        }
+        // one listener per select, not one more per load
+        sel.onchange = function () {
           row.querySelector('input[name^="allocations"][name$="[appointment_id]"]').value = this.value;
-        });
+        };
       })
       .catch(function () { /* silent */ });
+  }
+
+  // ── Vendors (MARKER-SO-REPAIRS) ───────────────────────
+  function resetVendors(placeholder) {
+    var sel = document.getElementById('so-vendor-select');
+    sel.innerHTML = '<option value="">' + escapeHtml(placeholder) + '</option>';
+    sel.disabled = true;
+    document.getElementById('so-vendor-add-link').style.display = 'none';
+  }
+
+  function money(c) { return '$' + (c / 100).toFixed(2); }
+
+  function fillVendors(itemId) {
+    var sel = document.getElementById('so-vendor-select');
+    var link = document.getElementById('so-vendor-add-link');
+    var help = document.getElementById('so-vendor-help');
+    if (!itemId) {
+      // not yet cataloged: there are no sources to check against
+      var html = '<option value="">Decide later (order stays "needed")</option>';
+      ALL_VENDORS.forEach(function (v) { html += '<option value="' + escapeHtml(v.id) + '">' + escapeHtml(v.name) + '</option>'; });
+      sel.innerHTML = html;
+      sel.disabled = false;
+      link.style.display = 'none';
+      help.textContent = 'This item is not in your inventory yet, so any vendor can be picked.';
+      return;
+    }
+    resetVendors('Loading vendors…');
+    fetch(ROUTES.vendorsForItem + '?item_id=' + encodeURIComponent(itemId), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var list = (data && data.ok && data.vendors) ? data.vendors : [];
+        if (!list.length) {
+          resetVendors('No vendor carries this item yet');
+          help.textContent = 'The order will be "needed" until a vendor is added to the item.';
+          link.href = ROUTES.itemEdit.replace('__ID__', encodeURIComponent(itemId)) + '#item-sources';
+          link.style.display = 'inline-block';
+          return;
+        }
+        var html = '<option value="">Decide later (order stays "needed")</option>';
+        list.forEach(function (v) {
+          var bits = [];
+          if (v.avail !== null) bits.push(v.avail > 0 ? v.avail + ' available' : 'none available');
+          if (v.cost_cents !== null) bits.push(money(v.cost_cents));
+          if (v.preferred) bits.push('preferred');
+          html += '<option value="' + escapeHtml(v.id) + '">' + escapeHtml(v.name + (bits.length ? ' — ' + bits.join(' · ') : '')) + '</option>';
+        });
+        sel.innerHTML = html;
+        sel.disabled = false;
+        help.textContent = 'Only vendors that carry this item are listed. With a PO # and expected date it starts as "ordered"; otherwise "needed".';
+        // pre-pick the first (in stock, preferred, cheapest) and its cost
+        sel.value = list[0].id;
+        var cost = document.getElementById('so-cost');
+        if (cost && !cost.value && list[0].cost_cents !== null) cost.value = (list[0].cost_cents / 100).toFixed(2);
+        sel.onchange = function () {
+          var pick = list.find(function (v) { return v.id === sel.value; });
+          if (pick && pick.cost_cents !== null && cost) cost.value = (pick.cost_cents / 100).toFixed(2);
+        };
+      })
+      .catch(function () {
+        resetVendors('Could not load vendors — try again');
+      });
+  }
+
+  function resetDrawer() {
+    var form = document.getElementById('so-drawer-form');
+    form.reset();
+    document.getElementById('so-item-id').value = '';
+    document.getElementById('so-item-name').value = '';
+    document.getElementById('so-item-selected').style.display = 'none';
+    document.getElementById('so-item-search').style.display = 'block';
+    document.getElementById('so-item-results').style.display = 'none';
+    document.getElementById('so-item-freeform-btn').style.display = 'none';
+    document.getElementById('so-allocations').innerHTML = '';
+    allocationRows = [];
+    resetVendors('Pick an item first');
   }
 
   // ── Util ──────────────────────────────────────────────
@@ -574,7 +673,7 @@
   color: var(--ia-text-muted);
 }
 .so-mode-btn.active {
-  background: var(--ia-accent); color: #000; border-color: var(--ia-accent);
+  background: var(--ia-accent); color: var(--ia-accent-text, #000); border-color: var(--ia-accent);
   font-weight: 600;
 }
 .so-alloc-body { position: relative; }

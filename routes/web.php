@@ -1048,6 +1048,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::post('/clear-orphans',                      [TenantControllers\SpecialOrderController::class, 'clearOrphans'])->name('clear-orphans');
                 Route::post('/',                                   [TenantControllers\SpecialOrderController::class, 'store'])->name('store');
                 Route::get('/appointments-for-customer',           [TenantControllers\SpecialOrderController::class, 'appointmentsForCustomer'])->name('appointments-for-customer');
+                Route::get('/vendors-for-item',                    [TenantControllers\SpecialOrderController::class, 'vendorsForItem'])->name('vendors-for-item'); // MARKER-SO-REPAIRS
                 Route::get('/{id}',                                [TenantControllers\SpecialOrderController::class, 'show'])->name('show');
                 Route::post('/{id}/mark-ordered',                  [TenantControllers\SpecialOrderController::class, 'markOrdered'])->name('mark-ordered');
                 Route::post('/{id}/mark-arrived',                  [TenantControllers\SpecialOrderController::class, 'markArrived'])->name('mark-arrived');

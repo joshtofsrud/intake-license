@@ -764,7 +764,7 @@
           <div style="font-size:13px;color:var(--ia-text-muted)">on order across {{ $openSos->count() }} SO{{ $openSos->count() === 1 ? '' : 's' }}</div>
         </div>
       </div>
-      <button type="button" class="ia-btn ia-btn--primary ia-btn--sm" onclick='SoDrawer.open({item_id: @json($item->id), item_name: @json($item->name)})'>+ Special order this item</button>
+      <button type="button" class="ia-btn ia-btn--primary ia-btn--sm" onclick='SoDrawer.open({item_id: @json($item->id), item_name: @json($item->name), origin: "item"})'>+ Special order this item</button>
     </div>
 
     @if($openSos->count() > 0)

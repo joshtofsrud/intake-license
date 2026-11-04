@@ -44,6 +44,7 @@ class TenantSpecialOrder extends Model
         'quantity',
         'customer_id',
         'appointment_id',
+        'location_id', // MARKER-SO-REPAIRS
         'sale_id',
         'sale_item_id',
         'source_confirmed_at', 'source_confirmed_by_user_id',
@@ -99,6 +100,7 @@ class TenantSpecialOrder extends Model
     public function customer(): BelongsTo    { return $this->belongsTo(TenantCustomer::class, 'customer_id'); }
     public function appointment(): BelongsTo { return $this->belongsTo(TenantAppointment::class, 'appointment_id'); }
     public function vendor(): BelongsTo      { return $this->belongsTo(TenantVendor::class, 'vendor_id'); }
+    public function location(): BelongsTo    { return $this->belongsTo(TenantLocation::class, 'location_id'); }
     public function createdBy(): BelongsTo   { return $this->belongsTo(TenantUser::class, 'created_by_user_id'); }
     public function notes(): HasMany         { return $this->hasMany(TenantSpecialOrderNote::class, 'special_order_id')->orderBy('created_at'); }
 

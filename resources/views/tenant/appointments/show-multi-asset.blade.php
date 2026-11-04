@@ -2309,7 +2309,7 @@ input.ma-asset-name-edit:focus {
           <div class="ma-so-head">
             <div class="ma-section-title">Special-order parts</div>
             <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm"
-                    onclick='SoDrawer.open({customer_id: @json($appointment->customer_id), customer_label: @json(trim(($appointment->customer->first_name ?? "") . " " . ($appointment->customer->last_name ?? ""))), appointment_id: @json($appointment->id), alloc_mode: "customer_appt"})'>
+                    onclick='SoDrawer.open({customer_id: @json($appointment->customer_id), customer_label: @json(trim(($appointment->customer->first_name ?? "") . " " . ($appointment->customer->last_name ?? ""))), appointment_id: @json($appointment->id), alloc_mode: "customer_appt", origin: "appointment"})'>
               + SO for this appointment
             </button>
           </div>

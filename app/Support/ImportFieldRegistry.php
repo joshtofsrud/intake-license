@@ -27,8 +27,9 @@ class ImportFieldRegistry
     /**
      * inventory fields.
      *
-     * Absent on purpose: computed_stock_count and committed_count (maintained
-     * by InventoryService under locks — stock arrives as a MOVEMENT, see the
+     * Absent on purpose: computed_stock_count (maintained by InventoryService
+     * under locks) and committed_count (unused — nothing writes or reads it;
+     * held stock lives in reserved_count) — stock arrives as a MOVEMENT, see the
      * 'stock' pseudo-field), every catalog_* column (owned by distributor sync
      * and clobbered on its next run), price_ack_at/by (an audit trail), and
      * distributor_catalog_id / default_vendor_id (set by linking, not typing).
