@@ -14,8 +14,11 @@ class SalesSource extends Source
 {
     private const CAT = "CASE WHEN i.type = 'product' THEN COALESCE(it.category_id, 'uncat') WHEN i.type = 'service' THEN 'svc' ELSE 'other' END";
     private const SIGN = '(CASE WHEN s.refund_of_sale_id IS NULL THEN 1 ELSE -1 END)';
-    private const LINE = '(i.unit_price_cents * i.quantity - i.discount_cents)';
-    private const MPCT = 'CASE WHEN i.cost_cents_snapshot IS NULL OR i.unit_price_cents = 0 THEN NULL ELSE (i.unit_price_cents - i.cost_cents_snapshot) * 100.0 / i.unit_price_cents END';
+    // MARKER-SIGNED-MATH: the money columns are UNSIGNED, and MySQL refuses any
+    // subtraction that goes below zero (a discount over the line, a sale under
+    // cost), which 500'd Ask for a report. Every operand is cast to SIGNED first.
+    private const LINE = '(CAST(i.unit_price_cents AS SIGNED) * i.quantity - CAST(i.discount_cents AS SIGNED))';
+    private const MPCT = 'CASE WHEN i.cost_cents_snapshot IS NULL OR i.unit_price_cents = 0 THEN NULL ELSE (CAST(i.unit_price_cents AS SIGNED) - CAST(i.cost_cents_snapshot AS SIGNED)) * 100.0 / i.unit_price_cents END';
 
     public function meta(): array
     {
@@ -126,7 +129,7 @@ class SalesSource extends Source
     {
         $S = self::SIGN; $L = self::LINE;
         return $q->selectRaw("SUM($S * $L) as c_rev")
-            ->selectRaw("SUM(CASE WHEN i.cost_cents_snapshot IS NOT NULL THEN $S * ($L - i.cost_cents_snapshot * i.quantity) ELSE 0 END) as c_margin")
+            ->selectRaw("SUM(CASE WHEN i.cost_cents_snapshot IS NOT NULL THEN $S * ($L - CAST(i.cost_cents_snapshot AS SIGNED) * i.quantity) ELSE 0 END) as c_margin")
             ->selectRaw("SUM(CASE WHEN i.cost_cents_snapshot IS NOT NULL THEN $S * $L ELSE 0 END) as c_costed")
             ->selectRaw("SUM(CASE WHEN i.type IN ('product', 'open_item') THEN $S * i.quantity ELSE 0 END) as c_items")
             ->selectRaw('COUNT(DISTINCT CASE WHEN s.refund_of_sale_id IS NULL THEN s.id END) as c_tickets')
@@ -151,7 +154,8 @@ class SalesSource extends Source
         $specs = [];
         foreach ($dims as $n => $d) {
             $specs[$n] = $this->dimSql($d);
-            $q->selectRaw($specs[$n][0] . " as g$n")->groupByRaw($specs[$n][0]);
+            // MARKER-SIGNED-MATH: group by the alias; a long CASE (margin band) repeated in GROUP BY fails ONLY_FULL_GROUP_BY
+            $q->selectRaw($specs[$n][0] . " as g$n")->groupByRaw("g$n");
         }
         if (in_array('item', $dims, true)) {
             $q->selectRaw('MAX(i.name_snapshot) as lname');

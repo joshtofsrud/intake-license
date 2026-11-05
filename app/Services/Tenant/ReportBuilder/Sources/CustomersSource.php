@@ -99,11 +99,11 @@ class CustomersSource extends Source
             ->where('payment_status', 'paid')->whereBetween('sale_date', [$fromS, $toS])
             ->selectRaw('customer_id, sale_date')
             ->selectRaw('COUNT(DISTINCT CASE WHEN refund_of_sale_id IS NULL THEN id END) as tickets')
-            ->selectRaw('SUM((CASE WHEN refund_of_sale_id IS NULL THEN 1 ELSE -1 END) * (subtotal_cents - discount_cents)) as spend')
+            ->selectRaw('SUM((CASE WHEN refund_of_sale_id IS NULL THEN 1 ELSE -1 END) * (CAST(subtotal_cents AS SIGNED) - CAST(discount_cents AS SIGNED))) as spend')
             ->groupBy('customer_id', 'sale_date')->get();
 
         $life = DB::table('tenant_sales')->where('tenant_id', $tid)->whereNotNull('customer_id')->where('payment_status', 'paid')
-            ->selectRaw('customer_id, SUM((CASE WHEN refund_of_sale_id IS NULL THEN 1 ELSE -1 END) * (subtotal_cents - discount_cents)) as spend')
+            ->selectRaw('customer_id, SUM((CASE WHEN refund_of_sale_id IS NULL THEN 1 ELSE -1 END) * (CAST(subtotal_cents AS SIGNED) - CAST(discount_cents AS SIGNED))) as spend')
             ->groupBy('customer_id')->pluck('spend', 'customer_id')->all();
 
         [$ua, $ub] = $this->p->utcBounds($from, $to);

@@ -195,7 +195,8 @@ class DashboardDataService
         $unpaidDoneSumCents = (int) TenantAppointment::where('tenant_id', $tenantId)
             ->whereIn('status', AppointmentStatus::doneStatuses())
             ->whereIn('payment_status', ['unpaid', 'partial'])
-            ->sum(DB::raw('total_cents - paid_cents'));
+            // MARKER-SIGNED-MATH: unsigned columns; an overpaid one must count as 0, not 500 the dashboard
+            ->sum(DB::raw('GREATEST(CAST(total_cents AS SIGNED) - CAST(paid_cents AS SIGNED), 0)'));
 
         $readyPickupCount = TenantAppointment::where('tenant_id', $tenantId)
             ->whereIn('status', AppointmentStatus::doneStatuses())

@@ -124,7 +124,7 @@ class AppointmentsSource extends Source
             'dow' => '(WEEKDAY(a.appointment_date) + 1)', 'hod' => 'COALESCE(HOUR(a.appointment_time), -1)',
         ];
         foreach ($dims as $n => $d) {
-            $q->selectRaw(($exprs[$d] ?? "''") . " as g$n")->groupByRaw($exprs[$d] ?? "''");
+            $q->selectRaw(($exprs[$d] ?? "''") . " as g$n")->groupByRaw("g$n"); // MARKER-SIGNED-MATH: by alias
         }
         $this->selectComponents($q, $items);
 
