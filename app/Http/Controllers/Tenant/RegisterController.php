@@ -408,6 +408,19 @@ class RegisterController extends Controller
             }
         }
 
+        // MARKER-BUYING: a product search that found nothing in stock here is an
+        // ordering signal. A search that found a customer or a service was
+        // looking for that, not a product, so it doesn't count.
+        if (($type === 'all' || $type === 'product') && ! $customers && ! $services && ! $passes) {
+            $top = $products[0] ?? null;
+            \App\Services\Tenant\BuyingSearchLog::record(
+                $tenant->id, 'register', $request->session()->getId(),
+                $request->session()->get('current_location_id') ?: null, $q,
+                $top['id'] ?? null, $top ? (int) $top['current_location_stock'] : null,
+                collect($products)->contains(fn ($p) => (int) $p['current_location_stock'] > 0)
+            );
+        }
+
         return response()->json(compact('products', 'services', 'customers', 'passes') + ['corrected' => $searchCorrected, 'missing' => $searchMissing, 'product_search' => $productSearch]);
     }
 

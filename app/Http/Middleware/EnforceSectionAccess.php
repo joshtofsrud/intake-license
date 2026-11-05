@@ -63,7 +63,8 @@ class EnforceSectionAccess
             if (!$user->canAccessSection($key)) continue;
 
             if (empty($def['prefixes'])) continue; // capability keys have no pages
-            foreach ([$def['prefixes'][0] . '.index', $def['prefixes'][0]] as $routeName) {
+            // MARKER-BUYING: a prefix ending in a dot ('tenant.buying.') lands on the page without it
+            foreach ([$def['prefixes'][0] . '.index', $def['prefixes'][0], rtrim($def['prefixes'][0], '.')] as $routeName) {
                 if (Route::has($routeName)) {
                     return route($routeName);
                 }

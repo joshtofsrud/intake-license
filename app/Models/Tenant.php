@@ -511,6 +511,12 @@ class Tenant extends Model
         return (bool) ($this->settings['rentals_visible'] ?? true);
     }
 
+    /** MARKER-BUYING: the Buying add-on (included with Scale). */
+    public function getBuyingEnabledAttribute(): bool
+    {
+        return (bool) $this->retail_enabled && app(\App\Services\FeatureAccessService::class)->hasAddon($this, 'buying');
+    }
+
     public function getUnifiedInboxEnabledAttribute(): bool
     {
         return app(\App\Services\FeatureAccessService::class)->hasAddon($this, 'unified_inbox');

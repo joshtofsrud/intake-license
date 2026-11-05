@@ -4,11 +4,11 @@
 @include('tenant.reports._tab_styles')
 @push('styles')
 <style>
-  .dq-wrap{max-width:940px}
+  /* same full width as the other report tabs (was capped at 940px, which wrapped the tab bar) */
   .dq-sec{background:var(--ia-surface);border:.5px solid var(--ia-border);border-radius:var(--ia-r-lg);padding:20px;margin-bottom:18px}
   .dq-sec h2{font-size:14px;font-weight:660;margin:0 0 4px;color:var(--ia-text)}
   .dq-sub{font-size:12.5px;color:var(--ia-text-dim);margin:0 0 16px;line-height:1.55}
-  .dq-row{display:grid;grid-template-columns:1.5fr 2.2fr .8fr auto;gap:12px;align-items:center;padding:11px 4px;border-bottom:.5px solid var(--ia-border);font-size:13px}
+  .dq-row{display:grid;grid-template-columns:1.5fr 2.2fr .8fr 64px; /* fixed last column: each row is its own grid, so "auto" shifted rows with a CSV button */gap:12px;align-items:center;padding:11px 4px;border-bottom:.5px solid var(--ia-border);font-size:13px}
   .dq-row.head{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ia-text-dim);padding-bottom:7px}
   .dq-bar{height:6px;border-radius:3px;background:var(--ia-surface-2);overflow:hidden}
   .dq-bar span{display:block;height:100%;background:var(--ia-accent)}
@@ -23,7 +23,7 @@
 @endpush
 
 @section('content')
-<div class="dq-wrap">
+<div class="ia-section ia-section--wide dq-wrap">
 
   <div class="ia-page-head">
     <div class="ia-page-head-left">

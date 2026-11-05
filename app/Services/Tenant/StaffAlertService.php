@@ -35,7 +35,7 @@ class StaffAlertService
      * gate doesn't apply: a mention that silently goes nowhere is worse than
      * no mentions at all. MARKER-NOTE-MENTIONS
      */
-    private const PERSONAL = ['note.mention'];
+    private const PERSONAL = ['note.mention', 'access.request']; // MARKER-BUYING: asked of the owners by name
 
     /** Default channels per event for users who haven't set prefs. */
     private const DEFAULTS = [
@@ -61,6 +61,7 @@ class StaffAlertService
         'note.mention'           => ['in_app' => true,  'sms' => false], // MARKER-NOTE-MENTIONS
         'special_order.arrived'  => ['in_app' => true,  'sms' => false], // MARKER-SO-HANDOVER
         'special_order.back_to_needed' => ['in_app' => true, 'sms' => false], // MARKER-PO
+        'access.request'         => ['in_app' => true,  'sms' => false], // MARKER-BUYING
     ];
 
     public function __construct(

@@ -37,7 +37,7 @@
   @endif
 
   {{-- Roles & access: hide sections outside the user's role --}}
-  @php $navSec = \App\Support\SectionRegistry::sectionForRoute($item['route']); @endphp
+  @php $navSec = $item['section'] ?? \App\Support\SectionRegistry::sectionForRoute($item['route']); @endphp
   @if($navSec && !empty($authUser) && !$authUser->canAccessSection($navSec))
     @continue
   @endif

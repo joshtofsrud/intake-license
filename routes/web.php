@@ -1046,6 +1046,17 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             // Special Orders — added in patch 87 (Stage 4b).
             // Reads + writes scoped to tenant. State transitions go
             // through SpecialOrderService for validation + audit notes.
+            // MARKER-BUYING: the page is open so it can explain a lock; actions are section-enforced (tenant.buying.*)
+            Route::get('/buying',                                  [TenantControllers\BuyingController::class, 'index'])->name('buying');
+            Route::prefix('buying')->name('buying.')->group(function () {
+                Route::get('/export',                              [TenantControllers\BuyingController::class, 'export'])->name('export');
+                Route::get('/drafts',                              [TenantControllers\BuyingController::class, 'drafts'])->name('drafts');
+                Route::post('/add-to-po',                          [TenantControllers\BuyingController::class, 'addToPo'])->name('add-to-po');
+                Route::post('/searches/dismiss',                   [TenantControllers\BuyingController::class, 'dismiss'])->name('dismiss');
+                Route::post('/goals',                              [TenantControllers\BuyingController::class, 'saveGoals'])->name('goals');
+            });
+            Route::post('/buying-access',                          [TenantControllers\BuyingController::class, 'requestAccess'])->name('buying-access');
+
             // MARKER-PO: purchase orders
             Route::prefix('purchase-orders')->name('purchase-orders.')->group(function () {
                 Route::get('/',                                    [TenantControllers\PurchaseOrderController::class, 'index'])->name('index');

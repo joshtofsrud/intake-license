@@ -32,7 +32,7 @@
         @continue(!empty($navItem['gate']) && !$currentTenant->{$navItem['gate']})
         @continue(!\Illuminate\Support\Facades\Route::has($navItem['route']))
         {{-- role section visibility --}}
-        @php $dSec = \App\Support\SectionRegistry::sectionForRoute($navItem['route']); @endphp
+        @php $dSec = $navItem['section'] ?? \App\Support\SectionRegistry::sectionForRoute($navItem['route']); @endphp
         @continue($dSec && !empty($authUser) && !$authUser->canAccessSection($dSec))
         @continue(!empty($navItem['capability']) && !empty($authUser) && !$authUser->can($navItem['capability']))
         @continue(!empty($navItem['hide_if_section']) && (empty($authUser) || $authUser->canAccessSection($navItem['hide_if_section']))) {{-- MARKER-CLASSES-P10 --}}

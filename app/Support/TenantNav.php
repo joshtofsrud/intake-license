@@ -98,6 +98,17 @@ class TenantNav
           'hide_if_section' => 'special_orders',
           'gate'   => 'retail_enabled',
         ],
+        [
+          // MARKER-BUYING: what's selling and what to order. The page explains
+          // itself to a shop without the add-on, so it shows for every retail shop.
+          'route'   => 'tenant.buying',
+          'label'   => 'Buying',
+          'icon'    => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1.5 2h1.6l1.4 6.6a1 1 0 0 0 1 .8h5a1 1 0 0 0 1-.8l.9-4.1H4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="11.8" r=".9" fill="currentColor"/><circle cx="10.4" cy="11.8" r=".9" fill="currentColor"/></svg>',
+          'group'   => null,
+          'match_alt' => 'tenant.buying.',
+          'section' => 'buying',
+          'gate'    => 'retail_enabled',
+        ],
         // /568 — online orders queue
         [
           'route'  => 'tenant.orders.index',

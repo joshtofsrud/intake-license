@@ -587,7 +587,7 @@ class TeamController extends Controller
         // where someone lands when a page is closed to them, so it stays put.)
         $navPos = [];
         foreach (\App\Support\TenantNav::items() as $i => $item) {
-            $k = \App\Support\SectionRegistry::sectionForRoute($item['route']);
+            $k = $item['section'] ?? \App\Support\SectionRegistry::sectionForRoute($item['route']);
             if ($k !== null && ! isset($navPos[$k])) $navPos[$k] = $i;
         }
         $gPos = array_flip(array_keys($groups));

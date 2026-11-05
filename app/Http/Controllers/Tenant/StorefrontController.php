@@ -193,6 +193,14 @@ class StorefrontController extends Controller
             $scored->count()
         );
 
+        // MARKER-BUYING: nothing found, or nothing found in stock, is an ordering signal.
+        $top = $scored->first();
+        \App\Services\Tenant\BuyingSearchLog::record(
+            tenant()->id, 'online', $request->session()->getId(), null, $q,
+            $top?->id, $top ? (int) $top->computed_stock_count : null,
+            $scored->contains(fn ($i) => (int) $i->computed_stock_count > 0)
+        );
+
         return response()->json(['corrected' => $corrected && $scored->isNotEmpty() ? implode(' ', $tokens) : null, 'items' => $scored->map(function ($i) {
             // was passing $p->distributorCatalog
             // and $p->tenant_id from inside a closure that only receives $i.

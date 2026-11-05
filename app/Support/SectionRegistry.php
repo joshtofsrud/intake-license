@@ -31,6 +31,9 @@ class SectionRegistry
             'special_orders'    => ['label' => 'Special Orders',     'group' => 'main',     'prefixes' => ['tenant.special-orders'],                       'gate' => 'retail_enabled'],
             // MARKER-PO: build, place and close purchase orders. Costs on them follow Costs & margins.
             'purchase_orders'   => ['label' => 'Purchase Orders',    'group' => 'main',     'prefixes' => ['tenant.purchase-orders'],                      'gate' => 'retail_enabled'],
+            // MARKER-BUYING: the page itself (tenant.buying) is open to everyone in a
+            // retail shop so it can say why it's locked; everything under it is enforced.
+            'buying'            => ['label' => 'Buying',             'group' => 'main',     'prefixes' => ['tenant.buying.'],                              'gate' => 'retail_enabled'],
             // MARKER-SEC-SECTIONS: online orders, gift cards, storefront and
             // discounts used to sit outside every area, so no role could be
             // kept out of them. Existing roles were given them (see the

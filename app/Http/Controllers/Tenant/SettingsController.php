@@ -88,6 +88,27 @@ class SettingsController extends Controller
         $pur['notify_after_receive'] = $request->boolean('po_notify_after_receive');
         $settings['purchasing'] = $pur;
 
+        // MARKER-BUYING: the thresholds Buying's statuses use. Only present when the shop has Buying.
+        if ($request->has('buy_soon_days')) {
+            $request->validate([
+                'buy_pace_weeks'  => ['required', 'integer', 'min:1', 'max:13'],
+                'buy_soon_days'   => ['required', 'integer', 'min:1', 'max:120'],
+                'buy_over_days'   => ['required', 'integer', 'min:30', 'max:730'],
+                'buy_cover_weeks' => ['required', 'integer', 'min:1', 'max:26'],
+                'buy_lead_days'   => ['required', 'integer', 'min:1', 'max:90'],
+            ], [], [
+                'buy_pace_weeks' => 'weeks of sales for pace', 'buy_soon_days' => 'order soon days',
+                'buy_over_days' => 'overstocked days', 'buy_cover_weeks' => 'weeks to cover', 'buy_lead_days' => 'default lead time',
+            ]);
+            $settings['buying'] = [
+                'pace_weeks'  => (int) $request->input('buy_pace_weeks'),
+                'soon_days'   => (int) $request->input('buy_soon_days'),
+                'over_days'   => (int) $request->input('buy_over_days'),
+                'cover_weeks' => (int) $request->input('buy_cover_weeks'),
+                'lead_days'   => (int) $request->input('buy_lead_days'),
+            ];
+        }
+
         $cust = (array) ($settings['customers'] ?? []);
         $cust['default_payment_terms'] = $request->input('cust_default_payment_terms') ?: null;
         $cust['default_po_required']   = $request->boolean('cust_default_po_required');

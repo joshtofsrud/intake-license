@@ -1696,6 +1696,48 @@
       </div>
     </div>
 
+    {{-- MARKER-BUYING: the thresholds behind Buying's statuses --}}
+    @if(($currentTenant ?? tenant())->buying_enabled)
+    @php $buy = \App\Services\Tenant\BuyingService::settings($currentTenant ?? tenant()); @endphp
+    <div class="ia-card" style="margin-bottom:20px" id="buying-settings">
+      <div class="ia-card-head"><span class="ia-card-title">Buying</span></div>
+      <p style="font-size:13px;opacity:.55;margin-bottom:16px">
+        How Buying decides what's Order now, Order soon and Overstocked, and how much it suggests ordering.
+      </p>
+      <div class="ia-input-grid-2">
+        <div class="ia-form-group">
+          <label class="ia-form-label">Pace from the last</label>
+          <select name="buy_pace_weeks" class="ia-input">
+            @foreach([2 => '2 weeks', 4 => '4 weeks', 6 => '6 weeks', 8 => '8 weeks', 13 => '13 weeks'] as $bk => $bl)
+              <option value="{{ $bk }}" @selected($buy['pace_weeks'] === $bk)>{{ $bl }}</option>
+            @endforeach
+          </select>
+          <div class="ia-form-hint">"Per week" is the average over this many recent weeks. Shorter reacts faster; longer is steadier.</div>
+        </div>
+        <div class="ia-form-group">
+          <label class="ia-form-label">Order soon under</label>
+          <input type="number" min="1" max="120" name="buy_soon_days" class="ia-input" value="{{ $buy['soon_days'] }}">
+          <div class="ia-form-hint">Days of stock, counting what's on order.</div>
+        </div>
+        <div class="ia-form-group">
+          <label class="ia-form-label">Overstocked over</label>
+          <input type="number" min="30" max="730" name="buy_over_days" class="ia-input" value="{{ $buy['over_days'] }}">
+          <div class="ia-form-hint">Days of stock at the current pace.</div>
+        </div>
+        <div class="ia-form-group">
+          <label class="ia-form-label">Suggest enough for</label>
+          <input type="number" min="1" max="26" name="buy_cover_weeks" class="ia-input" value="{{ $buy['cover_weeks'] }}">
+          <div class="ia-form-hint">Weeks. The suggested quantity covers this long, less what's on hand and on order.</div>
+        </div>
+        <div class="ia-form-group">
+          <label class="ia-form-label">Lead time when a vendor has none</label>
+          <input type="number" min="1" max="90" name="buy_lead_days" class="ia-input" value="{{ $buy['lead_days'] }}">
+          <div class="ia-form-hint">Days. Set each vendor's own lead time on the vendor; this is only the fallback for Order now.</div>
+        </div>
+      </div>
+    </div>
+    @endif
+
     {{-- defaults for new business customers, so
          payment terms and PO-required are not fields you have to remember
          to set one customer at a time. --}}
