@@ -168,6 +168,66 @@ class PricingPage extends Page
         Notification::make()->title($a->name . ' saved')->body('Shops and the pricing page use it now.')->success()->send();
     }
 
+    /** MARKER-PRICING-ALL-ADDONS: the add-on whose shops are listed under it, if any. */
+    public ?string $shopsFor = null;
+
+    public function toggleShops(string $code): void
+    {
+        $this->shopsFor = $this->shopsFor === $code ? null : $code;
+    }
+
+    /**
+     * MARKER-PRICING-ALL-ADDONS: everything the public table leaves out, so
+     * nothing is out of sight here: hidden add-ons no plan includes, closed
+     * ones, retired ones. Each with how many shops still run it.
+     *
+     * @return array<string, array{title:string, note:string, rows:array}>
+     */
+    public function offPage(): array
+    {
+        $all = Addon::query()->orderBy('sort_order')->orderBy('name')->get();
+        $counts = \Illuminate\Support\Facades\DB::table('tenant_feature_addons')
+            ->whereIn('status', ['active', 'canceling', 'failed_payment'])
+            ->selectRaw('addon_code, COUNT(*) as n')->groupBy('addon_code')->pluck('n', 'addon_code');
+        $plans = \Illuminate\Support\Facades\DB::table('tenants')->whereNull('deleted_at')
+            ->selectRaw('plan_tier, COUNT(*) as n')->groupBy('plan_tier')->pluck('n', 'plan_tier');
+        $row = function (Addon $a) use ($counts, $plans) {
+            $inc = array_values((array) ($a->included_in_plans ?? []));
+            return [
+                'addon'  => $a,
+                'price'  => PricingCatalog::priceText($a),
+                'shops'  => (int) ($counts[$a->code] ?? 0),
+                'onPlan' => $inc ? (int) collect($inc)->sum(fn ($t) => (int) ($plans[$t] ?? 0)) : 0,
+                'plans'  => $inc ? implode(', ', array_map(fn ($t) => PricingCatalog::NAMES[$t] ?? ucfirst($t), $inc)) : '',
+            ];
+        };
+        $hidden = $all->filter(fn ($a) => $a->status === Addon::ACTIVE
+            && ($a->visibility ?? Addon::VIS_SELF_SERVE) === Addon::VIS_HIDDEN
+            && count((array) ($a->included_in_plans ?? [])) === 0);
+
+        return [
+            'hidden'  => ['title' => 'Hidden', 'note' => 'Active, but shops can\'t see them and no plan includes them, so they\'re only on for shops you turned them on for.', 'rows' => $hidden->map($row)->values()->all()],
+            'closed'  => ['title' => 'Closed', 'note' => 'No new shops. Shops that have it keep it and are still billed.', 'rows' => $all->where('status', Addon::DEPRECATED)->map($row)->values()->all()],
+            'retired' => ['title' => 'Retired', 'note' => 'Off for everyone. A shop listed here still has an activation on record, but it no longer works.', 'rows' => $all->where('status', Addon::RETIRED)->map($row)->values()->all()],
+        ];
+    }
+
+    /** Shops with an activation of this add-on, newest first. */
+    public function shopsRunning(string $code): array
+    {
+        return \Illuminate\Support\Facades\DB::table('tenant_feature_addons as fa')
+            ->join('tenants as t', 't.id', '=', 'fa.tenant_id')
+            ->where('fa.addon_code', $code)->whereIn('fa.status', ['active', 'canceling', 'failed_payment'])
+            ->orderByDesc('fa.activated_at')
+            ->get(['t.id', 't.name', 't.subdomain', 't.plan_tier', 'fa.status', 'fa.source', 'fa.activated_at'])
+            ->map(fn ($r) => [
+                'name' => $r->name, 'sub' => $r->subdomain, 'plan' => PricingCatalog::NAMES[$r->plan_tier] ?? ucfirst((string) $r->plan_tier),
+                'status' => ['active' => 'Active', 'canceling' => 'Canceling', 'failed_payment' => 'Payment failed'][$r->status] ?? $r->status,
+                'source' => $r->source, 'since' => $r->activated_at ? \Carbon\Carbon::parse($r->activated_at)->format('M j, Y') : '—',
+                'url' => \App\Filament\Resources\TenantResource::getUrl('edit', ['record' => $r->id]),
+            ])->all();
+    }
+
     public function addonEditUrl(int $id): string
     {
         return AddonResource::getUrl('edit', ['record' => $id]);

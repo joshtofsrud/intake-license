@@ -1,0 +1,189 @@
+diff --git a/app/Filament/Pages/PricingPage.php b/app/Filament/Pages/PricingPage.php
+index 55ec0823..0cac0b80 100644
+--- a/app/Filament/Pages/PricingPage.php
++++ b/app/Filament/Pages/PricingPage.php
+@@ -168,6 +168,66 @@ class PricingPage extends Page
+         Notification::make()->title($a->name . ' saved')->body('Shops and the pricing page use it now.')->success()->send();
+     }
+ 
++    /** MARKER-PRICING-ALL-ADDONS: the add-on whose shops are listed under it, if any. */
++    public ?string $shopsFor = null;
++
++    public function toggleShops(string $code): void
++    {
++        $this->shopsFor = $this->shopsFor === $code ? null : $code;
++    }
++
++    /**
++     * MARKER-PRICING-ALL-ADDONS: everything the public table leaves out, so
++     * nothing is out of sight here: hidden add-ons no plan includes, closed
++     * ones, retired ones. Each with how many shops still run it.
++     *
++     * @return array<string, array{title:string, note:string, rows:array}>
++     */
++    public function offPage(): array
++    {
++        $all = Addon::query()->orderBy('sort_order')->orderBy('name')->get();
++        $counts = \Illuminate\Support\Facades\DB::table('tenant_feature_addons')
++            ->whereIn('status', ['active', 'canceling', 'failed_payment'])
++            ->selectRaw('addon_code, COUNT(*) as n')->groupBy('addon_code')->pluck('n', 'addon_code');
++        $plans = \Illuminate\Support\Facades\DB::table('tenants')->whereNull('deleted_at')
++            ->selectRaw('plan_tier, COUNT(*) as n')->groupBy('plan_tier')->pluck('n', 'plan_tier');
++        $row = function (Addon $a) use ($counts, $plans) {
++            $inc = array_values((array) ($a->included_in_plans ?? []));
++            return [
++                'addon'  => $a,
++                'price'  => PricingCatalog::priceText($a),
++                'shops'  => (int) ($counts[$a->code] ?? 0),
++                'onPlan' => $inc ? (int) collect($inc)->sum(fn ($t) => (int) ($plans[$t] ?? 0)) : 0,
++                'plans'  => $inc ? implode(', ', array_map(fn ($t) => PricingCatalog::NAMES[$t] ?? ucfirst($t), $inc)) : '',
++            ];
++        };
++        $hidden = $all->filter(fn ($a) => $a->status === Addon::ACTIVE
++            && ($a->visibility ?? Addon::VIS_SELF_SERVE) === Addon::VIS_HIDDEN
++            && count((array) ($a->included_in_plans ?? [])) === 0);
++
++        return [
++            'hidden'  => ['title' => 'Hidden', 'note' => 'Active, but shops can\'t see them and no plan includes them, so they\'re only on for shops you turned them on for.', 'rows' => $hidden->map($row)->values()->all()],
++            'closed'  => ['title' => 'Closed', 'note' => 'No new shops. Shops that have it keep it and are still billed.', 'rows' => $all->where('status', Addon::DEPRECATED)->map($row)->values()->all()],
++            'retired' => ['title' => 'Retired', 'note' => 'Off for everyone. A shop listed here still has an activation on record, but it no longer works.', 'rows' => $all->where('status', Addon::RETIRED)->map($row)->values()->all()],
++        ];
++    }
++
++    /** Shops with an activation of this add-on, newest first. */
++    public function shopsRunning(string $code): array
++    {
++        return \Illuminate\Support\Facades\DB::table('tenant_feature_addons as fa')
++            ->join('tenants as t', 't.id', '=', 'fa.tenant_id')
++            ->where('fa.addon_code', $code)->whereIn('fa.status', ['active', 'canceling', 'failed_payment'])
++            ->orderByDesc('fa.activated_at')
++            ->get(['t.id', 't.name', 't.subdomain', 't.plan_tier', 'fa.status', 'fa.source', 'fa.activated_at'])
++            ->map(fn ($r) => [
++                'name' => $r->name, 'sub' => $r->subdomain, 'plan' => PricingCatalog::NAMES[$r->plan_tier] ?? ucfirst((string) $r->plan_tier),
++                'status' => ['active' => 'Active', 'canceling' => 'Canceling', 'failed_payment' => 'Payment failed'][$r->status] ?? $r->status,
++                'source' => $r->source, 'since' => $r->activated_at ? \Carbon\Carbon::parse($r->activated_at)->format('M j, Y') : '—',
++                'url' => \App\Filament\Resources\TenantResource::getUrl('edit', ['record' => $r->id]),
++            ])->all();
++    }
++
+     public function addonEditUrl(int $id): string
+     {
+         return AddonResource::getUrl('edit', ['record' => $id]);
+diff --git a/resources/views/filament/pages/pricing-page.blade.php b/resources/views/filament/pages/pricing-page.blade.php
+index eeec3c9d..7ef81156 100644
+--- a/resources/views/filament/pages/pricing-page.blade.php
++++ b/resources/views/filament/pages/pricing-page.blade.php
+@@ -8,7 +8,6 @@
+     $ed     = $this->editing();
+     // MARKER-PRICING-MOBILE-PRIORITY
+     $phTip  = 'Shows first on the plan card on phones. Cards show five lines; the rest sit behind "+ more".';
+-    $phone  = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/></svg>';
+ @endphp
+ <x-filament-panels::page>
+ <style>
+@@ -41,12 +40,22 @@
+   .pp .pp-in:hover{background:rgba(127,127,127,.08)!important}
+   .pp .pp-in:focus{outline:none;border-bottom-color:#8b7cf6!important;background:rgba(139,124,246,.06)!important}
+   .pp textarea.pp-in{border-bottom:1px dashed rgba(127,127,127,.3)!important}
+-  .pp-row{display:grid;grid-template-columns:minmax(0,1.4fr) repeat(3,minmax(0,1fr)) 34px 74px;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--ln)}
++  .pp-row{display:grid;grid-template-columns:minmax(0,1.4fr) repeat(3,minmax(0,1fr)) 64px 74px;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--ln)}
+   .pp-row.h{font-size:12px;font-weight:600;opacity:.6;border-bottom-color:var(--ln2)}
+   .pp-x{background:none;border:0;cursor:pointer;opacity:.55;font-size:15px;padding:2px 5px;color:inherit}
+   .pp-x:hover{opacity:1}
+-  .pp-ph{display:inline-flex;justify-content:center;align-items:center;opacity:.65;cursor:help}
++  .pp-ph{display:inline-flex;justify-content:center;align-items:center;font-size:11.5px;white-space:nowrap}
+   .pp-ck{display:flex;justify-content:center}
++  .pp-off{table-layout:fixed}
++  .pp-off thead th{text-align:left;font-size:12px;font-weight:600;opacity:.65}
++  .pp-off tbody td{text-align:left;padding:9px 10px 9px 0;font-size:13px}
++  .pp-off tbody td small{display:block;font-size:11px;opacity:.55}
++  .pp-link{background:none;border:0;padding:0;color:#a78bfa;cursor:pointer;font:inherit;text-decoration:none}
++  .pp-link:hover{text-decoration:underline}
++  .pp-shops > td{padding:0 0 14px 18px!important}
++  .pp-shops table{width:100%;border-left:2px solid var(--ln2)}
++  .pp-shops th,.pp-shops td{padding:6px 10px!important;text-align:left!important;font-size:12.5px}
++  .pp-shops thead th{font-size:11px;opacity:.55;font-weight:600}
+   .pp-ck input{width:16px;height:16px;accent-color:#8b7cf6;cursor:pointer}
+   .pp-blurbs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+   .pp-dirty{color:#d4a017;font-size:12.5px}
+@@ -101,7 +110,7 @@
+     </div>
+ 
+     <div class="pp-lab" style="margin:22px 0 6px">The basics · rows that aren't add-ons. Type yes or no for a tick or a dash.</div>
+-    <div class="pp-row h"><span>Row</span><span>Starter</span><span>Branded</span><span>Scale</span><span class="pp-ph" title="{{ $phTip }}">{!! $phone !!}</span><span></span></div>
++    <div class="pp-row h"><span>Row</span><span>Starter</span><span>Branded</span><span>Scale</span><span class="pp-ph">On phone</span><span></span></div>
+     @foreach($basics as $i => $r)
+       <div class="pp-row" wire:key="basic-{{ $i }}">
+         <input class="pp-in" wire:model.live.debounce.400ms="basics.{{ $i }}.0" maxlength="80" placeholder="Row name">
+@@ -124,7 +133,7 @@
+       @if($dirty)<div class="pp-bar"><span class="pp-dirty">Unsaved changes</span><x-filament::button size="sm" wire:click="saveText">Save</x-filament::button></div>@endif
+     </div>
+     <table>
+-      <thead><tr><th>Add-on</th><th style="width:44px"><span class="pp-ph" title="{{ $phTip }}">{!! $phone !!}</span></th>@foreach($plans as $p)<th>{{ $p['name'] }}<small>${{ $money($p['cents']) }}/mo</small></th>@endforeach</tr></thead>
++      <thead><tr><th>Add-on</th><th style="width:72px"><span class="pp-ph">On phone</span></th>@foreach($plans as $p)<th>{{ $p['name'] }}<small>${{ $money($p['cents']) }}/mo</small></th>@endforeach</tr></thead>
+       <tbody>
+         @foreach($groups as $gName => $rows)
+           <tr class="grp"><th colspan="5">{{ $gName }}</th></tr>
+@@ -147,8 +156,61 @@
+   <div class="pp-legend">
+     <b>What this changes.</b> Saving here changes intake.works/pricing straight away; there is no publish step. Plan prices are not edited here, they come from Billing &rsaquo; Plan prices. Add-on prices are not edited here either, they come from Billing &rsaquo; Add-ons, where they can be dated. Who gets an add-on (the drawer) is the real setting: it changes what shops on that plan can use today, not only what the page says.
+     The phone column picks which lines a plan card shows first on phones (five lines in all, the rest behind "+ more"); it does not change desktop, where every line shows, and only add-ons a plan includes appear on cards, so only those have a box.
+-    Add-ons that are closed or retired, and hidden add-ons no plan includes, never appear on the page. Amber cells have no price yet, so the public page leaves them out.
++    Add-ons that are closed or retired, and hidden add-ons no plan includes, never appear on the public page; they're listed below so nothing is out of sight here. Amber cells have no price yet, so the public page leaves them out.
+   </div>
++
++  {{-- MARKER-PRICING-ALL-ADDONS: what the public page leaves out --}}
++  @foreach($this->offPage() as $key => $sec)
++    <div>
++      <div class="pp-bar" style="justify-content:space-between;margin-bottom:2px">
++        <div class="pp-lab">{{ $sec['title'] }} · not on the pricing page</div>
++        <span style="font-size:12px;opacity:.6">{{ count($sec['rows']) }} {{ \Illuminate\Support\Str::plural('add-on', count($sec['rows'])) }}</span>
++      </div>
++      <div style="font-size:12.5px;opacity:.65;margin-bottom:6px">{{ $sec['note'] }}</div>
++      @if(! $sec['rows'])
++        <div style="font-size:13px;opacity:.5;padding:10px 0;border-top:1px solid var(--ln)">None.</div>
++      @else
++        <table class="pp-off">
++          <colgroup><col style="width:28%"><col style="width:14%"><col style="width:12%"><col style="width:20%"><col style="width:14%"><col style="width:12%"></colgroup>
++          <thead><tr><th>Add-on</th><th>Price</th><th>Shops see</th><th>On plans</th><th>Shops running it</th><th></th></tr></thead>
++          <tbody>
++            @foreach($sec['rows'] as $r)
++              @php $a = $r['addon']; $open = $shopsFor === $a->code; @endphp
++              <tr>
++                <th><button type="button" class="pp-link" wire:click="openAddon({{ $a->id }})">{{ $a->name }}</button><small>{{ $a->code }}</small></th>
++                <td>{{ $r['price'] ?? 'No price' }}</td>
++                <td>{{ ['self_serve' => 'Can add it', 'ask' => 'Can ask', 'hidden' => 'Hidden'][$a->visibility ?? 'self_serve'] ?? $a->visibility }}</td>
++                <td>{{ $r['plans'] ?: '—' }}@if($r['onPlan'])<small>{{ $r['onPlan'] }} {{ \Illuminate\Support\Str::plural('shop', $r['onPlan']) }} on {{ count(explode(', ', $r['plans'])) > 1 ? 'those plans' : 'that plan' }}</small>@endif</td>
++                <td>
++                  @if($r['shops'])
++                    <button type="button" class="pp-link" wire:click="toggleShops('{{ $a->code }}')">{{ $r['shops'] }} {{ \Illuminate\Support\Str::plural('shop', $r['shops']) }} {{ $open ? '▾' : '▸' }}</button>
++                  @else
++                    <span style="opacity:.5">None</span>
++                  @endif
++                </td>
++                <td style="text-align:right;white-space:nowrap"><button type="button" class="pp-link" wire:click="openAddon({{ $a->id }})">Change</button> · <a class="pp-link" href="{{ $this->addonEditUrl($a->id) }}">Price</a></td>
++              </tr>
++              @if($open)
++                <tr class="pp-shops"><td colspan="6">
++                  <table>
++                    <thead><tr><th>Shop</th><th>Plan</th><th>Status</th><th>How</th><th>Since</th></tr></thead>
++                    <tbody>
++                      @foreach($this->shopsRunning($a->code) as $sh)
++                        <tr>
++                          <th><a class="pp-link" href="{{ $sh['url'] }}">{{ $sh['name'] }}</a><small>{{ $sh['sub'] }}</small></th>
++                          <td>{{ $sh['plan'] }}</td><td>{{ $sh['status'] }}</td><td>{{ $sh['source'] ? ucfirst(str_replace('_', ' ', $sh['source'])) : '—' }}</td><td>{{ $sh['since'] }}</td>
++                        </tr>
++                      @endforeach
++                    </tbody>
++                  </table>
++                </td></tr>
++              @endif
++            @endforeach
++          </tbody>
++        </table>
++      @endif
++    </div>
++  @endforeach
+ </div>
+ 
+ @if($ed)
