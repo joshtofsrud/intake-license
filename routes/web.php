@@ -984,6 +984,10 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::prefix('receiving')->name('receiving.')->group(function () {
                     Route::get('/',                              [TenantControllers\ReceiveShipmentController::class, 'index'])->name('index');
                     Route::post('/create',                       [TenantControllers\ReceiveShipmentController::class, 'create'])->name('create');
+                    Route::get('/new',                           [TenantControllers\ReceiveShipmentController::class, 'newForm'])->name('new'); // MARKER-PO
+                    Route::get('/open-pos',                      [TenantControllers\ReceiveShipmentController::class, 'openPos'])->name('open-pos');
+                    Route::post('/{id}/pull-po',                 [TenantControllers\ReceiveShipmentController::class, 'pullPo'])->name('pull-po');
+                    Route::post('/{id}/items/{itemId}/reject',   [TenantControllers\ReceiveShipmentController::class, 'rejectItem'])->name('items.reject');
                     Route::post('/',                             [TenantControllers\ReceiveShipmentController::class, 'store'])->name('store');
                     Route::get('/{id}',                          [TenantControllers\ReceiveShipmentController::class, 'show'])->name('show');
                     Route::get('/{id}/edit',                     [TenantControllers\ReceiveShipmentController::class, 'edit'])->name('edit');
@@ -1042,6 +1046,30 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             // Special Orders — added in patch 87 (Stage 4b).
             // Reads + writes scoped to tenant. State transitions go
             // through SpecialOrderService for validation + audit notes.
+            // MARKER-PO: purchase orders
+            Route::prefix('purchase-orders')->name('purchase-orders.')->group(function () {
+                Route::get('/',                                    [TenantControllers\PurchaseOrderController::class, 'index'])->name('index');
+                Route::post('/',                                   [TenantControllers\PurchaseOrderController::class, 'store'])->name('store');
+                Route::post('/from-special-orders',                [TenantControllers\PurchaseOrderController::class, 'fromSpecialOrders'])->name('from-special-orders');
+                Route::get('/{id}',                                [TenantControllers\PurchaseOrderController::class, 'show'])->name('show');
+                Route::patch('/{id}',                              [TenantControllers\PurchaseOrderController::class, 'update'])->name('update');
+                Route::delete('/{id}',                             [TenantControllers\PurchaseOrderController::class, 'destroy'])->name('destroy');
+                Route::get('/{id}/items',                          [TenantControllers\PurchaseOrderController::class, 'searchItems'])->name('items');
+                Route::post('/{id}/lines',                         [TenantControllers\PurchaseOrderController::class, 'addLine'])->name('lines.store');
+                Route::patch('/{id}/lines/{lineId}',               [TenantControllers\PurchaseOrderController::class, 'updateLine'])->name('lines.update');
+                Route::delete('/{id}/lines/{lineId}',              [TenantControllers\PurchaseOrderController::class, 'removeLine'])->name('lines.destroy');
+                Route::post('/{id}/lines/{lineId}/date',           [TenantControllers\PurchaseOrderController::class, 'setDate'])->name('lines.date');
+                Route::post('/{id}/lines/{lineId}/cancel-rest',    [TenantControllers\PurchaseOrderController::class, 'cancelRest'])->name('lines.cancel-rest');
+                Route::post('/{id}/place',                         [TenantControllers\PurchaseOrderController::class, 'place'])->name('place');
+                Route::post('/{id}/email',                         [TenantControllers\PurchaseOrderController::class, 'email'])->name('email');
+                Route::post('/{id}/told',                          [TenantControllers\PurchaseOrderController::class, 'told'])->name('told');
+                Route::post('/{id}/close-short',                   [TenantControllers\PurchaseOrderController::class, 'closeShort'])->name('close-short');
+                Route::post('/{id}/cancel',                        [TenantControllers\PurchaseOrderController::class, 'cancel'])->name('cancel');
+                Route::post('/{id}/receive',                       [TenantControllers\PurchaseOrderController::class, 'receive'])->name('receive');
+                Route::get('/{id}/pdf',                            [TenantControllers\PurchaseOrderController::class, 'pdf'])->name('pdf');
+                Route::get('/{id}/csv',                            [TenantControllers\PurchaseOrderController::class, 'csv'])->name('csv');
+            });
+
             Route::prefix('special-orders')->name('special-orders.')->group(function () {
                 Route::get('/',                                    [TenantControllers\SpecialOrderController::class, 'index'])->name('index');
                 Route::post('/cleanup',                            [TenantControllers\SpecialOrderController::class, 'saveCleanup'])->name('cleanup');
@@ -1064,7 +1092,6 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::post('/{id}/attach-to-sale',                [TenantControllers\SpecialOrderController::class, 'attachToSale'])->name('attach-to-sale');
                 Route::post('/{id}/confirm-source',                [TenantControllers\SpecialOrderController::class, 'confirmSource'])->name('confirm-source');
                 Route::post('/{id}/assign-vendor',                 [TenantControllers\SpecialOrderController::class, 'assignVendor'])->name('assign-vendor');
-                Route::post('/placement/mark-ordered-batch',       [TenantControllers\SpecialOrderController::class, 'markOrderedBatch'])->name('mark-ordered-batch');
                 Route::post('/{id}/notes',                         [TenantControllers\SpecialOrderController::class, 'addNote'])->name('notes.store');
             });
 

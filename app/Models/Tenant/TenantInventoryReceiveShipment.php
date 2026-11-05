@@ -43,6 +43,9 @@ class TenantInventoryReceiveShipment extends Model
         'created_by_tenant_user_id',
         'committed_by_tenant_user_id',
         'committed_at',
+        // MARKER-PO
+        'vendor_invoice_number', 'vendor_invoice_date', 'invoice_total_cents', 'invoice_mismatch_cents',
+        'freight_method', 'filled_special_order_ids',
     ];
 
     protected $casts = [
@@ -53,6 +56,10 @@ class TenantInventoryReceiveShipment extends Model
         'backorder_count' => 'integer',
         'unexpected_count' => 'integer',
         'committed_at' => 'datetime',
+        'vendor_invoice_date' => 'date',
+        'invoice_total_cents' => 'integer',
+        'invoice_mismatch_cents' => 'integer',
+        'filled_special_order_ids' => 'array',
     ];
 
     public function tenant(): BelongsTo

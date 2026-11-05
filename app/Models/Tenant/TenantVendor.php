@@ -38,12 +38,16 @@ class TenantVendor extends Model
         'is_active',
         'free_freight_cents',
         'program_discount_pct', 'distributor_code',
+        'lead_time_days', 'lead_time_mode', 'learned_lead_days', 'learned_po_count', // MARKER-PO
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
         'free_freight_cents' => 'integer',
         'program_discount_pct' => 'decimal:2',
+        'lead_time_days' => 'integer',
+        'learned_lead_days' => 'decimal:1',
+        'learned_po_count' => 'integer',
     ];
 
     public function tenant(): BelongsTo

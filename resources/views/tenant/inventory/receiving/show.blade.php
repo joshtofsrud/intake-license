@@ -54,6 +54,11 @@
     <a href="{{ route('tenant.inventory.receiving.index') }}" class="ia-btn ia-btn--ghost">← Back</a>
     {{-- MARKER-LABELS --}}
     <button type="button" class="ia-btn ia-btn--secondary" onclick="openLabels({ shipment: @js((string) $shipment->id) })">Print labels</button>
+    {{-- MARKER-PO: tell the people whose orders this filled --}}
+    @php $filled = array_values(array_filter((array) $shipment->filled_special_order_ids)); @endphp
+    @if($filled)
+      <button type="button" class="ia-btn ia-btn--primary" onclick="IntakeSO.notify(@js($filled), { reload: true })">Tell customers</button>
+    @endif
   </div>
 </div>
 
@@ -69,9 +74,34 @@
         <div style="margin-top:2px">{{ $shipment->distributor_name ?? '—' }} @if($shipment->distributor_code) <span style="color:var(--ia-text-muted)">· {{ $shipment->distributor_code }}</span>@endif</div>
       </div>
       <div>
-        <div style="font-size:11px;color:var(--ia-text-muted);text-transform:uppercase;letter-spacing:.05em">Shipping cost</div>
-        <div style="margin-top:2px">{{ '$' . number_format($shipment->shipping_cost_cents / 100, 2) }}</div>
+        <div style="font-size:11px;color:var(--ia-text-muted);text-transform:uppercase;letter-spacing:.05em">Freight</div>
+        <div style="margin-top:2px">{{ '$' . number_format($shipment->shipping_cost_cents / 100, 2) }}
+          @if($shipment->shipping_cost_cents) <span style="color:var(--ia-text-muted)">· {{ ['value' => 'spread by line value', 'units' => 'spread by units', 'off' => 'not spread onto cost'][$shipment->freight_method ?: 'value'] ?? '' }}</span>@endif
+        </div>
       </div>
+      {{-- MARKER-PO: the vendor's invoice, and whether it matched --}}
+      <div>
+        <div style="font-size:11px;color:var(--ia-text-muted);text-transform:uppercase;letter-spacing:.05em">Invoice</div>
+        <div style="margin-top:2px">
+          {{ $shipment->vendor_invoice_number ?: '—' }}
+          @if($shipment->vendor_invoice_date)<span style="color:var(--ia-text-muted)"> · {{ $shipment->vendor_invoice_date->format('M j, Y') }}</span>@endif
+          @if($shipment->invoice_total_cents !== null)<span style="color:var(--ia-text-muted)"> · ${{ number_format($shipment->invoice_total_cents / 100, 2) }}</span>@endif
+          @if($shipment->invoice_mismatch_cents)
+            <div style="color:#c9972a;font-size:12px">Doesn't match: off by ${{ number_format(abs($shipment->invoice_mismatch_cents) / 100, 2) }} ({{ $shipment->invoice_mismatch_cents > 0 ? 'invoice higher' : 'invoice lower' }})</div>
+          @endif
+        </div>
+      </div>
+      @php $shipPos = \App\Models\Tenant\TenantPurchaseOrder::whereIn('id', \App\Models\Tenant\TenantPurchaseOrderLine::whereIn('id', $shipment->items->pluck('purchase_order_line_id')->filter())->select('purchase_order_id'))->get(); @endphp
+      @if($shipPos->isNotEmpty())
+        <div>
+          <div style="font-size:11px;color:var(--ia-text-muted);text-transform:uppercase;letter-spacing:.05em">Purchase orders</div>
+          <div style="margin-top:2px">
+            @foreach($shipPos as $sp)
+              <a href="{{ route('tenant.purchase-orders.show', ['id' => $sp->id]) }}" style="color:var(--ia-accent)">{{ $sp->po_number }}</a> <span style="color:var(--ia-text-muted)">· {{ strtolower($sp->statusLabel()) }}</span>@if(! $loop->last)<br>@endif
+            @endforeach
+          </div>
+        </div>
+      @endif
       <div>
         <div style="font-size:11px;color:var(--ia-text-muted);text-transform:uppercase;letter-spacing:.05em">Committed</div>
         <div style="margin-top:2px">
@@ -138,7 +168,10 @@
           <td><code style="font-size:11.5px;color:var(--ia-accent)">{{ $line->sku }}</code></td>
           <td style="text-align:right;font-variant-numeric:tabular-nums">{{ $isUnx ? '—' : $line->expected_quantity }}</td>
           <td style="text-align:right;font-variant-numeric:tabular-nums">{{ $line->received_quantity }}</td>
-          <td>{{ $statusLabels[$line->status] ?? $line->status }}</td>
+          <td>{{ $statusLabels[$line->status] ?? $line->status }}
+            @if($line->rejected_quantity)<div style="font-size:11.5px;color:#F87171">{{ $line->rejected_quantity }} not accepted · {{ strtolower((string) $line->rejected_reason) }}</div>@endif
+            @if($line->freight_cents)<div style="font-size:11.5px;color:var(--ia-text-muted)">+ ${{ number_format($line->freight_cents / 100, 2) }} freight</div>@endif
+          </td>
           <td style="text-align:right;font-variant-numeric:tabular-nums">
             {{ $line->unit_cost_cents !== null ? '$' . number_format($line->unit_cost_cents / 100, 2) : '—' }}
           </td>

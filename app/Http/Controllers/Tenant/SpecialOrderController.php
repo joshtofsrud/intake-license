@@ -94,7 +94,7 @@ class SpecialOrderController extends Controller
         ];
 
         $q = TenantSpecialOrder::where('tenant_id', $tenant->id)
-            ->with(['vendor', 'customer', 'appointment', 'item', 'location']);
+            ->with(['vendor', 'customer', 'appointment', 'item', 'location', 'poLine.purchaseOrder']);
 
         switch ($view) {
             case 'arrived_bench':
@@ -275,6 +275,10 @@ class SpecialOrderController extends Controller
             'vvendors'   => $vendorData['vendors'],
             'voptions'   => $vendorData['options'],
             'vcheckedAt' => $vendorData['checkedAt'],
+            // MARKER-PO: each vendor's open drafts, so "Add to PO" can say where they go
+            'vdrafts'    => \App\Models\Tenant\TenantPurchaseOrder::where('tenant_id', $tenant->id)->where('status', 'draft')->orderByDesc('created_at')
+                ->get(['id', 'po_number', 'vendor_id', 'location_id'])->groupBy('vendor_id')
+                ->map(fn ($g) => $g->map(fn ($d) => ['id' => $d->id, 'po' => $d->po_number, 'l' => $d->location_id])->values()->all())->all(),
             'sos'        => $sos,
             'view'       => $view,
             'counts'     => $counts,
@@ -294,7 +298,7 @@ class SpecialOrderController extends Controller
         $this->assertRetailEnabled($tenant);
 
         $so = TenantSpecialOrder::where('tenant_id', $tenant->id)
-            ->with(['vendor', 'customer', 'appointment', 'item', 'notes.user', 'parent', 'children', 'location'])
+            ->with(['vendor', 'customer', 'appointment', 'item', 'notes.user', 'parent', 'children', 'location', 'poLine.purchaseOrder'])
             ->findOrFail($id);
 
         // If this SO is part of a batch, fetch siblings for the "linked rows" panel
@@ -490,41 +494,37 @@ class SpecialOrderController extends Controller
     }
 
     /**
-     * Mark an SO as ordered (needed → ordered).
-     * If the SO already has vendor + PO + ETA from creation, this is
-     * a no-op of sorts — the service layer rejects illegal transitions.
-     * Required when the SO was created with status=needed and now
-     * staff has placed the order with a vendor.
+     * MARKER-PO: ordering happens on a purchase order. This puts the order on
+     * its vendor's draft PO for its pickup location (starting one if needed)
+     * and opens the PO, where it is placed. The order stays Needed until then.
      */
     public function markOrdered(Request $request, string $id): RedirectResponse
     {
         $tenant = tenant();
         $this->assertRetailEnabled($tenant);
-
         $this->ensureBelongsToTenant($id, $tenant->id);
 
         $data = $request->validate([
-            'vendor_id'             => ['required', 'uuid', Rule::exists('tenant_vendors', 'id')->where(fn ($q) => $q->where('tenant_id', $tenant->id))],
-            'po_number'             => ['required', 'string', 'max:64'],
-            'expected_arrival_date' => ['required', 'date'],
-            'vendor_reference'      => ['nullable', 'string', 'max:64'],
-            'unit_cost_estimated'   => ['nullable', 'numeric', 'min:0', 'max:1000000'],
-            'unit_cost_cents_estimated' => ['nullable', 'integer', 'min:0'],
+            'vendor_id' => ['required', 'uuid', Rule::exists('tenant_vendors', 'id')->where(fn ($q) => $q->where('tenant_id', $tenant->id)->where('is_active', true))],
         ]);
-        // MARKER-SO-REPAIRS: dollars in the form, cents in the row.
-        if (isset($data['unit_cost_estimated']) && $data['unit_cost_estimated'] !== null) {
-            $data['unit_cost_cents_estimated'] = (int) round(((float) $data['unit_cost_estimated']) * 100);
+        $so = TenantSpecialOrder::where('tenant_id', $tenant->id)->findOrFail($id);
+        if ($so->status !== TenantSpecialOrder::STATUS_NEEDED) {
+            return back()->with('flash', ['type' => 'error', 'message' => "{$so->so_number} is {$so->statusLabel()}, so it can't go on a PO."]);
         }
-        unset($data['unit_cost_estimated']);
-
-        try {
-            $this->service->markOrdered($id, $data);
-        } catch (SpecialOrderValidationException $e) {
-            return back()->with('flash', ['type' => 'error', 'message' => $e->getMessage()]);
+        if ($so->inventory_item_id && ! SpecialOrderService::vendorCarriesItem($tenant->id, $data['vendor_id'], $so->inventory_item_id)) {
+            return back()->with('flash', ['type' => 'error', 'message' => "That vendor doesn't carry {$so->item_name_snapshot}. Pick one listed for it."]);
+        }
+        if ($so->vendor_id !== $data['vendor_id']) {
+            $so->forceFill(['vendor_id' => $data['vendor_id'], 'vendor_assigned_rule' => 'manual'])->save();
+        }
+        $r = app(\App\Services\Tenant\PurchaseOrderService::class)->addSpecialOrders($tenant, [$so->id]);
+        $po = collect($r['pos'])->first()['po'] ?? null;
+        if (! $po) {
+            return back()->with('flash', ['type' => 'error', 'message' => implode('; ', $r['skipped']) ?: 'It couldn\'t be added to a PO.']);
         }
 
-        return redirect()->route('tenant.special-orders.show', ['id' => $id])
-            ->with('flash', ['type' => 'success', 'message' => 'Marked ordered.']);
+        return redirect()->route('tenant.purchase-orders.show', ['id' => $po->id])
+            ->with('flash', ['type' => 'success', 'message' => "{$so->so_number} added to {$po->po_number}. Place the PO to order it."]);
     }
 
     /**
@@ -728,16 +728,25 @@ class SpecialOrderController extends Controller
         ]);
     }
 
+    /** MARKER-PO: which orders a notice is for, and its template. */
+    private function notifyKind(?string $kind): array
+    {
+        return $kind === 'new_date'
+            ? [TenantSpecialOrder::STATUS_ORDERED, \App\Services\Tenant\SpecialOrderNotifier::TEMPLATE_NEW_DATE]
+            : [TenantSpecialOrder::STATUS_ARRIVED, \App\Services\Tenant\SpecialOrderNotifier::TEMPLATE];
+    }
+
     /** Who would be told, and how — for the "Tell customer" dialog. */
     public function notifyRows(Request $request): JsonResponse
     {
         $tenant = tenant();
         $this->assertRetailEnabled($tenant);
-        $data = $request->validate(['ids' => ['required', 'array', 'min:1', 'max:200'], 'ids.*' => ['uuid']]);
+        $data = $request->validate(['ids' => ['required', 'array', 'min:1', 'max:200'], 'ids.*' => ['uuid'], 'kind' => ['nullable', 'in:arrived,new_date']]);
 
+        [$status, $template] = $this->notifyKind($data['kind'] ?? null);
         $orders = TenantSpecialOrder::where('tenant_id', $tenant->id)->whereIn('id', $data['ids'])
-            ->where('status', TenantSpecialOrder::STATUS_ARRIVED)->get();
-        $n = \App\Services\Tenant\SpecialOrderNotifier::forTenant($tenant);
+            ->where('status', $status)->get();
+        $n = \App\Services\Tenant\SpecialOrderNotifier::forTenant($tenant, $template);
 
         return response()->json(['ok' => true, 'rows' => $n->rows($orders), 'message' => $n->defaultMessage()]);
     }
@@ -752,10 +761,12 @@ class SpecialOrderController extends Controller
             'ids.*'   => ['uuid'],
             'picks'   => ['nullable', 'array'],
             'message' => ['nullable', 'string', 'max:1000'],
+            'kind'    => ['nullable', 'in:arrived,new_date'],
         ]);
 
+        [$status, $template] = $this->notifyKind($data['kind'] ?? null);
         $orders = TenantSpecialOrder::where('tenant_id', $tenant->id)->whereIn('id', $data['ids'])
-            ->where('status', TenantSpecialOrder::STATUS_ARRIVED)->get();
+            ->where('status', $status)->get();
         $picks = [];
         foreach ((array) ($data['picks'] ?? []) as $soId => $ch) {
             $ch = (array) $ch;
@@ -765,7 +776,7 @@ class SpecialOrderController extends Controller
                 'staff' => filter_var($ch['staff'] ?? false, FILTER_VALIDATE_BOOLEAN),
             ];
         }
-        $c = \App\Services\Tenant\SpecialOrderNotifier::forTenant($tenant)->send($orders, $picks, $data['message'] ?? null);
+        $c = \App\Services\Tenant\SpecialOrderNotifier::forTenant($tenant, $template)->send($orders, $picks, $data['message'] ?? null);
 
         $parts = [];
         foreach (['email' => 'email', 'sms' => 'text', 'staff' => 'staff alert'] as $k => $w) {
@@ -881,48 +892,6 @@ class SpecialOrderController extends Controller
         $so->forceFill(['vendor_id' => $data['vendor_id']])->save();
 
         return response()->json(['ok' => true]);
-    }
-
-    /**
-     * mark a whole vendor batch ordered in one action,
-     * sharing a PO number and expected date. Partial failures are reported
-     * rather than silently swallowed.
-     */
-    public function markOrderedBatch(Request $request): \Illuminate\Http\JsonResponse
-    {
-        $tenant = tenant();
-        $this->assertRetailEnabled($tenant);
-
-        $data = $request->validate([
-            'ids'                   => ['required', 'array', 'min:1', 'max:200'],
-            'ids.*'                 => ['uuid'],
-            'vendor_id'             => ['required', 'uuid', \Illuminate\Validation\Rule::exists('tenant_vendors', 'id')
-                ->where(fn ($q) => $q->where('tenant_id', $tenant->id))],
-            'po_number'             => ['required', 'string', 'max:64'],
-            'expected_arrival_date' => ['required', 'date'],
-        ]);
-
-        $ok = 0;
-        $failed = [];
-        foreach ($data['ids'] as $soId) {
-            try {
-                $this->ensureBelongsToTenant($soId, $tenant->id);
-                $this->service->markOrdered($soId, [
-                    'vendor_id'             => $data['vendor_id'],
-                    'po_number'             => $data['po_number'],
-                    'expected_arrival_date' => $data['expected_arrival_date'],
-                ]);
-                $ok++;
-            } catch (\Throwable $e) {
-                $failed[] = $e->getMessage();
-            }
-        }
-
-        return response()->json([
-            'ok'      => $ok > 0,
-            'ordered' => $ok,
-            'failed'  => $failed,
-        ]);
     }
 
     /**

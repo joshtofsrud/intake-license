@@ -154,7 +154,12 @@ class VendorController extends Controller
             ->selectRaw('AVG(DATEDIFF(arrived_at, ordered_at)) as avg_days')
             ->value('avg_days');
 
+        // MARKER-PO: recent POs, with days placed → received and fill rate
+        $recentPos = \App\Models\Tenant\TenantPurchaseOrder::where('tenant_id', $tenant->id)->where('vendor_id', $vendor->id)
+            ->where('status', '!=', 'draft')->with('lines')->orderByDesc('placed_at')->limit(10)->get();
+
         return view('tenant.vendors.show', [
+            'recentPos'       => $recentPos,
             'vendor'          => $vendor,
             'items'           => $items,
             'openSos'         => $openSos,
@@ -179,6 +184,14 @@ class VendorController extends Controller
         $vendor = TenantVendor::where('tenant_id', $tenant->id)->findOrFail($id);
 
         $data = $this->validatedPayload($request, $tenant->id, $vendor->id);
+        // MARKER-PO: a vendor with open POs stays active until they're closed
+        if (array_key_exists('is_active', $data) && ! $data['is_active'] && $vendor->is_active) {
+            $open = \App\Models\Tenant\TenantPurchaseOrder::where('tenant_id', $tenant->id)->where('vendor_id', $vendor->id)
+                ->whereIn('status', array_merge(['draft'], \App\Models\Tenant\TenantPurchaseOrder::OPEN))->pluck('po_number');
+            if ($open->isNotEmpty()) {
+                return back()->withInput()->with('flash', ['type' => 'error', 'message' => "{$vendor->name} has open purchase orders (" . $open->implode(', ') . '). Receive, close or delete them before making the vendor inactive.']);
+            }
+        }
         $vendor->update($data);
 
         return redirect()->route('tenant.vendors.show', ['id' => $vendor->id])
@@ -203,6 +216,14 @@ class VendorController extends Controller
             ->where('vendor_id', $vendor->id)
             ->whereIn('status', TenantSpecialOrder::STATUSES_OPEN)
             ->count();
+
+        // MARKER-PO
+        $openPos = \App\Models\Tenant\TenantPurchaseOrder::where('tenant_id', $tenant->id)->where('vendor_id', $vendor->id)
+            ->whereIn('status', array_merge(['draft'], \App\Models\Tenant\TenantPurchaseOrder::OPEN))->pluck('po_number');
+        if ($openPos->isNotEmpty()) {
+            return redirect()->route('tenant.vendors.show', ['id' => $vendor->id])
+                ->with('flash', ['type' => 'error', 'message' => 'Cannot delete — open purchase orders: ' . $openPos->implode(', ') . '. Receive, close or delete them first.']);
+        }
 
         if ($openSoCount > 0) {
             return redirect()->route('tenant.vendors.show', ['id' => $vendor->id])
@@ -235,6 +256,8 @@ class VendorController extends Controller
             // means "no threshold", and the placement board simply shows no
             // freight bar for this vendor rather than inventing one.
             'free_freight'      => ['nullable', 'numeric', 'min:0', 'max:100000'],
+            'lead_time_days'    => ['nullable', 'integer', 'min:0', 'max:365'], // MARKER-PO
+            'lead_time_mode'    => ['nullable', 'in:set,learned'],
             'program_discount_pct' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'distributor_code'     => ['nullable', 'string', 'max:32'],
             'notes'             => ['nullable', 'string'],
@@ -247,6 +270,10 @@ class VendorController extends Controller
             ? null
             : (int) round(((float) $freight) * 100);
         unset($data['free_freight']);
+
+        // MARKER-PO: blank lead time means "not set"; the mode defaults to the one you set
+        $data['lead_time_days'] = $request->filled('lead_time_days') ? (int) $request->input('lead_time_days') : null;
+        $data['lead_time_mode'] = $request->input('lead_time_mode') === 'learned' ? 'learned' : 'set';
 
         // blank means "no program", not zero.
         $pct = $request->input('program_discount_pct');

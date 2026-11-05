@@ -171,19 +171,7 @@
     }
     $min = $vendor->free_freight_cents ?? null;
 
-    // build the two columns for this vendor.
-    // Quantities for the same part number are summed: two lines for one part
-    // is a common way to get shorted, and vendors' paste boxes rarely add.
-    $sogExport = [];
-    $sogNoSku  = 0;
-    foreach ($rows as $r) {
-      $o   = collect($voptions[$r->inventory_item_id] ?? [])->firstWhere('vendor_id', $vendorId);
-      $sku = trim((string) ($o['sku'] ?? ''));
-      if ($sku === '') { $sogNoSku++; continue; }
-      $sogExport[$sku] = ($sogExport[$sku] ?? 0) + (int) $r->quantity;
-    }
-    $sogLines = [];
-    foreach ($sogExport as $sku => $qty) { $sogLines[] = [$sku, $qty]; }
+    // (copying part numbers moved to the PO, where the order is placed)
   @endphp
 
   <div class="sog-box" data-vendor="{{ $vendorId }}">
@@ -192,22 +180,19 @@
       <span class="sog-count" data-sog-count>{{ count($rows) }} {{ \Illuminate\Support\Str::plural('item', count($rows)) }}</span>
       <span class="sog-act">
         <span class="sog-tot">${{ number_format($groupTotal / 100, 2) }}</span>
-        <input type="text" class="sog-in" placeholder="PO #" data-sog-po style="width:92px">
-        <input type="date" class="sog-in" data-sog-eta value="{{ now()->addDays(7)->toDateString() }}">
-        <button type="button" class="ia-btn" style="padding:7px 13px;font-size:11.5px"
-                data-sog-copy data-sog-rows='@json($sogLines)'
-                @disabled(! count($sogLines))>
-          Copy order
-        </button>
-        @if($sogNoSku)
-          <span style="font-size:11px;color:var(--ia-warning,#d9a441)"
-                title="These have no part number for this vendor, so they are left out of the copied text">
-            {{ $sogNoSku }} without a part no.
-          </span>
+        {{-- MARKER-PO: ordering happens on a PO now, so every order ends up on one --}}
+        @php
+          $sogDrafts = collect($vdrafts[$vendorId] ?? []);
+        @endphp
+        @if($sogDrafts->isNotEmpty() && (! auth('tenant')->user() || auth('tenant')->user()->canAccessSection('purchase_orders')))
+          <a class="ia-btn" style="padding:7px 13px;font-size:11.5px;text-decoration:none" href="{{ route('tenant.purchase-orders.show', ['id' => $sogDrafts->first()['id']]) }}">Open {{ $sogDrafts->first()['po'] }}</a>
         @endif
-        <button type="button" class="ia-btn ia-btn--primary" style="padding:7px 13px;font-size:11.5px" data-sog-order>
-          Mark ordered
+        @if(! auth('tenant')->user() || auth('tenant')->user()->canAccessSection('purchase_orders'))
+        <button type="button" class="ia-btn ia-btn--primary" style="padding:7px 13px;font-size:11.5px" data-sog-order
+                data-vendor-name="{{ $vendor->name ?? 'this vendor' }}" data-drafts='@json($sogDrafts->values())'>
+          Add to PO
         </button>
+        @endif
       </span>
     </div>
 
@@ -254,8 +239,8 @@
 
 <script>
 (function () {
-  var assignUrl = @json(route('tenant.special-orders.assign-vendor', ['id' => '__ID__']));
-  var batchUrl  = @json(route('tenant.special-orders.mark-ordered-batch'));
+  var assignUrl = {{ \Illuminate\Support\Js::from(route('tenant.special-orders.assign-vendor', ['id' => '__ID__'])) }};
+  var batchUrl  = @json(route('tenant.purchase-orders.from-special-orders')); // MARKER-PO
   var csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content;
 
   function post(url, body) {
@@ -295,83 +280,43 @@
 
     var ob = e.target.closest('[data-sog-order]');
     if (ob) {
+      // MARKER-PO: add the ticked orders to this vendor's draft PO for their
+      // pickup location (a PO ships to one place), or start one.
       var box = ob.closest('.sog-box');
-      var ids = Array.prototype.map.call(box.querySelectorAll('[data-sog-cb].on'), function (c) {
-        return c.closest('.sog-row').dataset.so;
-      });
-      if (!ids.length) { if (window.IntakeToast) IntakeToast.error('Nothing selected.'); return; }
-
-      var po  = box.querySelector('[data-sog-po]').value.trim();
-      var eta = box.querySelector('[data-sog-eta]').value;
-      if (!po)  { if (window.IntakeToast) IntakeToast.error('PO number is required.'); return; }
-      if (!eta) { if (window.IntakeToast) IntakeToast.error('Expected date is required.'); return; }
-
-      ob.disabled = true;
-      post(batchUrl, { ids: ids, vendor_id: box.dataset.vendor, po_number: po, expected_arrival_date: eta })
-        .then(function (j) {
-          if (j && j.ordered) {
-            if (window.IntakeToast) {
-              IntakeToast.success(j.ordered + ' marked ordered' + (j.failed && j.failed.length ? ' — ' + j.failed.length + ' failed' : ''));
-            }
-            window.location.reload();
-          } else {
-            ob.disabled = false;
-            if (window.IntakeToast) IntakeToast.error((j.failed && j.failed[0]) || 'Could not mark ordered.');
-          }
-        })
-        .catch(function () { ob.disabled = false; if (window.IntakeToast) IntakeToast.error('Network error.'); });
+      var rows = Array.prototype.map.call(box.querySelectorAll('[data-sog-cb].on'), function (c) { return c.closest('.sog-row'); });
+      if (!rows.length) { if (window.IntakeToast) IntakeToast.error('Nothing selected.'); return; }
+      var drafts = []; try { drafts = JSON.parse(ob.getAttribute('data-drafts') || '[]'); } catch (x) {}
+      var byLoc = {};
+      rows.forEach(function (r) { var k = r.dataset.loc || ''; (byLoc[k] = byLoc[k] || { name: r.dataset.locname || 'your main location', rows: [] }).rows.push(r); });
+      var vname = ob.getAttribute('data-vendor-name');
+      var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+      var lines = Object.keys(byLoc).map(function (k) {
+        var d = drafts.filter(function (x) { return x.l === k; })[0];
+        return '<tr><td style="padding:7px 4px;border-bottom:0.5px solid var(--ia-border)">' + byLoc[k].rows.length + ' → ' + (d ? 'draft ' + esc(d.po) : 'a new ' + esc(vname) + ' draft') + ' for ' + esc(byLoc[k].name) + '</td>'
+          + '<td style="padding:7px 4px;border-bottom:0.5px solid var(--ia-border);color:var(--ia-text-muted);text-align:right">' + byLoc[k].rows.map(function (r) { return esc(r.dataset.name); }).join(', ') + '</td></tr>';
+      }).join('');
+      var multi = Object.keys(byLoc).length > 1;
+      var back = document.createElement('div');
+      back.className = 'ia-confirm-backdrop';
+      back.innerHTML = '<div class="ia-confirm-card" style="max-width:560px"><div class="ia-confirm-title">Add ' + rows.length + ' to a ' + esc(vname) + ' PO?</div>'
+        + '<div class="ia-confirm-message">They stay Needed until the PO is placed.</div>'
+        + '<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:10px">' + lines + '</table>'
+        + (multi ? '<div style="font-size:11.5px;color:var(--ia-text-muted);margin-bottom:14px">A PO ships to one location, so orders picked up elsewhere go on that location\'s draft.</div>' : '')
+        + '<div class="ia-confirm-actions"><button type="button" class="ia-confirm-btn" data-x>Cancel</button><button type="button" class="ia-confirm-btn ia-confirm-btn--primary" data-go>Add to PO</button></div></div>';
+      document.body.appendChild(back); void back.offsetWidth; back.classList.add('is-shown');
+      var close = function () { back.classList.remove('is-shown'); setTimeout(function () { back.remove(); }, 160); };
+      back.querySelector('[data-x]').onclick = close;
+      back.addEventListener('click', function (ev) { if (ev.target === back) close(); });
+      back.querySelector('[data-go]').onclick = function () {
+        this.disabled = true;
+        post(batchUrl, { ids: rows.map(function (r) { return r.dataset.so; }) }).then(function (j) {
+          if (j && j.ok) { if (window.IntakeToast) IntakeToast.success(j.message); window.location.href = j.url; }
+          else { close(); if (window.IntakeToast) IntakeToast.error((j && (j.error || j.message)) || 'Could not add them.'); }
+        }).catch(function () { close(); if (window.IntakeToast) IntakeToast.error('Network error.'); });
+      };
     }
   });
 
   document.querySelectorAll('.sog-box[data-vendor]').forEach(refresh);
 })();
-</script>
-
-<script>
-(function () {
-  function toText(rows) {
-    // Real tabs are built HERE, never carried through an HTML attribute.
-    return rows.map(function (r) { return r[0] + '\t' + r[1]; }).join('\n');
-  }
-
-  function fallbackCopy(text) {
-    var ta = document.createElement('textarea');
-    ta.value = text;
-    ta.setAttribute('readonly', '');
-    ta.style.position = 'fixed';
-    ta.style.opacity = '0';
-    document.body.appendChild(ta);
-    ta.select();
-    var ok = false;
-    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
-    document.body.removeChild(ta);
-    return ok;
-  }
-
-  document.addEventListener('click', function (e) {
-    var btn = e.target.closest('[data-sog-copy]');
-    if (!btn) { return; }
-    e.preventDefault();
-
-    var rows;
-    try { rows = JSON.parse(btn.getAttribute('data-sog-rows') || '[]'); }
-    catch (err) { rows = []; }
-    if (!rows.length) { return; }
-
-    var text = toText(rows);
-    var label = btn.textContent;
-
-    function done(ok) {
-      btn.textContent = ok ? ('Copied ' + rows.length + ' line' + (rows.length === 1 ? '' : 's')) : 'Copy failed';
-      setTimeout(function () { btn.textContent = label; }, 2200);
-    }
-
-    if (navigator.clipboard && window.isSecureContext) {
-      navigator.clipboard.writeText(text).then(function () { done(true); },
-                                              function () { done(fallbackCopy(text)); });
-    } else {
-      done(fallbackCopy(text));
-    }
-  });
-}());
 </script>

@@ -431,6 +431,17 @@ class SpecialOrderService
             if ($moveStock && $so->inventory_item_id) {
                 $stockNote = $this->receiveIntoStock($so, $received, $actualUnitCostCents ?? $so->unit_cost_cents_estimated, $byUser);
             }
+            // MARKER-PO: a hand arrival counts against its PO line too (receiving
+            // does this itself, so only when this call moved the stock)
+            if ($moveStock && $so->purchase_order_line_id) {
+                $poLine = \App\Models\Tenant\TenantPurchaseOrderLine::find($so->purchase_order_line_id);
+                if ($poLine) {
+                    $poLine->forceFill(['qty_received' => (int) $poLine->qty_received + $received])->save();
+                    $pos = app(PurchaseOrderService::class);
+                    $pos->event($poLine->parentPo(), "{$received} × {$poLine->name_snapshot} marked arrived by hand on {$so->so_number}.");
+                    $pos->recompute($poLine->parentPo());
+                }
+            }
 
             $so->update([
                 'status'                 => TenantSpecialOrder::STATUS_ARRIVED,
@@ -511,6 +522,9 @@ class SpecialOrderService
             $noteBody = $reason ? "Cancelled: {$reason}" : 'Cancelled.';
             $this->writeSystemNote($so->fresh(), $noteBody);
 
+            // MARKER-PO: off a draft PO line, or left coming as stock on a placed one
+            app(PurchaseOrderService::class)->onSpecialOrderCancelled($so->fresh());
+
             return $so->fresh();
         });
     }
@@ -570,6 +584,8 @@ class SpecialOrderService
                 'sale_item_id'              => $so->sale_item_id,
                 'vendor_id'                 => $so->vendor_id,
                 'po_number'                 => $so->po_number,
+                'purchase_order_line_id'    => $so->purchase_order_line_id, // MARKER-PO
+                'line_stock_deferred'       => (bool) $so->line_stock_deferred, // its sale line's stock waits for it too
                 'vendor_reference'          => $so->vendor_reference,
                 'status'                    => TenantSpecialOrder::STATUS_ORDERED,
                 'created_from'              => $so->created_from,
@@ -977,6 +993,14 @@ class SpecialOrderService
             return;
         }
 
+        // MARKER-PO: on a PO line, the units already come in as the line's
+        // stock, so the order itself just closes
+        if ($so->purchase_order_line_id) {
+            $poNo = $so->po_number ?: 'its PO';
+            $this->cancel($so->id, trim("Still coming on {$poNo} as shop stock. {$why}"));
+            return;
+        }
+
         // ordered → shop stock on the way
         $so->forceFill(['customer_id' => null, 'appointment_id' => null, 'sale_id' => null, 'sale_item_id' => null, 'line_stock_deferred' => false])->save();
         $this->writeSystemNote($so, "Now shop stock: it still arrives and goes into stock. {$why}");
@@ -1081,7 +1105,8 @@ class SpecialOrderService
             return;
         }
         app(ReservationService::class)->releaseForSpecialOrder($so->id, 'back_to_needed');
-        $so->forceFill(['status' => TenantSpecialOrder::STATUS_NEEDED, 'arrived_at' => null, 'ordered_at' => null, 'notified_at' => null, 'notified_via' => null])->save();
+        $so->forceFill(['status' => TenantSpecialOrder::STATUS_NEEDED, 'arrived_at' => null, 'ordered_at' => null, 'notified_at' => null, 'notified_via' => null,
+            'purchase_order_line_id' => null, 'po_number' => null, 'expected_arrival_date' => null])->save(); // MARKER-PO: ordered again on a new PO
         $this->writeSystemNote($so, $note);
     }
 

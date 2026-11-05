@@ -54,6 +54,24 @@
                  value="{{ old('free_freight', $vendor->free_freight_cents !== null ? number_format($vendor->free_freight_cents / 100, 2, '.', '') : '') }}">
           <div class="ia-form-hint">Order total that earns free shipping. Leave blank if this vendor has none — the placement board only shows a freight bar when it is set.</div>
         </div>
+        {{-- MARKER-PO --}}
+        <div class="ia-form-group">
+          <label class="ia-form-label">Lead time (days)</label>
+          <input type="number" min="0" max="365" name="lead_time_days" class="ia-input" placeholder="e.g. 3"
+                 value="{{ old('lead_time_days', $vendor->lead_time_days) }}">
+          <div class="ia-form-hint">
+            A new PO's expected date starts at today plus this.
+            @if($vendor->learned_lead_days !== null) Learned from your POs: {{ rtrim(rtrim(number_format((float) $vendor->learned_lead_days, 1), '0'), '.') }} days over {{ $vendor->learned_po_count }}. @endif
+          </div>
+        </div>
+        <div class="ia-form-group">
+          <label class="ia-form-label">Use for new POs</label>
+          <select name="lead_time_mode" class="ia-input">
+            <option value="set" @selected(old('lead_time_mode', $vendor->lead_time_mode) !== 'learned')>The lead time I set</option>
+            <option value="learned" @selected(old('lead_time_mode', $vendor->lead_time_mode) === 'learned')>Learned, once there are 3+ POs</option>
+          </select>
+          <div class="ia-form-hint">Learned is measured from your own POs: placed to received in full. Until there are 3, the one you set is used.</div>
+        </div>
         <div class="ia-form-group">
           <label class="ia-form-label">Program discount %</label>
           <input type="number" step="0.01" min="0" max="100" name="program_discount_pct" class="ia-input"

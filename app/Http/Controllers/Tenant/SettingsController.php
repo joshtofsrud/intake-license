@@ -74,6 +74,20 @@ class SettingsController extends Controller
         $so['auto_assign_vendor'] = $request->input('so_auto_assign_vendor');
         $settings['special_orders'] = $so;
 
+        // MARKER-PO
+        $request->validate([
+            'po_prefix'            => ['nullable', 'string', 'max:12', 'regex:/^[A-Za-z0-9\-_.\/]*$/'],
+            'po_freight_method'    => ['nullable', 'in:value,units,off'],
+            'po_invoice_tolerance' => ['nullable', 'string', 'max:12'],
+        ], ['po_prefix.regex' => 'Use letters, numbers and - _ . / in the PO prefix.']);
+        $pur = (array) ($settings['purchasing'] ?? []);
+        $pur['po_prefix'] = trim((string) $request->input('po_prefix', 'PO-')) ?: 'PO-';
+        $pur['freight_method'] = $request->input('po_freight_method', 'value');
+        $tol = preg_replace('/[^0-9.]/', '', (string) $request->input('po_invoice_tolerance', '1.00'));
+        $pur['invoice_tolerance_cents'] = $tol === '' ? 100 : (int) round(((float) $tol) * 100);
+        $pur['notify_after_receive'] = $request->boolean('po_notify_after_receive');
+        $settings['purchasing'] = $pur;
+
         $cust = (array) ($settings['customers'] ?? []);
         $cust['default_payment_terms'] = $request->input('cust_default_payment_terms') ?: null;
         $cust['default_po_required']   = $request->boolean('cust_default_po_required');

@@ -169,6 +169,15 @@ class LocationController extends Controller
             return back()->with('error', 'Cannot deactivate the default location. Set another location as default first.');
         }
 
+        // MARKER-PO: open purchase orders ship here, so it stays active until they're done
+        if ($location->is_active) {
+            $open = \App\Models\Tenant\TenantPurchaseOrder::where('tenant_id', $tenant->id)->where('location_id', $location->id)
+                ->whereIn('status', array_merge(['draft'], \App\Models\Tenant\TenantPurchaseOrder::OPEN))->pluck('po_number');
+            if ($open->isNotEmpty()) {
+                return back()->with('error', "{$location->name} has open purchase orders shipping to it (" . $open->implode(', ') . '). Receive, close or delete them before deactivating it.');
+            }
+        }
+
         $location->update(['is_active' => ! $location->is_active]);
 
         return back()->with('success', $location->name . ($location->is_active ? ' reactivated.' : ' deactivated.'));

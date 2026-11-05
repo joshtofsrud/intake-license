@@ -37,6 +37,7 @@ class TenantSpecialOrder extends Model
     protected $table = 'tenant_special_orders';
 
     protected $fillable = [
+        'purchase_order_line_id', // MARKER-PO
         'tenant_id',
         'so_number',
         'inventory_item_id',
@@ -118,6 +119,7 @@ class TenantSpecialOrder extends Model
         ][$this->status] ?? ucfirst((string) $this->status);
     }
     public function createdBy(): BelongsTo   { return $this->belongsTo(TenantUser::class, 'created_by_user_id'); }
+    public function poLine(): BelongsTo      { return $this->belongsTo(TenantPurchaseOrderLine::class, 'purchase_order_line_id'); } // MARKER-PO
     public function notes(): HasMany         { return $this->hasMany(TenantSpecialOrderNote::class, 'special_order_id')->orderBy('created_at'); }
 
     /**

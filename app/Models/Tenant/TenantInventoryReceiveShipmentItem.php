@@ -37,6 +37,9 @@ class TenantInventoryReceiveShipmentItem extends Model
         'total_cost_cents',
         'notes',
         'serials', // typed on a draft, become units on commit
+        // MARKER-PO
+        'purchase_order_line_id', 'rejected_quantity', 'rejected_reason', 'rejected_replace',
+        'rest_action', 'rest_expected_date', 'freight_cents',
     ];
 
     protected $casts = [
@@ -45,7 +48,13 @@ class TenantInventoryReceiveShipmentItem extends Model
         'received_quantity' => 'integer',
         'unit_cost_cents' => 'integer',
         'total_cost_cents' => 'integer',
+        'rejected_quantity' => 'integer',
+        'rejected_replace' => 'boolean',
+        'rest_expected_date' => 'date',
+        'freight_cents' => 'integer',
     ];
+
+    public function poLine(): BelongsTo { return $this->belongsTo(TenantPurchaseOrderLine::class, 'purchase_order_line_id'); } // MARKER-PO
 
     public function tenant(): BelongsTo
     {

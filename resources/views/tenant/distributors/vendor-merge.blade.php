@@ -22,6 +22,7 @@
     @foreach ([
       ['Catalog items',   $preview['items']],
       ['Special orders',  $preview['special_orders']],
+      ['Purchase orders', $preview['purchase_orders'] ?? 0], {{-- MARKER-PO --}}
       ['Receipts',        $preview['shipments']],
       ['Default vendor on', $preview['default_for']],
     ] as $row)

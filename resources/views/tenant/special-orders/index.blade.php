@@ -9,7 +9,7 @@
 {{-- ========== DESKTOP HEAD ========== --}}
 <div class="ia-page-head so-desktop-only">
   <div class="ia-page-head-left">
-    <h1 class="ia-page-title">Special orders</h1>
+    <h1 class="ia-page-title">Ordering</h1>
     <p class="ia-page-subtitle">
       {{ $counts['open'] }} open
       @if($counts['arrived_bench'] > 0) · {{ $counts['arrived_bench'] }} on bench @endif
@@ -28,6 +28,8 @@
   <h1 class="so-mobile-title">Special orders</h1>
   <p class="so-mobile-sub">{{ $counts['open'] }} open · {{ $counts['arrived_bench'] }} on bench</p>
 </div>
+
+@include('tenant.purchase-orders._area-tabs', ['soOpen' => $counts['open']]) {{-- MARKER-PO --}}
 
 @if(session('flash'))
   <div class="ia-flash ia-flash--{{ session('flash')['type'] }}">{{ session('flash')['message'] }}</div>

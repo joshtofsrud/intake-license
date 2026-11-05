@@ -73,6 +73,7 @@ class VendorMergeService
             'items'          => $sourceItemIds->count(),
             'items_collide'  => $collides,
             'special_orders' => TenantSpecialOrder::where('vendor_id', $source->id)->count(),
+            'purchase_orders' => \App\Models\Tenant\TenantPurchaseOrder::where('vendor_id', $source->id)->count(), // MARKER-PO
             'shipments'      => TenantInventoryReceiveShipment::where('vendor_id', $source->id)->count(),
             'default_for'    => TenantInventoryItem::where('default_vendor_id', $source->id)->count(),
             'inherits'       => collect(self::FILLABLE_BLANKS)
@@ -125,6 +126,10 @@ class VendorMergeService
 
             // 2. History and pointers. No unique constraints, plain repoint.
             TenantSpecialOrder::where('vendor_id', $source->id)
+                ->update(['vendor_id' => $target->id]);
+
+            // MARKER-PO
+            \App\Models\Tenant\TenantPurchaseOrder::withTrashed()->where('vendor_id', $source->id)
                 ->update(['vendor_id' => $target->id]);
 
             TenantInventoryReceiveShipment::where('vendor_id', $source->id)

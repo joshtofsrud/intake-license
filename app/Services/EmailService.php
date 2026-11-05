@@ -690,6 +690,14 @@ HTML;
 <p>— The {$shop} team</p>",
             ],
 
+            // MARKER-PO: the vendor moved the date on an order someone is waiting for
+            'special_order_new_date' => [
+                'subject'   => '{{shop_name}}: new date for your {{item}}',
+                'body_html' => "<p>Hi {{first_name}},</p>
+<p>Your <strong>{{item}}</strong> is now expected {{expected}}. We'll let you know when it's here.</p>
+<p>— The {$shop} team</p>",
+            ],
+
             // internal delivery scheduling notifications
             'delivery_pickup_scheduled' => [
                 'subject'   => 'Pickup scheduled — {{date_short}} at {{time_start}}',

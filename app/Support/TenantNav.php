@@ -82,9 +82,20 @@ class TenantNav
           // patch-94 SO nav entry — added in Stage 9. Retail-gated, top-level.
           // Drawer trigger lives on the index page itself.
           'route'  => 'tenant.special-orders.index',
-          'label'  => 'Special Orders',
+          // MARKER-PO: special orders and purchase orders are two tabs of one area
+          'label'  => 'Ordering',
           'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 4l4.5-2 4.5 2v6l-4.5 2-4.5-2V4z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M2.5 4L7 6l4.5-2M7 6v6" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>',
           'group'  => null,
+          'match_alt' => 'tenant.purchase-orders',
+          'gate'   => 'retail_enabled',
+        ],
+        [
+          // the same area for someone who can open purchase orders but not special orders
+          'route'  => 'tenant.purchase-orders.index',
+          'label'  => 'Ordering',
+          'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 4l4.5-2 4.5 2v6l-4.5 2-4.5-2V4z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M2.5 4L7 6l4.5-2M7 6v6" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>',
+          'group'  => null,
+          'hide_if_section' => 'special_orders',
           'gate'   => 'retail_enabled',
         ],
         // /568 — online orders queue

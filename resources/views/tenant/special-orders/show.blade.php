@@ -129,8 +129,15 @@
             </div>
           </div>
           <div>
-            <div class="so-detail-label">Our PO #</div>
-            <div class="so-detail-value">{{ $so->po_number ?: '—' }}</div>
+            <div class="so-detail-label">Purchase order</div>
+            <div class="so-detail-value">
+              @if($so->poLine?->purchaseOrder)
+                <a href="{{ route('tenant.purchase-orders.show', ['id' => $so->poLine->purchase_order_id]) }}">{{ $so->poLine->purchaseOrder->po_number }}</a>
+                <span class="ia-text-muted" style="font-size:11.5px">· {{ strtolower($so->poLine->purchaseOrder->statusLabel()) }}</span>
+              @else
+                {{ $so->po_number ?: '—' }}
+              @endif
+            </div>
           </div>
           <div>
             <div class="so-detail-label">Vendor reference</div>
@@ -292,11 +299,27 @@
         <div class="ia-card-body" style="display:flex;flex-direction:column;gap:8px">
 
           @if($so->status === 'needed')
-            <button type="button" class="ia-btn ia-btn--primary" onclick="SoActions.openOrdered()">Mark ordered</button>
+            {{-- MARKER-PO --}}
+            @if($so->purchase_order_line_id && $so->poLine?->purchaseOrder)
+              <a class="ia-btn ia-btn--primary" href="{{ route('tenant.purchase-orders.show', ['id' => $so->poLine->purchase_order_id]) }}">Open draft {{ $so->poLine->purchaseOrder->po_number }}</a>
+            @elseif(! auth('tenant')->user() || auth('tenant')->user()->canAccessSection('purchase_orders'))
+              <button type="button" class="ia-btn ia-btn--primary" onclick="SoActions.openOrdered()">Add to PO</button>
+            @else
+              <div class="ia-text-muted" style="font-size:12.5px;line-height:1.5">It's ordered on a purchase order. Someone with Purchase orders access adds it to one.</div>
+            @endif
           @endif
 
           @if($so->status === 'ordered')
-            <button type="button" class="ia-btn ia-btn--primary" onclick="SoActions.openArrived()">Mark arrived</button>
+            {{-- MARKER-PO: it arrives by receiving its PO; by hand only for a part that came another way --}}
+            @if($so->poLine?->purchaseOrder?->isOpen() && (! auth('tenant')->user() || auth('tenant')->user()->canAccessSection('purchase_orders')))
+              <form method="POST" action="{{ route('tenant.purchase-orders.receive', ['id' => $so->poLine->purchase_order_id]) }}">
+                @csrf
+                <button type="submit" class="ia-btn ia-btn--primary" style="width:100%">Receive {{ $so->poLine->purchaseOrder->po_number }}</button>
+              </form>
+              <button type="button" class="ia-btn ia-btn--secondary" onclick="SoActions.openArrived()">Mark arrived by hand</button>
+            @else
+              <button type="button" class="ia-btn ia-btn--primary" onclick="SoActions.openArrived()">Mark arrived</button>
+            @endif
           @endif
 
           @if($so->status === 'arrived')
@@ -407,12 +430,17 @@
 <div id="so-mark-ordered-modal" class="ia-modal" style="display:none">
   <div class="ia-modal-backdrop" onclick="SoActions.closeOrdered()"></div>
   <div class="ia-modal-panel" style="max-width:500px">
+    {{-- MARKER-PO: ordering happens on a purchase order --}}
     <form method="POST" action="{{ route('tenant.special-orders.mark-ordered', ['id' => $so->id]) }}">
       @csrf
       <div class="ia-modal-head">
-        <h3 class="ia-modal-title">Mark ordered</h3>
+        <h3 class="ia-modal-title">Add to a purchase order</h3>
       </div>
       <div class="ia-modal-body">
+        <p class="ia-text-muted" style="font-size:13px;margin:0 0 14px;line-height:1.5">
+          It goes on the vendor's draft PO for {{ $so->location?->name ?? 'its pickup location' }} (one is started if there isn't one), and the PO opens.
+          It stays <b>Needed</b> until you place the PO; placing it marks it Ordered with the PO's number and expected date.
+        </p>
         <div class="ia-form-group">
           <label class="ia-form-label">Vendor <span class="ia-required">*</span></label>
           {{-- MARKER-SO-REPAIRS: only vendors that carry this item --}}
@@ -420,10 +448,10 @@
             <div class="ia-form-help" style="margin:0">
               @if($so->inventory_item_id)
                 No vendor carries this item yet.
-                <a href="{{ route('tenant.inventory.edit', ['id' => $so->inventory_item_id]) }}#item-sources" style="color:var(--ia-accent)">Add a vendor to the item</a>, then mark it ordered.
+                <a href="{{ route('tenant.inventory.edit', ['id' => $so->inventory_item_id]) }}#item-sources" style="color:var(--ia-accent)">Add a vendor to the item</a>, then add it to a PO.
               @else
                 You have no active vendors yet.
-                <a href="{{ route('tenant.vendors.index') }}" style="color:var(--ia-accent)">Add a vendor</a>, then mark it ordered.
+                <a href="{{ route('tenant.vendors.index') }}" style="color:var(--ia-accent)">Add a vendor</a>, then add it to a PO.
               @endif
             </div>
           @else
@@ -444,30 +472,10 @@
             @endif
           @endif
         </div>
-        <div class="ia-input-grid-2">
-          <div class="ia-form-group">
-            <label class="ia-form-label">PO # <span class="ia-required">*</span></label>
-            <input type="text" name="po_number" class="ia-input" required value="{{ $so->po_number }}">
-          </div>
-          <div class="ia-form-group">
-            <label class="ia-form-label">Vendor reference</label>
-            <input type="text" name="vendor_reference" class="ia-input" value="{{ $so->vendor_reference }}">
-          </div>
-        </div>
-        <div class="ia-input-grid-2">
-          <div class="ia-form-group">
-            <label class="ia-form-label">Expected arrival <span class="ia-required">*</span></label>
-            <input type="date" name="expected_arrival_date" class="ia-input" required value="{{ $so->expected_arrival_date?->format('Y-m-d') }}">
-          </div>
-          <div class="ia-form-group">
-            <label class="ia-form-label">Est. unit cost ($)</label>
-            <input type="number" name="unit_cost_estimated" class="ia-input" min="0" step="0.01" value="{{ $so->unit_cost_cents_estimated !== null ? number_format($so->unit_cost_cents_estimated / 100, 2, '.', '') : '' }}">
-          </div>
-        </div>
       </div>
       <div class="ia-modal-foot">
         <button type="button" class="ia-btn ia-btn--ghost" onclick="SoActions.closeOrdered()">Cancel</button>
-        <button type="submit" class="ia-btn ia-btn--primary" @if(empty($vendorOptions)) disabled @endif>Mark ordered</button>
+        <button type="submit" class="ia-btn ia-btn--primary" @if(empty($vendorOptions)) disabled @endif>Add to PO</button>
       </div>
     </form>
   </div>
@@ -487,6 +495,7 @@
         <p class="ia-text-muted" style="font-size:12.5px;margin-bottom:14px">
           @if($so->inventory_item_id)
             Adds what you received to stock at <strong>{{ $so->location?->name ?? 'your main location' }}</strong>. Use this when the part came in without a shipment in Receiving; a shipment that includes it marks it arrived on its own.
+            @if($so->poLine?->purchaseOrder) It also counts as received on {{ $so->poLine->purchaseOrder->po_number }}. @endif
           @else
             This item isn't in your inventory, so stock doesn't change.
           @endif

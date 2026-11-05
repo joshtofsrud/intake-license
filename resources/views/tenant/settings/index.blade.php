@@ -1658,6 +1658,44 @@
       </label>
     </div>
 
+    {{-- MARKER-PO: purchase order and receiving defaults --}}
+    @php $pur = \App\Services\Tenant\PurchaseOrderService::settings($currentTenant ?? tenant()); @endphp
+    <div class="ia-card" style="margin-bottom:20px">
+      <div class="ia-card-head"><span class="ia-card-title">Purchase orders &amp; receiving</span></div>
+      <p style="font-size:13px;opacity:.55;margin-bottom:16px">
+        Defaults. Each PO and each shipment can still change them.
+      </p>
+      <div class="ia-input-grid-2">
+        <div class="ia-form-group">
+          <label class="ia-form-label">PO number prefix</label>
+          <input type="text" name="po_prefix" class="ia-input" maxlength="12" value="{{ $pur['po_prefix'] }}">
+          <div class="ia-form-hint">Next number: {{ \App\Services\Tenant\PurchaseOrderService::peekNextNumber($currentTenant ?? tenant()) }}</div>
+        </div>
+        <div class="ia-form-group">
+          <label class="ia-form-label">Spread freight onto received cost</label>
+          <select name="po_freight_method" class="ia-input">
+            @foreach(['value' => 'By line value', 'units' => 'By units', 'off' => "Don't spread"] as $fk => $fl)
+              <option value="{{ $fk }}" @selected($pur['freight_method'] === $fk)>{{ $fl }}</option>
+            @endforeach
+          </select>
+          <div class="ia-form-hint">Freight on a shipment is added to each line's cost before it rolls onto the item.</div>
+        </div>
+        <div class="ia-form-group">
+          <label class="ia-form-label">Invoice check</label>
+          <input type="text" inputmode="decimal" name="po_invoice_tolerance" class="ia-input" value="{{ number_format($pur['invoice_tolerance'] / 100, 2, '.', '') }}">
+          <div class="ia-form-hint">Flag a shipment when its invoice total is off from received value + freight by more than this.</div>
+        </div>
+        <div class="ia-form-group">
+          <label class="ia-form-label">Tell customers after receiving</label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;padding:10px 0;cursor:pointer">
+            <input type="checkbox" name="po_notify_after_receive" value="1" @checked($pur['notify_after_receive'])>
+            <span>Open "Tell customers" when a shipment fills special orders</span>
+          </label>
+          <div class="ia-form-hint">The wording is in Communication Center → Special order arrived. Units over what was owed always go into stock.</div>
+        </div>
+      </div>
+    </div>
+
     {{-- defaults for new business customers, so
          payment terms and PO-required are not fields you have to remember
          to set one customer at a time. --}}

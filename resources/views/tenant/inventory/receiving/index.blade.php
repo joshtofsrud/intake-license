@@ -64,17 +64,12 @@
   </div>
   <div class="ia-page-actions">
 {{-- back link replaced by inventory tabs --}}
-    <form method="POST" action="{{ route('tenant.inventory.receiving.create') }}" style="display:inline">
-      @csrf
-      <button type="submit" class="ia-btn ia-btn--primary">+ New shipment</button>
-    </form>
+    {{-- MARKER-PO: starts from a vendor's open POs, or blank --}}
+    <a href="{{ route('tenant.inventory.receiving.new') }}" class="ia-btn ia-btn--primary">+ New shipment</a>
   </div>
   {{-- Mobile-only icon button: New shipment (POST via form below). --}}
   <div class="recv-head-m">
-    <form method="POST" action="{{ route('tenant.inventory.receiving.create') }}" style="display:inline">
-      @csrf
-      <button type="submit" class="recv-icon-btn-m primary" title="New shipment" aria-label="New shipment">+</button>
-    </form>
+    <a href="{{ route('tenant.inventory.receiving.new') }}" class="recv-icon-btn-m primary" title="New shipment" aria-label="New shipment">+</a>
   </div>
 </div>
 

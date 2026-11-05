@@ -23,15 +23,28 @@ class SpecialOrderNotifier
 {
     public const TEMPLATE = 'special_order_arrived';
 
+    /** MARKER-PO: the vendor moved the date on an order someone is waiting for. */
+    public const TEMPLATE_NEW_DATE = 'special_order_new_date';
+
     public const DEFAULT_SUBJECT = '{{shop_name}}: your {{item}} is here';
 
     public const DEFAULT_BODY = "Hi {{first_name}}, your {{item}} is here and waiting for you at {{location}}. — {{shop_name}}";
 
-    public function __construct(private readonly Tenant $tenant) {}
+    public const DEFAULTS = [
+        self::TEMPLATE => [self::DEFAULT_SUBJECT, self::DEFAULT_BODY],
+        self::TEMPLATE_NEW_DATE => ['{{shop_name}}: new date for your {{item}}', "Hi {{first_name}}, your {{item}} is now expected {{expected}}. We'll let you know when it's here. — {{shop_name}}"],
+    ];
 
-    public static function forTenant(Tenant $tenant): self
+    private string $template;
+
+    public function __construct(private readonly Tenant $tenant, ?string $template = null)
     {
-        return new self($tenant);
+        $this->template = isset(self::DEFAULTS[$template]) ? $template : self::TEMPLATE;
+    }
+
+    public static function forTenant(Tenant $tenant, ?string $template = null): self
+    {
+        return new self($tenant, $template);
     }
 
     private function smsReady(): bool
@@ -42,7 +55,7 @@ class SpecialOrderNotifier
     /** The wording shown in the dialog: the shop's own template if it has one, else the default. */
     public function defaultMessage(): string
     {
-        $tpl = TenantEmailTemplate::where('tenant_id', $this->tenant->id)->where('template_type', self::TEMPLATE)->first();
+        $tpl = TenantEmailTemplate::where('tenant_id', $this->tenant->id)->where('template_type', $this->template)->first();
         if ($tpl && $tpl->is_enabled && trim((string) $tpl->body_html) !== '') {
             $text = trim(preg_replace("/\n{3,}/", "\n\n", html_entity_decode(strip_tags(str_replace(['</p>', '<br>', '<br/>', '<br />'], "\n", (string) $tpl->body_html)))));
             if ($text !== '') {
@@ -50,14 +63,14 @@ class SpecialOrderNotifier
             }
         }
 
-        return self::DEFAULT_BODY;
+        return self::DEFAULTS[$this->template][1];
     }
 
     public function subject(): string
     {
-        $tpl = TenantEmailTemplate::where('tenant_id', $this->tenant->id)->where('template_type', self::TEMPLATE)->first();
+        $tpl = TenantEmailTemplate::where('tenant_id', $this->tenant->id)->where('template_type', $this->template)->first();
 
-        return ($tpl && $tpl->is_enabled && trim((string) $tpl->subject) !== '') ? (string) $tpl->subject : self::DEFAULT_SUBJECT;
+        return ($tpl && $tpl->is_enabled && trim((string) $tpl->subject) !== '') ? (string) $tpl->subject : self::DEFAULTS[$this->template][0];
     }
 
     /**
@@ -67,8 +80,8 @@ class SpecialOrderNotifier
      */
     public function rows(Collection $orders): array
     {
-        $emailOn = $this->tenant->notificationEnabled(self::TEMPLATE . '_email');
-        $smsOn   = $this->tenant->notificationEnabled(self::TEMPLATE . '_sms');
+        $emailOn = $this->tenant->notificationEnabled($this->template . '_email');
+        $smsOn   = $this->tenant->notificationEnabled($this->template . '_sms');
         $smsReady = $this->smsReady();
 
         return $orders->map(function (TenantSpecialOrder $so) use ($emailOn, $smsOn, $smsReady) {
@@ -99,7 +112,7 @@ class SpecialOrderNotifier
                 'on' => $smsWhy === null && $smsOn,
                 'why' => $smsWhy,
             ];
-            if ($so->appointment_id) {
+            if ($so->appointment_id && $this->template === self::TEMPLATE) {
                 $channels[] = ['key' => 'staff', 'label' => 'Alert staff', 'available' => true, 'on' => true, 'why' => null];
             }
 
@@ -137,15 +150,16 @@ class SpecialOrderNotifier
                 'location'   => $so->location?->name ?: ($hold['at'] ?: $this->tenant->name),
                 'shop_name'  => $this->tenant->name,
                 'so_number'  => $so->so_number,
+                'expected'   => $so->expected_arrival_date ? $so->expected_arrival_date->format('M j') : 'soon',
             ];
             $text = self::fill($message, $vars);
             $via = [];
 
-            if (! empty($want['email']) && $c?->email && $this->tenant->notificationEnabled(self::TEMPLATE . '_email')) {
+            if (! empty($want['email']) && $c?->email && $this->tenant->notificationEnabled($this->template . '_email')) {
                 try {
                     $mail = EmailService::forTenant($this->tenant);
                     $html = $mail->renderHtml(nl2br(e($text)));
-                    if ($mail->sendRendered(self::TEMPLATE, $c->email, self::fill($subjectTpl, $vars), $html)) {
+                    if ($mail->sendRendered($this->template, $c->email, self::fill($subjectTpl, $vars), $html)) {
                         $via[] = 'Email';
                         $count['email']++;
                     }
@@ -153,7 +167,7 @@ class SpecialOrderNotifier
                     Log::error('special_order.notify_email_failed', ['so' => $so->id, 'error' => $e->getMessage()]);
                 }
             }
-            if (! empty($want['sms']) && $c?->phone && $this->smsReady() && $this->tenant->notificationEnabled(self::TEMPLATE . '_sms')) {
+            if (! empty($want['sms']) && $c?->phone && $this->smsReady() && $this->tenant->notificationEnabled($this->template . '_sms')) {
                 try {
                     SmsService::send($this->tenant, $c->phone, $text . ' Reply STOP to opt out.', 'other');
                     $via[] = 'Text';
@@ -162,7 +176,7 @@ class SpecialOrderNotifier
                     Log::error('special_order.notify_sms_failed', ['so' => $so->id, 'error' => $e->getMessage()]);
                 }
             }
-            if (! empty($want['staff']) && $so->appointment_id) {
+            if (! empty($want['staff']) && $so->appointment_id && $this->template === self::TEMPLATE) {
                 app(StaffAlertService::class)->emit($this->tenant, 'special_order.arrived', [
                     'title' => "Part arrived for {$so->appointment?->ra_number}: {$so->item_name_snapshot}",
                     'body'  => "{$so->so_number} is on the bench" . ($hold['at'] ? " at {$hold['at']}" : '') . '.',
@@ -173,8 +187,12 @@ class SpecialOrderNotifier
             }
 
             if ($via) {
-                $so->forceFill(['notified_at' => now(), 'notified_via' => implode(', ', $via)])->save();
-                $svc->addNote($so->id, null, 'Told: ' . implode(', ', $via) . '.', true);
+                if ($this->template === self::TEMPLATE) {
+                    $so->forceFill(['notified_at' => now(), 'notified_via' => implode(', ', $via)])->save();
+                    $svc->addNote($so->id, null, 'Told: ' . implode(', ', $via) . '.', true);
+                } else {
+                    $svc->addNote($so->id, null, 'Told the new date: ' . implode(', ', $via) . '.', true);
+                }
             } else {
                 $count['none']++;
             }

@@ -210,7 +210,7 @@
     return raw(ROUTES.rows, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': CSRF },
-      body: JSON.stringify({ ids: ids }),
+      body: JSON.stringify({ ids: ids, kind: opts.kind || 'arrived' }),
     }).then(function (r) { return r.json(); }).then(function (d) {
       if (!d || !d.ok || !d.rows || !d.rows.length) { return null; }
       return show(d.rows, d.message, opts);
@@ -255,7 +255,9 @@
       ta.maxLength = 1000;
       s.card.appendChild(ta);
       s.card.appendChild(el('div', 'so-fine',
-        '{{ '{' }}{first_name}}, {{ '{' }}{item}} and {{ '{' }}{location}} fill in per person. Texts end with "Reply STOP to opt out." Channels that are greyed out aren\'t available for that person; email and text can be switched off for everyone in Communication Center → Special order arrived.'));
+        (opts.kind === 'new_date'
+          ? '{{ '{' }}{first_name}}, {{ '{' }}{item}} and {{ '{' }}{expected}} fill in per person. Texts end with "Reply STOP to opt out." Email and text can be switched off for everyone in Communication Center → Special order date changed.'
+          : '{{ '{' }}{first_name}}, {{ '{' }}{item}} and {{ '{' }}{location}} fill in per person. Texts end with "Reply STOP to opt out." Channels that are greyed out aren\'t available for that person; email and text can be switched off for everyone in Communication Center → Special order arrived.')));
       var b = actions(s.card, 'Skip', 'Send', false);
       function done(v) { close(s); resolve(v); }
       b.no.addEventListener('click', function () { done(null); });
@@ -269,7 +271,7 @@
         raw(ROUTES.notify, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': CSRF },
-          body: JSON.stringify({ ids: rows.map(function (r) { return r.id; }), picks: picks, message: ta.value }),
+          body: JSON.stringify({ ids: rows.map(function (r) { return r.id; }), picks: picks, message: ta.value, kind: opts.kind || 'arrived' }),
         }).then(function (r) { return r.json(); }).then(function (d) {
           if (window.IntakeToast && d && d.message) { IntakeToast[(d.counts && (d.counts.email + d.counts.sms + d.counts.staff) > 0) ? 'success' : 'error'](d.message); }
           done(d);

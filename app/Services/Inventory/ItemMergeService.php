@@ -260,11 +260,36 @@ class ItemMergeService
                 'tenant_appointment_parts',
                 'tenant_inventory_receive_shipment_items',
                 'tenant_special_orders',
+                'tenant_purchase_order_lines', // MARKER-PO
+                'tenant_transfer_requests',
             ] as $table) {
+                if (! \Illuminate\Support\Facades\Schema::hasTable($table)) {
+                    continue;
+                }
                 $report['moved'][$table] = DB::table($table)
                     ->where('inventory_item_id', $loser->id)
                     ->update(['inventory_item_id' => $survivor->id]);
             }
+
+            // MARKER-PO: holds follow the stock, so nothing held for someone
+            // becomes sellable on the kept item
+            $holds = DB::table('tenant_inventory_reservations')->where('inventory_item_id', $loser->id)->where('status', 'active')->get();
+            foreach ($holds as $h) {
+                DB::table('tenant_inventory_item_locations')->where('inventory_item_id', $loser->id)->where('location_id', $h->location_id)
+                    ->update(['reserved_count' => DB::raw('GREATEST(0, reserved_count - ' . (int) $h->quantity . ')')]);
+                $exists = DB::table('tenant_inventory_item_locations')->where('inventory_item_id', $survivor->id)->where('location_id', $h->location_id)->exists();
+                if (! $exists) {
+                    DB::table('tenant_inventory_item_locations')->insert([
+                        'id' => (string) Str::uuid(), 'tenant_id' => $tenantId, 'inventory_item_id' => $survivor->id,
+                        'location_id' => $h->location_id, 'computed_stock_count' => 0, 'reserved_count' => 0, 'is_active' => true,
+                        'created_at' => now(), 'updated_at' => now(),
+                    ]);
+                }
+                DB::table('tenant_inventory_item_locations')->where('inventory_item_id', $survivor->id)->where('location_id', $h->location_id)
+                    ->increment('reserved_count', (int) $h->quantity);
+            }
+            $report['moved']['holds'] = DB::table('tenant_inventory_reservations')->where('inventory_item_id', $loser->id)
+                ->update(['inventory_item_id' => $survivor->id]);
 
             // History moves too, so the survivor's timeline is the whole story.
             // The merge_out row written above moves with it, which is correct:

@@ -39,13 +39,24 @@
       @if($itemCount > 0) through item-vendor pivot @else none yet @endif
     </div>
   </div>
+  {{-- MARKER-PO: the lead time you set, and the one learned from your own POs --}}
+  @php $learnedOk = (int) $vendor->learned_po_count >= 3 && $vendor->learned_lead_days !== null; @endphp
   <div class="vendor-stat">
-    <div class="vendor-stat-label">Avg lead time</div>
+    <div class="vendor-stat-label">Lead time</div>
     <div class="vendor-stat-value">
-      @if($avgLeadDays !== null){{ $avgLeadDays }}<span style="font-size:14px;color:var(--ia-text-muted);font-weight:500">d</span>@else <span class="ia-text-muted">—</span> @endif
+      @if($vendor->learned_lead_days !== null){{ rtrim(rtrim(number_format((float) $vendor->learned_lead_days, 1), '0'), '.') }}<span style="font-size:14px;color:var(--ia-text-muted);font-weight:500">d learned</span>
+      @elseif($vendor->lead_time_days !== null){{ $vendor->lead_time_days }}<span style="font-size:14px;color:var(--ia-text-muted);font-weight:500">d set</span>
+      @else <span class="ia-text-muted">—</span> @endif
     </div>
     <div class="vendor-stat-sub">
-      @if($avgLeadDays !== null) actual, ordered → arrived @else no closed SOs yet @endif
+      @if($vendor->learned_lead_days !== null)
+        placed → received in full, {{ $vendor->learned_po_count }} {{ Str::plural('PO', $vendor->learned_po_count) }}{{ $vendor->lead_time_days !== null ? ' · you set ' . $vendor->lead_time_days . 'd' : '' }}
+      @elseif($vendor->lead_time_days !== null)
+        learned once POs are received
+      @else
+        set one on Edit; new POs' expected dates start from it
+      @endif
+      · new POs use {{ $vendor->lead_time_mode === 'learned' && $learnedOk ? 'learned' : ($vendor->lead_time_days !== null ? 'the one you set' : 'none yet') }}
     </div>
   </div>
   <div class="vendor-stat">
@@ -217,6 +228,35 @@
           </div>
         @endif
       </div>
+    </div>
+
+    {{-- MARKER-PO: purchase orders with this vendor --}}
+    <div class="ia-card" style="margin-top:18px">
+      <div class="ia-card-head">
+        <span class="ia-card-title">Purchase orders</span>
+        <a href="{{ route('tenant.purchase-orders.index', ['vendor' => $vendor->id, 'tab' => 'open']) }}" style="font-size:12px;color:var(--ia-accent)">All →</a>
+      </div>
+      @if($recentPos->isEmpty())
+        <div class="ia-card-body"><p class="ia-text-muted" style="font-size:13px;margin:0">No purchase orders placed with {{ $vendor->name }} yet.</p></div>
+      @else
+        <div class="ia-card-body" style="padding-top:8px">
+          @foreach($recentPos as $p)
+            @php
+              $ord = (int) $p->lines->sum('qty_ordered'); $got = (int) $p->lines->sum(fn ($l) => min($l->qty_received, $l->qty_ordered));
+              $days = $p->placed_at && $p->received_at ? (int) $p->placed_at->copy()->startOfDay()->diffInDays($p->received_at->copy()->startOfDay()) : null;
+            @endphp
+            <div style="display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:0.5px solid var(--ia-border);font-size:13px">
+              <div>
+                <a href="{{ route('tenant.purchase-orders.show', ['id' => $p->id]) }}" style="font-weight:600;color:var(--ia-text);text-decoration:none">{{ $p->po_number }}</a>
+                <div class="ia-text-muted" style="font-size:11.5px">{{ $p->statusLabel() }} · placed {{ $p->placed_at?->format('M j') }}{{ $days !== null ? ' · ' . $days . ' ' . Str::plural('day', $days) : '' }}</div>
+              </div>
+              <div class="ia-text-muted" style="font-size:12px;text-align:right">
+                @if(in_array($p->status, ['received', 'closed_short'], true) && $ord) {{ (int) round($got / $ord * 100) }}% filled @elseif($p->isOpen()) {{ $p->owedUnits() }} still owed @endif
+              </div>
+            </div>
+          @endforeach
+        </div>
+      @endif
     </div>
 
     {{-- Recent receive shipments --}}

@@ -114,12 +114,56 @@ class ReceiveShipmentController extends Controller
         return redirect()->route('tenant.inventory.receiving.edit', ['id' => $shipment->id]);
     }
 
+    /** MARKER-PO: start a shipment, from a vendor's open POs or blank. */
+    public function newForm(Request $request): View|RedirectResponse
+    {
+        $tenant = tenant();
+        abort_unless($tenant->retail_enabled, 403);
+        $locations = TenantLocation::where('tenant_id', $tenant->id)->where('is_active', true)->orderBy('name')->get(['id', 'name']);
+        if ($locations->isEmpty()) {
+            return redirect()->route('tenant.inventory.index')->with('flash', ['type' => 'error', 'message' => 'Add a location first before receiving.']);
+        }
+        $loc = $request->query('location') ?: (session('current_location_id') ?: ($tenant->defaultLocation?->id ?? $locations->first()->id));
+
+        return view('tenant.inventory.receiving.create', [
+            'locations'         => $locations,
+            'vendors'           => \App\Models\Tenant\TenantVendor::where('tenant_id', $tenant->id)->where('is_active', true)->orderBy('name')->get(['id', 'name']),
+            'defaultNumber'     => $this->generateShipmentNumber($tenant),
+            'defaultLocationId' => $locations->firstWhere('id', $loc)?->id ?? $locations->first()->id,
+            'defaultVendorId'   => $request->query('vendor'),
+            'today'             => now($tenant->timezone ?? 'UTC')->toDateString(),
+        ]);
+    }
+
+    /** MARKER-PO: open POs for a vendor + location, for the start form. */
+    public function openPos(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        abort_unless($tenant->retail_enabled, 403);
+        $vendorId = (string) $request->query('vendor', '');
+        $locId = (string) $request->query('location', '');
+        $rows = \App\Services\Tenant\PurchaseOrderService::openFor($tenant->id, $vendorId ?: null, $locId);
+        $elsewhere = $vendorId ? \App\Models\Tenant\TenantPurchaseOrder::where('tenant_id', $tenant->id)->where('vendor_id', $vendorId)
+            ->where('location_id', '!=', $locId)->whereIn('status', \App\Models\Tenant\TenantPurchaseOrder::OPEN)->with('location:id,name', 'lines')->get()
+            ->filter(fn ($po) => $po->owedUnits() > 0)->groupBy(fn ($po) => $po->location?->name ?? 'another location')
+            ->map(fn ($g, $name) => count($g) . ' ship' . (count($g) === 1 ? 's' : '') . " to {$name}")->values() : collect();
+
+        return response()->json(['ok' => true, 'pos' => $rows->map(fn ($po) => [
+            'id' => $po->id, 'po_number' => $po->po_number, 'placed' => $po->placed_at?->format('M j'),
+            'lines' => $po->lines->filter(fn ($l) => $l->owed() > 0)->count(), 'units' => $po->owedUnits(),
+            'expected' => $po->lines->filter(fn ($l) => $l->owed() > 0)->map(fn ($l) => ($l->expected_date ?? $po->expected_date)?->format('M j'))->filter()->unique()->implode(' · '),
+        ])->values(), 'elsewhere' => $elsewhere]);
+    }
+
     public function store(Request $request): RedirectResponse
     {
         $tenant = tenant();
         abort_unless($tenant->retail_enabled, 403);
 
         $data = $request->validate([
+            'vendor_id'          => ['nullable', 'uuid'], // MARKER-PO
+            'po_ids'             => ['nullable', 'array'],
+            'po_ids.*'           => ['uuid'],
             'shipment_number'    => ['required', 'string', 'max:30', 'regex:/^[A-Za-z0-9\-\/_.]+$/'],
             'location_id'        => ['required', 'uuid', \Illuminate\Validation\Rule::exists('tenant_locations', 'id')
                 ->where(fn ($q) => $q->where('tenant_id', $tenant->id))],
@@ -139,6 +183,23 @@ class ReceiveShipmentController extends Controller
             ->exists()) {
             return back()->withInput()
                 ->withErrors(['shipment_number' => 'A shipment with this number already exists.']);
+        }
+
+        // MARKER-PO: from the vendor's open POs (only ones for this location)
+        $vendor = ! empty($data['vendor_id']) ? \App\Models\Tenant\TenantVendor::where('tenant_id', $tenant->id)->find($data['vendor_id']) : null;
+        if ($vendor) {
+            $pos = \App\Models\Tenant\TenantPurchaseOrder::where('tenant_id', $tenant->id)->where('vendor_id', $vendor->id)
+                ->where('location_id', $location->id)->whereIn('status', \App\Models\Tenant\TenantPurchaseOrder::OPEN)
+                ->whereIn('id', (array) ($data['po_ids'] ?? []))->orderBy('placed_at')->with('lines')->get();
+            $shipment = \App\Services\Tenant\ReceivingFromPo::start($tenant, $location->id, $vendor->id, $pos, $data['shipment_number'], $data['received_date']);
+            if (! empty($data['notes'])) {
+                $shipment->forceFill(['notes' => $data['notes']])->save();
+            }
+
+            return redirect()->route('tenant.inventory.receiving.edit', ['id' => $shipment->id])
+                ->with('flash', ['type' => 'success', 'message' => $pos->isNotEmpty()
+                    ? 'Shipment started with every line still owed on ' . $pos->pluck('po_number')->implode(', ') . '.'
+                    : 'Shipment started.']);
         }
 
         $shipment = new TenantInventoryReceiveShipment();
@@ -226,6 +287,7 @@ class ReceiveShipmentController extends Controller
             $matchedSos = \App\Models\Tenant\TenantSpecialOrder::where('tenant_id', $tenant->id)
                 ->whereIn('inventory_item_id', $receivedItemIds)
                 ->where('status', \App\Models\Tenant\TenantSpecialOrder::STATUS_ORDERED)
+                ->whereNull('purchase_order_line_id') // MARKER-PO: those on a PO fill from their line
                 ->with(['customer', 'appointment', 'vendor', 'item'])
                 ->orderBy('created_at')
                 ->get();
@@ -238,13 +300,149 @@ class ReceiveShipmentController extends Controller
                 ->count();
         }
 
-        return view('tenant.inventory.receiving.edit', [
+        return view('tenant.inventory.receiving.edit', array_merge($this->poContext($shipment), [
             'shipment'        => $shipment,
             'locations'       => $locations,
             'pageTitle'       => 'Editing ' . $shipment->shipment_number,
             'matchedSos'      => $matchedSos,
             'neededHintCount' => $neededHintCount,
+        ]));
+    }
+
+    // ────────────────────────────────────────────────────────
+    //  MARKER-PO: receiving against purchase orders
+    // ────────────────────────────────────────────────────────
+
+    /** Everything the lines table and its summary need. */
+    private function poContext(TenantInventoryReceiveShipment $shipment): array
+    {
+        $tenant = tenant();
+        $lines = TenantInventoryReceiveShipmentItem::where('shipment_id', $shipment->id)->orderBy('created_at')
+            ->with(['item.category', 'poLine.purchaseOrder', 'poLine.specialOrders.customer', 'poLine.specialOrders.appointment'])->get();
+        $shares = \App\Services\Tenant\ReceivingFromPo::freightShares($shipment, $lines);
+        $gap = \App\Services\Tenant\ReceivingFromPo::invoiceGap($shipment, $lines);
+        $tol = \App\Services\Tenant\PurchaseOrderService::settings($tenant)['invoice_tolerance'];
+        $poLines = $lines->filter(fn ($l) => $l->poLine);
+        $pos = $poLines->map(fn ($l) => $l->poLine->purchaseOrder)->filter()->unique('id')->values();
+        $pullable = $shipment->vendor_id
+            ? \App\Services\Tenant\PurchaseOrderService::openFor($tenant->id, $shipment->vendor_id, $shipment->location_id)
+                ->reject(fn ($po) => $pos->contains('id', $po->id))->values()
+            : collect();
+
+        // what commit would do, for the in-app confirm
+        $fill = [];
+        $still = [];
+        foreach ($poLines as $l) {
+            $acc = \App\Services\Tenant\ReceivingFromPo::accepted($l);
+            if ($l->status !== 'received') {
+                $acc = 0;
+            }
+            $waiting = $l->poLine->specialOrders->where('status', \App\Models\Tenant\TenantSpecialOrder::STATUS_ORDERED)
+                ->sortBy(fn ($so) => [($so->customer_id || $so->appointment_id) ? 0 : 1, $so->created_at?->timestamp ?? 0])->values();
+            $left = $acc;
+            foreach ($waiting as $so) {
+                if ($left < 1) { break; }
+                if ($so->customer_id || $so->appointment_id) {
+                    $fill[] = $so->customer?->fullName() ?? ($so->appointment ? 'work order ' . $so->appointment->ra_number : $so->so_number);
+                }
+                $left -= (int) $so->quantity;
+            }
+            $owedAfter = max(0, $l->poLine->owed() - $acc);
+            if ($owedAfter > 0) {
+                $still[] = ['name' => $l->name, 'po' => $l->poLine->purchaseOrder?->po_number, 'qty' => $owedAfter,
+                    'cancel' => $l->rest_action === 'cancel', 'date' => $l->rest_expected_date?->format('M j') ?? ($l->poLine->expected_date ?? $l->poLine->purchaseOrder?->expected_date)?->format('M j')];
+            }
+        }
+        $commitLines = $lines->filter(fn ($l) => \App\Services\Tenant\ReceivingFromPo::committable($l));
+        $blockers = $lines->filter(fn ($l) => $l->poLine && ! $l->inventory_item_id && $l->received_quantity > 0)->pluck('name')->values();
+
+        return [
+            'lines'    => $lines,
+            'shares'   => $shares,
+            'invoiceGap' => $gap,
+            'invoiceFlag' => $gap !== null && abs($gap) > $tol,
+            'pos'      => $pos,
+            'pullable' => $pullable,
+            'vendor'   => $shipment->vendor_id ? \App\Models\Tenant\TenantVendor::withTrashed()->find($shipment->vendor_id) : null,
+            'stats'    => [
+                'owed'     => (int) $poLines->sum(fn ($l) => $l->poLine->owed()),
+                'received' => (int) $lines->sum(fn ($l) => $l->status === 'received' ? \App\Services\Tenant\ReceivingFromPo::accepted($l) : 0),
+                'still'    => (int) collect($still)->where('cancel', false)->sum('qty'),
+                'filled'   => count($fill),
+            ],
+            'plan' => [
+                'units'    => (int) $commitLines->sum(fn ($l) => \App\Services\Tenant\ReceivingFromPo::accepted($l)),
+                'items'    => $commitLines->count(),
+                'freight'  => (int) $shipment->shipping_cost_cents,
+                'freightMethod' => ['value' => 'by line value', 'units' => 'by units', 'off' => 'not spread'][$shipment->freight_method ?: 'value'],
+                'fill'     => $fill,
+                'still'    => $still,
+                'rejected' => $lines->filter(fn ($l) => $l->rejected_quantity > 0)->map(fn ($l) => ['name' => $l->name, 'qty' => $l->rejected_quantity, 'replace' => (bool) $l->rejected_replace])->values(),
+                'blockers' => $blockers,
+                'invoiceFlag' => $gap !== null && abs($gap) > $tol,
+                'location' => $shipment->location?->name,
+            ],
+        ];
+    }
+
+    /** The lines table and summary, re-rendered after every change. */
+    private function payload(TenantInventoryReceiveShipment $shipment, array $extra = []): JsonResponse
+    {
+        $shipment->refresh();
+        $ctx = $this->poContext($shipment);
+
+        return response()->json(array_merge([
+            'ok'      => true,
+            'tbody'   => view('tenant.inventory.receiving._partials.lines', array_merge($ctx, ['shipment' => $shipment]))->render(),
+            'summary' => view('tenant.inventory.receiving._partials.summary', array_merge($ctx, ['shipment' => $shipment]))->render(),
+            'totals'  => $this->serializeTotals($shipment->load('items')),
+        ], $extra));
+    }
+
+    /** Pull every line still owed on another open PO for this vendor + location. */
+    public function pullPo(Request $request, string $id): JsonResponse
+    {
+        $tenant = tenant();
+        abort_unless($tenant->retail_enabled, 403);
+        $shipment = $this->findOrFail($tenant, $id);
+        $this->assertDraftJson($shipment);
+        $data = $request->validate(['po_id' => ['required', 'uuid']]);
+        $po = \App\Models\Tenant\TenantPurchaseOrder::where('tenant_id', $tenant->id)->whereIn('status', \App\Models\Tenant\TenantPurchaseOrder::OPEN)->find($data['po_id']);
+        if (! $po || $po->vendor_id !== $shipment->vendor_id) {
+            return response()->json(['ok' => false, 'message' => 'That PO isn\'t open for this vendor.'], 422);
+        }
+        try {
+            $n = \App\Services\Tenant\ReceivingFromPo::addPo($shipment, $po);
+        } catch (\App\Services\Tenant\PurchaseOrderException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return $this->payload($shipment, ['message' => "{$n} line" . ($n === 1 ? '' : 's') . " added from {$po->po_number}."]);
+    }
+
+    /** Units in the box that weren't accepted (damaged, wrong item). */
+    public function rejectItem(Request $request, string $id, string $itemId): JsonResponse
+    {
+        $tenant = tenant();
+        abort_unless($tenant->retail_enabled, 403);
+        $shipment = $this->findOrFail($tenant, $id);
+        $this->assertDraftJson($shipment);
+        $line = TenantInventoryReceiveShipmentItem::where('shipment_id', $shipment->id)->where('tenant_id', $tenant->id)->findOrFail($itemId);
+        $data = $request->validate([
+            'quantity' => ['required', 'integer', 'min:0', 'max:99999'],
+            'reason'   => ['nullable', 'string', 'max:64'],
+            'replace'  => ['nullable', 'boolean'],
+            'note'     => ['nullable', 'string', 'max:500'],
         ]);
+        $q = min((int) $data['quantity'], (int) $line->received_quantity);
+        $line->forceFill([
+            'rejected_quantity' => $q,
+            'rejected_reason'   => $q ? ($data['reason'] ?: 'Not accepted') : null,
+            'rejected_replace'  => $q ? (bool) ($data['replace'] ?? true) : true,
+            'notes'             => $q && ! empty($data['note']) ? $data['note'] : $line->notes,
+        ])->save();
+
+        return $this->payload($shipment, ['message' => $q ? "{$q} × {$line->name} not accepted." : 'Undone.']);
     }
 
     public function update(Request $request, string $id): RedirectResponse
@@ -263,7 +461,20 @@ class ReceiveShipmentController extends Controller
             'shipping_cost_cents' => ['nullable', 'integer', 'min:0'],
             'shipping_cost_dollars' => ['nullable', 'string', 'max:20'],
             'notes'              => ['nullable', 'string', 'max:2000'],
+            // MARKER-PO: the vendor's invoice, and how freight is spread
+            'vendor_invoice_number' => ['nullable', 'string', 'max:64'],
+            'vendor_invoice_date'   => ['nullable', 'date'],
+            'invoice_total_dollars' => ['nullable', 'string', 'max:20'],
+            'freight_method'        => ['nullable', 'in:value,units,off'],
         ]);
+
+        $shipment->vendor_invoice_number = $data['vendor_invoice_number'] ?? null;
+        $shipment->vendor_invoice_date   = $data['vendor_invoice_date'] ?? null;
+        $inv = trim((string) ($data['invoice_total_dollars'] ?? ''));
+        $shipment->invoice_total_cents   = $inv === '' ? null : (int) round(((float) preg_replace('/[^0-9.]/', '', $inv)) * 100);
+        if (! empty($data['freight_method'])) {
+            $shipment->freight_method = $data['freight_method'];
+        }
 
         if (array_key_exists('shipping_cost_dollars', $data) && $data['shipping_cost_dollars'] !== null && $data['shipping_cost_dollars'] !== '') {
             $cleaned = preg_replace('/[^0-9.\-]/', '', $data['shipping_cost_dollars']);
@@ -280,8 +491,10 @@ class ReceiveShipmentController extends Controller
 
         $shipment->shipment_number     = $data['shipment_number'];
         $shipment->received_date       = $data['received_date'];
-        $shipment->distributor_name    = $data['distributor_name'] ?? null;
-        $shipment->distributor_code    = $data['distributor_code'] ?? null;
+        if (! $shipment->vendor_id) { // a vendor's shipment keeps the vendor's name
+            $shipment->distributor_name    = $data['distributor_name'] ?? null;
+            $shipment->distributor_code    = $data['distributor_code'] ?? null;
+        }
         $shipment->shipping_cost_cents = $data['shipping_cost_cents'] ?? 0;
         $shipment->notes               = $data['notes'] ?? null;
         $shipment->save();
@@ -342,6 +555,29 @@ class ReceiveShipmentController extends Controller
         $expectedQty = (int) ($data['expected_quantity'] ?? 0);
         $receivedQty = (int) ($data['received_quantity'] ?? 0);
 
+        // MARKER-PO: scanning an item already on the shipment counts it again;
+        // one that sits on an open PO for this vendor links to that PO line.
+        if ($item) {
+            $same = TenantInventoryReceiveShipmentItem::where('shipment_id', $shipment->id)->where('inventory_item_id', $item->id)
+                ->orderBy('created_at')->first();
+            if ($same) {
+                $same->received_quantity = (int) $same->received_quantity + max(1, $receivedQty);
+                if ($same->purchase_order_line_id || $same->status === 'backorder' || $same->status === 'expected') {
+                    $same->status = 'received';
+                }
+                $same->total_cost_cents = $same->unit_cost_cents !== null ? $same->unit_cost_cents * $same->received_quantity : null;
+                $same->save();
+
+                return $this->payload($shipment, ['message' => "{$same->name}: {$same->received_quantity} received."]);
+            }
+            $open = \App\Services\Tenant\ReceivingFromPo::openLineFor($shipment, $item->id);
+            if ($open) {
+                $sl = \App\Services\Tenant\ReceivingFromPo::lineFromPo($shipment, $open, $open->owed(), max(1, $receivedQty));
+
+                return $this->payload($shipment, ['message' => "{$sl->name} is on {$open->purchaseOrder->po_number}; linked."]);
+            }
+        }
+
         $status = match (true) {
             $data['mode'] === 'unexpected' => 'unexpected_pending',
             $receivedQty > 0               => 'received',
@@ -365,13 +601,7 @@ class ReceiveShipmentController extends Controller
             : null;
         $line->save();
 
-        $shipment->refresh();
-
-        return response()->json([
-            'ok'     => true,
-            'line'   => $this->serializeLine($line->fresh(['item.category'])),
-            'totals' => $this->serializeTotals($shipment),
-        ]);
+        return $this->payload($shipment, ['message' => $item ? ($shipment->vendor_id ? "{$line->name} isn't on an open PO from this vendor; added as unexpected stock." : "{$line->name} added.") : 'Not in your catalog. Create the item before committing.']);
     }
 
     public function updateItem(Request $request, string $id, string $itemId): JsonResponse
@@ -398,14 +628,22 @@ class ReceiveShipmentController extends Controller
             'unit_cost_cents'   => ['nullable', 'integer', 'min:0'],
             'unit_cost_dollars' => ['nullable', 'string', 'max:20'],
             'notes'             => ['nullable', 'string', 'max:500'],
+            'rest_action'       => ['nullable', 'in:owed,cancel'], // MARKER-PO
+            'rest_expected_date'=> ['nullable', 'date'],
         ]);
 
         if (array_key_exists('unit_cost_dollars', $data) && $data['unit_cost_dollars'] !== null && $data['unit_cost_dollars'] !== '') {
             $cleaned = preg_replace('/[^0-9.\-]/', '', $data['unit_cost_dollars']);
             $data['unit_cost_cents'] = (int) round(((float) $cleaned) * 100);
         }
+        if (! empty($data['rest_action'])) {
+            $line->rest_action = $data['rest_action'];
+        }
+        if (array_key_exists('rest_expected_date', $data)) {
+            $line->rest_expected_date = $data['rest_expected_date'];
+        }
 
-        if (array_key_exists('expected_quantity', $data) && $data['expected_quantity'] !== null) {
+        if (array_key_exists('expected_quantity', $data) && $data['expected_quantity'] !== null && ! $line->purchase_order_line_id) {
             $line->expected_quantity = (int) $data['expected_quantity'];
         }
         if (array_key_exists('received_quantity', $data) && $data['received_quantity'] !== null) {
@@ -421,18 +659,19 @@ class ReceiveShipmentController extends Controller
             $line->notes = $data['notes'];
         }
 
+        // MARKER-PO: a PO line is received when anything came, otherwise still owed
+        if ($line->purchase_order_line_id) {
+            $line->status = $line->received_quantity > 0 ? 'received' : 'backorder';
+            if ($line->rejected_quantity > $line->received_quantity) {
+                $line->rejected_quantity = $line->received_quantity;
+            }
+        }
         $line->total_cost_cents = $line->unit_cost_cents
             ? $line->unit_cost_cents * $line->received_quantity
             : null;
         $line->save();
 
-        $shipment->refresh();
-
-        return response()->json([
-            'ok'     => true,
-            'line'   => $this->serializeLine($line->fresh(['item.category'])),
-            'totals' => $this->serializeTotals($shipment),
-        ]);
+        return $this->payload($shipment);
     }
 
     public function removeItem(string $id, string $itemId): JsonResponse
@@ -453,9 +692,8 @@ class ReceiveShipmentController extends Controller
         }
 
         $line->delete();
-        $shipment->refresh();
 
-        return response()->json(['ok' => true, 'totals' => $this->serializeTotals($shipment)]);
+        return $this->payload($shipment, ['message' => $line->purchase_order_line_id ? 'Line removed. It stays owed on its PO.' : 'Line removed.']);
     }
 
     public function searchItems(Request $request): JsonResponse
@@ -501,11 +739,18 @@ class ReceiveShipmentController extends Controller
 
         $shipment->load(['items', 'location']);
 
-        if ($shipment->received_count === 0) {
+        // MARKER-PO: a PO line can be left at 0 (nothing came), so a commit
+        // that only cancels the rest or records not-accepted units is valid too
+        $poWork = $shipment->items->contains(fn ($l) => $l->purchase_order_line_id && ($l->rest_action === 'cancel' || $l->rejected_quantity > 0));
+        if ($shipment->received_count === 0 && ! $poWork) {
             return back()->with('flash', [
                 'type' => 'error',
                 'message' => 'Cannot commit a shipment with no received lines.',
             ]);
+        }
+        $uncataloged = $shipment->items->filter(fn ($l) => $l->purchase_order_line_id && ! $l->inventory_item_id && $l->received_quantity > 0);
+        if ($uncataloged->isNotEmpty()) {
+            return back()->with('flash', ['type' => 'error', 'message' => $uncataloged->pluck('name')->implode(', ') . ' isn\'t in your catalog yet. Create the item on its line, then commit.']);
         }
 
         // serials are a tool, never a gate: a shipment
@@ -528,34 +773,42 @@ class ReceiveShipmentController extends Controller
                 }
 
                 $writableLines = $shipment->items
-                    ->filter(fn ($l) => $l->status === 'received'
-                        && $l->inventory_item_id !== null
-                        && $l->received_quantity > 0);
+                    ->filter(fn ($l) => \App\Services\Tenant\ReceivingFromPo::committable($l)); // MARKER-PO: accepted units only
+
+                // MARKER-PO: freight spread onto each line's cost
+                $shares = \App\Services\Tenant\ReceivingFromPo::freightShares($shipment, $shipment->items);
 
                 foreach ($writableLines as $line) {
                     $item = TenantInventoryItem::where('id', $line->inventory_item_id)
                         ->where('tenant_id', $tenant->id)
                         ->firstOrFail();
+                    $accepted = \App\Services\Tenant\ReceivingFromPo::accepted($line);
+                    [$share, $landed] = $shares[$line->id] ?? [0, $line->unit_cost_cents];
+                    if ($line->unit_cost_cents === null) {
+                        $landed = null;
+                    }
+                    $line->forceFill(['freight_cents' => $share])->saveQuietly();
 
                     $this->inventory->incrementStock(
                         tenant: $tenant,
                         item: $item,
                         location: $shipment->location,
-                        quantity: $line->received_quantity,
+                        quantity: $accepted,
                         referenceType: 'receive_shipment',
                         referenceId: $shipment->id,
                         tenantUser: $tenantUser,
-                        costCentsAtTime: $line->unit_cost_cents,
+                        costCentsAtTime: $landed,
                         movementType: 'receive',
                         notes: "Shipment {$shipment->shipment_number}",
                     );
 
                     // this is the number you paid,
                     // rolled up onto the item. Catalog prefilled the line;
-                    // whatever the receiver left on it is what committed.
-                    if ($line->unit_cost_cents !== null) {
+                    // whatever the receiver left on it is what committed
+                    // (plus its share of freight).
+                    if ($landed !== null) {
                         $this->inventory->recordReceivedCost(
-                            $tenant, $item, (int) $line->received_quantity, (int) $line->unit_cost_cents, 'receive'
+                            $tenant, $item, $accepted, (int) $landed, 'receive'
                         );
                     }
 
@@ -637,6 +890,60 @@ class ReceiveShipmentController extends Controller
                     }
                 }
 
+                // MARKER-PO: each PO line takes what was accepted; its special
+                // orders fill (customers first); the rest stays owed with its
+                // date, or is cancelled; units not accepted stay owed when the
+                // vendor is replacing them, otherwise they're cancelled too.
+                $pos = app(\App\Services\Tenant\PurchaseOrderService::class);
+                $touched = [];
+                foreach ($shipment->items->filter(fn ($l) => $l->purchase_order_line_id) as $line) {
+                    $pl = \App\Models\Tenant\TenantPurchaseOrderLine::where('id', $line->purchase_order_line_id)->lockForUpdate()->first();
+                    if (! $pl) {
+                        continue;
+                    }
+                    $po = $pl->purchaseOrder;
+                    $touched[$po->id] = $po;
+                    $accepted = $line->status === 'received' && $line->inventory_item_id ? \App\Services\Tenant\ReceivingFromPo::accepted($line) : 0;
+                    $owedBefore = $pl->owed();
+                    if ($accepted > 0) {
+                        $landedUnit = ($shares[$line->id][1] ?? null) ?? $line->unit_cost_cents;
+                        $arrivedForPeople = array_merge($arrivedForPeople, $pos->receive(
+                            $pl, $accepted, $landedUnit, $shipment->location_id, $tenantUser,
+                            $shipment->vendor_invoice_number, $shipment->vendor_invoice_date?->toDateString()
+                        ));
+                        $pos->event($po, "{$accepted} × {$pl->name_snapshot} received on {$shipment->shipment_number}"
+                            . ($accepted > $owedBefore ? ' (' . ($accepted - $owedBefore) . ' over what was owed; extra went to stock)' : '') . '.');
+                    }
+                    $pl->refresh();
+                    if ($line->rejected_quantity > 0) {
+                        $pos->event($po, "{$line->rejected_quantity} × {$pl->name_snapshot} not accepted on {$shipment->shipment_number} ({$line->rejected_reason})"
+                            . ($line->rejected_replace ? '; the vendor is replacing them.' : '.'));
+                        if (! $line->rejected_replace && $pl->owed() > 0) {
+                            $cut = min($pl->owed(), (int) $line->rejected_quantity);
+                            $pl->forceFill(['qty_cancelled' => (int) $pl->qty_cancelled + $cut, 'cancel_reason' => $line->rejected_reason])->save();
+                            if ($pl->owed() === 0) {
+                                $pos->sendWaitingBack($pl, "the vendor won't replace {$pl->name_snapshot} that arrived {$line->rejected_reason} on {$po->po_number}.");
+                            }
+                        }
+                    }
+                    $pl->refresh();
+                    if ($pl->owed() > 0) {
+                        if ($line->rest_action === 'cancel') {
+                            $pos->cancelRemaining($pl, 'cancelled at receiving', false);
+                        } elseif ($line->rest_expected_date && $line->rest_expected_date->toDateString() !== ($pl->expected_date?->toDateString())) {
+                            $pos->setLineDate($pl, $line->rest_expected_date->toDateString());
+                        }
+                    }
+                }
+                foreach ($touched as $po) {
+                    $pos->recompute($po->fresh());
+                }
+
+                $gap = \App\Services\Tenant\ReceivingFromPo::invoiceGap($shipment, $shipment->items);
+                $tol = \App\Services\Tenant\PurchaseOrderService::settings($tenant)['invoice_tolerance'];
+                $shipment->invoice_mismatch_cents      = ($gap !== null && abs($gap) > $tol) ? $gap : null;
+                $shipment->filled_special_order_ids    = array_values(array_unique($arrivedForPeople));
+
                 $shipment->status                       = 'committed';
                 $shipment->committed_at                 = now();
                 $shipment->committed_by_tenant_user_id  = $tenantUserId;
@@ -655,10 +962,12 @@ class ReceiveShipmentController extends Controller
             return back()->with('flash', ['type' => 'error', 'message' => 'Commit failed: ' . $e->getMessage()]);
         }
 
+        $notify = \App\Services\Tenant\PurchaseOrderService::settings($tenant)['notify_after_receive'];
+
         return redirect()
             ->route('tenant.inventory.receiving.show', ['id' => $shipment->id])
             ->with('flash', ['type' => 'success', 'message' => 'Shipment committed.'])
-            ->with('so_notify', $arrivedForPeople); // opens "Tell customers" on the shipment page
+            ->with('so_notify', $notify ? array_values(array_unique($arrivedForPeople)) : []); // opens "Tell customers" on the shipment page
     }
 
     public function quickShowItem(string $id): JsonResponse
@@ -797,6 +1106,7 @@ class ReceiveShipmentController extends Controller
             'allow_oversell'          => ['nullable', 'boolean'],
             'add_as_line'             => ['nullable', 'boolean'],
             'received_quantity'       => ['nullable', 'integer', 'min:0', 'max:99999'],
+            'line_id'                 => ['nullable', 'uuid'], // MARKER-PO: the line this item is for
         ]);
 
         \App\Models\Tenant\TenantInventoryCategory::where('tenant_id', $tenant->id)
@@ -831,7 +1141,32 @@ class ReceiveShipmentController extends Controller
             ]);
 
             $line = null;
-            if (! empty($data['add_as_line'])) {
+            // MARKER-PO: an existing line that wasn't in the catalog becomes this
+            // item (and so does its PO line and the special orders riding on it)
+            $existing = ! empty($data['line_id'])
+                ? TenantInventoryReceiveShipmentItem::where('shipment_id', $shipment->id)->where('tenant_id', $tenant->id)->whereNull('inventory_item_id')->find($data['line_id'])
+                : null;
+            if ($existing) {
+                $existing->inventory_item_id = $item->id;
+                $existing->name = $item->name;
+                $existing->sku = $item->sku;
+                if ($existing->status === 'unexpected_pending') {
+                    $existing->status = 'received';
+                }
+                if ($existing->unit_cost_cents === null) {
+                    $existing->unit_cost_cents = $item->shop_cost_cents;
+                }
+                $existing->save();
+                if ($existing->purchase_order_line_id) {
+                    $pl = \App\Models\Tenant\TenantPurchaseOrderLine::find($existing->purchase_order_line_id);
+                    if ($pl && ! $pl->inventory_item_id) {
+                        $pl->forceFill(['inventory_item_id' => $item->id])->save();
+                        \App\Models\Tenant\TenantSpecialOrder::where('purchase_order_line_id', $pl->id)->whereNull('inventory_item_id')
+                            ->update(['inventory_item_id' => $item->id]);
+                    }
+                }
+                $line = $existing;
+            } elseif (! empty($data['add_as_line'])) {
                 $receivedQty = (int) ($data['received_quantity'] ?? 1);
                 $line = new TenantInventoryReceiveShipmentItem();
                 $line->tenant_id         = $tenant->id;
@@ -862,7 +1197,7 @@ class ReceiveShipmentController extends Controller
             ],
             'line'   => $line ? $this->serializeLine($line->fresh(['item.category'])) : null,
             'totals' => $this->serializeTotals($shipment),
-        ]);
+        ] + array_intersect_key($this->payload($shipment)->getData(true), ['tbody' => 1, 'summary' => 1]));
     }
 
     public function categoriesForModal(): JsonResponse
@@ -901,12 +1236,8 @@ class ReceiveShipmentController extends Controller
 
     private function generateShipmentNumber($tenant): string
     {
-        $today = now($tenant->timezone ?? 'UTC')->format('Ymd');
-        $prefix = "RCV-{$today}-";
-        $count = TenantInventoryReceiveShipment::where('tenant_id', $tenant->id)
-            ->where('shipment_number', 'like', "{$prefix}%")
-            ->count();
-        return $prefix . str_pad((string) ($count + 1), 3, '0', STR_PAD_LEFT);
+        // MARKER-PO: shared, and skips a number a deleted draft still holds
+        return \App\Services\Tenant\ReceivingFromPo::number($tenant);
     }
 
     private function serializeLine(TenantInventoryReceiveShipmentItem $line): array
