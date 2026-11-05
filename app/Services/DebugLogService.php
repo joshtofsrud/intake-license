@@ -134,8 +134,45 @@ class DebugLogService
                     'file'      => $e->getPrevious()->getFile(),
                     'line'      => $e->getPrevious()->getLine(),
                 ] : null,
-            ], $extra),
+            ], $this->livewireContext(), $extra),
         ]);
+    }
+
+    /**
+     * MARKER-CF-IP: a Livewire update always posts to /livewire/update, so the
+     * logged path says nothing about where it came from. Record the page it was
+     * sent from and the component names (names only — never the payload), so a
+     * burst of these can be traced to one screen or told apart from a bot.
+     */
+    protected function livewireContext(): array
+    {
+        try {
+            if (! app()->bound('request')) return [];
+            $r = request();
+            if (! str_contains('/' . ltrim($r->path(), '/'), 'livewire') || ! $r->isMethod('post')) return [];
+
+            $page = null;
+            if ($ref = (string) $r->headers->get('referer', '')) {
+                $parts = parse_url($ref) ?: [];
+                $page = (isset($parts['host']) ? ($parts['scheme'] ?? 'https') . '://' . $parts['host'] : '')
+                      . self::maskPath($parts['path'] ?? '/');
+            }
+
+            $names = [];
+            foreach ((array) $r->input('components', []) as $c) {
+                $snap = is_array($c) ? json_decode((string) ($c['snapshot'] ?? ''), true) : null;
+                $name = is_array($snap) ? ($snap['memo']['name'] ?? null) : null;
+                $names[] = is_string($name) ? Str::limit($name, 120, '') : '(unreadable)';
+            }
+
+            // flat strings: the View page shows context as key/value text
+            return [
+                'livewire_page'       => $page ?: '(no referer, so not sent from a page in a browser)',
+                'livewire_components' => $names ? implode(', ', array_slice(array_values(array_unique($names)), 0, 10)) : '(none sent)',
+            ];
+        } catch (Throwable $ignored) {
+            return [];
+        }
     }
 
     /**

@@ -36,6 +36,16 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // MARKER-CF-IP: requests arrive through Cloudflare, so without this every
+        // request()->ip() was a Cloudflare edge address — login throttles were
+        // shared across shops, and waivers, consent and debug logs recorded the
+        // wrong address. Only X-Forwarded-For is trusted, and only from
+        // Cloudflare's ranges: Host and scheme are left as they were.
+        if (config('cloudflare.trust') && config('cloudflare.ips')) {
+            \Illuminate\Http\Middleware\TrustProxies::at(config('cloudflare.ips'));
+            \Illuminate\Http\Middleware\TrustProxies::withHeaders(\Illuminate\Http\Request::HEADER_X_FORWARDED_FOR);
+        }
+
         // MARKER-SEC-AUDIT: workers are long-lived; each job reads add-on access fresh
         \Illuminate\Support\Facades\Queue::before(fn () => \App\Services\FeatureAccessService::flushRequestCache());
         // MARKER-ADMIN-TZ: same for the master-admin time zone, so a changed setting reaches workers
