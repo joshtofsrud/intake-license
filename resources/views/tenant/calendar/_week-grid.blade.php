@@ -72,6 +72,7 @@
                     style="border-left-color: {{ $resourceColor }};">
                 <span class="ia-cal-week-item-time">{{ $timeStr }}</span>
                 <span class="ia-cal-week-item-name">{{ $name ?: 'Appt' }}</span>
+                @include('partials.asset-count')
                 @if($svc)
                   <span class="ia-cal-week-item-svc">{{ $svc }}</span>
                 @endif

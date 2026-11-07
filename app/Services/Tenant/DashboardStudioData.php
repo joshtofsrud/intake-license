@@ -421,26 +421,7 @@ class DashboardStudioData
      */
     private function assets(TenantAppointment $a): array
     {
-        if ($a->assets->count() < 2) return [];
-        $cursor = $a->appointment_time ? $this->at($a) : null;
-        $out = [];
-        foreach ($a->assets->sortBy('sort_order') as $as) {
-            $items = $a->items->where('appointment_asset_id', $as->id);
-            $mins = (int) $items->sum(fn ($i) => $i->duration_minutes_override ?? $i->duration_minutes_snapshot ?? 0);
-            $when = null;
-            if ($cursor && $mins > 0) {
-                $end = $cursor->copy()->addMinutes($mins);
-                $when = $cursor->format('g:i') . '–' . $end->format('g:i A');
-                $cursor = $end;
-            } elseif ($mins > 0) {
-                $when = $mins >= 60 ? floor($mins / 60) . 'h' . ($mins % 60 ? ' ' . ($mins % 60) . 'm' : '') : $mins . ' min';
-            }
-            $out[] = ['name' => trim($as->asset_name_snapshot . ($as->identifier_snapshot ? ' · ' . $as->identifier_snapshot : '')),
-                'services' => $items->pluck('item_name_snapshot')->filter()->implode(', ') ?: 'No services yet',
-                'when' => $when];
-        }
-
-        return $out;
+        return \App\Support\AssetSummary::for($a, $this->tz);
     }
 
     private function age(Carbon $since): string

@@ -1,0 +1,512 @@
+From c9f34455430c36e908f6d958f9987dfc62da9c3d Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 7 Nov 2026 08:17:14 -0800
+Subject: [PATCH] Multi-asset: add more items in the new work order modal, each
+ with its own service and a time that fits all of them; item count with a
+ hover list on the calendar, drop-off board and work order list
+
+---
+ .../Tenant/AppointmentController.php          |  20 +++-
+ .../Controllers/Tenant/CalendarController.php |   7 +-
+ app/Services/Tenant/DashboardStudioData.php   |  21 +---
+ app/Support/AssetSummary.php                  |  53 +++++++++
+ .../layouts/tenant/_asset-count.blade.php     |  46 ++++++++
+ resources/views/layouts/tenant/app.blade.php  |   3 +
+ .../views/partials/asset-count.blade.php      |   7 ++
+ .../appointments/_create_modal.blade.php      | 106 +++++++++++++++++-
+ .../views/tenant/appointments/index.blade.php |   4 +-
+ .../views/tenant/calendar/_day-grid.blade.php |   2 +-
+ .../tenant/calendar/_week-grid.blade.php      |   1 +
+ .../views/tenant/calendar/dropoff.blade.php   |   2 +-
+ 12 files changed, 240 insertions(+), 32 deletions(-)
+ create mode 100644 app/Support/AssetSummary.php
+ create mode 100644 resources/views/layouts/tenant/_asset-count.blade.php
+ create mode 100644 resources/views/partials/asset-count.blade.php
+
+diff --git a/app/Http/Controllers/Tenant/AppointmentController.php b/app/Http/Controllers/Tenant/AppointmentController.php
+index 50906659..ac1c1e70 100644
+--- a/app/Http/Controllers/Tenant/AppointmentController.php
++++ b/app/Http/Controllers/Tenant/AppointmentController.php
+@@ -168,7 +168,9 @@ class AppointmentController extends Controller
+                 ->first(['id', 'name', 'color_hex']);
+         }
+ 
+-        $appointments = $q->with(['resource:id,name,color_hex', 'customer'])
++        $appointments = $q->with(array_merge(['resource:id,name,color_hex', 'customer'], $tenant->multi_asset_enabled
++                              ? ['items:id,appointment_id,appointment_asset_id,item_name_snapshot,duration_minutes_snapshot,duration_minutes_override', 'assets:id,appointment_id,asset_name_snapshot,identifier_snapshot,sort_order']
++                              : [])) // MARKER-MULTI-ASSET-COUNT
+                           ->offset(($page - 1) * $perPage)
+                           ->limit($perPage)
+                           ->get();
+@@ -295,7 +297,8 @@ class AppointmentController extends Controller
+             'items.*.service_item_id'      => ['required', 'string', 'uuid'],
+             'items.*.price_override_cents' => ['nullable', 'integer', 'min:0'],
+             'items.*.asset_client_key'     => ['nullable', 'string', 'max:64'],
+-            'assets'                       => ['nullable', 'array', 'max:1'],
++            // MARKER-MULTI-ASSET-MODAL: several items, each item's services tagged with its key
++            'assets'                       => ['nullable', 'array', 'max:20'],
+             'assets.*.client_key'          => ['nullable', 'string', 'max:64'],
+             'assets.*.customer_asset_id'   => ['nullable', 'string', 'uuid'],
+             'assets.*.name_snapshot'       => ['nullable', 'string', 'max:120'],
+@@ -569,6 +572,19 @@ class AppointmentController extends Controller
+                   + (int) ($svc->duration_minutes ?? 0)
+                   + (int) ($svc->cleanup_after_minutes ?? 0);
+ 
++        // MARKER-MULTI-ASSET-MODAL: the other items' services, so the time found
++        // fits all of them (each counted in full, as the booking itself does)
++        $extraIds = array_slice(array_values(array_filter(array_map('trim', explode(',', (string) $request->query('extra_service_ids', ''))))), 0, 20);
++        if ($extraIds) {
++            $extra = \App\Models\Tenant\TenantServiceItem::where('tenant_id', $tenant->id)->whereIn('id', array_unique($extraIds))
++                ->get(['id', 'duration_minutes', 'prep_before_minutes', 'cleanup_after_minutes'])->keyBy('id');
++            foreach ($extraIds as $eid) {
++                if ($e = $extra->get($eid)) {
++                    $required += (int) ($e->prep_before_minutes ?? 0) + (int) ($e->duration_minutes ?? 0) + (int) ($e->cleanup_after_minutes ?? 0);
++                }
++            }
++        }
++
+         if ($required === 0) {
+             return response()->json(['slots' => [], 'required_minutes' => 0]);
+         }
+diff --git a/app/Http/Controllers/Tenant/CalendarController.php b/app/Http/Controllers/Tenant/CalendarController.php
+index 59b35069..5ec9066a 100644
+--- a/app/Http/Controllers/Tenant/CalendarController.php
++++ b/app/Http/Controllers/Tenant/CalendarController.php
+@@ -81,6 +81,7 @@ class CalendarController extends Controller
+             ->where('appointment_date', $date->toDateString())
+             ->whereNotIn('status', ['cancelled', 'refunded'])
+             ->orderBy('ra_number')
++            ->with(['items:id,appointment_id,appointment_asset_id,item_name_snapshot,duration_minutes_snapshot,duration_minutes_override', 'assets:id,appointment_id,asset_name_snapshot,identifier_snapshot,sort_order']) // MARKER-MULTI-ASSET-COUNT
+             ->get([
+                 'id', 'ra_number', 'resource_id', 'status',
+                 'customer_first_name', 'customer_last_name',
+@@ -229,12 +230,12 @@ class CalendarController extends Controller
+             ->whereNotIn('status', ['cancelled', 'refunded'])
+             ->whereNotNull('appointment_time')
+             ->whereIn('resource_id', $visibleIds)
+-            ->with(['items:id,appointment_id,item_name_snapshot,duration_minutes_snapshot,prep_before_minutes_snapshot,cleanup_after_minutes_snapshot'])
++            ->with(['items:id,appointment_id,appointment_asset_id,item_name_snapshot,duration_minutes_snapshot,duration_minutes_override,prep_before_minutes_snapshot,cleanup_after_minutes_snapshot', 'assets:id,appointment_id,asset_name_snapshot,identifier_snapshot,sort_order']) // MARKER-MULTI-ASSET-COUNT
+             ->orderBy('appointment_time')
+             ->get([
+                 'id', 'resource_id', 'customer_first_name', 'customer_last_name',
+                 'appointment_time', 'appointment_end_time', 'total_duration_minutes',
+-                'status', 'total_cents', 'needs_time_review',
++                'status', 'total_cents', 'needs_time_review', 'appointment_date',
+             ]);
+ 
+         // Render bounds extend beyond the capacity rule's open/close hours so
+@@ -371,7 +372,7 @@ return view('tenant.calendar.index', [
+             ->whereNotIn('status', ['cancelled', 'refunded'])
+             ->whereNotNull('appointment_time')
+             ->whereIn('resource_id', $visibleIds)
+-            ->with(['items:id,appointment_id,item_name_snapshot'])
++            ->with(['items:id,appointment_id,appointment_asset_id,item_name_snapshot,duration_minutes_snapshot,duration_minutes_override', 'assets:id,appointment_id,asset_name_snapshot,identifier_snapshot,sort_order']) // MARKER-MULTI-ASSET-COUNT
+             ->orderBy('appointment_date')
+             ->orderBy('appointment_time')
+             ->get([
+diff --git a/app/Services/Tenant/DashboardStudioData.php b/app/Services/Tenant/DashboardStudioData.php
+index 97e0952c..7b33e8c3 100644
+--- a/app/Services/Tenant/DashboardStudioData.php
++++ b/app/Services/Tenant/DashboardStudioData.php
+@@ -421,26 +421,7 @@ class DashboardStudioData
+      */
+     private function assets(TenantAppointment $a): array
+     {
+-        if ($a->assets->count() < 2) return [];
+-        $cursor = $a->appointment_time ? $this->at($a) : null;
+-        $out = [];
+-        foreach ($a->assets->sortBy('sort_order') as $as) {
+-            $items = $a->items->where('appointment_asset_id', $as->id);
+-            $mins = (int) $items->sum(fn ($i) => $i->duration_minutes_override ?? $i->duration_minutes_snapshot ?? 0);
+-            $when = null;
+-            if ($cursor && $mins > 0) {
+-                $end = $cursor->copy()->addMinutes($mins);
+-                $when = $cursor->format('g:i') . '–' . $end->format('g:i A');
+-                $cursor = $end;
+-            } elseif ($mins > 0) {
+-                $when = $mins >= 60 ? floor($mins / 60) . 'h' . ($mins % 60 ? ' ' . ($mins % 60) . 'm' : '') : $mins . ' min';
+-            }
+-            $out[] = ['name' => trim($as->asset_name_snapshot . ($as->identifier_snapshot ? ' · ' . $as->identifier_snapshot : '')),
+-                'services' => $items->pluck('item_name_snapshot')->filter()->implode(', ') ?: 'No services yet',
+-                'when' => $when];
+-        }
+-
+-        return $out;
++        return \App\Support\AssetSummary::for($a, $this->tz);
+     }
+ 
+     private function age(Carbon $since): string
+diff --git a/app/Support/AssetSummary.php b/app/Support/AssetSummary.php
+new file mode 100644
+index 00000000..6ff095d8
+--- /dev/null
++++ b/app/Support/AssetSummary.php
+@@ -0,0 +1,53 @@
++<?php
++
++namespace App\Support;
++
++use App\Models\Tenant\TenantAppointment;
++use Illuminate\Support\Carbon;
++
++/**
++ * MARKER-MULTI-ASSET-COUNT: the items on a multi-asset appointment, each with
++ * its services and when they run. Shown as "3 items" with a hover / tap list
++ * on the calendar, the work order list and the Studio dashboard.
++ *
++ * Assets have no start times of their own; the times lay each item's services
++ * end to end from the appointment's start, in the order the items were added.
++ * Needs the appointment's 'assets' and 'items' loaded. Fewer than two: none.
++ */
++class AssetSummary
++{
++    public static function for(TenantAppointment $a, ?string $tz = null): array
++    {
++        if (! $a->relationLoaded('assets') || $a->assets->count() < 2) return [];
++        $tz ??= function_exists('tenant') && tenant() ? tenant()->timezone() : config('app.timezone');
++        $items = $a->relationLoaded('items') ? $a->items : collect();
++        $cursor = $a->appointment_time && $a->appointment_date
++            ? Carbon::parse($a->appointment_date->toDateString() . ' ' . $a->appointment_time, $tz)
++            : null;
++        $out = [];
++        foreach ($a->assets->sortBy('sort_order') as $as) {
++            $mine = $items->where('appointment_asset_id', $as->id);
++            $mins = (int) $mine->sum(fn ($i) => $i->duration_minutes_override ?? $i->duration_minutes_snapshot ?? 0);
++            $when = null;
++            if ($cursor && $mins > 0) {
++                $end = $cursor->copy()->addMinutes($mins);
++                $when = $cursor->format('g:i') . '–' . $end->format('g:i A');
++                $cursor = $end;
++            } elseif ($mins > 0) {
++                $when = $mins >= 60 ? intdiv($mins, 60) . 'h' . ($mins % 60 ? ' ' . ($mins % 60) . 'm' : '') : $mins . ' min';
++            }
++            $out[] = [
++                'name'     => trim($as->asset_name_snapshot . ($as->identifier_snapshot ? ' · ' . $as->identifier_snapshot : '')),
++                'services' => $mine->pluck('item_name_snapshot')->filter()->implode(', ') ?: 'No services yet',
++                'when'     => $when,
++            ];
++        }
++
++        return $out;
++    }
++
++    /** The eager loads the summary needs, for list and calendar queries. */
++    public const WITH = [
++        'assets:id,appointment_id,asset_name_snapshot,identifier_snapshot,sort_order',
++    ];
++}
+diff --git a/resources/views/layouts/tenant/_asset-count.blade.php b/resources/views/layouts/tenant/_asset-count.blade.php
+new file mode 100644
+index 00000000..04a785bf
+--- /dev/null
++++ b/resources/views/layouts/tenant/_asset-count.blade.php
+@@ -0,0 +1,46 @@
++{{-- MARKER-MULTI-ASSET-COUNT: one list for every "3 items" button on the page. --}}
++<style>
++  .ia-asset-count { display: inline-block; flex: none; font: inherit; font-size: 10.5px; font-weight: 700; line-height: 1.5; padding: 0 7px; border-radius: 99px; border: 1px solid var(--ia-border-strong, rgba(127,127,127,.35)); background: var(--ia-surface, transparent); color: var(--ia-text, inherit); cursor: help; vertical-align: middle; white-space: nowrap; }
++  .ia-asset-count:hover, .ia-asset-count:focus-visible { border-color: var(--ia-text, currentColor); outline: none; }
++  .ia-asset-pop { position: fixed; z-index: 1200; min-width: 240px; max-width: 340px; padding: 10px 12px; border-radius: 12px; font-size: 12.5px; background: var(--ia-surface, #fff); color: var(--ia-text, #111); border: 1px solid var(--ia-border-strong, rgba(0,0,0,.2)); box-shadow: 0 12px 32px rgba(0,0,0,.22); }
++  .ia-asset-pop h4 { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; opacity: .6; font-weight: 600; margin: 0 0 6px; }
++  .ia-asset-pop div { padding: 6px 0; border-top: 1px solid var(--ia-border, rgba(127,127,127,.2)); }
++  .ia-asset-pop div:first-of-type { border-top: 0; }
++  .ia-asset-pop b { display: flex; justify-content: space-between; gap: 12px; font-weight: 600; }
++  .ia-asset-pop b span { font: 500 11px var(--ia-font-mono, monospace); opacity: .7; white-space: nowrap; }
++  .ia-asset-pop small { display: block; opacity: .7; font-size: 11.5px; margin-top: 2px; }
++</style>
++<script>
++(function () {
++  if (window.iaAssetCount) return; window.iaAssetCount = 1;
++  var pop = null, forBtn = null;
++  function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
++  function show(btn) {
++    var list; try { list = JSON.parse(btn.dataset.assets || '[]'); } catch (e) { list = []; }
++    if (!list.length) return;
++    if (!pop) { pop = document.createElement('div'); pop.className = 'ia-asset-pop'; pop.setAttribute('role', 'tooltip'); document.body.appendChild(pop); }
++    pop.innerHTML = '<h4>' + list.length + ' on this booking</h4>' + list.map(function (a) {
++      return '<div><b>' + esc(a.name) + (a.when ? '<span>' + esc(a.when) + '</span>' : '') + '</b><small>' + esc(a.services) + '</small></div>';
++    }).join('');
++    pop.hidden = false;
++    var r = btn.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
++    pop.style.left = Math.max(8, Math.min(r.left, innerWidth - w - 8)) + 'px';
++    pop.style.top = (r.bottom + 8 + h > innerHeight ? Math.max(8, r.top - h - 8) : r.bottom + 8) + 'px';
++    forBtn = btn;
++  }
++  function hide() { if (pop) pop.hidden = true; forBtn = null; }
++  var hover = window.matchMedia && matchMedia('(hover: hover)').matches;
++  document.addEventListener('mouseover', function (e) { var b = e.target.closest && e.target.closest('.ia-asset-count'); if (b && hover) show(b); });
++  document.addEventListener('mouseout', function (e) { if (hover && e.target.closest && e.target.closest('.ia-asset-count')) hide(); });
++  document.addEventListener('focusin', function (e) { var b = e.target.closest && e.target.closest('.ia-asset-count'); if (b) show(b); });
++  document.addEventListener('focusout', function (e) { if (e.target.closest && e.target.closest('.ia-asset-count')) hide(); });
++  // a tap shows the list and never opens the card or row it sits on
++  document.addEventListener('click', function (e) {
++    var b = e.target.closest && e.target.closest('.ia-asset-count');
++    if (b) { e.preventDefault(); e.stopPropagation(); forBtn === b ? hide() : show(b); return; }
++    if (forBtn) hide();
++  }, true);
++  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') hide(); });
++  addEventListener('scroll', hide, { passive: true, capture: true });
++})();
++</script>
+diff --git a/resources/views/layouts/tenant/app.blade.php b/resources/views/layouts/tenant/app.blade.php
+index 025de359..00f5b40d 100644
+--- a/resources/views/layouts/tenant/app.blade.php
++++ b/resources/views/layouts/tenant/app.blade.php
+@@ -170,6 +170,9 @@
+ @include('layouts.tenant._mobile-nav')
+ @include('layouts.tenant._more-drawer')
+ @include('layouts.tenant._mobile-fab')
++@if(tenant()?->multi_asset_enabled)
++  @include('layouts.tenant._asset-count')
++@endif
+ 
+ {{-- Detail modal (appointments, customers) --}}
+ @include('tenant._detail_modal')
+diff --git a/resources/views/partials/asset-count.blade.php b/resources/views/partials/asset-count.blade.php
+new file mode 100644
+index 00000000..bd997965
+--- /dev/null
++++ b/resources/views/partials/asset-count.blade.php
+@@ -0,0 +1,7 @@
++{{-- MARKER-MULTI-ASSET-COUNT: "3 items" on a multi-asset appointment. Hover,
++     focus or tap lists each item with its services and times (the script and
++     styles are in the tenant layout). Draws nothing for one item or none. --}}
++@php $acList = \App\Support\AssetSummary::for($appt); @endphp
++@if (count($acList) > 1)
++  <button type="button" class="ia-asset-count" data-assets='@json($acList)' aria-label="{{ count($acList) }} {{ strtolower(tenant()->asset_label_plural ?: 'items') }} on this booking, show them">{{ count($acList) }} {{ strtolower(tenant()->asset_label_plural ?: 'items') }}</button>
++@endif
+diff --git a/resources/views/tenant/appointments/_create_modal.blade.php b/resources/views/tenant/appointments/_create_modal.blade.php
+index a741e3d3..4793b81f 100644
+--- a/resources/views/tenant/appointments/_create_modal.blade.php
++++ b/resources/views/tenant/appointments/_create_modal.blade.php
+@@ -324,7 +324,9 @@
+           </div>
+         </div>
+ 
+-        {{-- single-asset select/create; multi lives on the work order page --}}
++        {{-- MARKER-MULTI-ASSET-MODAL: the first item here, then "Add another" for
++             more; each extra item picks its own service (starting with the first
++             one's) and the time search covers all of them. --}}
+         @if($currentTenant->multi_asset_enabled)
+         @php $aSing = strtolower($currentTenant->asset_label_singular ?: 'item'); $aPlur = strtolower($currentTenant->asset_label_plural ?: ($aSing.'s')); @endphp
+         <div class="appt-section" id="appt-asset-section">
+@@ -342,8 +344,19 @@
+             </div>
+             <div style="font-size:11px;opacity:.55;margin-top:6px">Saved to the customer for next time.</div>
+           </div>
+-          <p style="font-size:11px;opacity:.55;margin-top:8px">For multi-{{ $aPlur }} work orders, create the appointment and add {{ $aPlur }} on the work order screen.</p>
++          <div id="appt-asset-extras"></div>
++          <button type="button" id="appt-asset-add" class="appt-asset-add" style="display:none" onclick="ApptModal.addAsset()">+ Add another {{ $aSing }}</button>
++          <p id="appt-asset-hint" style="font-size:11px;opacity:.55;margin-top:8px;display:none">The first {{ $aSing }} gets the service picked below. Each one you add picks its own; the time found covers all of them.</p>
+         </div>
++        <style>
++          .appt-asset-add { margin-top: 10px; background: none; border: 1px dashed var(--ia-border-strong, rgba(255,255,255,.22)); color: var(--ia-text, inherit); border-radius: 8px; padding: 8px 12px; font: inherit; font-size: 12.5px; cursor: pointer; width: 100%; text-align: left; }
++          .appt-asset-add:hover { border-style: solid; }
++          .appt-asset-extra { margin-top: 10px; padding: 10px 12px; border: 1px solid var(--ia-border, rgba(255,255,255,.12)); border-radius: 10px; }
++          .appt-asset-extra-h { display: flex; justify-content: space-between; align-items: center; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; opacity: .7; margin-bottom: 8px; }
++          .appt-asset-extra-h button { background: none; border: 0; color: inherit; font: inherit; font-size: 11.5px; text-transform: none; letter-spacing: 0; cursor: pointer; opacity: .8; text-decoration: underline; }
++          .appt-asset-extra .appt-row + .appt-row, .appt-asset-extra select + .appt-row, .appt-asset-extra .appt-row + select { margin-top: 8px; }
++          .appt-asset-extra select.appt-input { width: 100%; }
++        </style>
+         @endif
+ 
+         {{-- SEQUENTIAL-PICKER v1 --}}
+@@ -699,12 +712,15 @@ window.ApptModal = (function () {
+     var nw=el('appt-asset-new'); if(nw) nw.style.display='none';
+     var nm=el('appt-asset-name'); if(nm) nm.value='';
+     var ni=el('appt-asset-id'); if(ni) ni.value='';
++    state.extraAssets = []; state.custAssets = []; renderExtras();
++    var add=el('appt-asset-add'); if(add) add.style.display='none';
+   }
+   function assetNewOnly(){
+     if(!assetsCfg.enabled) return;
+     var need=el('appt-asset-need-customer'); if(need) need.style.display='none';
+     var sel=el('appt-asset-select'); if(sel) sel.style.display='none';
+     var nw=el('appt-asset-new'); if(nw) nw.style.display='block';
++    var add=el('appt-asset-add'); if(add) add.style.display='block';
+   }
+   function assetLoadFor(customerId){
+     if(!assetsCfg.enabled) return;
+@@ -714,6 +730,8 @@ window.ApptModal = (function () {
+       .then(function(r){ return r.json(); })
+       .then(function(d){
+         var assets=(d && d.assets) || [];
++        state.custAssets = assets;
++        var add=el('appt-asset-add'); if(add) add.style.display='block';
+         var sel=el('appt-asset-select');
+         if(assets.length && sel){
+           sel.innerHTML='';
+@@ -732,6 +750,72 @@ window.ApptModal = (function () {
+       .catch(function(){ assetNewOnly(); });
+   }
+ 
++  // ── more items (MARKER-MULTI-ASSET-MODAL) ──
++  var extraSeq = 1;
++  state.extraAssets = [];
++  state.custAssets = [];
++  function svcOptions(selected) {
++    return state.services.slice().sort(function (a, b) { return a.name.localeCompare(b.name); }).map(function (x) {
++      return '<option value="' + esc(x.id) + '"' + (String(x.id) === String(selected) ? ' selected' : '') + '>' + esc(x.name) + ' · ' + esc(svcMeta(x)) + '</option>';
++    }).join('');
++  }
++  function renderExtras() {
++    var box = el('appt-asset-extras'); if (!box) return;
++    var used = {};
++    var firstSel = el('appt-asset-select'); if (firstSel && firstSel.value && firstSel.value !== '__new__') used[firstSel.value] = 1;
++    state.extraAssets.forEach(function (x) { if (x.assetId) used[x.assetId] = 1; });
++    box.innerHTML = state.extraAssets.map(function (x, i) {
++      var opts = '<option value="__new__"' + (!x.assetId ? ' selected' : '') + '>+ New ' + esc(assetsCfg.singular) + '</option>' + state.custAssets.map(function (a) {
++        var taken = used[a.id] && a.id !== x.assetId;
++        return '<option value="' + esc(a.id) + '"' + (a.id === x.assetId ? ' selected' : '') + (taken ? ' disabled' : '') + '>' + esc(a.name + (a.identifier ? ' · ' + a.identifier : '')) + (taken ? ' (already added)' : '') + '</option>';
++      }).join('');
++      return '<div class="appt-asset-extra" data-k="' + x.key + '">'
++        + '<div class="appt-asset-extra-h"><span>' + esc(assetsCfg.singular) + ' ' + (i + 2) + '</span><button type="button" data-rm="' + x.key + '">Remove</button></div>'
++        + (state.custAssets.length ? '<select class="appt-input" data-f="asset">' + opts + '</select>' : '')
++        + (!x.assetId ? '<div class="appt-row"><input type="text" class="appt-input" data-f="name" placeholder="Make &amp; model" value="' + esc(x.name || '') + '"><input type="text" class="appt-input" data-f="ident" placeholder="Serial (optional)" value="' + esc(x.ident || '') + '"></div>' : '')
++        + '<select class="appt-input" data-f="svc" style="margin-top:8px">' + svcOptions(x.serviceId) + '</select>'
++        + '</div>';
++    }).join('');
++    var hint = el('appt-asset-hint'); if (hint) hint.style.display = state.extraAssets.length ? 'block' : 'none';
++  }
++  function extrasChanged() {
++    // the time search covers every item's service
++    state.selectedSlot = null;
++    if (state.selectedServiceId && state.selectedResourceId) onFindTimes();
++  }
++  function addAsset() {
++    var first = state.selectedServiceId || (state.services[0] && state.services[0].id) || '';
++    state.extraAssets.push({ key: 'a' + (++extraSeq), assetId: '', name: '', ident: '', serviceId: first });
++    renderExtras();
++    extrasChanged();
++    var box = el('appt-asset-extras'); var last = box && box.lastElementChild;
++    var f = last && (last.querySelector('[data-f="name"]') || last.querySelector('select')); if (f) f.focus();
++  }
++  function extraServiceIds() {
++    return state.extraAssets.map(function (x) { return x.serviceId; }).filter(Boolean);
++  }
++  document.addEventListener('click', function (e) {
++    var rm = e.target.closest && e.target.closest('#appt-asset-extras [data-rm]');
++    if (!rm) return;
++    state.extraAssets = state.extraAssets.filter(function (x) { return x.key !== rm.dataset.rm; });
++    renderExtras(); extrasChanged();
++  });
++  document.addEventListener('change', function (e) {
++    var card = e.target.closest && e.target.closest('#appt-asset-extras .appt-asset-extra');
++    if (!card) return;
++    var x = state.extraAssets.filter(function (y) { return y.key === card.dataset.k; })[0]; if (!x) return;
++    var f = e.target.dataset.f;
++    if (f === 'asset') { x.assetId = e.target.value === '__new__' ? '' : e.target.value; renderExtras(); }
++    if (f === 'svc') { x.serviceId = e.target.value; extrasChanged(); }
++  });
++  document.addEventListener('input', function (e) {
++    var card = e.target.closest && e.target.closest('#appt-asset-extras .appt-asset-extra');
++    if (!card) return;
++    var x = state.extraAssets.filter(function (y) { return y.key === card.dataset.k; })[0]; if (!x) return;
++    if (e.target.dataset.f === 'name') x.name = e.target.value;
++    if (e.target.dataset.f === 'ident') x.ident = e.target.value;
++  });
++
+   // ── Service picker ──
+   function toggleServicePicker() {
+     state.pickerOpen = !state.pickerOpen;
+@@ -1165,6 +1249,7 @@ window.ApptModal = (function () {
+ 
+     var url = routes.weekTimes
+       + '?service_id='  + encodeURIComponent(state.selectedServiceId)
++      + '&extra_service_ids=' + encodeURIComponent(extraServiceIds().join(','))
+       + '&resource_id=' + encodeURIComponent(state.selectedResourceId)
+       + '&start_date='  + encodeURIComponent(state.weekStartDate);
+     fetch(url, { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
+@@ -1338,6 +1423,21 @@ window.ApptModal = (function () {
+         payload.assets = [{ client_key: 'a1', customer_asset_id: _selVal }];
+         payload.items[0].asset_client_key = 'a1';
+       }
++      // more items, each with its own service
++      if (state.extraAssets.length) {
++        if (!payload.assets) {
++          showError('Pick or name the first ' + assetsCfg.singular + ' before adding more.');
++          btn.disabled = false; btn.innerHTML = 'Save appointment';
++          return;
++        }
++        for (var _i = 0; _i < state.extraAssets.length; _i++) {
++          var _x = state.extraAssets[_i];
++          if (!_x.serviceId) { showError('Pick a service for ' + assetsCfg.singular + ' ' + (_i + 2) + '.'); btn.disabled = false; btn.innerHTML = 'Save appointment'; return; }
++          if (!_x.assetId && !(_x.name || '').trim()) { showError('Name ' + assetsCfg.singular + ' ' + (_i + 2) + ', or remove it.'); btn.disabled = false; btn.innerHTML = 'Save appointment'; return; }
++          payload.assets.push(_x.assetId ? { client_key: _x.key, customer_asset_id: _x.assetId } : { client_key: _x.key, name_snapshot: _x.name.trim(), identifier: (_x.ident || '').trim() || null });
++          payload.items.push({ service_item_id: _x.serviceId, price_override_cents: null, asset_client_key: _x.key });
++        }
++      }
+     }
+ 
+     var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+@@ -1382,7 +1482,7 @@ window.ApptModal = (function () {
+ 
+   return {
+     open: open, close: close, clearCustomer: clearCustomer, clearService: clearService,
+-    toggleServicePicker: toggleServicePicker, submit: submit,
++    toggleServicePicker: toggleServicePicker, submit: submit, addAsset: addAsset,
+   };
+ })();
+ 
+diff --git a/resources/views/tenant/appointments/index.blade.php b/resources/views/tenant/appointments/index.blade.php
+index 017fa42f..2be4c7e4 100644
+--- a/resources/views/tenant/appointments/index.blade.php
++++ b/resources/views/tenant/appointments/index.blade.php
+@@ -459,7 +459,7 @@ td.ia-inline-cell { cursor: default; }
+               <span style="font-weight:500">{{ $appt->ra_number }}</span>
+             </td>
+             <td onclick="openDetailModal('appointment','{{ $appt->id }}')" style="cursor:pointer">
+-              <div style="font-weight:500">{{ $appt->customerName() }}</div>
++              <div style="font-weight:500">{{ $appt->customerName() }} @include('partials.asset-count')</div>
+               <div class="ia-muted-cell" style="font-size:12px">{{ $appt->customer_email }}</div>
+             </td>
+             <td onclick="openDetailModal('appointment','{{ $appt->id }}')" class="ia-muted-cell" style="cursor:pointer">{{ $appt->appointment_date->format('M j, Y') }}</td>
+@@ -538,7 +538,7 @@ td.ia-inline-cell { cursor: default; }
+           <span class="appt-card-total">{{ format_money($appt->total_cents) }}</span>
+         </div>
+         <div class="appt-card-row2">
+-          <span class="appt-card-name">{{ $appt->customerName() }}</span>
++          <span class="appt-card-name">{{ $appt->customerName() }}</span> @include('partials.asset-count')
+         </div>
+         <div class="appt-card-row3">
+           <span class="appt-card-pill appt-card-pill--status appt-card-pill--{{ $statusTone }}">{{ $statusLabels[$statusKey] ?? $statusKey }}</span>
+diff --git a/resources/views/tenant/calendar/_day-grid.blade.php b/resources/views/tenant/calendar/_day-grid.blade.php
+index dfb0b02f..5e60e4d4 100644
+--- a/resources/views/tenant/calendar/_day-grid.blade.php
++++ b/resources/views/tenant/calendar/_day-grid.blade.php
+@@ -253,7 +253,7 @@
+               <span class="ia-cal-appt-cluster-badge"
+                     title="{{ $myLaneCount }} appointments overlap on this resource">{{ $myLaneCount }}×</span>
+             @endif
+-            <div class="ia-cal-appt-name">{{ $customerName ?: 'Appointment' }}</div>
++            <div class="ia-cal-appt-name">{{ $customerName ?: 'Appointment' }} @include('partials.asset-count')</div>
+             @if($serviceName)
+               <div class="ia-cal-appt-svc">{{ $serviceName }}</div>
+             @endif
+diff --git a/resources/views/tenant/calendar/_week-grid.blade.php b/resources/views/tenant/calendar/_week-grid.blade.php
+index c6a46932..15302225 100644
+--- a/resources/views/tenant/calendar/_week-grid.blade.php
++++ b/resources/views/tenant/calendar/_week-grid.blade.php
+@@ -72,6 +72,7 @@
+                     style="border-left-color: {{ $resourceColor }};">
+                 <span class="ia-cal-week-item-time">{{ $timeStr }}</span>
+                 <span class="ia-cal-week-item-name">{{ $name ?: 'Appt' }}</span>
++                @include('partials.asset-count')
+                 @if($svc)
+                   <span class="ia-cal-week-item-svc">{{ $svc }}</span>
+                 @endif
+diff --git a/resources/views/tenant/calendar/dropoff.blade.php b/resources/views/tenant/calendar/dropoff.blade.php
+index 51fb44ec..13ccf7b6 100644
+--- a/resources/views/tenant/calendar/dropoff.blade.php
++++ b/resources/views/tenant/calendar/dropoff.blade.php
+@@ -139,7 +139,7 @@
+                   <span class="cal-dropoff-card-ra">{{ $appt->ra_number }}</span>
+                   <span class="cal-dropoff-card-status status-{{ $appt->status }}">{{ ucfirst(str_replace('_', ' ', $appt->status)) }}</span>
+                 </div>
+-                <div class="cal-dropoff-card-customer">{{ $appt->customer_first_name }} {{ $appt->customer_last_name }}</div>
++                <div class="cal-dropoff-card-customer">{{ $appt->customer_first_name }} {{ $appt->customer_last_name }} @include('partials.asset-count')</div>
+                 @if($appt->receiving_method_snapshot)
+                   <div class="cal-dropoff-card-method">{{ $appt->receiving_method_snapshot }}</div>
+                 @endif
+-- 
+2.43.0
+

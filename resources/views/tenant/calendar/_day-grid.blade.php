@@ -253,7 +253,7 @@
               <span class="ia-cal-appt-cluster-badge"
                     title="{{ $myLaneCount }} appointments overlap on this resource">{{ $myLaneCount }}×</span>
             @endif
-            <div class="ia-cal-appt-name">{{ $customerName ?: 'Appointment' }}</div>
+            <div class="ia-cal-appt-name">{{ $customerName ?: 'Appointment' }} @include('partials.asset-count')</div>
             @if($serviceName)
               <div class="ia-cal-appt-svc">{{ $serviceName }}</div>
             @endif

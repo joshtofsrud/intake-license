@@ -459,7 +459,7 @@ td.ia-inline-cell { cursor: default; }
               <span style="font-weight:500">{{ $appt->ra_number }}</span>
             </td>
             <td onclick="openDetailModal('appointment','{{ $appt->id }}')" style="cursor:pointer">
-              <div style="font-weight:500">{{ $appt->customerName() }}</div>
+              <div style="font-weight:500">{{ $appt->customerName() }} @include('partials.asset-count')</div>
               <div class="ia-muted-cell" style="font-size:12px">{{ $appt->customer_email }}</div>
             </td>
             <td onclick="openDetailModal('appointment','{{ $appt->id }}')" class="ia-muted-cell" style="cursor:pointer">{{ $appt->appointment_date->format('M j, Y') }}</td>
@@ -538,7 +538,7 @@ td.ia-inline-cell { cursor: default; }
           <span class="appt-card-total">{{ format_money($appt->total_cents) }}</span>
         </div>
         <div class="appt-card-row2">
-          <span class="appt-card-name">{{ $appt->customerName() }}</span>
+          <span class="appt-card-name">{{ $appt->customerName() }}</span> @include('partials.asset-count')
         </div>
         <div class="appt-card-row3">
           <span class="appt-card-pill appt-card-pill--status appt-card-pill--{{ $statusTone }}">{{ $statusLabels[$statusKey] ?? $statusKey }}</span>

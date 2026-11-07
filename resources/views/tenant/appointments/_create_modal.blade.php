@@ -324,7 +324,9 @@
           </div>
         </div>
 
-        {{-- single-asset select/create; multi lives on the work order page --}}
+        {{-- MARKER-MULTI-ASSET-MODAL: the first item here, then "Add another" for
+             more; each extra item picks its own service (starting with the first
+             one's) and the time search covers all of them. --}}
         @if($currentTenant->multi_asset_enabled)
         @php $aSing = strtolower($currentTenant->asset_label_singular ?: 'item'); $aPlur = strtolower($currentTenant->asset_label_plural ?: ($aSing.'s')); @endphp
         <div class="appt-section" id="appt-asset-section">
@@ -342,8 +344,19 @@
             </div>
             <div style="font-size:11px;opacity:.55;margin-top:6px">Saved to the customer for next time.</div>
           </div>
-          <p style="font-size:11px;opacity:.55;margin-top:8px">For multi-{{ $aPlur }} work orders, create the appointment and add {{ $aPlur }} on the work order screen.</p>
+          <div id="appt-asset-extras"></div>
+          <button type="button" id="appt-asset-add" class="appt-asset-add" style="display:none" onclick="ApptModal.addAsset()">+ Add another {{ $aSing }}</button>
+          <p id="appt-asset-hint" style="font-size:11px;opacity:.55;margin-top:8px;display:none">The first {{ $aSing }} gets the service picked below. Each one you add picks its own; the time found covers all of them.</p>
         </div>
+        <style>
+          .appt-asset-add { margin-top: 10px; background: none; border: 1px dashed var(--ia-border-strong, rgba(255,255,255,.22)); color: var(--ia-text, inherit); border-radius: 8px; padding: 8px 12px; font: inherit; font-size: 12.5px; cursor: pointer; width: 100%; text-align: left; }
+          .appt-asset-add:hover { border-style: solid; }
+          .appt-asset-extra { margin-top: 10px; padding: 10px 12px; border: 1px solid var(--ia-border, rgba(255,255,255,.12)); border-radius: 10px; }
+          .appt-asset-extra-h { display: flex; justify-content: space-between; align-items: center; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; opacity: .7; margin-bottom: 8px; }
+          .appt-asset-extra-h button { background: none; border: 0; color: inherit; font: inherit; font-size: 11.5px; text-transform: none; letter-spacing: 0; cursor: pointer; opacity: .8; text-decoration: underline; }
+          .appt-asset-extra .appt-row + .appt-row, .appt-asset-extra select + .appt-row, .appt-asset-extra .appt-row + select { margin-top: 8px; }
+          .appt-asset-extra select.appt-input { width: 100%; }
+        </style>
         @endif
 
         {{-- SEQUENTIAL-PICKER v1 --}}
@@ -699,12 +712,15 @@ window.ApptModal = (function () {
     var nw=el('appt-asset-new'); if(nw) nw.style.display='none';
     var nm=el('appt-asset-name'); if(nm) nm.value='';
     var ni=el('appt-asset-id'); if(ni) ni.value='';
+    state.extraAssets = []; state.custAssets = []; renderExtras();
+    var add=el('appt-asset-add'); if(add) add.style.display='none';
   }
   function assetNewOnly(){
     if(!assetsCfg.enabled) return;
     var need=el('appt-asset-need-customer'); if(need) need.style.display='none';
     var sel=el('appt-asset-select'); if(sel) sel.style.display='none';
     var nw=el('appt-asset-new'); if(nw) nw.style.display='block';
+    var add=el('appt-asset-add'); if(add) add.style.display='block';
   }
   function assetLoadFor(customerId){
     if(!assetsCfg.enabled) return;
@@ -714,6 +730,8 @@ window.ApptModal = (function () {
       .then(function(r){ return r.json(); })
       .then(function(d){
         var assets=(d && d.assets) || [];
+        state.custAssets = assets;
+        var add=el('appt-asset-add'); if(add) add.style.display='block';
         var sel=el('appt-asset-select');
         if(assets.length && sel){
           sel.innerHTML='';
@@ -731,6 +749,72 @@ window.ApptModal = (function () {
       })
       .catch(function(){ assetNewOnly(); });
   }
+
+  // ── more items (MARKER-MULTI-ASSET-MODAL) ──
+  var extraSeq = 1;
+  state.extraAssets = [];
+  state.custAssets = [];
+  function svcOptions(selected) {
+    return state.services.slice().sort(function (a, b) { return a.name.localeCompare(b.name); }).map(function (x) {
+      return '<option value="' + esc(x.id) + '"' + (String(x.id) === String(selected) ? ' selected' : '') + '>' + esc(x.name) + ' · ' + esc(svcMeta(x)) + '</option>';
+    }).join('');
+  }
+  function renderExtras() {
+    var box = el('appt-asset-extras'); if (!box) return;
+    var used = {};
+    var firstSel = el('appt-asset-select'); if (firstSel && firstSel.value && firstSel.value !== '__new__') used[firstSel.value] = 1;
+    state.extraAssets.forEach(function (x) { if (x.assetId) used[x.assetId] = 1; });
+    box.innerHTML = state.extraAssets.map(function (x, i) {
+      var opts = '<option value="__new__"' + (!x.assetId ? ' selected' : '') + '>+ New ' + esc(assetsCfg.singular) + '</option>' + state.custAssets.map(function (a) {
+        var taken = used[a.id] && a.id !== x.assetId;
+        return '<option value="' + esc(a.id) + '"' + (a.id === x.assetId ? ' selected' : '') + (taken ? ' disabled' : '') + '>' + esc(a.name + (a.identifier ? ' · ' + a.identifier : '')) + (taken ? ' (already added)' : '') + '</option>';
+      }).join('');
+      return '<div class="appt-asset-extra" data-k="' + x.key + '">'
+        + '<div class="appt-asset-extra-h"><span>' + esc(assetsCfg.singular) + ' ' + (i + 2) + '</span><button type="button" data-rm="' + x.key + '">Remove</button></div>'
+        + (state.custAssets.length ? '<select class="appt-input" data-f="asset">' + opts + '</select>' : '')
+        + (!x.assetId ? '<div class="appt-row"><input type="text" class="appt-input" data-f="name" placeholder="Make &amp; model" value="' + esc(x.name || '') + '"><input type="text" class="appt-input" data-f="ident" placeholder="Serial (optional)" value="' + esc(x.ident || '') + '"></div>' : '')
+        + '<select class="appt-input" data-f="svc" style="margin-top:8px">' + svcOptions(x.serviceId) + '</select>'
+        + '</div>';
+    }).join('');
+    var hint = el('appt-asset-hint'); if (hint) hint.style.display = state.extraAssets.length ? 'block' : 'none';
+  }
+  function extrasChanged() {
+    // the time search covers every item's service
+    state.selectedSlot = null;
+    if (state.selectedServiceId && state.selectedResourceId) onFindTimes();
+  }
+  function addAsset() {
+    var first = state.selectedServiceId || (state.services[0] && state.services[0].id) || '';
+    state.extraAssets.push({ key: 'a' + (++extraSeq), assetId: '', name: '', ident: '', serviceId: first });
+    renderExtras();
+    extrasChanged();
+    var box = el('appt-asset-extras'); var last = box && box.lastElementChild;
+    var f = last && (last.querySelector('[data-f="name"]') || last.querySelector('select')); if (f) f.focus();
+  }
+  function extraServiceIds() {
+    return state.extraAssets.map(function (x) { return x.serviceId; }).filter(Boolean);
+  }
+  document.addEventListener('click', function (e) {
+    var rm = e.target.closest && e.target.closest('#appt-asset-extras [data-rm]');
+    if (!rm) return;
+    state.extraAssets = state.extraAssets.filter(function (x) { return x.key !== rm.dataset.rm; });
+    renderExtras(); extrasChanged();
+  });
+  document.addEventListener('change', function (e) {
+    var card = e.target.closest && e.target.closest('#appt-asset-extras .appt-asset-extra');
+    if (!card) return;
+    var x = state.extraAssets.filter(function (y) { return y.key === card.dataset.k; })[0]; if (!x) return;
+    var f = e.target.dataset.f;
+    if (f === 'asset') { x.assetId = e.target.value === '__new__' ? '' : e.target.value; renderExtras(); }
+    if (f === 'svc') { x.serviceId = e.target.value; extrasChanged(); }
+  });
+  document.addEventListener('input', function (e) {
+    var card = e.target.closest && e.target.closest('#appt-asset-extras .appt-asset-extra');
+    if (!card) return;
+    var x = state.extraAssets.filter(function (y) { return y.key === card.dataset.k; })[0]; if (!x) return;
+    if (e.target.dataset.f === 'name') x.name = e.target.value;
+    if (e.target.dataset.f === 'ident') x.ident = e.target.value;
+  });
 
   // ── Service picker ──
   function toggleServicePicker() {
@@ -1165,6 +1249,7 @@ window.ApptModal = (function () {
 
     var url = routes.weekTimes
       + '?service_id='  + encodeURIComponent(state.selectedServiceId)
+      + '&extra_service_ids=' + encodeURIComponent(extraServiceIds().join(','))
       + '&resource_id=' + encodeURIComponent(state.selectedResourceId)
       + '&start_date='  + encodeURIComponent(state.weekStartDate);
     fetch(url, { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
@@ -1338,6 +1423,21 @@ window.ApptModal = (function () {
         payload.assets = [{ client_key: 'a1', customer_asset_id: _selVal }];
         payload.items[0].asset_client_key = 'a1';
       }
+      // more items, each with its own service
+      if (state.extraAssets.length) {
+        if (!payload.assets) {
+          showError('Pick or name the first ' + assetsCfg.singular + ' before adding more.');
+          btn.disabled = false; btn.innerHTML = 'Save appointment';
+          return;
+        }
+        for (var _i = 0; _i < state.extraAssets.length; _i++) {
+          var _x = state.extraAssets[_i];
+          if (!_x.serviceId) { showError('Pick a service for ' + assetsCfg.singular + ' ' + (_i + 2) + '.'); btn.disabled = false; btn.innerHTML = 'Save appointment'; return; }
+          if (!_x.assetId && !(_x.name || '').trim()) { showError('Name ' + assetsCfg.singular + ' ' + (_i + 2) + ', or remove it.'); btn.disabled = false; btn.innerHTML = 'Save appointment'; return; }
+          payload.assets.push(_x.assetId ? { client_key: _x.key, customer_asset_id: _x.assetId } : { client_key: _x.key, name_snapshot: _x.name.trim(), identifier: (_x.ident || '').trim() || null });
+          payload.items.push({ service_item_id: _x.serviceId, price_override_cents: null, asset_client_key: _x.key });
+        }
+      }
     }
 
     var csrfMeta = document.querySelector('meta[name="csrf-token"]');
@@ -1382,7 +1482,7 @@ window.ApptModal = (function () {
 
   return {
     open: open, close: close, clearCustomer: clearCustomer, clearService: clearService,
-    toggleServicePicker: toggleServicePicker, submit: submit,
+    toggleServicePicker: toggleServicePicker, submit: submit, addAsset: addAsset,
   };
 })();
 

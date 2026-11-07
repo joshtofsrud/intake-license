@@ -81,6 +81,7 @@ class CalendarController extends Controller
             ->where('appointment_date', $date->toDateString())
             ->whereNotIn('status', ['cancelled', 'refunded'])
             ->orderBy('ra_number')
+            ->with(['items:id,appointment_id,appointment_asset_id,item_name_snapshot,duration_minutes_snapshot,duration_minutes_override', 'assets:id,appointment_id,asset_name_snapshot,identifier_snapshot,sort_order']) // MARKER-MULTI-ASSET-COUNT
             ->get([
                 'id', 'ra_number', 'resource_id', 'status',
                 'customer_first_name', 'customer_last_name',
@@ -229,12 +230,12 @@ class CalendarController extends Controller
             ->whereNotIn('status', ['cancelled', 'refunded'])
             ->whereNotNull('appointment_time')
             ->whereIn('resource_id', $visibleIds)
-            ->with(['items:id,appointment_id,item_name_snapshot,duration_minutes_snapshot,prep_before_minutes_snapshot,cleanup_after_minutes_snapshot'])
+            ->with(['items:id,appointment_id,appointment_asset_id,item_name_snapshot,duration_minutes_snapshot,duration_minutes_override,prep_before_minutes_snapshot,cleanup_after_minutes_snapshot', 'assets:id,appointment_id,asset_name_snapshot,identifier_snapshot,sort_order']) // MARKER-MULTI-ASSET-COUNT
             ->orderBy('appointment_time')
             ->get([
                 'id', 'resource_id', 'customer_first_name', 'customer_last_name',
                 'appointment_time', 'appointment_end_time', 'total_duration_minutes',
-                'status', 'total_cents', 'needs_time_review',
+                'status', 'total_cents', 'needs_time_review', 'appointment_date',
             ]);
 
         // Render bounds extend beyond the capacity rule's open/close hours so
@@ -371,7 +372,7 @@ return view('tenant.calendar.index', [
             ->whereNotIn('status', ['cancelled', 'refunded'])
             ->whereNotNull('appointment_time')
             ->whereIn('resource_id', $visibleIds)
-            ->with(['items:id,appointment_id,item_name_snapshot'])
+            ->with(['items:id,appointment_id,appointment_asset_id,item_name_snapshot,duration_minutes_snapshot,duration_minutes_override', 'assets:id,appointment_id,asset_name_snapshot,identifier_snapshot,sort_order']) // MARKER-MULTI-ASSET-COUNT
             ->orderBy('appointment_date')
             ->orderBy('appointment_time')
             ->get([

@@ -139,7 +139,7 @@
                   <span class="cal-dropoff-card-ra">{{ $appt->ra_number }}</span>
                   <span class="cal-dropoff-card-status status-{{ $appt->status }}">{{ ucfirst(str_replace('_', ' ', $appt->status)) }}</span>
                 </div>
-                <div class="cal-dropoff-card-customer">{{ $appt->customer_first_name }} {{ $appt->customer_last_name }}</div>
+                <div class="cal-dropoff-card-customer">{{ $appt->customer_first_name }} {{ $appt->customer_last_name }} @include('partials.asset-count')</div>
                 @if($appt->receiving_method_snapshot)
                   <div class="cal-dropoff-card-method">{{ $appt->receiving_method_snapshot }}</div>
                 @endif

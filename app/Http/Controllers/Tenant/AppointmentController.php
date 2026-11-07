@@ -168,7 +168,9 @@ class AppointmentController extends Controller
                 ->first(['id', 'name', 'color_hex']);
         }
 
-        $appointments = $q->with(['resource:id,name,color_hex', 'customer'])
+        $appointments = $q->with(array_merge(['resource:id,name,color_hex', 'customer'], $tenant->multi_asset_enabled
+                              ? ['items:id,appointment_id,appointment_asset_id,item_name_snapshot,duration_minutes_snapshot,duration_minutes_override', 'assets:id,appointment_id,asset_name_snapshot,identifier_snapshot,sort_order']
+                              : [])) // MARKER-MULTI-ASSET-COUNT
                           ->offset(($page - 1) * $perPage)
                           ->limit($perPage)
                           ->get();
@@ -295,7 +297,8 @@ class AppointmentController extends Controller
             'items.*.service_item_id'      => ['required', 'string', 'uuid'],
             'items.*.price_override_cents' => ['nullable', 'integer', 'min:0'],
             'items.*.asset_client_key'     => ['nullable', 'string', 'max:64'],
-            'assets'                       => ['nullable', 'array', 'max:1'],
+            // MARKER-MULTI-ASSET-MODAL: several items, each item's services tagged with its key
+            'assets'                       => ['nullable', 'array', 'max:20'],
             'assets.*.client_key'          => ['nullable', 'string', 'max:64'],
             'assets.*.customer_asset_id'   => ['nullable', 'string', 'uuid'],
             'assets.*.name_snapshot'       => ['nullable', 'string', 'max:120'],
@@ -568,6 +571,19 @@ class AppointmentController extends Controller
         $required = (int) ($svc->prep_before_minutes ?? 0)
                   + (int) ($svc->duration_minutes ?? 0)
                   + (int) ($svc->cleanup_after_minutes ?? 0);
+
+        // MARKER-MULTI-ASSET-MODAL: the other items' services, so the time found
+        // fits all of them (each counted in full, as the booking itself does)
+        $extraIds = array_slice(array_values(array_filter(array_map('trim', explode(',', (string) $request->query('extra_service_ids', ''))))), 0, 20);
+        if ($extraIds) {
+            $extra = \App\Models\Tenant\TenantServiceItem::where('tenant_id', $tenant->id)->whereIn('id', array_unique($extraIds))
+                ->get(['id', 'duration_minutes', 'prep_before_minutes', 'cleanup_after_minutes'])->keyBy('id');
+            foreach ($extraIds as $eid) {
+                if ($e = $extra->get($eid)) {
+                    $required += (int) ($e->prep_before_minutes ?? 0) + (int) ($e->duration_minutes ?? 0) + (int) ($e->cleanup_after_minutes ?? 0);
+                }
+            }
+        }
 
         if ($required === 0) {
             return response()->json(['slots' => [], 'required_minutes' => 0]);
