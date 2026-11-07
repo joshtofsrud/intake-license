@@ -34,7 +34,9 @@
 @endphp
 
 <style>
-  .rep-subnav-tabs a { display: inline-flex; align-items: center; gap: 7px; }
+  .rep-subnav-tabs { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .rep-subnav-tabs::-webkit-scrollbar { display: none; }
+  .rep-subnav-tabs a { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; flex: none; padding-left: 11px; padding-right: 11px; }
   .rep-subnav-tabs a svg { width: 15px; height: 15px; flex: none; }
 </style>
 
