@@ -1541,3 +1541,23 @@ html.ia-sb-collapsed .ia-sidebar-logo {
   transition: color var(--ia-t);
 }
 .ia-back-link:hover { color: var(--ia-text); text-decoration: underline; }
+
+
+/* ==========================================================================
+   MARKER-FLOAT-SIDEBAR — floating sidebar (a per-person choice, in the
+   account menu). The same sidebar, inset from the window as a rounded panel.
+   Desktop only: phones keep their bottom bar.
+   ========================================================================== */
+@media (min-width: 1024px) {
+  html.ia-float .ia-shell { grid-template-columns: 244px 1fr; }
+  html.ia-float.ia-sb-collapsed .ia-shell { grid-template-columns: 84px 1fr; }
+  html.ia-float .ia-sidebar {
+    margin: 12px 0 12px 12px; top: 12px; height: calc(100vh - 24px);
+    border-radius: 20px; border-right: 0 !important;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .18), 0 0 0 1px var(--ia-side-border, rgba(255, 255, 255, .07));
+  }
+  html.ia-float body.ia-theme-c .ia-sidebar { background: #151515; box-shadow: 0 10px 40px rgba(0, 0, 0, .5), 0 0 0 1px rgba(255, 255, 255, .06); }
+  /* the active row's edge marker sits on the panel's rounded edge; the highlight is enough */
+  html.ia-float .ia-nav-item.active::before { display: none; }
+  html.ia-float.ia-sb-collapsed .ia-sb-user-menu { left: 74px; }
+}

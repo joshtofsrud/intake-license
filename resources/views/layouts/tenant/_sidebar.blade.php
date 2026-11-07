@@ -116,6 +116,22 @@
           </button>
         </form>
 
+        {{-- MARKER-FLOAT-SIDEBAR: this person's sidebar style, next to their theme --}}
+        <form method="POST" action="{{ route('tenant.sidebar.set') }}" style="margin:0" class="ia-sb-float-form">
+          @csrf
+          <input type="hidden" name="admin_sidebar" value="{{ ($adminSidebar ?? 'locked') === 'float' ? 'locked' : 'float' }}">
+          <button type="submit" class="ia-sb-user-menu-item" role="menuitem">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              @if(($adminSidebar ?? 'locked') === 'float')
+                <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/>
+              @else
+                <rect x="2" y="3" width="20" height="18" rx="3"/><rect x="5" y="6" width="5" height="12" rx="1.5"/>
+              @endif
+            </svg>
+            <span>{{ ($adminSidebar ?? 'locked') === 'float' ? 'Lock the sidebar to the edge' : 'Float the sidebar' }}</span>
+          </button>
+        </form>
+
         {{-- switch user (PIN tier only) --}}
         {{-- never on the demo: it asks for a PIN and a
              password no visitor can know, and drops them at a login they

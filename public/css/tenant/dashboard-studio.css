@@ -156,7 +156,7 @@ body.ia-theme-c .sd-detail { background: color-mix(in srgb, var(--sd-t2) 8%, var
 .sd-tl-h span { font-size: 12px; color: var(--ia-text-muted); }
 .sd-capbar { margin: 0 0 12px; height: 8px; }
 .sd-capbar span { background: var(--sd-t3); }
-.sd-tl-r { display: grid; grid-template-columns: 50px minmax(0, 1fr); gap: 10px; padding: 8px 0; font-size: 12.5px; text-decoration: none; color: inherit; }
+.sd-tl-r { display: grid; grid-template-columns: 62px minmax(0, 1fr); gap: 10px; padding: 8px 0; font-size: 12.5px; text-decoration: none; color: inherit; }
 .sd-tl-r time { color: var(--ia-text-dim); font-variant-numeric: tabular-nums; font-size: 11.5px; padding-top: 1px; }
 .sd-tl-r > div { border-left: 2px solid var(--ia-border); padding-left: 12px; min-width: 0; }
 .sd-tl-r b { display: block; font-weight: 600; color: var(--ia-text); }

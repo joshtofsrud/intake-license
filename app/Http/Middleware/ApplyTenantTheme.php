@@ -46,6 +46,8 @@ class ApplyTenantTheme
         }
 
         View::share('adminTheme', $theme);
+        // MARKER-FLOAT-SIDEBAR: the person's sidebar style; locked unless they picked floating
+        View::share('adminSidebar', $user && $user->admin_sidebar === 'float' ? 'float' : 'locked');
 
         return $next($request);
     }

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="ia-theme-{{ $adminTheme }}">
+<html lang="en" class="ia-theme-{{ $adminTheme }}{{ ($adminSidebar ?? 'locked') === 'float' ? ' ia-float' : '' }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">

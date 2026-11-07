@@ -471,6 +471,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             // per-person light/dark. Sits above the
             // location gate so the toggle works before a location is picked.
             Route::post('/theme',            [TenantControllers\ThemeController::class, 'set'])->name('theme.set');
+            Route::post('/sidebar-style',    [TenantControllers\ThemeController::class, 'sidebar'])->name('sidebar.set');
 
             // MARKER-LIVE-VIEW: master admin asking to see a tab. Above the
             // location gate, and allowed through the PIN lock, so a request

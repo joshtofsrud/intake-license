@@ -256,7 +256,7 @@ class DashboardStudioData
             $done = AppointmentStatus::isDone($a->status);
             $active = in_array($a->status, AppointmentStatus::inProgressStatuses(), true);
             if ($nextId === null && ! $done && ! $active && $at->gte($this->now)) $nextId = $a->id;
-            $rows[] = ['t' => $at, 'id' => $a->id, 'time' => $at->format('g:i'), 'title' => $this->serviceSummary($a),
+            $rows[] = ['t' => $at, 'id' => $a->id, 'time' => $at->format('g:i A'), 'title' => $this->serviceSummary($a),
                 'who' => $this->who($a), 'state' => $done ? 'done' : ($active ? 'active' : 'todo'),
                 'assets' => $this->assets($a), 'url' => route('tenant.appointments.show', $a->id)];
         }
@@ -264,7 +264,7 @@ class DashboardStudioData
         try {
             foreach ((new TenantDeliveryService($this->tenant))->forDay($this->now) as $dl) {
                 $at = Carbon::parse($dl->scheduled_at, 'UTC')->setTimezone($this->tz);
-                $rows[] = ['t' => $at, 'id' => 'dl-' . $dl->id, 'time' => $at->format('g:i'),
+                $rows[] = ['t' => $at, 'id' => 'dl-' . $dl->id, 'time' => $at->format('g:i A'),
                     'title' => ($dl->type === 'pickup' ? 'Pickup' : 'Drop-off'), 'who' => trim(($dl->customer?->first_name ?? '') . ' ' . ($dl->customer?->last_name ?? '')) ?: 'On the route',
                     'state' => $at->lt($this->now) ? 'done' : 'todo', 'assets' => [], 'url' => route('tenant.calendar.index'), 'route' => true];
             }

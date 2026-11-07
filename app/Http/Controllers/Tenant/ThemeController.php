@@ -31,4 +31,21 @@ class ThemeController extends Controller
 
         return back();
     }
+
+    /** MARKER-FLOAT-SIDEBAR: this person's sidebar style, floating or locked. Nobody else's changes. */
+    public function sidebar(Request $request)
+    {
+        $request->validate([
+            'admin_sidebar' => ['required', 'in:float,locked'],
+        ]);
+
+        $user = Auth::guard('tenant')->user();
+
+        if ($user) {
+            $user->admin_sidebar = $request->input('admin_sidebar');
+            $user->save();
+        }
+
+        return back();
+    }
 }

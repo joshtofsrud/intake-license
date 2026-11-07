@@ -1,0 +1,224 @@
+From b99dc167050ce04d024891b181ddb6af1aeacbcd Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 7 Nov 2026 08:03:10 -0800
+Subject: [PATCH] Floating sidebar as a per-person choice in the account menu;
+ Studio timeline shows AM and PM
+
+---
+ .../Controllers/Tenant/ThemeController.php    | 17 +++++++++++
+ app/Http/Middleware/ApplyTenantTheme.php      |  2 ++
+ app/Models/Tenant/TenantUser.php              |  2 +-
+ app/Services/Tenant/DashboardStudioData.php   |  4 +--
+ .../2026_11_07_000200_floating_sidebar.php    | 30 +++++++++++++++++++
+ public/css/tenant/base.css                    | 20 +++++++++++++
+ public/css/tenant/dashboard-studio.css        |  2 +-
+ .../views/layouts/tenant/_sidebar.blade.php   | 16 ++++++++++
+ resources/views/layouts/tenant/app.blade.php  |  2 +-
+ routes/web.php                                |  1 +
+ 10 files changed, 91 insertions(+), 5 deletions(-)
+ create mode 100644 database/migrations/2026_11_07_000200_floating_sidebar.php
+
+diff --git a/app/Http/Controllers/Tenant/ThemeController.php b/app/Http/Controllers/Tenant/ThemeController.php
+index 290dcf96..d12d6329 100644
+--- a/app/Http/Controllers/Tenant/ThemeController.php
++++ b/app/Http/Controllers/Tenant/ThemeController.php
+@@ -31,4 +31,21 @@ class ThemeController extends Controller
+ 
+         return back();
+     }
++
++    /** MARKER-FLOAT-SIDEBAR: this person's sidebar style, floating or locked. Nobody else's changes. */
++    public function sidebar(Request $request)
++    {
++        $request->validate([
++            'admin_sidebar' => ['required', 'in:float,locked'],
++        ]);
++
++        $user = Auth::guard('tenant')->user();
++
++        if ($user) {
++            $user->admin_sidebar = $request->input('admin_sidebar');
++            $user->save();
++        }
++
++        return back();
++    }
+ }
+diff --git a/app/Http/Middleware/ApplyTenantTheme.php b/app/Http/Middleware/ApplyTenantTheme.php
+index b3e06097..8d53e313 100644
+--- a/app/Http/Middleware/ApplyTenantTheme.php
++++ b/app/Http/Middleware/ApplyTenantTheme.php
+@@ -46,6 +46,8 @@ class ApplyTenantTheme
+         }
+ 
+         View::share('adminTheme', $theme);
++        // MARKER-FLOAT-SIDEBAR: the person's sidebar style; locked unless they picked floating
++        View::share('adminSidebar', $user && $user->admin_sidebar === 'float' ? 'float' : 'locked');
+ 
+         return $next($request);
+     }
+diff --git a/app/Models/Tenant/TenantUser.php b/app/Models/Tenant/TenantUser.php
+index 82c252b4..0028034d 100644
+--- a/app/Models/Tenant/TenantUser.php
++++ b/app/Models/Tenant/TenantUser.php
+@@ -10,7 +10,7 @@ class TenantUser extends Authenticatable
+ {
+     use HasUuids;
+     protected $table = 'tenant_users';
+-    protected $fillable = ['tenant_id','name','email','phone','password','role','role_id','admin_theme','is_active','exempt_from_timeclock','last_login_at','dashboard_view','dashboard_tiles','dashboard_prefs','pin_hash','pin_set_at','pin_failed_count','pin_locked_until','pin_last_used_at'];
++    protected $fillable = ['tenant_id','name','email','phone','password','role','role_id','admin_theme','admin_sidebar','is_active','exempt_from_timeclock','last_login_at','dashboard_view','dashboard_tiles','dashboard_prefs','pin_hash','pin_set_at','pin_failed_count','pin_locked_until','pin_last_used_at'];
+     protected $hidden   = ['password','remember_token','pin_hash'];
+     protected $casts    = ['is_active' => 'boolean', 'exempt_from_timeclock' => 'boolean', 'last_login_at' => 'datetime', 'dashboard_tiles' => 'array', 'dashboard_prefs' => 'array', 'pin_set_at' => 'datetime', 'pin_locked_until' => 'datetime', 'pin_last_used_at' => 'datetime'];
+ 
+diff --git a/app/Services/Tenant/DashboardStudioData.php b/app/Services/Tenant/DashboardStudioData.php
+index 5c8d57e0..97e0952c 100644
+--- a/app/Services/Tenant/DashboardStudioData.php
++++ b/app/Services/Tenant/DashboardStudioData.php
+@@ -256,7 +256,7 @@ class DashboardStudioData
+             $done = AppointmentStatus::isDone($a->status);
+             $active = in_array($a->status, AppointmentStatus::inProgressStatuses(), true);
+             if ($nextId === null && ! $done && ! $active && $at->gte($this->now)) $nextId = $a->id;
+-            $rows[] = ['t' => $at, 'id' => $a->id, 'time' => $at->format('g:i'), 'title' => $this->serviceSummary($a),
++            $rows[] = ['t' => $at, 'id' => $a->id, 'time' => $at->format('g:i A'), 'title' => $this->serviceSummary($a),
+                 'who' => $this->who($a), 'state' => $done ? 'done' : ($active ? 'active' : 'todo'),
+                 'assets' => $this->assets($a), 'url' => route('tenant.appointments.show', $a->id)];
+         }
+@@ -264,7 +264,7 @@ class DashboardStudioData
+         try {
+             foreach ((new TenantDeliveryService($this->tenant))->forDay($this->now) as $dl) {
+                 $at = Carbon::parse($dl->scheduled_at, 'UTC')->setTimezone($this->tz);
+-                $rows[] = ['t' => $at, 'id' => 'dl-' . $dl->id, 'time' => $at->format('g:i'),
++                $rows[] = ['t' => $at, 'id' => 'dl-' . $dl->id, 'time' => $at->format('g:i A'),
+                     'title' => ($dl->type === 'pickup' ? 'Pickup' : 'Drop-off'), 'who' => trim(($dl->customer?->first_name ?? '') . ' ' . ($dl->customer?->last_name ?? '')) ?: 'On the route',
+                     'state' => $at->lt($this->now) ? 'done' : 'todo', 'assets' => [], 'url' => route('tenant.calendar.index'), 'route' => true];
+             }
+diff --git a/database/migrations/2026_11_07_000200_floating_sidebar.php b/database/migrations/2026_11_07_000200_floating_sidebar.php
+new file mode 100644
+index 00000000..7d61788b
+--- /dev/null
++++ b/database/migrations/2026_11_07_000200_floating_sidebar.php
+@@ -0,0 +1,30 @@
++<?php
++
++use Illuminate\Database\Migrations\Migration;
++use Illuminate\Database\Schema\Blueprint;
++use Illuminate\Support\Facades\Schema;
++
++/**
++ * MARKER-FLOAT-SIDEBAR: each person's sidebar style. Null or 'locked' is the
++ * sidebar as it has always been; 'float' insets it as a rounded panel.
++ */
++return new class extends Migration
++{
++    public function up(): void
++    {
++        if (! Schema::hasColumn('tenant_users', 'admin_sidebar')) {
++            Schema::table('tenant_users', function (Blueprint $t) {
++                $t->string('admin_sidebar', 8)->nullable()->after('admin_theme');
++            });
++        }
++    }
++
++    public function down(): void
++    {
++        if (Schema::hasColumn('tenant_users', 'admin_sidebar')) {
++            Schema::table('tenant_users', function (Blueprint $t) {
++                $t->dropColumn('admin_sidebar');
++            });
++        }
++    }
++};
+diff --git a/public/css/tenant/base.css b/public/css/tenant/base.css
+index 68a16455..bf8d12b3 100644
+--- a/public/css/tenant/base.css
++++ b/public/css/tenant/base.css
+@@ -1541,3 +1541,23 @@ html.ia-sb-collapsed .ia-sidebar-logo {
+   transition: color var(--ia-t);
+ }
+ .ia-back-link:hover { color: var(--ia-text); text-decoration: underline; }
++
++
++/* ==========================================================================
++   MARKER-FLOAT-SIDEBAR — floating sidebar (a per-person choice, in the
++   account menu). The same sidebar, inset from the window as a rounded panel.
++   Desktop only: phones keep their bottom bar.
++   ========================================================================== */
++@media (min-width: 1024px) {
++  html.ia-float .ia-shell { grid-template-columns: 244px 1fr; }
++  html.ia-float.ia-sb-collapsed .ia-shell { grid-template-columns: 84px 1fr; }
++  html.ia-float .ia-sidebar {
++    margin: 12px 0 12px 12px; top: 12px; height: calc(100vh - 24px);
++    border-radius: 20px; border-right: 0 !important;
++    box-shadow: 0 10px 30px rgba(0, 0, 0, .18), 0 0 0 1px var(--ia-side-border, rgba(255, 255, 255, .07));
++  }
++  html.ia-float body.ia-theme-c .ia-sidebar { background: #151515; box-shadow: 0 10px 40px rgba(0, 0, 0, .5), 0 0 0 1px rgba(255, 255, 255, .06); }
++  /* the active row's edge marker sits on the panel's rounded edge; the highlight is enough */
++  html.ia-float .ia-nav-item.active::before { display: none; }
++  html.ia-float.ia-sb-collapsed .ia-sb-user-menu { left: 74px; }
++}
+diff --git a/public/css/tenant/dashboard-studio.css b/public/css/tenant/dashboard-studio.css
+index 78ea4b0c..05f4ee8c 100644
+--- a/public/css/tenant/dashboard-studio.css
++++ b/public/css/tenant/dashboard-studio.css
+@@ -156,7 +156,7 @@ body.ia-theme-c .sd-detail { background: color-mix(in srgb, var(--sd-t2) 8%, var
+ .sd-tl-h span { font-size: 12px; color: var(--ia-text-muted); }
+ .sd-capbar { margin: 0 0 12px; height: 8px; }
+ .sd-capbar span { background: var(--sd-t3); }
+-.sd-tl-r { display: grid; grid-template-columns: 50px minmax(0, 1fr); gap: 10px; padding: 8px 0; font-size: 12.5px; text-decoration: none; color: inherit; }
++.sd-tl-r { display: grid; grid-template-columns: 62px minmax(0, 1fr); gap: 10px; padding: 8px 0; font-size: 12.5px; text-decoration: none; color: inherit; }
+ .sd-tl-r time { color: var(--ia-text-dim); font-variant-numeric: tabular-nums; font-size: 11.5px; padding-top: 1px; }
+ .sd-tl-r > div { border-left: 2px solid var(--ia-border); padding-left: 12px; min-width: 0; }
+ .sd-tl-r b { display: block; font-weight: 600; color: var(--ia-text); }
+diff --git a/resources/views/layouts/tenant/_sidebar.blade.php b/resources/views/layouts/tenant/_sidebar.blade.php
+index bf28f679..43746f3c 100644
+--- a/resources/views/layouts/tenant/_sidebar.blade.php
++++ b/resources/views/layouts/tenant/_sidebar.blade.php
+@@ -116,6 +116,22 @@
+           </button>
+         </form>
+ 
++        {{-- MARKER-FLOAT-SIDEBAR: this person's sidebar style, next to their theme --}}
++        <form method="POST" action="{{ route('tenant.sidebar.set') }}" style="margin:0" class="ia-sb-float-form">
++          @csrf
++          <input type="hidden" name="admin_sidebar" value="{{ ($adminSidebar ?? 'locked') === 'float' ? 'locked' : 'float' }}">
++          <button type="submit" class="ia-sb-user-menu-item" role="menuitem">
++            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
++              @if(($adminSidebar ?? 'locked') === 'float')
++                <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/>
++              @else
++                <rect x="2" y="3" width="20" height="18" rx="3"/><rect x="5" y="6" width="5" height="12" rx="1.5"/>
++              @endif
++            </svg>
++            <span>{{ ($adminSidebar ?? 'locked') === 'float' ? 'Lock the sidebar to the edge' : 'Float the sidebar' }}</span>
++          </button>
++        </form>
++
+         {{-- switch user (PIN tier only) --}}
+         {{-- never on the demo: it asks for a PIN and a
+              password no visitor can know, and drops them at a login they
+diff --git a/resources/views/layouts/tenant/app.blade.php b/resources/views/layouts/tenant/app.blade.php
+index 4394f57f..025de359 100644
+--- a/resources/views/layouts/tenant/app.blade.php
++++ b/resources/views/layouts/tenant/app.blade.php
+@@ -1,5 +1,5 @@
+ <!DOCTYPE html>
+-<html lang="en" class="ia-theme-{{ $adminTheme }}">
++<html lang="en" class="ia-theme-{{ $adminTheme }}{{ ($adminSidebar ?? 'locked') === 'float' ? ' ia-float' : '' }}">
+ <head>
+   <meta charset="utf-8">
+   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+diff --git a/routes/web.php b/routes/web.php
+index 76e4ac51..2304d9b8 100644
+--- a/routes/web.php
++++ b/routes/web.php
+@@ -471,6 +471,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
+             // per-person light/dark. Sits above the
+             // location gate so the toggle works before a location is picked.
+             Route::post('/theme',            [TenantControllers\ThemeController::class, 'set'])->name('theme.set');
++            Route::post('/sidebar-style',    [TenantControllers\ThemeController::class, 'sidebar'])->name('sidebar.set');
+ 
+             // MARKER-LIVE-VIEW: master admin asking to see a tab. Above the
+             // location gate, and allowed through the PIN lock, so a request
+-- 
+2.43.0
+
