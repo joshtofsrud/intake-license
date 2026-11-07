@@ -1,0 +1,399 @@
+From d9a52a3577d8a904f639f654f0421895e506390a Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 7 Nov 2026 08:44:21 -0800
+Subject: [PATCH] New appointment: one list of items, each with its own
+ services, one Add button, a running total; inset dropdown chevrons
+
+---
+ .../appointments/_create_modal.blade.php      | 312 +++++++++---------
+ 1 file changed, 155 insertions(+), 157 deletions(-)
+
+diff --git a/resources/views/tenant/appointments/_create_modal.blade.php b/resources/views/tenant/appointments/_create_modal.blade.php
+index 4793b81f..775fd716 100644
+--- a/resources/views/tenant/appointments/_create_modal.blade.php
++++ b/resources/views/tenant/appointments/_create_modal.blade.php
+@@ -275,6 +275,35 @@
+       opacity: .55;
+     }
+     .appt-sp-times-empty.error { color: #f39999; opacity: .8; }
++  
++    /* MARKER-MULTI-ASSET-MODAL — the Items list */
++    #new-appt-card select.appt-input { -webkit-appearance: none; appearance: none; padding-right: 36px; text-overflow: ellipsis; white-space: nowrap; overflow: hidden;
++      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a3a3a3' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
++      background-repeat: no-repeat; background-position: right 14px center; background-size: 12px 12px; }
++    .wi-list { display: flex; flex-direction: column; gap: 8px; }
++    .wi-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) minmax(0, 1.25fr) 28px; gap: 8px; align-items: start; padding: 10px; border: 1px solid var(--ia-border, rgba(255,255,255,.12)); border-radius: 10px; background: var(--ia-surface-2, rgba(255,255,255,.03)); }
++    .wi-n { font: 600 11px var(--ia-font-mono, monospace); opacity: .5; padding-top: 27px; text-align: center; }
++    .wi-row select.appt-input { width: 100%; }
++    .wi-lbl { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; opacity: .5; margin: 0 0 4px 2px; }
++    .wi-new { display: grid; grid-template-columns: 1fr; gap: 6px; margin-top: 6px; }
++    .wi-svcline { display: flex; gap: 6px; align-items: center; }
++    .wi-svcline + .wi-svcline { margin-top: 6px; }
++    .wi-svcline select { flex: 1; min-width: 0; }
++    .wi-x { background: none; border: 0; color: var(--ia-text-dim, rgba(255,255,255,.5)); font-size: 18px; line-height: 1; cursor: pointer; padding: 25px 0 0; border-radius: 6px; }
++    .wi-x:hover { color: var(--ia-text, #fff); }
++    .wi-x[disabled] { visibility: hidden; }
++    .wi-x-sm, .wi-x-pad { flex: none; width: 22px; text-align: center; font-size: 15px; padding: 6px 0; }
++    .wi-more { background: none; border: 0; color: var(--ia-text-muted, rgba(255,255,255,.7)); font: inherit; font-size: 12px; cursor: pointer; padding: 6px 2px 0; }
++    .wi-more:hover { color: var(--ia-text, #fff); text-decoration: underline; }
++    .wi-add { margin-top: 8px; width: 100%; text-align: left; background: none; border: 1px dashed var(--ia-border-strong, rgba(255,255,255,.22)); color: var(--ia-text, inherit); border-radius: 10px; padding: 10px 12px; font: inherit; font-size: 13px; cursor: pointer; }
++    .wi-add:hover { border-style: solid; }
++    .wi-sum { display: flex; justify-content: space-between; margin-top: 10px; font-size: 12.5px; opacity: .75; }
++    .wi-sum b { font-weight: 600; }
++    @media (max-width: 640px) {
++      .wi-row { grid-template-columns: 22px minmax(0, 1fr) 28px; }
++      .wi-row .wi-svc { grid-column: 2 / 3; }
++      .wi-row > .wi-x { grid-column: 3; grid-row: 1; }
++    }
+   </style>
+ 
+   <div id="new-appt-backdrop">
+@@ -324,43 +353,24 @@
+           </div>
+         </div>
+ 
+-        {{-- MARKER-MULTI-ASSET-MODAL: the first item here, then "Add another" for
+-             more; each extra item picks its own service (starting with the first
+-             one's) and the time search covers all of them. --}}
++        {{-- MARKER-MULTI-ASSET-MODAL: one Items list. Every item is the same row:
++             which item (the customer's saved ones, or a new one named in the row),
++             its services, and remove. One "+ Add item". The total under the list
++             is what the day and time search uses. Words come from the shop's own
++             name for items. Shops that don't track items keep the Service section. --}}
+         @if($currentTenant->multi_asset_enabled)
+         @php $aSing = strtolower($currentTenant->asset_label_singular ?: 'item'); $aPlur = strtolower($currentTenant->asset_label_plural ?: ($aSing.'s')); @endphp
+         <div class="appt-section" id="appt-asset-section">
+-          <div class="appt-section-h">{{ ucfirst($aSing) }}</div>
+-          <div id="appt-asset-need-customer" style="font-size:11px;opacity:.55">Choose a customer to pick or add a {{ $aSing }}.</div>
+-          {{-- the select stays as the value holder; the
+-               tiles above it are what people actually touch. --}}
+-          <div id="appt-asset-tiles" class="appt-tiles" style="display:none"></div>
+-          <select id="appt-asset-select" class="appt-input" style="display:none"
+-                  onchange="var n=document.getElementById('appt-asset-new'); if(n) n.style.display=(this.value==='__new__'?'block':'none');"></select>
+-          <div id="appt-asset-new" style="display:none; margin-top:8px">
+-            <div class="appt-row">
+-              <input type="text" id="appt-asset-name" class="appt-input" placeholder="Make &amp; model">
+-              <input type="text" id="appt-asset-id"   class="appt-input" placeholder="Serial (optional)">
+-            </div>
+-            <div style="font-size:11px;opacity:.55;margin-top:6px">Saved to the customer for next time.</div>
+-          </div>
+-          <div id="appt-asset-extras"></div>
+-          <button type="button" id="appt-asset-add" class="appt-asset-add" style="display:none" onclick="ApptModal.addAsset()">+ Add another {{ $aSing }}</button>
+-          <p id="appt-asset-hint" style="font-size:11px;opacity:.55;margin-top:8px;display:none">The first {{ $aSing }} gets the service picked below. Each one you add picks its own; the time found covers all of them.</p>
++          <div class="appt-section-h">{{ ucfirst($aPlur) }}</div>
++          <div class="wi-list" id="appt-items"></div>
++          <button type="button" class="wi-add" id="appt-items-add" onclick="ApptModal.addItem()">+ Add {{ $aSing }}</button>
++          <div class="wi-sum" id="appt-items-sum"></div>
+         </div>
+-        <style>
+-          .appt-asset-add { margin-top: 10px; background: none; border: 1px dashed var(--ia-border-strong, rgba(255,255,255,.22)); color: var(--ia-text, inherit); border-radius: 8px; padding: 8px 12px; font: inherit; font-size: 12.5px; cursor: pointer; width: 100%; text-align: left; }
+-          .appt-asset-add:hover { border-style: solid; }
+-          .appt-asset-extra { margin-top: 10px; padding: 10px 12px; border: 1px solid var(--ia-border, rgba(255,255,255,.12)); border-radius: 10px; }
+-          .appt-asset-extra-h { display: flex; justify-content: space-between; align-items: center; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; opacity: .7; margin-bottom: 8px; }
+-          .appt-asset-extra-h button { background: none; border: 0; color: inherit; font: inherit; font-size: 11.5px; text-transform: none; letter-spacing: 0; cursor: pointer; opacity: .8; text-decoration: underline; }
+-          .appt-asset-extra .appt-row + .appt-row, .appt-asset-extra select + .appt-row, .appt-asset-extra .appt-row + select { margin-top: 8px; }
+-          .appt-asset-extra select.appt-input { width: 100%; }
+-        </style>
+         @endif
+ 
+         {{-- SEQUENTIAL-PICKER v1 --}}
+-        <div class="appt-section">
++        {{-- MARKER-MULTI-ASSET-MODAL: shops that track items pick services on each item above --}}
++        <div class="appt-section"@if($currentTenant->multi_asset_enabled) style="display:none"@endif>
+           <div class="appt-section-h">Service</div>
+           {{-- SERVICE-TYPEAHEAD v1 — register-style search over the loaded catalog --}}
+           <div id="appt-sp-service-wrap" style="position:relative">
+@@ -531,6 +541,7 @@ window.ApptModal = (function () {
+       .then(function (r) { return r.json(); })
+       .then(function (data) {
+         state.services  = data.services  || [];
++        if (assetsCfg.enabled) renderItems(); // MARKER-MULTI-ASSET-MODAL
+         state.resources = data.resources || [];
+         populateServices();
+       })
+@@ -621,6 +632,7 @@ window.ApptModal = (function () {
+     hideServiceResults();
+     el('appt-sp-resource').innerHTML = '<option value="">Select a resource…</option>';
+     var rt = el('appt-sp-resource-tiles'); if (rt) { rt.innerHTML = ''; rt.style.display = 'none'; }
++    assetReset(); // MARKER-MULTI-ASSET-MODAL: one empty item to start
+     el('appt-sp-resource-section').style.display = 'none';
+     el('appt-sp-find-section').style.display = 'none';
+     el('appt-sp-times-section').style.display = 'none';
+@@ -702,119 +714,121 @@ window.ApptModal = (function () {
+     assetReset();
+   }
+ 
+-  // ── single asset select/create ──
+-  function assetOpt(v, label){ var o=document.createElement('option'); o.value=v; o.textContent=label; return o; }
+-  function assetReset(){
+-    if(!assetsCfg.enabled) return;
+-    var need=el('appt-asset-need-customer'); if(need) need.style.display='block';
+-    var sel=el('appt-asset-select'); if(sel){ sel.innerHTML=''; sel.style.display='none'; }
+-    var at=el('appt-asset-tiles'); if(at){ at.innerHTML=''; at.style.display='none'; }
+-    var nw=el('appt-asset-new'); if(nw) nw.style.display='none';
+-    var nm=el('appt-asset-name'); if(nm) nm.value='';
+-    var ni=el('appt-asset-id'); if(ni) ni.value='';
+-    state.extraAssets = []; state.custAssets = []; renderExtras();
+-    var add=el('appt-asset-add'); if(add) add.style.display='none';
++  // ── Items (MARKER-MULTI-ASSET-MODAL) ──
++  // rows: { key, item: '' | saved asset id | '__new__', name, ident, svcs: [service ids] }
++  var itemSeq = 0;
++  state.rows = [];
++  state.custAssets = [];
++  var plural = @json(strtolower($currentTenant->asset_label_plural ?: (($currentTenant->asset_label_singular ?: 'item') . 's')));
++  function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
++  function newRow(svc) { return { key: 'a' + (++itemSeq), item: state.custAssets.length ? '' : '__new__', name: '', ident: '', svcs: [svc || ''] }; }
++  function svcById(id) { var f = null; state.services.forEach(function (x) { if (String(x.id) === String(id)) f = x; }); return f; }
++  function svcLabel(x) { var dur = x.duration_minutes && !/\(\s*\d+\s*min\s*\)/i.test(x.name) ? ' · ' + x.duration_minutes + ' min' : ''; return x.name + dur; }
++  function assetReset() {
++    if (!assetsCfg.enabled) return;
++    state.custAssets = [];
++    state.rows = [newRow('')];
++    renderItems();
+   }
+-  function assetNewOnly(){
+-    if(!assetsCfg.enabled) return;
+-    var need=el('appt-asset-need-customer'); if(need) need.style.display='none';
+-    var sel=el('appt-asset-select'); if(sel) sel.style.display='none';
+-    var nw=el('appt-asset-new'); if(nw) nw.style.display='block';
+-    var add=el('appt-asset-add'); if(add) add.style.display='block';
++  function assetNewOnly() {
++    if (!assetsCfg.enabled) return;
++    state.rows.forEach(function (r) { if (!r.item) r.item = '__new__'; });
++    renderItems();
+   }
+-  function assetLoadFor(customerId){
+-    if(!assetsCfg.enabled) return;
+-    assetReset();
+-    var need=el('appt-asset-need-customer'); if(need) need.style.display='none';
+-    fetch(assetsCfg.url + '?customer_id=' + encodeURIComponent(customerId), { headers:{'Accept':'application/json'}, credentials:'same-origin' })
+-      .then(function(r){ return r.json(); })
+-      .then(function(d){
+-        var assets=(d && d.assets) || [];
+-        state.custAssets = assets;
+-        var add=el('appt-asset-add'); if(add) add.style.display='block';
+-        var sel=el('appt-asset-select');
+-        if(assets.length && sel){
+-          sel.innerHTML='';
+-          sel.appendChild(assetOpt('', 'Select ' + assetsCfg.singular + '\u2026'));
+-          assets.forEach(function(a){ sel.appendChild(assetOpt(a.id, a.name + (a.identifier ? ' \u00b7 ' + a.identifier : ''))); });
+-          sel.appendChild(assetOpt('__new__', '+ Add new ' + assetsCfg.singular));
+-          sel.style.display='none'; // tiles are the control
+-          renderTiles('appt-asset-tiles', 'appt-asset-select',
+-            assets.map(function (a) { return { value: a.id, label: a.name, sub: a.identifier || '' }; })
+-              .concat([{ value: '__new__', label: '+ Add new ' + assetsCfg.singular, isAdd: true }]), '');
+-          var nw=el('appt-asset-new'); if(nw) nw.style.display='none';
+-        } else {
+-          assetNewOnly();
+-        }
++  function assetLoadFor(customerId) {
++    if (!assetsCfg.enabled) return;
++    state.custAssets = [];
++    fetch(assetsCfg.url + '?customer_id=' + encodeURIComponent(customerId), { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
++      .then(function (r) { return r.json(); })
++      .then(function (d) {
++        state.custAssets = (d && d.assets) || [];
++        // one saved item: picked for them; several: they choose; none: name a new one
++        state.rows.forEach(function (r, i) {
++          if (r.item === '' || r.item === '__new__' && !r.name) r.item = state.custAssets.length === 1 && i === 0 ? String(state.custAssets[0].id) : (state.custAssets.length ? '' : '__new__');
++        });
++        renderItems();
+       })
+-      .catch(function(){ assetNewOnly(); });
++      .catch(function () { assetNewOnly(); });
+   }
+-
+-  // ── more items (MARKER-MULTI-ASSET-MODAL) ──
+-  var extraSeq = 1;
+-  state.extraAssets = [];
+-  state.custAssets = [];
+-  function svcOptions(selected) {
+-    return state.services.slice().sort(function (a, b) { return a.name.localeCompare(b.name); }).map(function (x) {
+-      return '<option value="' + esc(x.id) + '"' + (String(x.id) === String(selected) ? ' selected' : '') + '>' + esc(x.name) + ' · ' + esc(svcMeta(x)) + '</option>';
+-    }).join('');
+-  }
+-  function renderExtras() {
+-    var box = el('appt-asset-extras'); if (!box) return;
+-    var used = {};
+-    var firstSel = el('appt-asset-select'); if (firstSel && firstSel.value && firstSel.value !== '__new__') used[firstSel.value] = 1;
+-    state.extraAssets.forEach(function (x) { if (x.assetId) used[x.assetId] = 1; });
+-    box.innerHTML = state.extraAssets.map(function (x, i) {
+-      var opts = '<option value="__new__"' + (!x.assetId ? ' selected' : '') + '>+ New ' + esc(assetsCfg.singular) + '</option>' + state.custAssets.map(function (a) {
+-        var taken = used[a.id] && a.id !== x.assetId;
+-        return '<option value="' + esc(a.id) + '"' + (a.id === x.assetId ? ' selected' : '') + (taken ? ' disabled' : '') + '>' + esc(a.name + (a.identifier ? ' · ' + a.identifier : '')) + (taken ? ' (already added)' : '') + '</option>';
++  function renderItems() {
++    var box = el('appt-items'); if (!box) return;
++    var sing = assetsCfg.singular;
++    box.innerHTML = state.rows.map(function (r, i) {
++      var taken = {};
++      state.rows.forEach(function (o, j) { if (j !== i && o.item && o.item !== '__new__') taken[o.item] = 1; });
++      var io = '<option value="">Pick ' + (/^[aeiou]/i.test(sing) ? 'an ' : 'a ') + esc(sing) + '…</option>' + state.custAssets.map(function (a) {
++        var t = taken[String(a.id)];
++        return '<option value="' + esc(a.id) + '"' + (String(a.id) === r.item ? ' selected' : '') + (t ? ' disabled' : '') + '>' + esc(a.name + (a.identifier ? ' · ' + a.identifier : '')) + (t ? ' (already added)' : '') + '</option>';
++      }).join('') + '<option value="__new__"' + (r.item === '__new__' ? ' selected' : '') + '>+ New ' + esc(sing) + '…</option>';
++      var mins = r.svcs.reduce(function (a, id) { var x = svcById(id); return a + (x ? (x.duration_minutes || 0) : 0); }, 0);
++      var lines = r.svcs.map(function (id, k) {
++        var so = '<option value="">Pick a service…</option>' + state.services.slice().sort(function (a, b) { return a.name.localeCompare(b.name); }).map(function (x) {
++          return '<option value="' + esc(x.id) + '"' + (String(x.id) === String(id) ? ' selected' : '') + '>' + esc(svcLabel(x)) + '</option>';
++        }).join('');
++        return '<div class="wi-svcline"><select class="appt-input" data-f="svc" data-k="' + k + '" aria-label="Service">' + so + '</select>'
++          + (k > 0 ? '<button type="button" class="wi-x wi-x-sm" data-f="rmsvc" data-k="' + k + '" aria-label="Remove this service">&times;</button>' : '<span class="wi-x-pad"></span>') + '</div>';
+       }).join('');
+-      return '<div class="appt-asset-extra" data-k="' + x.key + '">'
+-        + '<div class="appt-asset-extra-h"><span>' + esc(assetsCfg.singular) + ' ' + (i + 2) + '</span><button type="button" data-rm="' + x.key + '">Remove</button></div>'
+-        + (state.custAssets.length ? '<select class="appt-input" data-f="asset">' + opts + '</select>' : '')
+-        + (!x.assetId ? '<div class="appt-row"><input type="text" class="appt-input" data-f="name" placeholder="Make &amp; model" value="' + esc(x.name || '') + '"><input type="text" class="appt-input" data-f="ident" placeholder="Serial (optional)" value="' + esc(x.ident || '') + '"></div>' : '')
+-        + '<select class="appt-input" data-f="svc" style="margin-top:8px">' + svcOptions(x.serviceId) + '</select>'
++      return '<div class="wi-row" data-i="' + i + '"><div class="wi-n">' + (i + 1) + '</div>'
++        + '<div><div class="wi-lbl">' + esc(cap(sing)) + '</div><select class="appt-input" data-f="item" aria-label="' + esc(cap(sing)) + ' ' + (i + 1) + '">' + io + '</select>'
++        + (r.item === '__new__' ? '<div class="wi-new"><input type="text" class="appt-input" data-f="name" placeholder="Make &amp; model" value="' + esc(r.name) + '"><input type="text" class="appt-input" data-f="ident" placeholder="Serial (optional)" value="' + esc(r.ident) + '"></div>' : '')
++        + '</div>'
++        + '<div class="wi-svc"><div class="wi-lbl">' + (r.svcs.length > 1 ? 'Services · ' + mins + ' min' : 'Service') + '</div>' + lines
++        + '<button type="button" class="wi-more" data-f="addsvc">+ service</button></div>'
++        + '<button type="button" class="wi-x" data-f="rm" aria-label="Remove ' + esc(sing) + ' ' + (i + 1) + '"' + (state.rows.length === 1 ? ' disabled' : '') + '>&times;</button>'
+         + '</div>';
+     }).join('');
+-    var hint = el('appt-asset-hint'); if (hint) hint.style.display = state.extraAssets.length ? 'block' : 'none';
++    var all = [].concat.apply([], state.rows.map(function (r) { return r.svcs.filter(Boolean); }));
++    var mins = 0, cents = 0;
++    all.forEach(function (id) { var x = svcById(id); if (x) { mins += x.duration_minutes || 0; cents += x.price_cents || 0; } });
++    var sum = el('appt-items-sum');
++    if (sum) sum.innerHTML = '<span><b>' + state.rows.length + ' ' + esc(state.rows.length === 1 ? sing : plural) + '</b> · ' + all.length + ' ' + (all.length === 1 ? 'service' : 'services') + (mins ? ' · ' + mins + ' min total' : '') + '</span><span>' + (cents ? fmt(cents) : '') + '</span>';
+   }
+-  function extrasChanged() {
+-    // the time search covers every item's service
++  // the first item's first service picks who can do it; the rest only lengthen the time searched
++  function itemsChanged(firstChanged) {
++    var first = (state.rows[0] && state.rows[0].svcs[0]) || '';
++    if (firstChanged || String(first) !== String(state.selectedServiceId || '')) { applyServiceSelection(first ? String(first) : ''); return; }
+     state.selectedSlot = null;
+     if (state.selectedServiceId && state.selectedResourceId) onFindTimes();
+   }
+-  function addAsset() {
+-    var first = state.selectedServiceId || (state.services[0] && state.services[0].id) || '';
+-    state.extraAssets.push({ key: 'a' + (++extraSeq), assetId: '', name: '', ident: '', serviceId: first });
+-    renderExtras();
+-    extrasChanged();
+-    var box = el('appt-asset-extras'); var last = box && box.lastElementChild;
+-    var f = last && (last.querySelector('[data-f="name"]') || last.querySelector('select')); if (f) f.focus();
+-  }
+   function extraServiceIds() {
+-    return state.extraAssets.map(function (x) { return x.serviceId; }).filter(Boolean);
++    var out = [];
++    state.rows.forEach(function (r, i) { r.svcs.forEach(function (id, k) { if (id && !(i === 0 && k === 0)) out.push(id); }); });
++    return out;
+   }
+-  document.addEventListener('click', function (e) {
+-    var rm = e.target.closest && e.target.closest('#appt-asset-extras [data-rm]');
+-    if (!rm) return;
+-    state.extraAssets = state.extraAssets.filter(function (x) { return x.key !== rm.dataset.rm; });
+-    renderExtras(); extrasChanged();
+-  });
+-  document.addEventListener('change', function (e) {
+-    var card = e.target.closest && e.target.closest('#appt-asset-extras .appt-asset-extra');
+-    if (!card) return;
+-    var x = state.extraAssets.filter(function (y) { return y.key === card.dataset.k; })[0]; if (!x) return;
+-    var f = e.target.dataset.f;
+-    if (f === 'asset') { x.assetId = e.target.value === '__new__' ? '' : e.target.value; renderExtras(); }
+-    if (f === 'svc') { x.serviceId = e.target.value; extrasChanged(); }
+-  });
+-  document.addEventListener('input', function (e) {
+-    var card = e.target.closest && e.target.closest('#appt-asset-extras .appt-asset-extra');
+-    if (!card) return;
+-    var x = state.extraAssets.filter(function (y) { return y.key === card.dataset.k; })[0]; if (!x) return;
+-    if (e.target.dataset.f === 'name') x.name = e.target.value;
+-    if (e.target.dataset.f === 'ident') x.ident = e.target.value;
+-  });
++  function addItem() {
++    var first = (state.rows[0] && state.rows[0].svcs[0]) || '';
++    state.rows.push(newRow(first));
++    renderItems(); itemsChanged(false);
++    var s = document.querySelector('#appt-items .wi-row:last-child [data-f="item"]'); if (s) s.focus();
++  }
++  (function () {
++    var box = el('appt-items'); if (!box) return;
++    box.addEventListener('change', function (e) {
++      var row = e.target.closest('.wi-row'); if (!row) return;
++      var i = +row.dataset.i, r = state.rows[i], f = e.target.dataset.f;
++      if (f === 'item') {
++        r.item = e.target.value; renderItems();
++        if (r.item === '__new__') { var n = box.querySelector('.wi-row[data-i="' + i + '"] [data-f="name"]'); if (n) n.focus(); }
++      }
++      if (f === 'svc') { var k = +e.target.dataset.k; r.svcs[k] = e.target.value; renderItems(); itemsChanged(i === 0 && k === 0); }
++    });
++    box.addEventListener('input', function (e) {
++      var row = e.target.closest('.wi-row'); if (!row) return;
++      var r = state.rows[+row.dataset.i];
++      if (e.target.dataset.f === 'name') r.name = e.target.value;
++      if (e.target.dataset.f === 'ident') r.ident = e.target.value;
++    });
++    box.addEventListener('click', function (e) {
++      var b = e.target.closest('button[data-f]'); if (!b) return;
++      var i = +b.closest('.wi-row').dataset.i, r = state.rows[i];
++      if (b.dataset.f === 'rm') { state.rows.splice(i, 1); renderItems(); itemsChanged(i === 0); }
++      if (b.dataset.f === 'rmsvc') { r.svcs.splice(+b.dataset.k, 1); renderItems(); itemsChanged(false); }
++      if (b.dataset.f === 'addsvc') {
++        r.svcs.push(r.svcs[0] || ''); renderItems(); itemsChanged(false);
++        var ss = box.querySelectorAll('.wi-row[data-i="' + i + '"] [data-f="svc"]'); if (ss.length) ss[ss.length - 1].focus();
++      }
++    });
++  })();
+ 
+   // ── Service picker ──
+   function toggleServicePicker() {
+@@ -1411,33 +1425,17 @@ window.ApptModal = (function () {
+     }
+ 
+     if (assetsCfg.enabled) {
+-      var _an = el('appt-asset-name'), _ai = el('appt-asset-id'), _as = el('appt-asset-select');
+-      var _nw = el('appt-asset-new');
+-      var _newVisible = _nw && _nw.style.display !== 'none';
+-      var _name = _an ? _an.value.trim() : '';
+-      var _selVal = _as ? _as.value : '';
+-      if (_newVisible && _name) {
+-        payload.assets = [{ client_key: 'a1', name_snapshot: _name, identifier: (_ai && _ai.value.trim()) || null }];
+-        payload.items[0].asset_client_key = 'a1';
+-      } else if (_selVal && _selVal !== '__new__') {
+-        payload.assets = [{ client_key: 'a1', customer_asset_id: _selVal }];
+-        payload.items[0].asset_client_key = 'a1';
+-      }
+-      // more items, each with its own service
+-      if (state.extraAssets.length) {
+-        if (!payload.assets) {
+-          showError('Pick or name the first ' + assetsCfg.singular + ' before adding more.');
+-          btn.disabled = false; btn.innerHTML = 'Save appointment';
+-          return;
+-        }
+-        for (var _i = 0; _i < state.extraAssets.length; _i++) {
+-          var _x = state.extraAssets[_i];
+-          if (!_x.serviceId) { showError('Pick a service for ' + assetsCfg.singular + ' ' + (_i + 2) + '.'); btn.disabled = false; btn.innerHTML = 'Save appointment'; return; }
+-          if (!_x.assetId && !(_x.name || '').trim()) { showError('Name ' + assetsCfg.singular + ' ' + (_i + 2) + ', or remove it.'); btn.disabled = false; btn.innerHTML = 'Save appointment'; return; }
+-          payload.assets.push(_x.assetId ? { client_key: _x.key, customer_asset_id: _x.assetId } : { client_key: _x.key, name_snapshot: _x.name.trim(), identifier: (_x.ident || '').trim() || null });
+-          payload.items.push({ service_item_id: _x.serviceId, price_override_cents: null, asset_client_key: _x.key });
+-        }
++      // every item, each with its own services; the first service is the one the time was found for
++      var _assets = [], _items = [];
++      for (var _i = 0; _i < state.rows.length; _i++) {
++        var _r = state.rows[_i], _n = _i + 1, _w = assetsCfg.singular;
++        if (!_r.item || (_r.item === '__new__' && !_r.name.trim())) { showError((state.rows.length > 1 ? cap(_w) + ' ' + _n : 'The ' + _w) + ' needs one picked or a name.'); btn.disabled = false; btn.innerHTML = 'Save appointment'; return; }
++        if (!_r.svcs.filter(Boolean).length || _r.svcs.some(function (x) { return !x; })) { showError('Pick a service for ' + (state.rows.length > 1 ? _w + ' ' + _n : 'the ' + _w) + ', or remove the empty one.'); btn.disabled = false; btn.innerHTML = 'Save appointment'; return; }
++        _assets.push(_r.item === '__new__' ? { client_key: _r.key, name_snapshot: _r.name.trim(), identifier: _r.ident.trim() || null } : { client_key: _r.key, customer_asset_id: _r.item });
++        _r.svcs.forEach(function (id) { _items.push({ service_item_id: id, price_override_cents: null, asset_client_key: _r.key }); });
+       }
++      payload.assets = _assets;
++      payload.items = _items;
+     }
+ 
+     var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+@@ -1482,7 +1480,7 @@ window.ApptModal = (function () {
+ 
+   return {
+     open: open, close: close, clearCustomer: clearCustomer, clearService: clearService,
+-    toggleServicePicker: toggleServicePicker, submit: submit, addAsset: addAsset,
++    toggleServicePicker: toggleServicePicker, submit: submit, addItem: addItem,
+   };
+ })();
+ 
+-- 
+2.43.0
+
