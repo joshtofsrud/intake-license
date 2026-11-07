@@ -449,8 +449,11 @@ class AppointmentController extends Controller
         $services = \App\Models\Tenant\TenantServiceItem::where('tenant_id', $tenant->id)
             ->where('is_active', true)
             ->orderBy('sort_order')->orderBy('name')
+            ->with('category:id,name')
             ->get(['id', 'name', 'duration_minutes', 'price_cents',
-                   'prep_before_minutes', 'cleanup_after_minutes']);
+                   'prep_before_minutes', 'cleanup_after_minutes', 'category_id']);
+        // MARKER-MULTI-ASSET-MODAL: the category name, for the picker's category pills
+        $services->each(fn ($s) => $s->setAttribute('category_name', $s->category?->name ?? 'Other'))->makeHidden(['category', 'category_id']);
 
         $customersQuery = TenantCustomer::where('tenant_id', $tenant->id);
         if ($search !== '') {
