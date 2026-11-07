@@ -301,3 +301,37 @@
 .rx-line{font-size:12.5px;color:var(--ia-text-dim);margin:10px 0 0}
 .rx-line a{color:var(--ia-text-muted);text-decoration:underline}
 @media(max-width:640px){.rb-h{flex-wrap:wrap}.rx-acts{margin-left:0;width:100%;order:3;padding-top:2px}.rb-h .rb-hint{flex-basis:100%}.rb-bar .rb-seg{width:100%}}
+
+/* MARKER-REPORT-DAILY-DQ-TRAFFIC — shared by Daily ops, Data quality and Traffic */
+.rb-two{display:grid;grid-template-columns:1fr 1.2fr;gap:28px;align-items:start}
+@media(max-width:860px){.rb-two{grid-template-columns:1fr;gap:0}}
+.rb-inline{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.rb-note.rb-good{border-left-color:var(--rb-good)}
+.rb-tbl .ia-table td label{cursor:pointer}
+.rb-meter{width:100%;height:6px;border-radius:3px;background:var(--ia-surface-2);overflow:hidden;min-width:120px}
+.rb-meter span{display:block;height:100%;background:var(--ia-accent)}
+.rb-meter.crit span{background:var(--rb-bad)}
+.rb-tbl .ia-table td.num .rb-inp.num{margin-left:auto;display:block}
+
+/* Traffic: the existing zones, strips, windows and tables drawn in the report-builder language (markup and data unchanged). */
+.ia-section .rep-zone{background:none;border:0;border-radius:0;padding:0;margin-bottom:34px}
+.ia-section .rep-zone-head{align-items:baseline;margin-bottom:10px}
+.ia-section .rep-zone-title{font-size:13px;font-weight:500;text-transform:uppercase;letter-spacing:.06em}
+.ia-section .rep-zone-sub{font-size:11.5px;color:var(--ia-text-muted);font-weight:400;margin-top:0}
+.ia-section .rep-window{display:inline-flex;background:var(--ia-surface);border:1px solid var(--ia-border);border-radius:9px;padding:3px;gap:0}
+.ia-section .rep-window a{padding:5px 12px;font-size:12px;font-weight:600;border-radius:6px;color:var(--ia-text-dim)}
+.ia-section .rep-window a.active{background:var(--ia-surface-2);color:var(--ia-text);font-weight:600}
+.ia-section .rep-stat-strip{margin:0 0 6px;border-top:1px solid var(--ia-border);border-bottom:1px solid var(--ia-border)}
+.ia-section .rep-stat-cell{padding:16px 18px 15px;border-right:1px solid var(--ia-border)}
+.ia-section .rep-stat-cell:first-child{padding-left:0}
+.ia-section .rep-stat-cell .lbl{font-size:11px;letter-spacing:.07em;font-weight:500}
+.ia-section .rep-stat-cell .val{font-size:24px;font-weight:500;letter-spacing:0}
+.ia-section .rep-stat-cell.feat .val{color:var(--ia-text)}
+.ia-section .rep-stat-cell .delta{font-size:12px}
+.ia-section .rep-stat-cell .delta.up{color:var(--rb-good)}.ia-section .rep-stat-cell .delta.down{color:var(--rb-bad)}
+.ia-section table.rep-tbl{margin-top:0;border-top:1px solid var(--ia-border)}
+.ia-section table.rep-tbl th{font-size:11px;letter-spacing:.07em;font-weight:500;padding:10px 12px}
+.ia-section table.rep-tbl td{padding:11px 12px}
+.ia-section .rep-empty{border:1px solid var(--ia-border);border-radius:6px}
+.ia-section .rep-bar-track>span,.ia-section .rep-funnel-bar{background:var(--ia-accent)}
+.ia-section .rep-showing{font-size:12px!important}

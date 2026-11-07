@@ -6,76 +6,53 @@
 
 @push('styles')
 @include('tenant.reports._tab_styles')
-<style>
-.ex-sub { display:flex; gap:18px; border-bottom:.5px solid var(--ia-border); margin-bottom:16px; }
-.ex-sub a { padding:10px 2px; font-size:12.5px; color:var(--ia-text-muted); border-bottom:2px solid transparent; margin-bottom:-.5px; text-decoration:none; }
-.ex-sub a.on { color:var(--ia-text); border-bottom-color:var(--ia-accent); font-weight:600; }
-.ex-range { display:flex; gap:8px; align-items:center; margin-bottom:16px; flex-wrap:wrap; font-size:12.5px; }
-.ex-inp { background:var(--ia-surface-2,#1a1a1a); border:1px solid var(--ia-border); color:var(--ia-text); border-radius:7px; padding:7px 10px; font-size:12.5px; }
-.ex-cards { display:grid; grid-template-columns:1fr 1fr; gap:12px; max-width:840px; }
-@media(max-width:760px){ .ex-cards { grid-template-columns:1fr; } }
-.ex-card { border:.5px solid var(--ia-border); border-radius:12px; background:var(--ia-surface); padding:15px 17px; display:flex; flex-direction:column; gap:8px; }
-.ex-card .t { font-weight:700; font-size:13.5px; }
-.ex-card .d { font-size:12px; color:var(--ia-text-muted); line-height:1.55; flex:1; }
-.ex-card .f { font-size:10px; color:var(--ia-text-dim,rgba(255,255,255,.4)); text-transform:uppercase; letter-spacing:.05em; font-weight:700; }
-.ex-btn { align-self:flex-start; padding:8px 15px; border-radius:7px; font-size:12px; font-weight:600; cursor:pointer; border:none; background:var(--ia-accent); color:var(--ia-accent-text); text-decoration:none; }
-.ex-card.soon { opacity:.55; }
-.ex-card.soon .ex-btn { background:transparent; border:.5px solid var(--ia-border-2,rgba(255,255,255,.2)); color:var(--ia-text-muted); cursor:default; }
-</style>
+<link rel="stylesheet" href="{{ asset('css/tenant/report-builder.css') }}?v={{ filemtime(public_path('css/tenant/report-builder.css')) }}">
 @endpush
 
 @section('content')
-<div style="max-width:1000px">
-  <h1 style="font-size:19px;font-weight:700;margin-bottom:2px">Reports</h1>
-  <div style="font-size:12.5px;color:var(--ia-text-muted);margin-bottom:14px">How your business is performing.</div>
-  @include('tenant.reports._tab_subnav', ['active' => 'daily'])
+@php
+  $qs = '?from=' . tlocal_carbon($from)->toDateString() . '&to=' . tlocal_carbon($to)->toDateString();
+  $exports = [
+    ['QuickBooks journal', 'One balanced journal entry per day: each payment method into its deposit account, sales income, tax payable, tips payable. Import via QBO journal import. Account names follow your payment-method mapping once set.', 'CSV · QBO journal', route('tenant.reports.daily.export.qb')],
+    ['Sales & payments detail', 'Every payment with its kind, method, amount, sale totals, tax, tip, customer and reference. The everything file for your accountant, Wave or Excel.', 'CSV · generic', route('tenant.reports.daily.export.detail')],
+    ['Tax summary', 'Collected tax by day with gross and taxable amounts, shaped for the WA excise return and usable for any jurisdiction.', 'CSV · tax', route('tenant.reports.daily.export.tax')],
+    ['Xero bank statement', 'Payout-level lines matching your bank feed for one-click reconciliation in Xero. Built from cached payouts, so fetch the weeks you need on the Reconciliation tab first.', 'CSV · Xero statement', route('tenant.reports.daily.export.xero')],
+  ];
+@endphp
+<div class="ia-section ia-section--wide">
+@include('tenant.reports._daily_head', ['dailyActive' => 'exports'])
 
-  <div class="ex-sub">
-    <a href="{{ route('tenant.reports.daily') }}">End of day</a>
-    <a href="{{ route('tenant.reports.daily.recon') }}">Reconciliation</a>
-    <a href="{{ route('tenant.reports.daily.exports') }}" class="on">Bookkeeping exports</a>
-  </div>
+<form method="GET" action="{{ route('tenant.reports.daily.exports') }}" class="rb-bar">
+  <span class="rb-hint" style="font-weight:600;text-transform:uppercase;letter-spacing:.07em">Range</span>
+  <input class="rb-inp" style="width:auto" type="date" name="from" value="{{ tlocal_carbon($from)->toDateString() }}" aria-label="From" required>
+  <span class="rb-hint">to</span>
+  <input class="rb-inp" style="width:auto" type="date" name="to" value="{{ tlocal_carbon($to)->toDateString() }}" aria-label="To" required>
+  <button class="ia-btn ia-btn--sm" type="submit">Set range</button>
+  <span class="sp"></span>
+  <span class="rb-hint">Defaults to this month. Dates are your local days.</span>
+</form>
 
-  <form method="GET" action="{{ route('tenant.reports.daily.exports') }}" class="ex-range">
-    <span style="color:var(--ia-text-muted)">Range</span>
-    <input class="ex-inp" type="date" name="from" value="{{ tlocal_carbon($from)->toDateString() }}">
-    <span style="color:var(--ia-text-muted)">to</span>
-    <input class="ex-inp" type="date" name="to" value="{{ tlocal_carbon($to)->toDateString() }}">
-    <button class="ex-btn" type="submit" style="background:transparent;border:.5px solid var(--ia-border-2,rgba(255,255,255,.2));color:var(--ia-text)">Set range</button>
-    <span style="color:var(--ia-text-dim,rgba(255,255,255,.4));font-size:11px">defaults to this month · dates are your local days</span>
-  </form>
+<div class="rb-sec">
+  <div class="rb-h"><h2>Exports</h2><span class="rb-hint">each file covers the range above</span></div>
+  <div class="rb-tbl"><table class="ia-table rx-tbl">
+    <thead><tr><th>Export</th><th>What it contains</th><th>Format</th><th></th></tr></thead>
+    <tbody>
+      @foreach($exports as [$t, $d, $f, $url])
+        <tr>
+          <td style="white-space:nowrap"><b>{{ $t }}</b></td>
+          <td class="sub" style="white-space:normal;font-size:12.5px;line-height:1.5;max-width:560px">{{ $d }}</td>
+          <td style="white-space:nowrap"><span class="rb-pill mute">{{ $f }}</span></td>
+          <td class="num"><a class="ia-btn ia-btn--sm ia-btn--primary" href="{{ $url . $qs }}">Generate export</a></td>
+        </tr>
+      @endforeach
+    </tbody>
+  </table></div>
+</div>
 
-  @php $qs = '?from=' . tlocal_carbon($from)->toDateString() . '&to=' . tlocal_carbon($to)->toDateString(); @endphp
-
-  <div class="ex-cards">
-    <div class="ex-card">
-      <div class="t">QuickBooks journal</div>
-      <div class="d">One balanced journal entry per day: each payment method into its deposit account, sales income, tax payable, tips payable. Import via QBO journal import. Account names follow your payment-method mapping once set.</div>
-      <div class="f">CSV · QBO journal</div>
-      <a class="ex-btn" href="{{ route('tenant.reports.daily.export.qb') . $qs }}">Generate export</a>
-    </div>
-
-    <div class="ex-card">
-      <div class="t">Sales &amp; payments detail</div>
-      <div class="d">Every payment with its kind, method, amount, sale totals, tax, tip, customer, and reference — the everything file for your accountant, Wave, or Excel.</div>
-      <div class="f">CSV · generic</div>
-      <a class="ex-btn" href="{{ route('tenant.reports.daily.export.detail') . $qs }}">Generate export</a>
-    </div>
-
-    <div class="ex-card">
-      <div class="t">Tax summary</div>
-      <div class="d">Collected tax by day with gross and taxable amounts — shaped for the WA excise return, works for any jurisdiction.</div>
-      <div class="f">CSV · tax</div>
-      <a class="ex-btn" href="{{ route('tenant.reports.daily.export.tax') . $qs }}">Generate export</a>
-    </div>
-
-    <div class="ex-card">
-      <div class="t">Xero bank statement</div>
-      <div class="d">Payout-level lines matching your bank feed for one-click reconciliation in Xero. Built from cached payouts — fetch the weeks you need on the Reconciliation tab first.</div>
-      <div class="f">CSV · Xero statement</div>
-      <a class="ex-btn" href="{{ route('tenant.reports.daily.export.xero') . $qs }}">Generate export</a>
-    </div>
-  </div>
+<div class="rb-legend">
+  <b>How this behaves.</b>
+  <div class="row"><span>Exports</span><span>Download a CSV of your records. Nothing is sent anywhere and nothing in your shop changes.</span></div>
+  <div class="row"><span>Open days</span><span>Days that aren't closed yet are included with their live numbers, so close the day first if you need a locked figure.</span></div>
+</div>
 </div>
 @endsection
-

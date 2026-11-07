@@ -1,112 +1,76 @@
 @extends('layouts.tenant.app')
-@php $pageTitle = 'Data quality'; @endphp
 
-@include('tenant.reports._tab_styles')
+{{-- Reports → Data quality. --}}
+
+@section('title', 'Reports · Data quality')
+
 @push('styles')
-<style>
-  /* same full width as the other report tabs (was capped at 940px, which wrapped the tab bar) */
-  .dq-sec{background:var(--ia-surface);border:.5px solid var(--ia-border);border-radius:var(--ia-r-lg);padding:20px;margin-bottom:18px}
-  .dq-sec h2{font-size:14px;font-weight:660;margin:0 0 4px;color:var(--ia-text)}
-  .dq-sub{font-size:12.5px;color:var(--ia-text-dim);margin:0 0 16px;line-height:1.55}
-  .dq-row{display:grid;grid-template-columns:1.5fr 2.2fr .8fr 64px; /* fixed last column: each row is its own grid, so "auto" shifted rows with a CSV button */gap:12px;align-items:center;padding:11px 4px;border-bottom:.5px solid var(--ia-border);font-size:13px}
-  .dq-row.head{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ia-text-dim);padding-bottom:7px}
-  .dq-bar{height:6px;border-radius:3px;background:var(--ia-surface-2);overflow:hidden}
-  .dq-bar span{display:block;height:100%;background:var(--ia-accent)}
-  .dq-bar.crit span{background:#e07a7a}
-  .dq-note{font-size:11.5px;color:var(--ia-text-dim);margin-top:3px;line-height:1.45}
-  .dq-none{font-size:13px;color:var(--ia-text-dim)}
-  .dq-chips{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:4px}
-  .dq-chip{background:var(--ia-surface-2);border:.5px solid var(--ia-border);border-radius:10px;padding:10px 14px;min-width:130px}
-  .dq-chip .n{font-size:19px;font-weight:740;color:var(--ia-text)}
-  .dq-chip .k{font-size:11.5px;color:var(--ia-text-dim);margin-top:2px}
-</style>
+@include('tenant.reports._tab_styles')
+<link rel="stylesheet" href="{{ asset('css/tenant/report-builder.css') }}?v={{ filemtime(public_path('css/tenant/report-builder.css')) }}">
 @endpush
 
 @section('content')
-<div class="ia-section ia-section--wide dq-wrap">
+<div class="ia-section ia-section--wide">
 
-  <div class="ia-page-head">
-    <div class="ia-page-head-left">
-      <h1 class="ia-page-title">Data quality</h1>
-      <p class="ia-page-subtitle">What's missing from your records, and what it stops you doing.</p>
-    </div>
+<div class="ia-page-head">
+  <div class="ia-page-head-left">
+    <h1 class="ia-page-title">Reports</h1>
+    <p class="ia-page-subtitle">What's missing from your records, and what it stops you doing.</p>
   </div>
+</div>
 
-  @include('tenant.reports._tab_subnav', ['active' => 'data'])
+@include('tenant.reports._tab_subnav', ['active' => 'data'])
 
-  {{-- Consent first: the most common "why did nothing send" answer --}}
-  <div class="dq-sec">
-    <h2>Marketing permission</h2>
-    <p class="dq-sub">
-      Campaigns only reach the first group. Imported contacts start unconfirmed —
-      that's deliberate, since permission has to be evidenced rather than assumed.
-      Receipts and booking confirmations are unaffected by all of this.
-    </p>
-    <div class="dq-chips">
-      <div class="dq-chip"><div class="n">{{ number_format($consent['mailable']) }}</div><div class="k">Can receive campaigns</div></div>
-      <div class="dq-chip"><div class="n">{{ number_format($consent['unconfirmed']) }}</div><div class="k">Unconfirmed</div></div>
-      <div class="dq-chip"><div class="n">{{ number_format($consent['unsubscribed']) }}</div><div class="k">Unsubscribed</div></div>
-    </div>
-    @if($consent['unconfirmed'] > 0)
-      <p class="dq-note" style="margin-top:10px">
-        <a href="{{ route('tenant.consent.index') }}">Confirm permission on Contacts &amp; consent</a>
-        if your business has it for these contacts.
-      </p>
-    @endif
+{{-- Consent first: the most common "why did nothing send" answer --}}
+<div class="rb-sec">
+  <div class="rb-h"><h2>Marketing permission</h2><span class="rb-hint">who campaigns can reach</span></div>
+  <div class="rb-note"><div>Campaigns only reach the first group. Imported contacts start unconfirmed, since permission has to be evidenced rather than assumed. Receipts and booking confirmations are unaffected by all of this.</div></div>
+  <div class="rb-strip">
+    <div class="rb-fig"><div class="l">Can receive campaigns</div><div class="v">{{ number_format($consent['mailable']) }}</div><div class="d good">&nbsp;</div></div>
+    <div class="rb-fig"><div class="l">Unconfirmed</div><div class="v">{{ number_format($consent['unconfirmed']) }}</div><div class="d {{ $consent['unconfirmed'] > 0 ? 'warn' : '' }}">&nbsp;</div></div>
+    <div class="rb-fig"><div class="l">Unsubscribed</div><div class="v">{{ number_format($consent['unsubscribed']) }}</div><div class="d">&nbsp;</div></div>
   </div>
+  @if($consent['unconfirmed'] > 0)
+    <div class="rx-line"><a href="{{ route('tenant.consent.index') }}">Confirm permission on Contacts &amp; consent</a> if your business has it for these contacts.</div>
+  @endif
+</div>
 
-  @foreach([['customers', 'Customers', $customers], ['inventory', 'Inventory', $inventory]] as [$type, $title, $data])
-  <div class="dq-sec">
-    <h2>{{ $title }}</h2>
-    <p class="dq-sub">
-      {{ number_format($data['total']) }} record(s). A blank counts as missing; a zero doesn't —
-      a $0 price is a decision, not a gap.
-    </p>
+@foreach([['customers', 'Customers', $customers], ['inventory', 'Inventory', $inventory]] as [$type, $title, $data])
+<div class="rb-sec">
+  <div class="rb-h"><h2>{{ $title }}</h2><span class="rb-hint">{{ number_format($data['total']) }} record{{ $data['total'] === 1 ? '' : 's' }}. A blank counts as missing; a zero doesn't, because a $0 price is a decision, not a gap.</span></div>
+  @if($data['total'] === 0)
+    <div class="rb-note"><div>Nothing here yet.</div></div>
+  @else
+    <div class="rb-tbl"><table class="ia-table rx-tbl">
+      <thead><tr><th>Field</th><th style="width:34%">Filled in</th><th class="num">Missing</th><th></th></tr></thead>
+      <tbody>
+        @foreach($data['fields'] as $f)
+          @php $crit = $f['critical'] && $f['missing'] > 0; @endphp
+          <tr>
+            <td style="white-space:normal">
+              {{ $f['label'] }}@if($crit) <span class="rb-pill bad" style="margin-left:6px">Needed</span>@endif
+              @if($f['consequence'] && $f['missing'] > 0)<div class="rb-hint" style="margin-top:3px;font-weight:400">{{ $f['consequence'] }}</div>@endif
+            </td>
+            <td>
+              <div class="rb-meter {{ $crit ? 'crit' : '' }}"><span style="width:{{ round($f['present'] / $data['total'] * 100) }}%"></span></div>
+              <div class="rb-hint" style="margin-top:4px">{{ number_format($f['present']) }} of {{ number_format($data['total']) }}</div>
+            </td>
+            <td class="num">@if($f['missing'] > 0){{ number_format($f['missing']) }} <span class="rb-hint">({{ $f['percent'] }}%)</span>@else<span class="rb-hint">None</span>@endif</td>
+            <td class="num" style="width:74px">@if($f['missing'] > 0)<a class="ia-btn ia-btn--sm" href="{{ route('tenant.reports.data_quality.export', ['type' => $type, 'field' => $f['field']]) }}">CSV</a>@endif</td>
+          </tr>
+        @endforeach
+      </tbody>
+    </table></div>
+    <div class="rx-line">The CSV lists the affected records with their id. Fill in the blanks and bring it back through <a href="{{ route('tenant.imports.index') }}">Import</a>. Matching is by {{ $type === 'inventory' ? 'SKU' : 'email' }}, so existing records update rather than duplicate.</div>
+  @endif
+</div>
+@endforeach
 
-    @if($data['total'] === 0)
-      <div class="dq-none">Nothing here yet.</div>
-    @else
-      <div class="dq-row head">
-        <div>Field</div><div>Filled in</div><div>Missing</div><div></div>
-      </div>
-      @foreach($data['fields'] as $f)
-        <div class="dq-row">
-          <div>
-            {{ $f['label'] }}
-            @if($f['consequence'] && $f['missing'] > 0)
-              <div class="dq-note">{{ $f['consequence'] }}</div>
-            @endif
-          </div>
-          <div>
-            <div class="dq-bar {{ $f['critical'] && $f['missing'] > 0 ? 'crit' : '' }}">
-              <span style="width:{{ $data['total'] > 0 ? round($f['present'] / $data['total'] * 100) : 0 }}%"></span>
-            </div>
-            <div class="dq-note">{{ number_format($f['present']) }} of {{ number_format($data['total']) }}</div>
-          </div>
-          <div>
-            @if($f['missing'] > 0)
-              {{ number_format($f['missing']) }} <span style="color:var(--ia-text-dim)">({{ $f['percent'] }}%)</span>
-            @else
-              <span style="color:var(--ia-text-dim)">None</span>
-            @endif
-          </div>
-          <div style="text-align:right">
-            @if($f['missing'] > 0)
-              <a class="ia-btn ia-btn--ghost ia-btn--sm" style="text-decoration:none"
-                 href="{{ route('tenant.reports.data_quality.export', ['type' => $type, 'field' => $f['field']]) }}">CSV</a>
-            @endif
-          </div>
-        </div>
-      @endforeach
-
-      <p class="dq-note" style="margin-top:12px">
-        The CSV lists the affected records with their id. Fill in the blanks and bring it
-        back through <a href="{{ route('tenant.imports.index') }}">Import</a> — matching is by
-        {{ $type === 'inventory' ? 'SKU' : 'email' }}, so existing records update rather than duplicate.
-      </p>
-    @endif
-  </div>
-  @endforeach
-
+<div class="rb-legend">
+  <b>How this behaves.</b>
+  <div class="row"><span>Read-only</span><span>This page only counts. Nothing in your records changes until you import a corrected CSV.</span></div>
+  <div class="row"><span>Needed</span><span>A field other features depend on (contact details for campaigns and reminders, for example). The bar turns red while any are missing.</span></div>
+  <div class="row"><span>CSV</span><span>One file per field, listing only the records that are missing it.</span></div>
+</div>
 </div>
 @endsection

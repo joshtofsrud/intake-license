@@ -4,21 +4,10 @@
 {{-- traffic reports tab --}}
 
 @push('styles')
+@include('tenant.reports._tab_styles')
+<link rel="stylesheet" href="{{ asset('css/tenant/report-builder.css') }}?v={{ filemtime(public_path('css/tenant/report-builder.css')) }}">
 <style>
-  /* Reuses .rep-* tokens from the other reports tabs. */
-  .rep-h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 4px; }
-  .rep-sub { color: var(--ia-text-dim, rgba(255,255,255,.42)); font-size: 13.5px; margin-bottom: 24px; }
-
-  .rep-toggle { display: inline-flex; gap: 4px; background: rgba(255,255,255,0.02);
-    border: 1px solid var(--ia-border); border-radius: 8px; padding: 3px; margin-bottom: 18px; }
-  .rep-toggle a {
-    padding: 7px 14px; font-size: 12.5px; font-weight: 600;
-    color: var(--ia-text-dim, rgba(255,255,255,.42)); text-decoration: none; border-radius: 5px;
-    transition: all .12s;
-  }
-  .rep-toggle a:hover { color: var(--ia-text); }
-  .rep-toggle a.active { background: var(--ia-accent, #BEF264); color: var(--ia-accent-text, #0a0a0a); }
-
+  /* Panel-specific traffic styles. Page chrome, tab bar, sections, strips and tables come from report-builder.css. */
   .rep-zone {
     background: var(--ia-surface);
     border: 1px solid var(--ia-border);
@@ -258,9 +247,13 @@
 
 @section('content')
 {{-- match the other reports tabs' padding wrapper --}}
-<div style="padding: 32px 40px;">
-  <h1 class="rep-h1">Reports</h1>
-  <div class="rep-sub">How your business is performing.</div>
+<div class="ia-section ia-section--wide">
+  <div class="ia-page-head">
+    <div class="ia-page-head-left">
+      <h1 class="ia-page-title">Reports</h1>
+      <p class="ia-page-subtitle">How your business is performing.</p>
+    </div>
+  </div>
 
   {{-- report picker + range share one row on phones --}}
   <div class="rep-controls">
