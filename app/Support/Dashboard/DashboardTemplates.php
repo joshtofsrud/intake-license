@@ -22,6 +22,7 @@ class DashboardTemplates
         'tiles'    => 'tenant.dashboard-tiles',
         'brief'    => 'tenant.dashboard-brief',
         'standard' => 'tenant.dashboard-standard',
+        'studio'   => 'tenant.dashboard-studio',
     ];
 
     /** Switch icons. The same SVGs the three views drew by hand before. */
@@ -29,6 +30,7 @@ class DashboardTemplates
         'overview' => '<svg class="vs-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="14" height="14" rx="2"/><path d="M21 7v10"/></svg>',
         'tiles'    => '<svg class="vs-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>',
         'brief'    => '<svg class="vs-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h13"/></svg>',
+        'studio'   => '<svg class="vs-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="2.5"/><rect x="13" y="3" width="8" height="8" rx="2.5"/><path d="M3 15h10M3 19h10"/><rect x="16" y="14" width="5" height="7" rx="1.5"/></svg>',
         'custom'   => '<svg class="vs-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="10" height="6" rx="1.5"/><rect x="16" y="14" width="5" height="6" rx="1.5"/></svg>',
     ];
 
@@ -62,6 +64,12 @@ class DashboardTemplates
              'layout' => [
                  ['split' => [12], 'cols' => [[$p('greeting'), $p('actions'), $p('setup')]]],
                  ['split' => [7, 5], 'cols' => [[$p('queue')], [$p('week'), $p('last30')]]],
+             ]],
+            // MARKER-DASH-STUDIO
+            ['key' => 'studio', 'name' => 'Studio', 'frame' => 'studio', 'switch_label' => 'Studio', 'beta_badge' => true,
+             'icon' => 'studio', 'is_default' => false, 'sort' => 40, 'state' => 'live', 'rearrange' => 'none',
+             'layout' => [
+                 ['split' => [8, 4], 'cols' => [[$p('studio_tiles'), $p('studio_queue')], [$p('studio_rail')]]],
              ]],
         ];
     }

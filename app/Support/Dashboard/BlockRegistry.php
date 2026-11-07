@@ -17,7 +17,7 @@ namespace App\Support\Dashboard;
 class BlockRegistry
 {
     /** Extra data a block can ask for, and what loads it. */
-    public const NEEDS = ['week', 'jobs', 'tiles'];
+    public const NEEDS = ['week', 'jobs', 'tiles', 'studio'];
 
     // 'title' (MARKER-DASH-BUILDER): the block's own heading, which a template
     // can rename (Layout placement 'title'). Blocks without one have no heading.
@@ -63,6 +63,14 @@ class BlockRegistry
                 'reads' => 'Appointments, opening hours', 'desc' => 'Day strip and timeline. Free time links to a new appointment.', 'access' => ['any' => ['schedule']], 'title' => 'This week', 'needs' => ['week']],
             'last30'    => ['name' => 'Last 30 days', 'origin' => 'brief', 'view' => 'tenant.dashboard.blocks.last30',
                 'reads' => 'Sales, work orders, customers', 'desc' => 'Sales, jobs completed and new customers against the 30 days before.', 'access' => ['any' => ['reports', 'schedule', 'customers']], 'title' => 'Last 30 days', 'needs' => ['jobs']],
+
+            // Studio (MARKER-DASH-STUDIO)
+            'studio_tiles' => ['name' => 'Coloured tiles', 'origin' => 'studio', 'view' => 'tenant.dashboard.blocks.studio-tiles',
+                'reads' => 'Appointments, payments, work orders, website visits', 'desc' => 'Bookings, sales, work orders and online today as four coloured tiles with small charts. Each tile shows only to roles that can open its area.', 'access' => ['any' => ['schedule', 'reports']], 'needs' => ['studio']],
+            'studio_rail'  => ['name' => 'Calendar and today', 'origin' => 'studio', 'view' => 'tenant.dashboard.blocks.studio-rail',
+                'reads' => 'Appointments, opening hours, pickups and drop-offs', 'desc' => "The month shaded by how busy each day is, then today's timeline with Next up (time-slot shops) or how full today is with the drop-offs (drop-off shops).", 'access' => ['any' => ['schedule']], 'title' => 'Today', 'needs' => ['studio']],
+            'studio_queue' => ['name' => 'Queue and details', 'origin' => 'studio', 'view' => 'tenant.dashboard.blocks.studio-queue',
+                'reads' => 'Appointments', 'desc' => 'Jobs in the shop by status, oldest first, with the picked job\'s details and actions beside them.', 'access' => ['any' => ['schedule']], 'title' => 'Queue', 'needs' => ['studio']],
         ];
     }
 

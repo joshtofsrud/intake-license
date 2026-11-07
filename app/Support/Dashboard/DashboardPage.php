@@ -49,6 +49,9 @@ class DashboardPage
         if (in_array('jobs', $needs, true)) {
             $data['jobs'] = $service->jobsCompleted30();
         }
+        if (in_array('studio', $needs, true)) {
+            $data['studio'] = (new \App\Services\Tenant\DashboardStudioData($tenant, $see))->build();
+        }
         if (in_array('tiles', $needs, true)) {
             $data['tiles'] = $see->tiles(\App\Support\DashboardTiles::layout($tenant, $user instanceof TenantUser ? $user : null));
         }
