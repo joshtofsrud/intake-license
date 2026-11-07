@@ -289,6 +289,10 @@
     .wi-svcline { display: flex; gap: 6px; align-items: center; }
     .wi-svcline + .wi-svcline { margin-top: 6px; }
     .wi-svcline select { flex: 1; min-width: 0; }
+    .wi-ta { position: relative; flex: 1; min-width: 0; }
+    .wi-ta-in { width: 100%; text-overflow: ellipsis; }
+    .wi-ta-res { position: absolute; left: 0; right: 0; top: 100%; z-index: 30; max-height: 260px; box-shadow: 0 12px 28px rgba(0,0,0,.35); }
+    .wi-ta-res .appt-cust-row.on { background: rgba(255,255,255,.08); }
     .wi-x { background: none; border: 0; color: var(--ia-text-dim, rgba(255,255,255,.5)); font-size: 18px; line-height: 1; cursor: pointer; padding: 25px 0 0; border-radius: 6px; }
     .wi-x:hover { color: var(--ia-text, #fff); }
     .wi-x[disabled] { visibility: hidden; }
@@ -762,10 +766,8 @@ window.ApptModal = (function () {
       }).join('') + '<option value="__new__"' + (r.item === '__new__' ? ' selected' : '') + '>+ New ' + esc(sing) + '…</option>';
       var mins = r.svcs.reduce(function (a, id) { var x = svcById(id); return a + (x ? (x.duration_minutes || 0) : 0); }, 0);
       var lines = r.svcs.map(function (id, k) {
-        var so = '<option value="">Pick a service…</option>' + state.services.slice().sort(function (a, b) { return a.name.localeCompare(b.name); }).map(function (x) {
-          return '<option value="' + esc(x.id) + '"' + (String(x.id) === String(id) ? ' selected' : '') + '>' + esc(svcLabel(x)) + '</option>';
-        }).join('');
-        return '<div class="wi-svcline"><select class="appt-input" data-f="svc" data-k="' + k + '" aria-label="Service">' + so + '</select>'
+        var cur = svcById(id);
+        return '<div class="wi-svcline"><div class="wi-ta"><input type="text" class="appt-input wi-ta-in" data-k="' + k + '" value="' + esc(cur ? svcLabel(cur) : '') + '" placeholder="Search services…" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="false" aria-label="Service"></div>'
           + (k > 0 ? '<button type="button" class="wi-x wi-x-sm" data-f="rmsvc" data-k="' + k + '" aria-label="Remove this service">&times;</button>' : '<span class="wi-x-pad"></span>') + '</div>';
       }).join('');
       return '<div class="wi-row" data-i="' + i + '"><div class="wi-n">' + (i + 1) + '</div>'
@@ -812,7 +814,66 @@ window.ApptModal = (function () {
       }
       if (f === 'svc') { var k = +e.target.dataset.k; r.svcs[k] = e.target.value; renderItems(); itemsChanged(i === 0 && k === 0); }
     });
+    // service search: focus lists every service, typing narrows it, arrows and Enter pick
+    var ta = null; // { input, i, k, hi }
+    function taList(q) {
+      q = (q || '').trim().toLowerCase();
+      var list = state.services.slice().sort(function (a, b) { return a.name.localeCompare(b.name); });
+      return q ? list.filter(function (x) { return x.name.toLowerCase().indexOf(q) > -1; }) : list;
+    }
+    function taRender() {
+      if (!ta) return;
+      var wrap = ta.input.parentNode, res = wrap.querySelector('.wi-ta-res');
+      if (!res) { res = document.createElement('div'); res.className = 'appt-cust-results wi-ta-res'; res.setAttribute('role', 'listbox'); wrap.appendChild(res); }
+      var q = ta.input.value === ta.label ? '' : ta.input.value;
+      var list = taList(q);
+      if (ta.hi >= list.length) ta.hi = list.length - 1;
+      res.innerHTML = list.length ? list.map(function (x, n) {
+        return '<div class="appt-cust-row' + (n === ta.hi ? ' on' : '') + '" role="option" data-id="' + esc(x.id) + '"><div>' + esc(x.name) + '</div><div class="meta">' + esc(svcMeta(x)) + '</div></div>';
+      }).join('') : '<div class="appt-cust-row" style="cursor:default;opacity:.55">No services match “' + esc(q) + '”.</div>';
+      ta.list = list;
+      ta.input.setAttribute('aria-expanded', 'true');
+      var on = res.querySelector('.on'); if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest' });
+    }
+    function taClose(restore) {
+      if (!ta) return;
+      var res = ta.input.parentNode.querySelector('.wi-ta-res'); if (res) res.remove();
+      ta.input.setAttribute('aria-expanded', 'false');
+      if (restore) ta.input.value = ta.label;
+      ta = null;
+    }
+    function taPick(id) {
+      if (!ta) return;
+      var i = ta.i, k = ta.k;
+      taClose(false);
+      state.rows[i].svcs[k] = String(id);
+      renderItems(); itemsChanged(i === 0 && k === 0);
+    }
+    box.addEventListener('focusin', function (e) {
+      if (!e.target.classList.contains('wi-ta-in')) return;
+      if (ta && ta.input !== e.target) taClose(true);
+      var row = e.target.closest('.wi-row');
+      ta = { input: e.target, i: +row.dataset.i, k: +e.target.dataset.k, hi: -1, label: e.target.value, list: [] };
+      e.target.select();
+      taRender();
+    });
+    box.addEventListener('focusout', function (e) {
+      if (!e.target.classList.contains('wi-ta-in')) return;
+      setTimeout(function () { if (ta && document.activeElement !== ta.input) taClose(true); }, 150);
+    });
+    box.addEventListener('mousedown', function (e) {
+      var opt = e.target.closest('.wi-ta-res .appt-cust-row[data-id]');
+      if (opt) { e.preventDefault(); taPick(opt.dataset.id); }
+    });
+    box.addEventListener('keydown', function (e) {
+      if (!ta || e.target !== ta.input) return;
+      if (e.key === 'ArrowDown') { e.preventDefault(); ta.hi = Math.min((ta.list.length || 1) - 1, ta.hi + 1); taRender(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); ta.hi = Math.max(0, ta.hi - 1); taRender(); }
+      else if (e.key === 'Enter') { e.preventDefault(); var pick = ta.list[ta.hi >= 0 ? ta.hi : 0]; if (pick) taPick(pick.id); }
+      else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); taClose(true); e.target.blur(); }
+    });
     box.addEventListener('input', function (e) {
+      if (ta && e.target === ta.input) { ta.hi = 0; taRender(); return; }
       var row = e.target.closest('.wi-row'); if (!row) return;
       var r = state.rows[+row.dataset.i];
       if (e.target.dataset.f === 'name') r.name = e.target.value;
@@ -825,7 +886,7 @@ window.ApptModal = (function () {
       if (b.dataset.f === 'rmsvc') { r.svcs.splice(+b.dataset.k, 1); renderItems(); itemsChanged(false); }
       if (b.dataset.f === 'addsvc') {
         r.svcs.push(r.svcs[0] || ''); renderItems(); itemsChanged(false);
-        var ss = box.querySelectorAll('.wi-row[data-i="' + i + '"] [data-f="svc"]'); if (ss.length) ss[ss.length - 1].focus();
+        var ss = box.querySelectorAll('.wi-row[data-i="' + i + '"] .wi-ta-in'); if (ss.length) ss[ss.length - 1].focus();
       }
     });
   })();
