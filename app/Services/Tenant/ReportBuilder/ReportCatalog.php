@@ -69,7 +69,7 @@ class ReportCatalog
     }
 
     /** The catalog the page works from, with this tenant's own filter values. */
-    public static function client(array $sources, bool $isManager): array
+    public static function client(array $sources, bool $isManager, bool $withOptions = true): array
     {
         $out = [];
         foreach ($sources as $key => $src) {
@@ -83,7 +83,7 @@ class ReportCatalog
             foreach ($m['filters'] as $fk => $fl) {
                 if ($fk === 'staff' && !$isManager) continue;
                 $opts = [];
-                foreach ($src->options($fk) as $v => $l) {
+                foreach ($withOptions ? $src->options($fk) : [] as $v => $l) {
                     $opts[] = [(string) $v, (string) $l];
                 }
                 $filters[] = [$fk, $fl, $opts];

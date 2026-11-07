@@ -91,6 +91,18 @@
 
 <div class="rb-scrim" id="scrim"></div>
 
+<!-- building your report: shown when a run takes over half a second -->
+<div class="rb-scrim rb-scrim--light" id="bScrim"></div>
+<div class="rb-modal rb-build" id="mBuild" role="status" aria-live="polite">
+  <div class="rb-drawer-h"><div><h3>Building your report</h3><div class="rb-hint" id="bWhen"></div></div><span class="rb-build-secs" id="bSecs">0s</span></div>
+  <div class="rb-drawer-b">
+    <div class="rb-build-bar"><span></span></div>
+    <div class="rb-build-what" id="bWhat"></div>
+    <div class="rb-hint" id="bSlow"></div>
+  </div>
+  <div class="rb-drawer-f"><button class="ia-btn ia-btn--sm" id="bCancel" type="button">Stop</button></div>
+</div>
+
 <!-- share & schedule -->
 <aside class="rb-drawer" id="drawer">
   <div class="rb-drawer-h"><div><h3>Share &amp; schedule</h3><div class="rb-hint" id="shName"></div></div><button class="rb-x" data-close type="button">×</button></div>

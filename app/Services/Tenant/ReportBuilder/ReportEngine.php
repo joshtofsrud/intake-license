@@ -20,11 +20,20 @@ class ReportEngine
     private array $labels;
     private Periods $p;
 
-    public function __construct(private readonly Tenant $tenant, bool $isManager)
+    /** How long each part of the last run took, in ms, for the slow-run log. */
+    public array $timing = [];
+
+    /**
+     * $lean: a data run only needs which filters each source has, not every value each filter can take.
+     * Building those lists queries every source (brands across the catalog, services, ...), so a run skips it.
+     */
+    public function __construct(private readonly Tenant $tenant, bool $isManager, bool $lean = false)
     {
+        $t0 = microtime(true);
         $this->p = new Periods($tenant);
         $this->sources = ReportCatalog::sources($tenant, $this->p, $isManager);
-        $this->catalog = ReportCatalog::client($this->sources, $isManager);
+        $this->catalog = ReportCatalog::client($this->sources, $isManager, !$lean);
+        $this->timing['catalog'] = (int) round((microtime(true) - $t0) * 1000);
         $this->labels = ReportCatalog::labelMap($this->catalog);
     }
 
@@ -96,7 +105,9 @@ class ReportEngine
             $src = $this->sources[$ds];
             $src->setRangeDays($this->p->days($from, $to));
             if (method_exists($src, 'setOnlySold')) $src->setOnlySold($ds !== $cfg['ds'] && in_array('item', $dims, true));
+            $t0 = microtime(true);
             $out[$ds] = ['ms' => array_unique($ms), 'res' => $src->run($dims, $filters, $from, $to)];
+            $this->timing[$ds] = ($this->timing[$ds] ?? 0) + (int) round((microtime(true) - $t0) * 1000);
         }
         return $out;
     }

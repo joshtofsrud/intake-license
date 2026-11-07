@@ -30,9 +30,20 @@ function fmt(v, t) {
   if (t === 'd' || t === 'h') return v.toFixed(1);
   return Math.round(v).toLocaleString('en-US');
 }
-function post(url, body) {
-  return fetch(url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF, 'X-Requested-With': 'XMLHttpRequest' }, body: JSON.stringify(body) })
-    .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw (j && j.message) || 'Something went wrong.'; return j; }); });
+function post(url, body, signal) {
+  return fetch(url, { method: 'POST', credentials: 'same-origin', signal: signal, headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF, 'X-Requested-With': 'XMLHttpRequest' }, body: JSON.stringify(body) })
+    .then(function (r) {
+      return r.text().then(function (txt) {
+        var j = null; try { j = JSON.parse(txt); } catch (e) { j = null; }
+        if (r.ok && j) return j;
+        if (j && j.message) throw j.message;
+        // not JSON: a gateway or server page, so say what it means instead of a parse error
+        if (r.status === 419) throw 'Your session expired. Reload the page and try again.';
+        if (r.status === 502 || r.status === 503 || r.status === 504) throw 'The server took too long to answer (' + r.status + ').';
+        if (r.status >= 500) throw 'The server hit an error (' + r.status + '). It has been logged.';
+        throw r.ok ? 'The server sent back something unexpected.' : 'Something went wrong (' + r.status + ').';
+      });
+    }, function (e) { if (e && e.name === 'AbortError') throw e; throw 'Couldn\'t reach the server. Check your connection and try again.'; });
 }
 function get(url) {
   return fetch(url, { credentials: 'same-origin', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
@@ -109,7 +120,7 @@ var TPL = (BOOT.templates || []).filter(function (t) {
 
 /* ===================== ask in plain words ===================== */
 var MSYN = [
-  ['dist:ddays', /days (left|of stock|of cover) (at|with) (the )?(distributors?|distro)|running out at|left at (the )?(distributors?|[a-z]+)\b/], ['dist:dpace', /(distributors?|distro).*\b(moving|pace|velocity)\b|\b(moving|pace|velocity)\b.*(distributors?|distro)/], ['dist:dmine', /your stock|my stock|we have|do i have/], ['dist:dstock', /distributors? stock|stock (at|with|from) (the )?distributors?|(at|with) (the )?distributors?\b/],
+  ['dist:ddays', /days (left|of stock|of cover) (at|with) (the )?(distributors?|distro)|running out at|left at (the )?(distributors?|[a-z]+)\b/], ['dist:dpace', /(distributors?|distro).*\b(moving|pace|velocity|fastest|quickest|slowest)\b|\b(moving|pace|velocity|fastest|quickest|slowest)\b.*(distributors?|distro)/], ['dist:dmine', /your stock|my stock|we have|do i have/], ['dist:dstock', /distributors? stock|stock (at|with|from) (the )?distributors?|(at|with) (the )?distributors?\b/],
   ['recv:rst', /recvst/], ['recv:rcost', /cost received|received cost|amount received|spent on stock/], ['recv:runits', /received|receiving|receipts|units in\b/],
   ['calc:mlh', /margin\s+per\s+(labor\s+|work\s+)?hour|profit\s+per\s+(labor\s+|work\s+)?hour/],
   ['calc:slh', /(sales|revenue)\s+per\s+(labor\s+|work\s+)?hour/],
@@ -129,6 +140,13 @@ function parseAsk(txt) {
   var s = ' ' + String(txt).toLowerCase().replace(/[?!,.;:"“”]/g, ' ') + ' ', read = [], notes = [], cfg = { filters: [], calcs: [], measures: [], compare: 'off' }, m;
   s = s.replace(/margin\s+(range|band|bracket)s?|margins? (ranges|bands)/g, ' mbandword ').replace(/price\s+(range|band|point|bracket|tier)s?|(at|by)\s+(certain\s+|each\s+|different\s+)?prices?\b/g, ' pbandword ');
   if (/received|pbandword|mbandword/.test(s)) s = s.replace(/sell[- ]?through/g, ' recvst ');
+  // a distributor named by its code (whatever distributors this shop's data has) means distributor stock, filtered to it
+  var distHit = null;
+  distOpts().some(function (o) { var re = new RegExp('(^|\\W)' + reEsc(String(o[0]).toLowerCase()) + '(\\W|$)'); if (String(o[0]).length >= 2 && re.test(s)) { distHit = o;
+    // "moving at qbp", "what's left at qbp", or just "qbp" is about the distributor's stock; "revenue at qbp" is not, so it stays sales and says it can't narrow
+    var bare = s.replace(re, ' ');
+    s = /\b(mov|pace|velocity|fast|quick|slow|left|stock|days|arriv|running|avail)/.test(bare) || !MSYN.some(function (x) { return x[0].indexOf('dist:') !== 0 && x[1].test(bare); }) ? s.replace(re, ' distributor ') : bare;
+    return true; } return false; });
   if (/(vs|versus|compared? (to|with)|against)\s+(the\s+)?(same\s+(period\s+)?)?(last|prior|previous)\s+year|year[- ]over[- ]year|\byoy\b/.test(s)) { cfg.compare = 'yoy'; s = s.replace(/(vs|versus|compared? (to|with)|against)\s+(the\s+)?(same\s+(period\s+)?)?(last|prior|previous)\s+year|year[- ]over[- ]year|\byoy\b/g, ' '); }
   else if (/\b(compare[ds]?|vs|versus|previous period|prior period|period before|than before)\b/.test(s)) { cfg.compare = 'prev'; s = s.replace(/\b(compare[ds]?( to| with)?( the)?|vs|versus|previous period|prior period|period before|than before)\b/g, ' '); }
   var RR = [[/last 12 months|past year|last year|trailing 12|past 12 months/, 'Last 12 months'], [/this year|year to date|ytd/, 'This year'], [/last 90 days|last quarter|this quarter|past 90 days|quarter/, 'Last 90 days'], [/last month|previous month/, 'Last month'], [/this month|month to date/, 'This month'], [/last 30 days|past 30 days|past month/, 'Last 30 days'], [/last 7 days|this week|last week|past week|past 7 days/, 'Last 7 days'], [/\btoday\b/, 'Today']];
@@ -136,6 +154,7 @@ function parseAsk(txt) {
   if ((m = s.match(/\b(top|best|highest)\s+(\d+)\b/))) { cfg.limit = +m[2]; cfg.sortDir = 'desc'; s = s.replace(m[0], ' '); }
   else if ((m = s.match(/\b(bottom|worst|lowest)\s+(\d+)\b/))) { cfg.limit = +m[2]; cfg.sortDir = 'asc'; s = s.replace(m[0], ' '); }
   else if (/\b(top|best)\b/.test(s)) { cfg.limit = 10; cfg.sortDir = 'desc'; } else if (/\b(worst|bottom|lowest)\b/.test(s)) { cfg.limit = 10; cfg.sortDir = 'asc'; }
+  if (/\bslow(est|er)?\b/.test(s) && !/\b(top|best|highest)\b/.test(s)) cfg.sortDir = 'asc';
   var calcsUsed = [];
   MSYN.forEach(function (x) { var ds = x[0].split(':')[0]; if (x[0].indexOf('calc:') !== 0 && !DS[ds]) return; if (x[1].test(s)) { s = s.replace(x[1], ' '); if (x[0].indexOf('calc:') === 0) { calcsUsed.push(x[0].slice(5)); } else cfg.measures.push(x[0]); } });
   calcsUsed = calcsUsed.filter(function (k) { return calcTokens(CALCDEF[k].f).every(function (l) { return !!labelToKey(l); }); });
@@ -143,22 +162,26 @@ function parseAsk(txt) {
   if (!primary) { var dsw = [['distributor', 'dist'], ['received', 'recv'], ['inventory', 'inv'], ['customers', 'customers'], ['appointments', 'appts'], ['staff', 'staff'], ['sales', 'sales']].filter(function (x) { return s.indexOf(x[0]) > -1 && DS[x[1]]; })[0]; if (dsw) { primary = dsw[1]; cfg.measures.push(dsw[1] + ':' + DS[dsw[1]].m[0][0]); notes.push('You didn\'t name a measure, so I started with ' + DS[dsw[1]].m[0][1].toLowerCase() + '.'); } }
   if (!primary || !DS[primary]) return { ok: false };
   cfg.ds = primary;
+  if (distHit && primary !== 'dist') s = s.replace(/ distributor /, ' ');
+  if (distHit) { if (primary === 'dist') cfg.filters.push({ f: 'dist', op: 'is', v: distHit[0] }); else notes.push(DS[primary].l + ' can\'t be narrowed to one distributor, so ' + distHit[1] + ' is left out.'); }
   cfg.measures = cfg.measures.map(function (k) { return k.split(':')[0] === primary ? k.split(':')[1] : k; });
   var seen = {}; cfg.measures = cfg.measures.filter(function (k) { if (seen[k]) return false; seen[k] = 1; return true; });
   calcsUsed.forEach(function (k) { var cd = CALCDEF[k], id = 'calc:a' + (calcSeq++); cfg.calcs.push({ id: id, name: cd.name, f: cd.f, t: cd.t }); cfg.measures.unshift(id); });
   var after = s.split(/\b(?:by|per|each|across|split by|broken out by|for each|over)\b/).slice(1).join(' ') + (s.indexOf('mbandword') > -1 ? ' mbandword' : '') + (s.indexOf('pbandword') > -1 ? ' pbandword' : '');
   var dims = []; DSYN.forEach(function (d) { var mm = after.match(d[1]); if (mm) dims.push({ k: d[0], at: after.indexOf(mm[0]) }); });
+  if (!dims.length && (m = s.match(/\b(?:what|which)\s+([a-z]+)/) || txt.toLowerCase().match(/\b(categories|brands|vendors|locations|services|items|products)\b/))) { DSYN.forEach(function (d) { if (!dims.length && d[1].test(' ' + m[1] + ' ')) dims.push({ k: d[0], at: 0 }); }); }
   dims.sort(function (a, b) { return a.at - b.at; });
   var have = dimsOfDs(primary);
   if (primary === 'appts') dims.forEach(function (d) { if (d.k === 'staff') d.k = 'res'; });
   var dlist = dims.map(function (d) { return d.k; }).filter(function (k) { return have.indexOf(k) > -1; });
   dims.forEach(function (d) { if (have.indexOf(d.k) < 0) notes.push('I can\'t split ' + DS[primary].l.toLowerCase() + ' that way — leaving that out.'); });
   if (!dlist.length && primary === 'inv' && /\bmoving\b|movers?/.test(txt.toLowerCase())) dlist = ['item'];
-  if (!dlist.length && primary === 'dist' && /\b(moving|left|items?)\b/.test(s)) dlist = ['item'];
+  if (!dlist.length && primary === 'dist' && (/\b(moving|left|items?)\b/.test(txt.toLowerCase()) || distHit)) dlist = ['item'];   // one distributor named: its items, not a single row
   if (!dlist.length) { dlist = [/over time|trend|history|growth/.test(s) ? (have.indexOf('month') > -1 ? 'month' : have[0]) : have[0]]; }
   cfg.dim = dlist[0];
   if (primary === 'inv' && dlist[0] === 'item' && /\bmoving\b|movers?/.test(txt.toLowerCase()) && !cfg.limit) { cfg.limit = 25; cfg.sortDir = 'desc'; ['units', 'st', 'dleft'].forEach(function (x) { if (cfg.measures.indexOf(x) < 0 && cfg.measures.length < 5) cfg.measures.push(x); }); notes.push('Showing the 25 fastest-moving items. Change the limit to see more.'); }
-  if (primary === 'dist' && dlist[0] === 'item' && !cfg.limit) { cfg.limit = 25; cfg.sortDir = 'desc'; if (cfg.measures.indexOf('dstock') < 0) cfg.measures.splice(1, 0, 'dstock'); if (cfg.measures.indexOf('dmine') < 0 && cfg.measures.length < 5) cfg.measures.push('dmine'); notes.push('Showing the 25 items moving fastest. Change the limit to see more.'); }
+  if (primary === 'dist' && dlist[0] === 'item' && !cfg.limit) { cfg.limit = 25; var slow = /\bslow/.test(txt.toLowerCase()); cfg.sortDir = slow ? 'asc' : 'desc'; if (cfg.measures.indexOf('dstock') < 0) cfg.measures.splice(1, 0, 'dstock'); if (cfg.measures.indexOf('dmine') < 0 && cfg.measures.length < 5) cfg.measures.push('dmine'); notes.push('Showing the 25 items moving ' + (slow ? 'slowest' : 'fastest') + '. Change the limit to see more.'); }
+  if (primary === 'dist' && dlist[0] !== 'item' && cfg.measures[0] === 'dpace' && cfg.measures.indexOf('dstock') < 0 && cfg.measures.length < 5) cfg.measures.push('dstock');
   if (dlist[1] && dlist[1] !== dlist[0] && !(isTimeDim(primary, dlist[0]) && isTimeDim(primary, dlist[1]))) cfg.dim2 = dlist[1];
   // filters: any of this data's filter values named in the sentence
   DS[primary].f.forEach(function (f) {
@@ -182,6 +205,8 @@ function parseAsk(txt) {
   if (cfg.limit) read.push({ t: (cfg.sortDir === 'asc' ? 'lowest ' : 'top ') + cfg.limit, f: 'pLimit' });
   return { ok: true, cfg: cfg, read: read, notes: notes };
 }
+function reEsc(x) { return String(x).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+function distOpts() { var f = DS.dist && DS.dist.f.filter(function (x) { return x[0] === 'dist'; })[0]; return f ? f[2] : []; }
 var EXAMPLES = ['revenue by month this year', 'margin by category compared to last year', 'sales per labor hour by week', 'top 10 items by revenue', 'appointments by service and location', 'new customers by month', 'received by category and item', 'sell-through by price band', 'what is moving in my inventory', 'inventory aged over 180 days by vendor', 'hours worked by staff last 7 days', 'days left at distributors by brand']
   .filter(function (x) { var r = parseAsk(x); return r.ok && !(r.notes || []).some(function (n) { return /can't/.test(n); }); });
 function suggestBlock(msg, target) {
@@ -301,8 +326,11 @@ function renderPreview() {
   var id = ++REQ;
   $('#preview').classList.add('rb-loading');
   if (!$('#preview').innerHTML) $('#preview').innerHTML = '<div class="rb-empty">Working…</div>';
-  post(URLS.data, { cfg: payload(S) }).then(function (res) {
+  var ctl = window.AbortController ? new AbortController() : null;
+  buildWatch(id, ctl);
+  post(URLS.data, { cfg: payload(S) }, ctl ? ctl.signal : undefined).then(function (res) {
     if (id !== REQ) return;
+    buildDone();
     $('#preview').classList.remove('rb-loading');
     RES = res;
     if (tl) { renderTimeline(res); return; }
@@ -314,11 +342,48 @@ function renderPreview() {
     if (piv) renderPivot(res); else renderTable(res);
     if (res.notes && res.notes.length) $('#preview').insertAdjacentHTML('beforeend', '<div class="rb-hint" style="margin-top:8px">' + res.notes.map(esc).join(' ') + '</div>');
   }).catch(function (e) {
+    if (e && e.name === 'AbortError') {
+      if (id !== BUILD.id) return;   // an older run, replaced by a newer one
+      var why = BUILD.why; buildDone();
+      $('#preview').classList.remove('rb-loading');
+      $('#preview').innerHTML = '<div class="rb-empty">' + (why === 'timeout' ? 'That report took over ' + Math.round(BUILD_MAX / 60000) + ' minutes, so it was stopped. A shorter date range or fewer splits will run faster.' : 'Stopped. Nothing was changed.') + '<div class="rb-ex" style="justify-content:center;margin-top:10px"><button class="rb-chip" data-retry>Run it again</button></div></div>';
+      $('#rowHint').textContent = '';
+      return;
+    }
     if (id !== REQ) return;
+    buildDone();
     $('#preview').classList.remove('rb-loading');
     $('#preview').innerHTML = '<div class="rb-err">That report couldn\'t run: ' + esc(e) + '<div class="rb-ex" style="justify-content:center;margin-top:10px"><button class="rb-chip" data-retry>Try again</button><button class="rb-chip" data-clearf>Clear the filters</button></div></div>';
   });
 }
+/* "Building your report": any run that takes over half a second gets a panel saying what it is reading, for how long, and a way to stop it. */
+var BUILD = { id: 0, ctl: null, show: null, tick: null, stop: null, start: 0, why: '' }, BUILD_MAX = 180000;
+function buildWatch(id, ctl) {
+  if (BUILD.ctl) { try { BUILD.ctl.abort(); } catch (e) {} }   // a newer run replaces the one still going; stop it at the server too
+  buildDone();
+  BUILD.id = id; BUILD.ctl = ctl; BUILD.start = Date.now(); BUILD.why = '';
+  var d = DS[S.ds], ms = S.measures.slice(0, 3).map(function (k) { return mdef(S, k).l.toLowerCase(); });
+  var what = 'Reading ' + d.l.toLowerCase() + (ms.length ? ': ' + ms.join(', ') : '') + ' by ' + dimName(S.ds, S.dim).toLowerCase() + (S.dim2 ? ' and ' + dimName(S.ds, S.dim2).toLowerCase() : '') + (S.filters.length ? ', ' + S.filters.length + ' filter' + (S.filters.length === 1 ? '' : 's') : '') + '.';
+  var when = d.snap ? 'As of today' : rngText() + (S.compare !== 'off' ? ', ' + cmpLabel(S) : '');
+  BUILD.show = setTimeout(function () {
+    var el = $('#mBuild'); if (!el) return;
+    $('#bWhat').textContent = what; $('#bWhen').textContent = when; $('#bSlow').textContent = ''; $('#bSecs').textContent = '0s';
+    $('#bCancel').style.display = ctl ? '' : 'none';
+    el.classList.add('on'); $('#bScrim').classList.add('on');
+    BUILD.tick = setInterval(function () {
+      var sec = Math.floor((Date.now() - BUILD.start) / 1000);
+      $('#bSecs').textContent = sec < 60 ? sec + 's' : Math.floor(sec / 60) + 'm ' + (sec % 60) + 's';
+      if (sec === 10) $('#bSlow').textContent = 'This one is taking a while. Big catalogs and long date ranges take longest. You can keep waiting or stop it.';
+    }, 1000);
+  }, 500);
+  if (ctl) BUILD.stop = setTimeout(function () { BUILD.why = 'timeout'; ctl.abort(); }, BUILD_MAX);
+}
+function buildDone() {
+  clearTimeout(BUILD.show); clearInterval(BUILD.tick); clearTimeout(BUILD.stop);
+  BUILD.show = BUILD.tick = BUILD.stop = null;
+  var el = $('#mBuild'); if (el) { el.classList.remove('on'); $('#bScrim').classList.remove('on'); }
+}
+function buildCancel() { if (!BUILD.ctl) { buildDone(); return; } BUILD.why = 'cancel'; REQ++; BUILD.ctl.abort(); }
 function rowsOf(res) { return res.rows.map(function (r) { return { k: r.k, label: r.l, vals: r.vals, prev: r.prev }; }); }
 function heat(v, mn, mx) { var p = mx > mn ? ((v || 0) - mn) / (mx - mn) : 0; return 'background:color-mix(in srgb,var(--ia-accent) ' + Math.round(4 + p * 34) + '%,transparent)'; }
 function renderTable(res) {
@@ -689,6 +754,7 @@ document.addEventListener('click', function (e) {
   if (t.dataset.frm != null) { S.filters.splice(+t.dataset.frm, 1); afterChange(); return; }
   if (t.dataset.clearf != null) { S.filters = []; afterChange(); return; }
   if (t.dataset.retry != null) { renderPreview(); return; }
+  if (t.id === 'bCancel') { buildCancel(); return; }
   if (t.dataset.nosplit != null) { S.dim2 = ''; afterChange(); return; }
   if (t.dataset.range) { S.range = t.dataset.range; afterChange(); return; }
   if (t.dataset.addm) { S.measures.push(t.dataset.addm); afterChange(); return; }

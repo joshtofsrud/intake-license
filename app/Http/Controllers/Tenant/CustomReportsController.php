@@ -39,9 +39,9 @@ class CustomReportsController extends Controller
         return $u && $u->isManager();
     }
 
-    private function engine(): ReportEngine
+    private function engine(bool $lean = false): ReportEngine
     {
-        return new ReportEngine(tenant(), $this->isManager());
+        return new ReportEngine(tenant(), $this->isManager(), $lean);
     }
 
     /**
@@ -112,13 +112,23 @@ class CustomReportsController extends Controller
 
     public function data(Request $request)
     {
-        $engine = $this->engine();
+        $t0 = microtime(true);
+        $engine = $this->engine(true);
         $cfg = $engine->clean((array) $request->input('cfg', []));
         if ($cfg['mode'] === 'timeline') {
             return response()->json(['cfg' => $cfg] + $this->buildTimeline($cfg));
         }
         $out = $cfg['dim2'] !== '' ? $engine->pivot($cfg) : $engine->rows($cfg);
-        return response()->json(['cfg' => $cfg, 'kind' => $cfg['dim2'] !== '' ? 'pivot' : 'rows'] + $out);
+        $ms = (int) round((microtime(true) - $t0) * 1000);
+        // A slow run is written down with where the time went, so it can be found and fixed.
+        if ($ms > 3000) {
+            \Illuminate\Support\Facades\Log::warning('Custom report ran slowly', [
+                'tenant' => tenant()->id, 'ms' => $ms, 'parts_ms' => $engine->timing,
+                'ds' => $cfg['ds'], 'measures' => $cfg['measures'], 'dim' => $cfg['dim'], 'dim2' => $cfg['dim2'],
+                'filters' => count($cfg['filters']), 'range' => $cfg['range'], 'compare' => $cfg['compare'],
+            ]);
+        }
+        return response()->json(['cfg' => $cfg, 'kind' => $cfg['dim2'] !== '' ? 'pivot' : 'rows', 'ms' => $ms] + $out);
     }
 
     /** "Explain this": a few plain sentences about the numbers on screen. */

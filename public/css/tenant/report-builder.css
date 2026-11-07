@@ -335,3 +335,13 @@
 .ia-section .rep-empty{border:1px solid var(--ia-border);border-radius:6px}
 .ia-section .rep-bar-track>span,.ia-section .rep-funnel-bar{background:var(--ia-accent)}
 .ia-section .rep-showing{font-size:12px!important}
+
+/* building your report */
+.rb-scrim--light{background:rgba(0,0,0,.25);z-index:53}
+.rb-modal.rb-build{z-index:54}
+.rb-build-secs{margin-left:auto;font-size:13px;color:var(--ia-text-dim);font-variant-numeric:tabular-nums}
+.rb-build-bar{height:3px;border-radius:2px;background:var(--ia-border);overflow:hidden;margin-bottom:14px}
+.rb-build-bar span{display:block;height:100%;width:35%;background:var(--ia-accent);border-radius:2px;animation:rbBuild 1.3s ease-in-out infinite}
+@keyframes rbBuild{0%{transform:translateX(-100%)}100%{transform:translateX(290%)}}
+.rb-build-what{font-size:13px;margin-bottom:6px}
+@media (prefers-reduced-motion:reduce){.rb-build-bar span{animation:none;width:100%;opacity:.5}}
