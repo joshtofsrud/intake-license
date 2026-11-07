@@ -49,7 +49,7 @@
 
   @include('tenant.dashboard._rows')
 
-  <p class="sd-legend">Figures are for today in your shop's time zone and refresh every few minutes while this page is open. Sales are payments taken, with refunds taken off.</p>
+  <p class="sd-legend">Figures are for today in your shop's time zone and refresh every few minutes while this page is open. Sales are payments taken, with refunds taken off. @if (in_array('studio_needs', \App\Support\Dashboard\Layout::blockKeys($dashRows), true))Needs you lists only what your role can open, worst first; each chip opens that list.@endif</p>
 </div>
 <div class="sd-pop" id="sdPop" role="tooltip" hidden></div>
 @include('tenant.dashboard._customize_panel')

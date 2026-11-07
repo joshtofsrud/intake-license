@@ -259,3 +259,40 @@ html.sd-motion .rd-fleet:not(.is-in) .rd-bar i { transform: scaleX(0); }
   .rd-row .sd-job, .rd-row .sd-st { display: none; }
   .rd-f { grid-template-columns: minmax(0, 1fr) 84px; } .rd-f .rd-bar { grid-column: 1 / -1; order: 3; } .rd-f .nums { display: none; }
 }
+
+/* MARKER-STUDIO-NEEDS — Needs you strip: one row of chips under the greeting */
+.sd-ny { display: flex; align-items: center; gap: 12px; margin: 2px 0 18px; min-width: 0; }
+.sd-ny-h { flex: none; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--ia-text-dim); font-weight: 600; white-space: nowrap; }
+.sd-ny-h b { color: var(--ia-text); font-size: 15px; letter-spacing: 0; margin-right: 5px; font-weight: 600; }
+.sd-ny-rail { display: flex; gap: 8px; flex-wrap: nowrap; min-width: 0; overflow: hidden; flex: 1; }
+.sd-ny.open .sd-ny-rail { flex-wrap: wrap; }
+.sd-chip { --c: var(--sd-t1); flex: none; display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 13px 0 5px; border-radius: 99px;
+  border: 1px solid var(--ia-border); background: var(--ia-surface); color: var(--ia-text); text-decoration: none; font: inherit; font-size: 13px; white-space: nowrap; cursor: pointer;
+  transition: background .2s, border-color .2s, opacity .45s, transform .45s cubic-bezier(.2, .7, .1, 1); transition-delay: 0s, 0s, calc(var(--i, 0) * 55ms + 120ms), calc(var(--i, 0) * 55ms + 120ms); }
+.sd-chip[hidden] { display: none !important; }
+.sd-chip .n { min-width: 24px; height: 24px; padding: 0 7px; border-radius: 99px; display: grid; place-items: center; font-weight: 600; font-size: 12px;
+  background: color-mix(in srgb, var(--c) 60%, var(--ia-surface)); color: var(--sd-ink); }
+.sd-chip.red .n { background: var(--sd-bad); color: #fff; }
+body.ia-theme-c .sd-chip.red .n { color: #2A0E0C; }
+.sd-chip.violet { --c: var(--sd-t2); } .sd-chip.blue { --c: var(--sd-t4); }
+.sd-chip .ar { width: 0; opacity: 0; overflow: hidden; color: var(--ia-text-muted); transition: width .2s, opacity .2s; }
+.sd-chip:hover, .sd-chip:focus-visible { border-color: color-mix(in srgb, var(--c) 70%, var(--ia-border)); background: color-mix(in srgb, var(--c) 16%, var(--ia-surface)); outline: none; }
+.sd-chip.red:hover, .sd-chip.red:focus-visible { border-color: color-mix(in srgb, var(--sd-bad) 55%, var(--ia-border)); background: color-mix(in srgb, var(--sd-bad) 9%, var(--ia-surface)); }
+.sd-chip:hover .ar, .sd-chip:focus-visible .ar { width: 12px; opacity: 1; }
+.sd-chip.more { color: var(--ia-text-muted); }
+.sd-chip.more .n { background: var(--ia-surface-2, rgba(127, 127, 127, .15)); color: var(--ia-text); }
+.sd-chip.less { padding: 0 13px; }
+html.sd-motion .sd-ny:not(.on) .sd-chip { opacity: 0; transform: translateY(8px); }
+.sd-ny-clear { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--ia-text-muted); }
+.sd-ny-clear i { font-style: normal; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; background: color-mix(in srgb, var(--sd-t3) 55%, var(--ia-surface)); color: var(--sd-ink); }
+.sd-pop.ny p { margin: 0; color: var(--ia-text); }
+.sd-pop.ny small { display: block; margin-top: 6px; color: var(--ia-text-dim); }
+@media (max-width: 1023px) {
+  .sd-ny { flex-direction: column; align-items: stretch; gap: 8px; margin-bottom: 14px; }
+  .sd-ny-rail { overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none; margin: 0 -12px; padding: 0 12px 2px; scroll-padding: 0 12px;
+    -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 28px), transparent); }
+  .sd-ny-rail::-webkit-scrollbar { display: none; }
+  .sd-chip { scroll-snap-align: start; height: 36px; }
+  .sd-chip.more { display: none !important; }
+}
+@media (prefers-reduced-motion: reduce) { .sd-chip { transition: background .2s, border-color .2s; } }

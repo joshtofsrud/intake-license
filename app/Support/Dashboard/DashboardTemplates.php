@@ -69,6 +69,7 @@ class DashboardTemplates
             ['key' => 'studio', 'name' => 'Studio', 'frame' => 'studio', 'switch_label' => 'Studio', 'beta_badge' => true,
              'icon' => 'studio', 'is_default' => false, 'sort' => 40, 'state' => 'live', 'rearrange' => 'none',
              'layout' => [
+                 ['split' => [12], 'cols' => [[$p('studio_needs')]]],
                  ['split' => [8, 4], 'cols' => [[$p('studio_tiles'), $p('studio_queue')], [$p('studio_rail')]]],
              ]],
         ];

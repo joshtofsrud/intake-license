@@ -181,13 +181,60 @@
     pop.style.top = (r.bottom + 8 + hgt > innerHeight ? Math.max(8, r.top - hgt - 8) : r.bottom + 8) + 'px';
     popFor = btn;
   }
-  function hidePop() { if (pop) pop.hidden = true; popFor = null; }
+  function hidePop() { if (pop) { pop.hidden = true; pop.classList.remove('ny'); } popFor = null; }
   root.addEventListener('mouseover', function (e) { var m = e.target.closest('.sd-multi'); if (m && matchMedia('(hover: hover)').matches) showPop(m); });
   root.addEventListener('mouseout', function (e) { if (e.target.closest('.sd-multi') && matchMedia('(hover: hover)').matches) hidePop(); });
   root.addEventListener('focusin', function (e) { var m = e.target.closest('.sd-multi'); if (m) showPop(m); });
   root.addEventListener('focusout', function (e) { if (e.target.closest('.sd-multi')) hidePop(); });
   document.addEventListener('click', function (e) { if (popFor && !e.target.closest('.sd-multi')) hidePop(); });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') hidePop(); });
+
+  // ------------------------------------------- Needs you strip (MARKER-STUDIO-NEEDS)
+  // Desktop: one row; chips that don't fit fold into "+N more", which opens
+  // the row out to wrap. Phones swipe the row instead (CSS). Hover shows what
+  // a chip counts and which list it opens.
+  function nyFit() {
+    var ny = $('#sdNy'), rail = ny && $('.sd-ny-rail', ny);
+    if (!rail) return;
+    var chips = $$('a.sd-chip', rail), more = $('[data-ny-more]', rail), less = $('[data-ny-less]', rail);
+    chips.forEach(function (c) { c.hidden = false; });
+    more.hidden = true; less.hidden = true;
+    if (innerWidth < 1024) return;
+    if (ny.classList.contains('open')) { less.hidden = false; return; }
+    var w = rail.clientWidth, gap = 8, used = 0, cut = -1;
+    more.hidden = false; var mw = more.offsetWidth + gap; more.hidden = true;
+    for (var i = 0; i < chips.length; i++) {
+      used += chips[i].offsetWidth + (i ? gap : 0);
+      if (used + (i < chips.length - 1 ? mw : 0) > w) { cut = i; break; }
+    }
+    if (cut < 0) return;
+    for (var j = cut; j < chips.length; j++) chips[j].hidden = true;
+    $('.n', more).textContent = '+' + (chips.length - cut);
+    more.hidden = false;
+  }
+  function nyShow() { var ny = $('#sdNy'); if (ny) ny.classList.add('on'); }
+  root.addEventListener('click', function (e) {
+    var ny = $('#sdNy');
+    if (!ny) return;
+    if (e.target.closest('[data-ny-more]')) { ny.classList.add('open'); nyFit(); var l = $('[data-ny-less]', ny); if (l) l.focus(); }
+    else if (e.target.closest('[data-ny-less]')) { ny.classList.remove('open'); nyFit(); var m = $('[data-ny-more]', ny); if (m && !m.hidden) m.focus(); }
+  });
+  function nyPop(chip) {
+    if (!pop || !chip.dataset.desc) return;
+    pop.innerHTML = '<p>' + esc(chip.dataset.desc) + '</p><small>Opens ' + esc(chip.dataset.opens) + '</small>';
+    pop.classList.add('ny');
+    pop.hidden = false;
+    var r = chip.getBoundingClientRect(), w = pop.offsetWidth;
+    pop.style.left = Math.max(8, Math.min(r.left, innerWidth - w - 8)) + 'px';
+    pop.style.top = (r.bottom + 8) + 'px';
+    popFor = chip;
+  }
+  root.addEventListener('mouseover', function (e) { var c = e.target.closest('a.sd-chip'); if (c && c !== popFor && innerWidth >= 1024 && matchMedia('(hover: hover)').matches) nyPop(c); });
+  root.addEventListener('mouseout', function (e) { var c = e.target.closest('a.sd-chip'); if (c && !c.contains(e.relatedTarget)) hidePop(); });
+  root.addEventListener('focusin', function (e) { var c = e.target.closest('a.sd-chip'); if (c && innerWidth >= 1024) nyPop(c); });
+  root.addEventListener('focusout', function (e) { if (e.target.closest('a.sd-chip')) hidePop(); });
+  var nyT = 0;
+  addEventListener('resize', function () { clearTimeout(nyT); nyT = setTimeout(nyFit, 120); });
 
   // ---------------------------------------------------------- quiet refresh
   // Every 3 minutes while the tab is in view, fetch the page again and swap
@@ -200,6 +247,7 @@
       .then(function (r) { if (!r.ok) throw r.status; return r.text(); })
       .then(function (html) {
         var doc = new DOMParser().parseFromString(html, 'text/html');
+        var nyOpen = !!document.querySelector('#sdNy.open');
         $$('[data-sd-live]').forEach(function (el) {
           var fresh = doc.querySelector('[data-sd-live="' + el.dataset.sdLive + '"]');
           if (!fresh) return;
@@ -209,6 +257,7 @@
           el.replaceWith(fresh);
         });
         $$('.sd-row').forEach(function (r) { r._seen = 1; });
+        var nyEl = $('#sdNy'); if (nyEl) { nyEl.classList.add('on'); if (nyOpen) nyEl.classList.add('open'); } nyFit();
         readData();
         var keep = filter;
         $$('.sd-seg button').forEach(function (x) { x.classList.toggle('on', x.dataset.f === keep); });
@@ -230,5 +279,8 @@
   if (listEl) listEl.addEventListener('scroll', function () { if (!raf) raf = requestAnimationFrame(function () { raf = 0; check(); hidePop(); }); }, { passive: true });
   markBelow();
   requestAnimationFrame(function () { setTimeout(check, 40); });
+  nyFit();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(nyFit);
+  setTimeout(nyShow, 80);
   if (reduce) $$('.sd-tile').forEach(count);
 })();

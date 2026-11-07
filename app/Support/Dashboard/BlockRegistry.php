@@ -65,6 +65,8 @@ class BlockRegistry
                 'reads' => 'Sales, work orders, customers', 'desc' => 'Sales, jobs completed and new customers against the 30 days before.', 'access' => ['any' => ['reports', 'schedule', 'customers']], 'title' => 'Last 30 days', 'needs' => ['jobs']],
 
             // Studio (MARKER-DASH-STUDIO)
+            'studio_needs' => ['name' => 'Needs you strip', 'origin' => 'studio', 'view' => 'tenant.dashboard.blocks.studio-needs',
+                'reads' => 'Appointments, work orders, special orders, stock', 'desc' => 'What needs someone as one row of chips under the greeting, worst first. Each chip opens its list; desktop folds extras into "+N more" and phones swipe the row. Shows only what each role can open.', 'access' => self::QUEUE_AREAS, 'needs' => []],
             'studio_tiles' => ['name' => 'Coloured tiles', 'origin' => 'studio', 'view' => 'tenant.dashboard.blocks.studio-tiles',
                 'reads' => 'Appointments, payments, work orders, website visits', 'desc' => 'Bookings, sales, work orders and online today as four coloured tiles with small charts. Each tile shows only to roles that can open its area.', 'access' => ['any' => ['schedule', 'reports']], 'needs' => ['studio']],
             'studio_rail'  => ['name' => 'Calendar and today', 'origin' => 'studio', 'view' => 'tenant.dashboard.blocks.studio-rail',
