@@ -34,17 +34,17 @@
           @if (count($c['cur']) > 1)<path class="cur" pathLength="100" d="M{{ $pts($c['cur']) }}"/>@endif
           @if ($lastK >= 0)<circle cx="{{ round($lastK * 300 / ($n - 1), 1) }}" cy="{{ round(64 - ($c['cur'][$lastK] / $mx) * 56, 1) }}" r="4"/>@endif
         </svg>
-        <div class="sd-axis" aria-hidden="true"><span>{{ $c['axis'][0] }}</span><span>{{ $c['axis'][1] }}</span></div>
+        <div class="sd-axis"><span>{{ $c['axis'][0] }}</span><span>{{ $c['axis'][1] ?? '' }}</span></div>
 
       @elseif (($c['type'] ?? '') === 'stack')
         @php $sum = max(1, array_sum(array_column($c['parts'], 'n'))); @endphp
         <div class="sd-stack" aria-hidden="true">
           @foreach ($c['parts'] as $pi => $p)
-            @if ($p['n'] > 0)<span class="p{{ $pi + 1 }}" style="--w:{{ round($p['n'] / $sum * 100, 1) }}%">{{ $p['n'] }}</span>@endif
+            @if ($p['n'] > 0)<span class="p{{ $pi + 1 }}{{ ! empty($p['bad']) ? ' bad' : '' }}" style="--w:{{ round($p['n'] / $sum * 100, 1) }}%">{{ $p['n'] }}</span>@endif
           @endforeach
           @if (array_sum(array_column($c['parts'], 'n')) === 0)<span class="p0" style="--w:100%"></span>@endif
         </div>
-        <div class="sd-key">@foreach ($c['parts'] as $pi => $p)<span><i class="p{{ $pi + 1 }}"></i>{{ $p['label'] }}</span>@endforeach</div>
+        <div class="sd-key">@foreach ($c['parts'] as $pi => $p)<span><i class="p{{ $pi + 1 }}{{ ! empty($p['bad']) ? ' bad' : '' }}"></i>{{ $p['label'] }}</span>@endforeach</div>
 
       @elseif (($c['type'] ?? '') === 'ring')
         <div class="sd-ring">
