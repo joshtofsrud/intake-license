@@ -1,0 +1,106 @@
+From 909c956f1c68792cf85ab3210ad6f5f22182ce49 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 7 Nov 2026 08:19:14 -0800
+Subject: [PATCH] Register: quick "who's this sale for?" on an empty sale, gone
+ after 5 seconds, on Esc, a click elsewhere or any key
+
+---
+ .../views/tenant/register/index.blade.php     | 75 +++++++++++++++++++
+ 1 file changed, 75 insertions(+)
+
+diff --git a/resources/views/tenant/register/index.blade.php b/resources/views/tenant/register/index.blade.php
+index c260d206..b7c93c0a 100644
+--- a/resources/views/tenant/register/index.blade.php
++++ b/resources/views/tenant/register/index.blade.php
+@@ -408,6 +408,17 @@
+   .reg-cust .clear{color:var(--ia-text-dim);cursor:pointer;font-size:11px}
+   .reg-cust .clear:hover{color:var(--reg-danger)}
+ 
++  /* MARKER-REG-QUICK-CUSTOMER */
++  .rqc{margin:8px 0 10px;padding:12px 14px;border-radius:12px;background:var(--ia-surface-2, rgba(127,127,127,.08));border:1px solid var(--ia-border-strong, rgba(127,127,127,.25));opacity:0;transform:translateY(-4px);transition:opacity .18s,transform .18s}
++  .rqc.on{opacity:1;transform:none}
++  .rqc-h{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;margin-bottom:10px}
++  .rqc-secs{font-size:11.5px;color:var(--ia-text-dim);font-variant-numeric:tabular-nums}
++  .rqc-acts{display:flex;gap:8px;flex-wrap:wrap}
++  .rqc-acts button{font-size:12.5px;padding:7px 12px}
++  .rqc-bar{height:3px;border-radius:2px;background:var(--ia-border, rgba(127,127,127,.2));overflow:hidden;margin-top:10px}
++  .rqc-bar span{display:block;height:100%;background:var(--ia-accent);transform-origin:left;transition:transform .1s linear}
++  .rqc-hint{font-size:11px;color:var(--ia-text-dim);margin-top:6px}
++  @media (prefers-reduced-motion:reduce){.rqc,.rqc-bar span{transition:none}}
+   .reg-attach{
+     width:100%;padding:10px;background:transparent;border:0.5px dashed var(--ia-border-strong);
+     border-radius:var(--ia-r-md);color:var(--ia-text-muted);font-size:13px;
+@@ -6383,6 +6394,70 @@ loadDrafts().then(refreshDraftsBanner);
+   resumeDraft(resumeId);
+ })();
+ 
++/* ===================================================================
++   MARKER-REG-QUICK-CUSTOMER — "Who's this sale for?" when the Register
++   opens on an empty sale. It never takes the cursor from the item search,
++   so a scan or a search goes straight through and closes it. It also
++   closes on its own after 5 seconds, on Esc, on a click anywhere else, or
++   on Walk-in. "Find or add a customer" opens the usual customer window.
++   =================================================================== */
++(function () {
++  var SECS = 5, card = null, timer = null, left = SECS, paused = false;
++  function empty() { return !cart.customer && !cart.items.length && !cart.refund_lines.length && !cart.draft_id; }
++  function hide() {
++    if (!card) return;
++    clearInterval(timer); timer = null;
++    card.classList.remove('on');
++    var c = card; card = null;
++    setTimeout(function () { if (c.parentNode) c.parentNode.removeChild(c); }, 200);
++    document.removeEventListener('keydown', onKey, true);
++    document.removeEventListener('pointerdown', onOutside, true);
++    searchInput.removeEventListener('input', hide);
++  }
++  // Esc closes it; so does any other key (a scan or typing), which carries on to wherever it was going
++  function onKey(e) {
++    if (e.key === 'Escape') { e.preventDefault(); hide(); return; }
++    if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !(card && card.contains(e.target))) hide();
++  }
++  function onOutside(e) { if (card && !card.contains(e.target)) hide(); }
++  function tick() {
++    if (!card) return;
++    if (!empty()) { hide(); return; }       // a resumed sale or a scan filled it
++    if (paused) return;
++    left -= 0.1;
++    card.querySelector('.rqc-bar span').style.transform = 'scaleX(' + Math.max(0, left / SECS) + ')';
++    card.querySelector('.rqc-secs').textContent = Math.max(1, Math.ceil(left)) + 's';
++    if (left <= 0) hide();
++  }
++  function show() {
++    var slot = document.getElementById('customerSlot');
++    if (!slot || card) return;
++    card = document.createElement('div');
++    card.className = 'rqc';
++    card.setAttribute('role', 'dialog');
++    card.setAttribute('aria-label', "Who's this sale for?");
++    card.innerHTML = '<div class="rqc-h"><b>Who\'s this sale for?</b><span class="rqc-secs">' + SECS + 's</span></div>'
++      + '<div class="rqc-acts"><button type="button" class="reg-btn-primary rqc-find">Find or add a customer</button>'
++      + '<button type="button" class="reg-btn-secondary rqc-walk">Walk-in</button></div>'
++      + '<div class="rqc-bar"><span></span></div>'
++      + '<div class="rqc-hint">Closes by itself · Esc · or just scan an item</div>';
++    slot.parentNode.insertBefore(card, slot.nextSibling);
++    requestAnimationFrame(function () { if (card) card.classList.add('on'); });
++    card.querySelector('.rqc-find').addEventListener('click', function () { hide(); openCustomerModal(); });
++    card.querySelector('.rqc-walk').addEventListener('click', hide);
++    card.addEventListener('mouseenter', function () { paused = true; });
++    card.addEventListener('mouseleave', function () { paused = false; });
++    document.addEventListener('keydown', onKey, true);
++    document.addEventListener('pointerdown', onOutside, true);
++    searchInput.addEventListener('input', hide);
++    timer = setInterval(tick, 100);
++  }
++  // after any draft or quote has had a moment to load
++  setTimeout(function () {
++    if (empty() && !document.querySelector('.reg-modal-bg.open')) show();
++  }, 700);
++})();
++
+ /* ===================================================================
+    Appointment tray — lazy-loads on click. Lists every pending sale
+    that came from a completed appointment, lets staff jump to one.
+-- 
+2.43.0
+
