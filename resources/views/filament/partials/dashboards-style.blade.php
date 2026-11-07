@@ -8,6 +8,7 @@
   html:not(.dark) .sx-root { --db-txt:#18181b; --db-vtext:#6d28d9; --db-amber:#b45309; --db-red:#dc2626; --db-hover:rgba(0,0,0,.025); --db-card:#fff; }
   .db-legend { color:var(--sx-faint); font-size:12.5px; line-height:1.6; padding:0 0 12px; border-bottom:1px solid var(--sx-line); }
   .db-legend b { color:var(--sx-dim); font-weight:500; }
+  .db-scroll { overflow-x:auto; max-width:100%; }
   .db-t { width:100%; border-collapse:collapse; font-size:13.5px; }
   .db-t th { text-align:left; font-weight:500; color:var(--sx-faint); font-size:12.5px; padding:10px; border-bottom:1px solid var(--sx-line-2); white-space:nowrap; }
   .db-t td { padding:12px 10px; border-bottom:1px solid var(--sx-line); vertical-align:middle; }

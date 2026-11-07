@@ -8,7 +8,7 @@
     A live template appears in the dashboard switch of every shop that gets it (set in its editor).
     <b>The default</b> is what anyone who hasn't picked a view sees: {{ number_format($following) }} {{ \Illuminate\Support\Str::plural('person', $following) }}
     across {{ number_format($followingShops) }} {{ \Illuminate\Support\Str::plural('shop', $followingShops) }} right now, including anyone whose pick was retired.
-    People who chose a view keep it.
+    People who chose a view keep it. <a class="db-lnk" href="{{ \App\Filament\Pages\DashboardPeopleList::getUrl() }}">See who's on what →</a>
   </div>
 
   <div class="db-bar" style="border-bottom:1px solid var(--sx-line)">
@@ -70,7 +70,7 @@
           </td>
           <td class="db-hide-m">{{ $t['audience'] }}<div class="db-sub">{{ ['none' => 'People can\'t change it', 'hide' => 'People can hide blocks', 'both' => 'People can hide and reorder'][$t['rearrange']] ?? '' }}</div></td>
           <td class="db-hide-m">{{ $t['label'] }}@if ($t['beta']) <span class="db-beta">BETA</span>@endif</td>
-          <td class="db-hide-m db-num">{{ number_format($t['picked']) }}</td>
+          <td class="db-hide-m db-num">@if ($t['picked'])<a class="db-lnk" href="{{ \App\Filament\Pages\DashboardPeopleList::getUrl(['tpl' => $t['key']]) }}">{{ number_format($t['picked']) }} →</a>@else 0 @endif</td>
           <td>
             @if ($t['state'] === 'live')
               <label><input type="radio" name="dash-default" value="{{ $t['key'] }}" wire:model.live="default" @disabled(! $canManage)>
@@ -86,8 +86,12 @@
               @if ($canManage)
                 <button type="button" class="db-lnk dim" wire:click="duplicate('{{ $t['key'] }}')">Duplicate</button>
                 @if ($saved !== $t['key'])
-                  <button type="button" class="db-lnk red" wire:click="retire('{{ $t['key'] }}')"
-                    data-confirm="Retire {{ $t['name'] }}?&#10;It leaves every dashboard switch. {{ $t['picked'] }} {{ \Illuminate\Support\Str::plural('person', $t['picked']) }} who picked it will see the default on their next load. Its versions are kept, and you can restore it.">Retire</button>
+                  @if ($t['picked'])
+                    <button type="button" class="db-lnk red" wire:click="askRetire('{{ $t['key'] }}')">Retire…</button>
+                  @else
+                    <button type="button" class="db-lnk red" wire:click="retire('{{ $t['key'] }}')"
+                      data-confirm="Retire {{ $t['name'] }}?&#10;It leaves every dashboard switch. Nobody has picked it. Its versions are kept, and you can restore it.">Retire</button>
+                  @endif
                 @endif
               @endif
             </span>
@@ -125,6 +129,51 @@
         @endforeach
       </tbody>
     </table>
+  @endif
+
+  {{-- always in the page (not only once a dashboard is picked) so the open-modal event finds it --}}
+  @if ($canManage)
+    <x-filament::modal id="retire-dashboard" width="lg">
+      <x-slot name="heading">Retire {{ $retire['name'] ?? 'dashboard' }}</x-slot>
+      <x-slot name="description">It leaves every dashboard switch. Its versions are kept, and you can restore it as a draft.</x-slot>
+      @if ($retire)
+      <div class="sx-root" style="display:grid;gap:14px">
+        <div class="db-note"><b>{{ number_format($retire['people']) }}</b> {{ \Illuminate\Support\Str::plural('person', $retire['people']) }} in {{ number_format($retire['shops']) }} {{ \Illuminate\Support\Str::plural('shop', $retire['shops']) }} picked {{ $retire['name'] }}. Choose what happens to them.</div>
+        <label class="db-note" style="display:flex;gap:10px;align-items:flex-start;cursor:pointer">
+          <input type="radio" value="move" wire:model.live="retireMode" style="margin-top:3px;accent-color:#8b5cf6">
+          <span><b>Move them to another dashboard</b><br>They land on it straight away, and you can undo the move afterwards.</span>
+        </label>
+        @if ($retireMode === 'move')
+          <select class="db-in" wire:model.live="retireTarget">
+            <option value="">Choose a dashboard</option>
+            @foreach ($retire['targets'] as $tt)
+              <option value="{{ $tt->key }}">{{ $tt->name }}{{ $tt->key === $saved ? ' (the default)' : '' }}</option>
+            @endforeach
+          </select>
+          @if ($retire['plan'])
+            <div class="db-note">
+              <b>{{ number_format(count($retire['plan']['move'])) }}</b> will move to {{ $retire['plan']['target']->name }}.
+              @if ($retire['plan']['toDefault']) Their pick is cleared, so they follow the default from now on. @endif
+              @if ($retire['plan']['skip'])
+                @php $rskip = array_sum(array_column($retire['plan']['skip'], 'n')); @endphp
+                <div class="db-warn" style="margin-top:6px">{{ number_format($rskip) }} can't have {{ $retire['plan']['target']->name }} (their shop isn't offered it), so they will see the default:
+                  {{ collect($retire['plan']['skip'])->take(4)->map(fn ($x) => $x['shop'] . ' (' . $x['n'] . ')')->implode(', ') }}{{ count($retire['plan']['skip']) > 4 ? ' and ' . (count($retire['plan']['skip']) - 4) . ' more' : '' }}.
+                </div>
+              @endif
+            </div>
+          @endif
+        @endif
+        <label class="db-note" style="display:flex;gap:10px;align-items:flex-start;cursor:pointer">
+          <input type="radio" value="default" wire:model.live="retireMode" style="margin-top:3px;accent-color:#8b5cf6">
+          <span><b>Let them fall back to the default</b><br>They see {{ $active->firstWhere('key', $saved)['name'] ?? 'the default' }} on their next page load, and keep following it if the default changes.</span>
+        </label>
+      </div>
+      @endif
+      <x-slot name="footerActions">
+        <x-filament::button color="danger" wire:click="confirmRetire" :disabled="! $retire || ($retireMode === 'move' && ($retireTarget === '' || ! $retire['plan']))">{{ $retireMode === 'move' ? 'Move them and retire' : 'Retire' }}</x-filament::button>
+        <x-filament::button color="gray" x-on:click="$dispatch('close-modal', { id: 'retire-dashboard' })">Cancel</x-filament::button>
+      </x-slot>
+    </x-filament::modal>
   @endif
 
   <div class="db-h3">Check a shop<span class="meta">Which dashboards one shop is offered, and why</span></div>

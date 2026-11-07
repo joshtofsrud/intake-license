@@ -114,6 +114,7 @@ class AdminPanelProvider extends PanelProvider
                 \App\Filament\Pages\Dashboards::class,
                 \App\Filament\Pages\DashboardEditor::class, // MARKER-DASH-ADMIN
                 \App\Filament\Pages\DashboardBlocks::class, // MARKER-DASH-BUILDER
+                \App\Filament\Pages\DashboardPeopleList::class, // MARKER-DASH-PEOPLE
                 \App\Filament\Pages\DashboardBlockBuilder::class,
                 \App\Filament\Pages\DashboardPreview::class, // MARKER-DASH-PREVIEW
                 \App\Filament\Pages\LiveView::class, // MARKER-LIVE-VIEW: no route without this line

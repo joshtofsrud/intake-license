@@ -36,8 +36,15 @@ class Dashboards extends Page
 
     public string $newName = '';
     public string $checkFind = '';
+    #[\Livewire\Attributes\Url(as: 'shop', except: '')]
     public ?string $checkId = null;
     public string $newFrom = '';
+
+    /** MARKER-DASH-PEOPLE: the retire dialog, when people still have the dashboard picked. */
+    public ?string $retireKey = null;
+    /** move | default */
+    public string $retireMode = 'move';
+    public string $retireTarget = '';
 
     public function mount(): void
     {
@@ -117,9 +124,14 @@ class Dashboards extends Page
         return redirect(DashboardEditor::getUrl(['t' => $t->key]));
     }
 
+    /** Retires straight away when nobody picked it; otherwise opens the dialog that asks where they go. */
     public function retire(string $key): void
     {
         if (! $this->guard()) return;
+        if (\App\Support\Dashboard\DashboardPeople::pickedIds($key)) {
+            $this->askRetire($key);
+            return;
+        }
         try {
             $t = TemplateStore::retire($key);
         } catch (\Throwable $e) {
@@ -127,7 +139,54 @@ class Dashboards extends Page
             return;
         }
         Notification::make()->title($t->name . ' retired')
-            ->body('It has left every dashboard switch. Anyone who had it now sees the default.')->success()->send();
+            ->body('It has left every dashboard switch. Nobody had picked it.')->success()->send();
+    }
+
+    public function askRetire(string $key): void
+    {
+        if (! $this->guard()) return;
+        $t = DashboardTemplate::where('key', $key)->first();
+        if (! $t || $t->state === 'retired') return;
+        if ($t->is_default) {
+            Notification::make()->title('Choose another default before retiring this one.')->danger()->send();
+            return;
+        }
+        $this->retireKey = $key;
+        $this->retireMode = 'move';
+        $this->retireTarget = \App\Support\Dashboard\DashboardPeople::defaultKey();
+        $this->dispatch('open-modal', id: 'retire-dashboard');
+    }
+
+    /** Moves the people who picked it (if asked to), then retires it, in one go. */
+    public function confirmRetire(): void
+    {
+        if (! $this->guard() || ! $this->retireKey) return;
+        $key = $this->retireKey;
+        try {
+            $moved = null;
+            \Illuminate\Support\Facades\DB::transaction(function () use ($key, &$moved) {
+                $ids = \App\Support\Dashboard\DashboardPeople::pickedIds($key, null);
+                if ($this->retireMode === 'move' && $ids) {
+                    if ($this->retireTarget === '' || $this->retireTarget === $key) {
+                        throw new \InvalidArgumentException('Choose where those people go.');
+                    }
+                    $plan = \App\Support\Dashboard\DashboardPeople::plan($ids, $this->retireTarget, PHP_INT_MAX);
+                    $name = DashboardTemplate::where('key', $key)->value('name') ?? $key;
+                    $moved = \App\Support\Dashboard\DashboardPeople::move($plan, $name . ' (' . count($plan['move']) . ')', 'retire', Auth::guard('web')->user());
+                }
+                $t = TemplateStore::retire($key);
+            });
+        } catch (\Throwable $e) {
+            $this->fail($e);
+            return;
+        }
+        $t = DashboardTemplate::where('key', $key)->first();
+        $body = $moved
+            ? $moved->people . ' ' . \Illuminate\Support\Str::plural('person', $moved->people) . ' moved to ' . $moved->to_name . '. Undo is under Who\'s on what.'
+            : 'It has left every dashboard switch. Anyone who had it now sees the default.';
+        Notification::make()->title(($t?->name ?? 'Dashboard') . ' retired')->body($body)->success()->send();
+        $this->retireKey = null;
+        $this->dispatch('close-modal', id: 'retire-dashboard');
     }
 
     public function setCustomize(bool $on): void
@@ -217,7 +276,28 @@ class Dashboards extends Page
             ];
         });
 
+        $retire = null;
+        if ($this->retireKey) {
+            $ids = \App\Support\Dashboard\DashboardPeople::pickedIds($this->retireKey, null);
+            $plan = null;
+            if ($this->retireMode === 'move' && $this->retireTarget !== '' && $this->retireTarget !== $this->retireKey && $ids) {
+                try {
+                    $plan = \App\Support\Dashboard\DashboardPeople::plan($ids, $this->retireTarget, PHP_INT_MAX);
+                } catch (\Throwable $e) {
+                    $plan = null;
+                }
+            }
+            $retire = [
+                'name'    => $all->firstWhere('key', $this->retireKey)?->name ?? $this->retireKey,
+                'people'  => count($ids),
+                'shops'   => \App\Models\Tenant\TenantUser::whereIn('id', $ids)->distinct()->count('tenant_id'),
+                'plan'    => $plan,
+                'targets' => $all->filter(fn ($t) => $t->key !== $this->retireKey && in_array($t->state, ['live', 'beta'], true) && $t->live_version_id)->values(),
+            ];
+        }
+
         return [
+            'retire'         => $retire,
             'active'         => $rows->where('state', '!=', 'retired')->values(),
             'retired'        => $rows->where('state', 'retired')->values(),
             'saved'          => $this->savedDefault(),
