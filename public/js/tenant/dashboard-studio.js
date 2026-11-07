@@ -39,10 +39,13 @@
         if (el.classList.contains('sd-tile')) count(el);
       }
     });
+    var lst = $('#sdList'), lb = lst ? lst.getBoundingClientRect().bottom : Infinity;
     pending = pending.filter(function (r) {
-      if (r.getBoundingClientRect().top < innerHeight * 0.92) { r.classList.remove('sd-blur'); r._seen = 1; return false; }
+      // in view of the window AND of the list (the list scrolls on its own on desktop)
+      if (r.getBoundingClientRect().top < Math.min(innerHeight * 0.92, lb - 8)) { r.classList.remove('sd-blur'); r._seen = 1; return false; }
       return true;
     });
+    endCap();
     var head = $('#sdHead');
     if (head) head.classList.toggle('frost', window.scrollY > 24 && innerWidth > 1023);
   }
@@ -120,8 +123,25 @@
       if (on) { shown++; if (firstShown === null) firstShown = +row.dataset.i; }
     });
     var none = $('.sd-none', list); if (none) none.hidden = shown > 0;
+    var end = $('.sd-end', list);
+    if (end) {
+      var b = $('.sd-seg button.on');
+      var name = b ? b.textContent.replace(/\s*\d+\s*$/, '') : 'All';
+      end.hidden = shown === 0;
+      end.classList.remove('in');
+      var word = end.dataset.word || 'jobs';
+      end.querySelector('span').textContent = (filter === 'all' ? 'End of the list' : 'End of ' + name) + ' · ' + shown + ' ' + (shown === 1 ? word.replace(/s$/, '') : word);
+      requestAnimationFrame(endCap);
+    }
     var selRow = $('.sd-row[data-i="' + sel + '"]', list);
     if (!selRow || selRow.hidden) { if (firstShown !== null) pick(firstShown); else detail(-1); }
+  }
+  // "End of …" draws itself in once it comes into view, putting a full stop on the list
+  function endCap() {
+    var end = $('.sd-end'), lst = $('#sdList');
+    if (!end || end.hidden || end.classList.contains('in')) return;
+    var r = end.getBoundingClientRect(), lb = lst ? lst.getBoundingClientRect().bottom : innerHeight;
+    if (r.top < Math.min(innerHeight, lb) - 4 && r.bottom > 0) end.classList.add('in');
   }
   function pick(i) {
     sel = i;
@@ -205,7 +225,9 @@
 
   // ------------------------------------------------------------------ start
   readData();
-  if (data.length) pick(0);
+  if (data.length) { pick(0); applyFilter(); }
+  var listEl = $('#sdList');
+  if (listEl) listEl.addEventListener('scroll', function () { if (!raf) raf = requestAnimationFrame(function () { raf = 0; check(); hidePop(); }); }, { passive: true });
   markBelow();
   requestAnimationFrame(function () { setTimeout(check, 40); });
   if (reduce) $$('.sd-tile').forEach(count);

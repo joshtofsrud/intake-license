@@ -81,6 +81,7 @@
               </div>
             @endforeach
             <div class="sd-none" hidden>None here right now.</div>
+      <div class="sd-end" data-word="bookings"><i></i><span>End of the list</span><i></i></div>
           </div>
           @if ($bk['more'])
             <a class="sd-link sd-more" href="{{ route('tenant.rentals.bookings.index') }}">{{ $bk['more'] }} more in Bookings →</a>

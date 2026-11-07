@@ -35,6 +35,7 @@
         </div>
       @endforeach
       <div class="sd-none" hidden>None here right now.</div>
+      <div class="sd-end" data-word="jobs"><i></i><span>End of the list</span><i></i></div>
     </div>
     @if ($q['more'])
       <a class="sd-link sd-more" href="{{ route('tenant.appointments.index') }}">{{ $q['more'] }} more in Work orders →</a>
