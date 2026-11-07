@@ -57,12 +57,15 @@
         <span class="ia-mobile-header-name">{{ $currentTenant->name }}</span>
       </a>
     @endif
+    {{-- PHONE-HEADER-RIGHT: the location pill, sync dot, bell and notes sit in
+         one row on the right, so a long location name can't run under the icons. --}}
+    <div class="ia-mh-right">
     @include('layouts.tenant._location-switcher')
 
     {{-- stage 4 — status pill mount, in the header flow --}}
     {{-- see the sidebar mount. Online renders as a bare dot
          (renderMobilePill only shows a label when something is wrong). --}}
-    <span id="ioMountMobile" style="position:absolute;right:102px;top:50%;transform:translateY(-50%);display:inline-flex;align-items:center">
+    <span id="ioMountMobile" style="display:inline-flex;align-items:center">
       @php
           // resolved here rather than inherited: these
           // partials render before the layout's $ioEnabled block runs.
@@ -84,9 +87,8 @@
       @if($mhdrAlertsUnread > 0)<span class="ia-mobile-header-bell-badge">{{ $mhdrAlertsUnread > 99 ? '99+' : $mhdrAlertsUnread }}</span>@endif
     </a>
 
-    {{-- after the bell in the markup and outermost on
-         screen. These are absolutely positioned, so DOM order alone decides
-         nothing; the offsets below do. --}}
+    {{-- after the bell: outermost on screen --}}
     @include('layouts.tenant._notes-pad')
+    </div>
   </div>
 </header>

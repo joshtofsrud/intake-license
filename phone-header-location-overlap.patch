@@ -1,0 +1,73 @@
+From bf8be85b83aa2777cabc8243ff3c35595ca60587 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 7 Nov 2026 10:01:54 -0800
+Subject: [PATCH] Phone header: location pill, sync dot, bell and notes in one
+ row so they no longer overlap
+
+---
+ public/css/tenant/mobile-nav.css               | 18 ++++++++++++++++++
+ .../layouts/tenant/_mobile-header.blade.php    | 10 ++++++----
+ 2 files changed, 24 insertions(+), 4 deletions(-)
+
+diff --git a/public/css/tenant/mobile-nav.css b/public/css/tenant/mobile-nav.css
+index d30d2cfe..ed3300c2 100644
+--- a/public/css/tenant/mobile-nav.css
++++ b/public/css/tenant/mobile-nav.css
+@@ -979,3 +979,21 @@
+   }
+ }
+ /* =================== end patch-448 block =================== */
++
++
++/* PHONE-HEADER-RIGHT — location pill, sync dot, bell and notes as one row on
++   the right. Without a location pill the row floats so the logo stays centred;
++   with one, the logo moves left and the row takes its place in the flow. */
++@media (max-width: 1023px) {
++  .ia-mh-right { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 4px; }
++  .ia-mh-right .ia-mobile-header-bell,
++  .ia-mh-right .pad { position: static; transform: none; }
++  .ia-mh-right .ia-loc-switcher { position: static; margin: 0 4px 0 0; }
++  .ia-mobile-header-inner:has(.ia-mh-right .ia-loc-switcher) { justify-content: flex-start; gap: 10px; padding-right: 10px; }
++  .ia-mobile-header-inner:has(.ia-mh-right .ia-loc-switcher) .ia-mh-right { position: static; transform: none; margin-left: auto; flex: none; }
++  .ia-mobile-header-inner:has(.ia-mh-right .ia-loc-switcher) .ia-mobile-header-brand { min-width: 0; }
++  .ia-mobile-header-inner:has(.ia-mh-right .ia-loc-switcher) .ia-mobile-header-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
++  .ia-mobile-header-inner:has(.ia-mh-right .ia-loc-switcher) .ia-mobile-header-logo { max-width: 120px; }
++  .ia-mobile-header .ia-loc-switcher-label { max-width: 90px; }
++}
++
+diff --git a/resources/views/layouts/tenant/_mobile-header.blade.php b/resources/views/layouts/tenant/_mobile-header.blade.php
+index 861a64ed..ab7bf62d 100644
+--- a/resources/views/layouts/tenant/_mobile-header.blade.php
++++ b/resources/views/layouts/tenant/_mobile-header.blade.php
+@@ -57,12 +57,15 @@
+         <span class="ia-mobile-header-name">{{ $currentTenant->name }}</span>
+       </a>
+     @endif
++    {{-- PHONE-HEADER-RIGHT: the location pill, sync dot, bell and notes sit in
++         one row on the right, so a long location name can't run under the icons. --}}
++    <div class="ia-mh-right">
+     @include('layouts.tenant._location-switcher')
+ 
+     {{-- stage 4 — status pill mount, in the header flow --}}
+     {{-- see the sidebar mount. Online renders as a bare dot
+          (renderMobilePill only shows a label when something is wrong). --}}
+-    <span id="ioMountMobile" style="position:absolute;right:102px;top:50%;transform:translateY(-50%);display:inline-flex;align-items:center">
++    <span id="ioMountMobile" style="display:inline-flex;align-items:center">
+       @php
+           // resolved here rather than inherited: these
+           // partials render before the layout's $ioEnabled block runs.
+@@ -84,9 +87,8 @@
+       @if($mhdrAlertsUnread > 0)<span class="ia-mobile-header-bell-badge">{{ $mhdrAlertsUnread > 99 ? '99+' : $mhdrAlertsUnread }}</span>@endif
+     </a>
+ 
+-    {{-- after the bell in the markup and outermost on
+-         screen. These are absolutely positioned, so DOM order alone decides
+-         nothing; the offsets below do. --}}
++    {{-- after the bell: outermost on screen --}}
+     @include('layouts.tenant._notes-pad')
++    </div>
+   </div>
+ </header>
+-- 
+2.43.0
+

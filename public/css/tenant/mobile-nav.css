@@ -979,3 +979,21 @@
   }
 }
 /* =================== end patch-448 block =================== */
+
+
+/* PHONE-HEADER-RIGHT — location pill, sync dot, bell and notes as one row on
+   the right. Without a location pill the row floats so the logo stays centred;
+   with one, the logo moves left and the row takes its place in the flow. */
+@media (max-width: 1023px) {
+  .ia-mh-right { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 4px; }
+  .ia-mh-right .ia-mobile-header-bell,
+  .ia-mh-right .pad { position: static; transform: none; }
+  .ia-mh-right .ia-loc-switcher { position: static; margin: 0 4px 0 0; }
+  .ia-mobile-header-inner:has(.ia-mh-right .ia-loc-switcher) { justify-content: flex-start; gap: 10px; padding-right: 10px; }
+  .ia-mobile-header-inner:has(.ia-mh-right .ia-loc-switcher) .ia-mh-right { position: static; transform: none; margin-left: auto; flex: none; }
+  .ia-mobile-header-inner:has(.ia-mh-right .ia-loc-switcher) .ia-mobile-header-brand { min-width: 0; }
+  .ia-mobile-header-inner:has(.ia-mh-right .ia-loc-switcher) .ia-mobile-header-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ia-mobile-header-inner:has(.ia-mh-right .ia-loc-switcher) .ia-mobile-header-logo { max-width: 120px; }
+  .ia-mobile-header .ia-loc-switcher-label { max-width: 90px; }
+}
+
