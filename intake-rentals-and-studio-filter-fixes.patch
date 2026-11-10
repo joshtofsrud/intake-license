@@ -1,0 +1,46 @@
+--- a/app/Http/Controllers/Tenant/RentalReserveController.php
++++ b/app/Http/Controllers/Tenant/RentalReserveController.php
+@@ -11,7 +11,7 @@
+ use App\Models\Tenant\TenantSale;
+ use App\Models\Tenant\TenantSaleItem;
+ use App\Models\Tenant\TenantSalePayment;
+-use App\Services\MySQLLock;
++use App\Support\MySQLLock;
+ use App\Services\RentalAvailabilityService;
+ use App\Services\Tenant\DirectPaymentsService;
+ use App\Services\Tenant\SalePaymentService;
+--- a/app/Http/Controllers/Tenant/RentalExtensionOfferController.php
++++ b/app/Http/Controllers/Tenant/RentalExtensionOfferController.php
+@@ -8,7 +8,7 @@
+ use App\Models\Tenant\TenantSale;
+ use App\Models\Tenant\TenantSaleItem;
+ use App\Models\Tenant\TenantSalePayment;
+-use App\Services\DirectPaymentsService;
++use App\Services\Tenant\DirectPaymentsService;
+ use App\Services\Sms\SmsService;
+ use App\Services\Tenant\SalePaymentService;
+ use Illuminate\Http\Request;
+--- a/app/Models/Tenant/Lease.php
++++ b/app/Models/Tenant/Lease.php
+@@ -3,7 +3,7 @@
+ namespace App\Models\Tenant;
+ 
+ use App\Models\Tenant;
+-use App\Models\TenantCustomer;
++use App\Models\Tenant\TenantCustomer;
+ use Illuminate\Database\Eloquent\Concerns\HasUuids;
+ use Illuminate\Database\Eloquent\Model;
+ use Illuminate\Database\Eloquent\Relations\BelongsTo;
+diff --git a/public/css/tenant/dashboard-studio.css b/public/css/tenant/dashboard-studio.css
+--- a/public/css/tenant/dashboard-studio.css
++++ b/public/css/tenant/dashboard-studio.css
+@@ -96,6 +96,9 @@
+ /* queue rows */
+ .sd-row { display: grid; grid-template-columns: 34px minmax(0, 1.3fr) minmax(0, 1.4fr) 96px 48px; gap: 14px; align-items: center; padding: 11px 10px;
+   border-bottom: 1px solid var(--ia-border); border-radius: 10px; cursor: pointer; transition: background .15s, filter .5s, opacity .5s, transform .5s; }
++/* Browser [hidden] loses to the authored grid/flex display rules.
++   Honor queue filters (and the end cap) in both Studio and Rental Desk. */
++.sd-list > [hidden] { display: none !important; }
+ .sd-row:hover { background: var(--ia-hover); }
+ .sd-row:focus-visible { outline: 2px solid var(--ia-accent); outline-offset: -2px; }
+ .sd-row.sel { background: color-mix(in srgb, var(--sd-t2) 26%, transparent); }
