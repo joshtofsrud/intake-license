@@ -96,6 +96,9 @@ body.ia-theme-c .sd-ring circle { stroke: rgba(255, 255, 255, .1); } body.ia-the
 /* queue rows */
 .sd-row { display: grid; grid-template-columns: 34px minmax(0, 1.3fr) minmax(0, 1.4fr) 96px 48px; gap: 14px; align-items: center; padding: 11px 10px;
   border-bottom: 1px solid var(--ia-border); border-radius: 10px; cursor: pointer; transition: background .15s, filter .5s, opacity .5s, transform .5s; }
+/* Browser [hidden] loses to the authored grid/flex display rules.
+   Honor queue filters (and the end cap) in both Studio and Rental Desk. */
+.sd-list > [hidden] { display: none !important; }
 .sd-row:hover { background: var(--ia-hover); }
 .sd-row:focus-visible { outline: 2px solid var(--ia-accent); outline-offset: -2px; }
 .sd-row.sel { background: color-mix(in srgb, var(--sd-t2) 26%, transparent); }

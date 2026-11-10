@@ -11,7 +11,7 @@ use App\Models\Tenant\TenantRentalUnit;
 use App\Models\Tenant\TenantSale;
 use App\Models\Tenant\TenantSaleItem;
 use App\Models\Tenant\TenantSalePayment;
-use App\Services\MySQLLock;
+use App\Support\MySQLLock;
 use App\Services\RentalAvailabilityService;
 use App\Services\Tenant\DirectPaymentsService;
 use App\Services\Tenant\SalePaymentService;

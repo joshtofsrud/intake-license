@@ -8,7 +8,7 @@ use App\Models\Tenant\TenantRentalExtensionOffer;
 use App\Models\Tenant\TenantSale;
 use App\Models\Tenant\TenantSaleItem;
 use App\Models\Tenant\TenantSalePayment;
-use App\Services\DirectPaymentsService;
+use App\Services\Tenant\DirectPaymentsService;
 use App\Services\Sms\SmsService;
 use App\Services\Tenant\SalePaymentService;
 use Illuminate\Http\Request;

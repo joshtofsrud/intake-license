@@ -3,7 +3,7 @@
 namespace App\Models\Tenant;
 
 use App\Models\Tenant;
-use App\Models\TenantCustomer;
+use App\Models\Tenant\TenantCustomer;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
