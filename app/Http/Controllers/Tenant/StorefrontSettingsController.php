@@ -69,6 +69,12 @@ class StorefrontSettingsController extends Controller
                 ],
                 'words_default'       => $w,
             ],
+            // MARKER-DISTRIBUTION-WAREHOUSES
+            'dist' => [
+                'access'     => \App\Services\Distributors\WarehouseRegistry::access($tenant),
+                'cfg'        => \App\Services\Distributors\WarehouseRegistry::shopConfig($tenant),
+                'warehouses' => \App\Services\Distributors\WarehouseRegistry::forShop($tenant),
+            ],
             'info' => [
                 'tax_rate'    => (float) ($tenant->default_tax_rate ?? 0),
                 'exempt'      => (clone $itemBase)->where('tax_class_code', 'exempt')->count(),
@@ -123,6 +129,27 @@ class StorefrontSettingsController extends Controller
                     'install_offer'            => $request->boolean('install_offer'),
                     'install_label'            => trim((string) ($data['install_label'] ?? '')),
                 ]);
+                // MARKER-DISTRIBUTION-WAREHOUSES: only when master admin has allowed this shop dropshipping
+                if (\App\Services\Distributors\WarehouseRegistry::access($tenant) === 'on') {
+                    $d = $request->validate([
+                        'dropship_order_mode'     => ['nullable', 'in:list,stock'],
+                        'dropship_oversell_mode'  => ['nullable', 'in:supplier,special'],
+                        'dropship_handling_days'  => ['nullable', 'integer', 'min:0', 'max:60'],
+                        'dropship_label'          => ['nullable', 'string', 'max:80'],
+                        'wh_order'                => ['nullable', 'array'],
+                        'wh_order.*'              => ['string'],
+                        'wh_on'                   => ['nullable', 'array'],
+                    ]);
+                    $sf = array_merge($sf, [
+                        'dropship_on'            => $request->boolean('dropship_on'),
+                        'dropship_own_first'     => $request->boolean('dropship_own_first'),
+                        'dropship_order_mode'    => $d['dropship_order_mode'] ?? 'list',
+                        'dropship_oversell_mode' => $d['dropship_oversell_mode'] ?? 'supplier',
+                        'dropship_handling_days' => (int) ($d['dropship_handling_days'] ?? 2),
+                        'dropship_label'         => trim((string) ($d['dropship_label'] ?? '')),
+                    ]);
+                    \App\Services\Distributors\WarehouseRegistry::saveShopChoices($tenant, (array) ($d['wh_on'] ?? []), (array) ($d['wh_order'] ?? []));
+                }
                 $msg = 'Fulfillment saved.';
                 break;
 

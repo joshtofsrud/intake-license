@@ -91,6 +91,12 @@ class TenantDistributorSyncService
         $res['errors'] = array_merge($res['errors'], $costErrors);
         $whByVariant = []; // MARKER-SUPPLY: per-warehouse stock, beside the total
         $availByVariant = $this->fetchAvailability($adapter, $variantNos, $res, $whByVariant);
+        // MARKER-DISTRIBUTION-WAREHOUSES: register any warehouse the feed reported (new ones start hidden and off)
+        try {
+            $seenWh = [];
+            foreach ($whByVariant as $list) { foreach ((array) $list as $w) { if (! empty($w['c'])) $seenWh[$w['c']] = $w; } }
+            if ($seenWh) { \App\Services\Distributors\WarehouseRegistry::record($code, array_values($seenWh)); }
+        } catch (\Throwable $e) { /* never fails a shop's sync */ }
 
         // stock snapshots are collected and written in
         // batches after the loop (finally, so rows already saved above keep

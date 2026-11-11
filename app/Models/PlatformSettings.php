@@ -40,6 +40,8 @@ class PlatformSettings extends Model
         'dashboard_customize_enabled',
         // MARKER-VELOCITY: what shops will see of distributor velocity
         'velocity_settings',
+        // MARKER-DISTRIBUTION-WAREHOUSES: feature switch, default for shops, stale-count limit
+        'distribution_settings',
     ];
 
     // without this the json column reads back as a
@@ -48,6 +50,7 @@ class PlatformSettings extends Model
         'email_free_by_tier' => 'array',
         'dashboard_customize_enabled' => 'boolean',
         'velocity_settings' => 'array',
+        'distribution_settings' => 'array',
     ];
 
     /** Laravel's framework default when nothing is configured. */

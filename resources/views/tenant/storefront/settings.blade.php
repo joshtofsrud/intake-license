@@ -93,6 +93,31 @@
 .rules-pop button small{display:block;color:var(--ia-text-muted);font-size:11.5px;margin-top:1px}
 .rules-pop hr{border:0;border-top:.5px solid var(--ia-border);margin:5px 0}
 
+
+/* MARKER-DISTRIBUTION-WAREHOUSES */
+.dw-chips{display:flex;gap:5px;flex-wrap:wrap}
+.dw-chip{font-size:11.5px;padding:2px 8px;border-radius:99px;background:var(--ia-surface-2);color:var(--ia-text);white-space:nowrap}
+.dw-chip b{font-weight:600;margin-left:3px}
+.dw-chip.shop{background:#EAF3DE;color:#3B6D11}
+.dw-chip.off{opacity:.45;text-decoration:line-through}
+.dw-chip.z{color:var(--ia-text-muted)}
+.src-badge{font-size:11.5px;padding:2px 8px;border-radius:99px;white-space:nowrap;display:inline-block}
+.src-shop{background:#EAF3DE;color:#3B6D11}.src-supplier{background:#E6F1FB;color:#185FA5}.src-special{background:#FAEEDA;color:#854F0B}.src-out{background:#FCEBEB;color:#A32D2D}
+.wcol{display:none}
+.av-where .wcol{display:table-cell}
+.av-where .wsel{display:inline-block}
+.wsel{display:none}
+.wh-vendor{font-size:12px;font-weight:600;margin:14px 0 4px;display:flex;gap:10px;align-items:center}
+.wh-vendor small{font-weight:400;color:var(--ia-text-muted)}
+.wh-tbl{width:100%;border-collapse:collapse;font-size:13px}
+.wh-tbl th{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ia-text-muted);font-weight:600;text-align:left;padding:6px 8px;border-bottom:.5px solid var(--ia-border)}
+.wh-tbl td{padding:8px;border-bottom:.5px solid var(--ia-border);vertical-align:middle}
+.wh-tbl .n{text-align:right;font-variant-numeric:tabular-nums}
+.wh-ord{display:flex;flex-direction:column;gap:2px}
+.wh-ord button{background:none;border:0;font-size:10px;line-height:1;color:var(--ia-text-muted);padding:2px 5px;cursor:pointer}
+.wh-ord button:hover{color:var(--ia-text)}
+.hidden-note{padding:14px 16px;border:.5px dashed var(--ia-border-strong);border-radius:var(--ia-r-lg);color:var(--ia-text-muted);font-size:13px}
+.av-item .chips{margin-top:6px}
 .hide{display:none!important}
 .wide-in{width:400px;max-width:100%}
 .stat-ok{display:inline-flex;gap:6px;align-items:center;font-size:12px;color:#3B6D11}
@@ -166,6 +191,7 @@
       <div class="lg-body">
         <div class="k"><b>Online</b> — the item appears in your store. Offline items are never shown.</div>
         <div class="k"><b>Oversell</b> — when stock hits 0 the item stays orderable, and each order becomes a special order. Off means it shows <b>Out of stock</b> and can't be added to a cart.</div>
+        <div class="k wsel" id="whereLegend" style="flex:1 1 220px"><b>Where it's in stock</b> — <b>Shop</b> is your own stock; the other chips are supplier counts. A struck-through chip is a warehouse you haven't turned on, and "?" means that count is too old to trust. <b>Ships from now</b> is where one would come from right now. Online orders only: the register never uses supplier stock.</div>
         <div class="k">Switches here save instantly. They change the online store only — the register and in-store sales are never affected.</div>
       </div>
     </details>
@@ -176,6 +202,7 @@
       <select class="ia-select" id="fCat"><option value="">All categories</option></select>
       <select class="ia-select" id="fStock"><option value="">Any stock</option><option value="in">In stock</option><option value="zero">Out of stock</option></select>
       <select class="ia-select" id="fState"><option value="">Any status</option><option value="forsale">For sale</option><option value="special">Special order</option><option value="out">Out of stock (blocked)</option><option value="offline">Offline</option></select>
+      <select class="ia-select wsel" id="fSrc"><option value="">Any source</option><option value="shop">Ships from shop</option><option value="supplier">Ships from supplier</option><option value="special">Special order</option><option value="out">Can't be ordered</option></select>
       <span class="rules-menu">
         <button type="button" class="ia-btn ia-btn--secondary" id="rulesBtn" style="height:38px">Quick rules ▾</button>
         <div class="rules-pop" id="rulesPop">
@@ -200,12 +227,12 @@
       <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" data-b="clear">Clear</button>
     </div>
 
-    <div id="viewItems">
+    <div id="viewItems" class="">
       <div class="ia-table-wrap av-desk">
         <table class="ia-table">
           <thead><tr>
             <th class="c"><input type="checkbox" id="selAll" title="Select all on this page"></th>
-            <th>Item</th><th>Category</th><th class="ia-num">Stock</th><th class="ia-num">Price</th>
+            <th>Item</th><th>Category</th><th class="ia-num">Stock</th><th class="wcol">Where it's in stock</th><th class="wcol">Ships from now</th><th class="ia-num">Price</th>
             <th class="ctr">Online</th><th class="ctr">Oversell</th><th>Store shows</th>
           </tr></thead>
           <tbody id="tbody"></tbody>
@@ -252,6 +279,54 @@
         <div class="ec-row"><div><div class="t">Offer it at checkout</div><div class="d">Adds an "I'd like this installed" tick box. Requests show on the order for you to schedule.</div></div><div class="ctl"><label class="tg"><input type="checkbox" name="install_offer" value="1" @checked($cfg['install_offer'])><i></i></label></div></div>
         <div class="ec-row"><div><div class="t">Checkbox wording</div><div class="d">Blank uses the standard wording.</div></div><div class="ctl"><input class="ia-input wide-in" name="install_label" maxlength="160" value="{{ old('install_label', $cfg['install_label']) }}" placeholder="{{ $cfg['install_default'] }}"></div></div>
       </div>
+
+      {{-- MARKER-DISTRIBUTION-WAREHOUSES --}}
+      @if (($dist['access'] ?? 'hidden') !== 'hidden')
+      <div class="ec-sec" id="dropSec">
+        <h3>Where orders ship from <span class="ec-new">NEW</span></h3>
+        <div class="ec-row"><div><div class="t">Your shop</div><div class="d">Always an option. An order ships from your own stock whenever you have enough.</div></div><div class="ctl"><span class="stat-ok">Always on</span></div></div>
+        @if ($dist['access'] === 'on')
+        <div class="ec-row"><div><div class="t">Ship from supplier warehouses when you're out</div><div class="d">The supplier packs and ships straight to your customer. You're still the seller, and the customer pays you.</div></div><div class="ctl"><label class="tg"><input type="checkbox" name="dropship_on" id="dsOn" value="1" @checked(old('dropship_on', $dist['cfg']['dropship_on']))><i></i></label></div></div>
+        <div class="ec-sub" id="dsBox">
+          <div class="ec-note" style="margin-bottom:6px">Pick the warehouses you want to work with. Items are only offered from a warehouse you've turned on, and only where it shows stock.</div>
+          @php $byDist = collect($dist['warehouses'])->groupBy('dist'); @endphp
+          @forelse ($byDist as $dcode => $list)
+            @php $usable = $list->where('dropship', true); @endphp
+            <div class="wh-vendor">{{ $dcode }} <small>{{ $list->count() }} {{ $list->count() === 1 ? 'warehouse' : 'warehouses' }}@if ($usable->isEmpty()) · dropshipping isn't turned on for this supplier yet @endif</small></div>
+            @if ($usable->isEmpty())
+              <div class="ec-note">Not available yet.</div>
+            @else
+              <table class="wh-tbl"><thead><tr><th style="width:36px">Try</th><th>Warehouse</th><th>Ships from</th><th class="n">Your items in stock</th><th class="n">Use it</th></tr></thead>
+              <tbody class="wh-body">
+              @foreach ($usable as $w)
+                <tr data-id="{{ $w['id'] }}">
+                  <td><div class="wh-ord"><button type="button" class="up" aria-label="Try earlier">▲</button><button type="button" class="dn" aria-label="Try later">▼</button></div><input type="hidden" name="wh_order[]" value="{{ $w['id'] }}"></td>
+                  <td>{{ $w['name'] }}</td><td>{{ $w['ships_from'] ?: '—' }}</td><td class="n">{{ number_format($w['in_stock']) }}</td>
+                  <td class="n"><label class="tg"><input type="checkbox" name="wh_on[{{ $w['id'] }}]" value="1" @checked($w['enabled'])><i></i></label></td>
+                </tr>
+              @endforeach
+              </tbody></table>
+            @endif
+          @empty
+            <div class="ec-note">No supplier warehouses are available yet.</div>
+          @endforelse
+
+          <div class="ec-row"><div><div class="t">Use my stock first</div><div class="d">On: your shelf ships what it has and the supplier fills the rest, so 2 in stock and 3 ordered ships 2 from you and 1 from the supplier. Off: the supplier ships the whole line when it can, and your stock stays for the register.</div></div><div class="ctl"><label class="tg"><input type="checkbox" name="dropship_own_first" value="1" @checked(old('dropship_own_first', $dist['cfg']['own_first']))><i></i></label></div></div>
+          <div class="ec-row"><div><div class="t">Which warehouse is tried first</div><div class="d">The top of the list above, or the one showing the most stock. If it's out, the next is tried.</div></div><div class="ctl"><select class="ia-select" name="dropship_order_mode"><option value="list" @selected($dist['cfg']['order_mode'] === 'list')>In the order above</option><option value="stock" @selected($dist['cfg']['order_mode'] === 'stock')>Most stock first</option></select></div></div>
+          <div class="ec-row"><div><div class="t">Items you allow to oversell</div><div class="d">Used when you're out of stock.</div></div><div class="ctl"><select class="ia-select" name="dropship_oversell_mode"><option value="supplier" @selected($dist['cfg']['oversell_mode'] === 'supplier')>Ask a supplier first, else special order</option><option value="special" @selected($dist['cfg']['oversell_mode'] === 'special')>Always a special order</option></select></div></div>
+          <div class="ec-row"><div><div class="t">Extra handling time for supplier orders</div><div class="d">Added to the warehouse's own handling days and shown to the customer.</div></div><div class="ctl"><input class="ia-input" type="number" min="0" max="60" name="dropship_handling_days" value="{{ old('dropship_handling_days', $dist['cfg']['handling_days']) }}" style="width:70px"> days</div></div>
+          <div class="ec-row"><div><div class="t">Wording the customer sees</div></div><div class="ctl"><input class="ia-input" style="width:280px;max-width:100%" name="dropship_label" maxlength="80" value="{{ old('dropship_label', $dist['cfg']['label']) }}"></div></div>
+        </div>
+        @else
+        <div class="hidden-note">Supplier dropshipping isn't turned on for your shop yet. Contact support to have it enabled.</div>
+        @endif
+        <details class="av-legend" open style="margin-top:10px"><summary>What this changes</summary><div class="lg-body">
+          <div class="k"><b>Online orders only.</b> The register and in-store sales never use supplier stock.</div>
+          <div class="k"><b>Supplier stock is a snapshot.</b> It refreshes on a schedule, so a very recent sale at the supplier can still run out. If that happens you're told, and the line becomes a special order.</div>
+          <div class="k"><b>Costs.</b> Supplier orders use your own dealer cost, so margins stay accurate.</div>
+        </div></details>
+      </div>
+      @endif
       <div class="ec-actions"><button class="ia-btn ia-btn--primary" type="submit">Save fulfillment</button></div>
     </form>
   </section>
@@ -337,6 +412,21 @@
   </section>
 </div>
 
+<script>
+/* MARKER-DISTRIBUTION-WAREHOUSES: reorder warehouse rows; show/hide the dropship options */
+(function(){
+  document.querySelectorAll('.wh-body').forEach(function(tb){
+    tb.addEventListener('click',function(e){
+      var b=e.target.closest('button.up,button.dn'); if(!b) return;
+      var tr=b.closest('tr'); if(!tr) return;
+      if(b.classList.contains('up') && tr.previousElementSibling) tb.insertBefore(tr,tr.previousElementSibling);
+      if(b.classList.contains('dn') && tr.nextElementSibling) tb.insertBefore(tr.nextElementSibling,tr);
+    });
+  });
+  var on=document.getElementById('dsOn'),box=document.getElementById('dsBox');
+  if(on&&box){var f=function(){box.classList.toggle('hide',!on.checked)};on.addEventListener('change',f);f();}
+})();
+</script>
 <div class="toast" id="toast"><span id="toastT"></span><button type="button" id="toastU">Undo</button></div>
 
 <div id="ecomCfg" hidden

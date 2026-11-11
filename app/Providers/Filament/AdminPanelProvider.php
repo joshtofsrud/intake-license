@@ -132,6 +132,7 @@ class AdminPanelProvider extends PanelProvider
                 // does not auto-discover.
                 \App\Filament\Pages\CatalogCoverage::class,
                 \App\Filament\Pages\DistributorVelocity::class, // MARKER-VELOCITY: no route without this line
+                \App\Filament\Pages\DistributionWarehouses::class, // MARKER-DISTRIBUTION-WAREHOUSES: no route without this line
                 \App\Filament\Pages\BrandNames::class, // MARKER-BRAND-NAMES: no route without this line
                 // same: no route without this line.
                 \App\Filament\Pages\CatalogItemLookup::class,

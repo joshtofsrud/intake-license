@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Tenant;
 use App\Http\Controllers\Controller;
 use App\Models\Tenant\TenantInventoryCategory;
 use App\Models\Tenant\TenantInventoryItem;
+use App\Services\Distributors\WarehouseRegistry;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -74,6 +75,13 @@ class StorefrontAvailabilityController extends Controller
             default => null,
         };
 
+        // MARKER-DISTRIBUTION-WAREHOUSES: filter by where an order would ship from
+        $src = (string) $r->query('src', '');
+        if (in_array($src, ['shop', 'supplier', 'special', 'out'], true) && WarehouseRegistry::access(tenant()) !== 'hidden') {
+            $ids = $this->idsForSource(clone $q, $src);
+            $q->whereIn('id', $ids ?: ['none']);
+        }
+
         match ((string) $r->query('state', '')) {
             'forsale' => $q->where('show_online', true)->where('computed_stock_count', '>', 0),
             'special' => $q->where('show_online', true)->where('computed_stock_count', '<=', 0)->where('allow_oversell', true),
@@ -90,6 +98,47 @@ class StorefrontAvailabilityController extends Controller
         if (! $i->show_online) return 'offline';
         if ((int) $i->computed_stock_count > 0) return 'forsale';
         return $i->allow_oversell ? 'special' : 'out';
+    }
+
+    /** Ids of the filtered items whose first source right now is $src. */
+    private function idsForSource($q, string $src): array
+    {
+        $tenant = tenant();
+        $out = [];
+        $q->select('id', 'computed_stock_count', 'allow_oversell')->orderBy('id')->chunk(1000, function ($chunk) use ($tenant, $src, &$out) {
+            $map = WarehouseRegistry::forItems($tenant, $chunk->pluck('id')->all());
+            foreach ($chunk as $i) {
+                $h = WarehouseRegistry::headline($tenant, max(0, (int) $i->computed_stock_count), $map[$i->id]['offers'] ?? [], (bool) $i->allow_oversell);
+                if ($h['kind'] === $src) $out[] = $i->id;
+            }
+        });
+        return $out;
+    }
+
+    /** "Where it's in stock" chips and the ships-from badge for a page of items. */
+    private function whereFor($rows): array
+    {
+        $tenant = tenant();
+        $access = WarehouseRegistry::access($tenant);
+        if ($access === 'hidden') return [$access, []];
+        $map = WarehouseRegistry::forItems($tenant, $rows->pluck('id')->all());
+        $cfg = WarehouseRegistry::shopConfig($tenant);
+        $out = [];
+        foreach ($rows as $i) {
+            $stock = max(0, (int) $i->computed_stock_count);
+            $m = $map[$i->id] ?? ['chips' => [], 'offers' => []];
+            $h = WarehouseRegistry::headline($tenant, $stock, $m['offers'], (bool) $i->allow_oversell);
+            $chips = [['n' => 'Shop', 'q' => $stock, 'k' => 'shop', 'on' => true]];
+            foreach ($m['chips'] as $c) {
+                $chips[] = ['n' => $c['name'], 'q' => $c['qty'], 'k' => 'sup', 'on' => (bool) $c['on']];
+            }
+            $note = null;
+            if ($access === 'on' && $cfg['dropship_on'] && $h['kind'] === 'shop' && $stock > 0 && ! empty($m['offers'])) {
+                $note = $cfg['own_first'] ? 'more than ' . $stock . ': rest from supplier' : null;
+            }
+            $out[$i->id] = ['chips' => $chips, 'ship' => ['kind' => $h['kind'], 'wh' => $h['warehouse'], 'note' => $note]];
+        }
+        return [$access, $out];
     }
 
     private function summary(): array
@@ -119,8 +168,11 @@ class StorefrontAvailabilityController extends Controller
             ->get(['id', 'name', 'sku', 'shop_brand', 'category_id', 'computed_stock_count',
                    'shop_sell_price_cents', 'catalog_msrp_cents', 'show_online', 'allow_oversell']);
 
+        [$dist, $where] = $this->whereFor($rows);
+
         return response()->json([
             'ok'      => true,
+            'dist'    => $dist,
             'summary' => $this->summary(),
             'total'   => $total,
             'page'    => $page,
@@ -136,6 +188,8 @@ class StorefrontAvailabilityController extends Controller
                 'online'   => (bool) $i->show_online,
                 'oversell' => (bool) $i->allow_oversell,
                 'state'    => self::state($i),
+                'where'    => $where[$i->id]['chips'] ?? null,
+                'ship'     => $where[$i->id]['ship'] ?? null,
             ])->values(),
         ]);
     }

@@ -28,6 +28,7 @@
     if ($('fCat').value) p.set('cat', $('fCat').value);
     if ($('fStock').value) p.set('stock', $('fStock').value);
     if ($('fState').value) p.set('state', $('fState').value);
+    if ($('fSrc') && $('fSrc').value) p.set('src', $('fSrc').value);
     Object.keys(extra || {}).forEach(function (k) { p.set(k, extra[k]); });
     return p.toString();
   }
@@ -63,22 +64,39 @@
   };
   function badge(st) { var b = BADGE[st]; return '<span class="ia-badge ' + b[0] + '">' + b[1] + '</span>'; }
   function tg(id, kind, on) { return '<label class="tg"><input type="checkbox" data-id="' + esc(id) + '" data-k="' + kind + '"' + (on ? ' checked' : '') + ' aria-label="' + (kind === 'online' ? 'Online' : 'Oversell') + '"><i></i></label>'; }
+  /* MARKER-DISTRIBUTION-WAREHOUSES: where it's in stock, and where it ships from now */
+  function chips(r) {
+    if (!r.where) return '';
+    return '<div class="dw-chips">' + r.where.map(function (c) {
+      var cls = 'dw-chip' + (c.k === 'shop' ? ' shop' : '') + (c.k === 'sup' && !c.on ? ' off' : '') + (c.q === 0 ? ' z' : '');
+      return '<span class="' + cls + '">' + esc(c.n) + '<b>' + (c.q == null ? '?' : c.q) + '</b></span>';
+    }).join('') + '</div>';
+  }
+  var SRC = { shop: ['src-shop', 'Your shop'], supplier: ['src-supplier', 'Supplier'], special: ['src-special', 'Special order'], out: ['src-out', "Can't be ordered"] };
+  function shipBadge(r) {
+    if (!r.ship) return '';
+    var b = SRC[r.ship.kind] || SRC.out;
+    var label = r.ship.kind === 'supplier' && r.ship.wh ? 'Supplier · ' + r.ship.wh : b[1];
+    return '<span class="src-badge ' + b[0] + '">' + esc(label) + '</span>' + (r.ship.note ? ' <span class="ec-note">· ' + esc(r.ship.note) + '</span>' : '');
+  }
   function rowHtml(r) {
     var nm = '<div class="nm">' + esc(r.name) + '<small>' + esc([r.sku, r.brand].filter(Boolean).join(' · ')) + '</small></div>';
     return '<tr data-id="' + esc(r.id) + '"><td class="c"><input type="checkbox" class="sel" data-id="' + esc(r.id) + '"' + (state.selected[r.id] ? ' checked' : '') + '></td>'
       + '<td>' + nm + '</td><td>' + esc(r.category) + '</td>'
-      + '<td class="ia-num stk' + (r.stock <= 0 ? ' z' : '') + '">' + r.stock + '</td><td class="ia-num">' + money(r.price) + '</td>'
+      + '<td class="ia-num stk' + (r.stock <= 0 ? ' z' : '') + '">' + r.stock + '</td>'
+      + '<td class="wcol">' + chips(r) + '</td><td class="wcol">' + shipBadge(r) + '</td>'
+      + '<td class="ia-num">' + money(r.price) + '</td>'
       + '<td class="ctr">' + tg(r.id, 'online', r.online) + '</td><td class="ctr">' + tg(r.id, 'oversell', r.oversell) + '</td>'
       + '<td>' + badge(r.state) + '</td></tr>';
   }
   function cardHtml(r) {
     return '<div class="av-item" data-id="' + esc(r.id) + '"><input type="checkbox" class="sel" data-id="' + esc(r.id) + '"' + (state.selected[r.id] ? ' checked' : '') + '>'
-      + '<div><div class="nm">' + esc(r.name) + '</div><div class="meta">' + badge(r.state) + '<span class="stk' + (r.stock <= 0 ? ' z' : '') + '">' + r.stock + ' in stock</span><span>' + money(r.price) + '</span></div></div>'
+      + '<div><div class="nm">' + esc(r.name) + '</div><div class="meta">' + badge(r.state) + '<span class="stk' + (r.stock <= 0 ? ' z' : '') + '">' + r.stock + ' in stock</span><span>' + money(r.price) + '</span></div>' + (r.where ? '<div class="chips">' + chips(r) + '</div><div class="meta">' + shipBadge(r) + '</div>' : '') + '</div>'
       + '<div class="tgs"><label>Online' + tg(r.id, 'online', r.online) + '</label><label>Oversell' + tg(r.id, 'oversell', r.oversell) + '</label></div></div>';
   }
   function render() {
     var rows = state.rows;
-    $('tbody').innerHTML = rows.length ? rows.map(rowHtml).join('') : '<tr><td colspan="8"><div class="av-empty">No items match. Clear the search or filters to see everything.</div></td></tr>';
+    $('tbody').innerHTML = rows.length ? rows.map(rowHtml).join('') : '<tr><td colspan="10"><div class="av-empty">No items match. Clear the search or filters to see everything.</div></td></tr>';
     $('list').innerHTML = rows.length ? rows.map(cardHtml).join('') : '<div class="av-empty">No items match. Clear the search or filters to see everything.</div>';
     updateBulk();
   }
@@ -91,6 +109,9 @@
       if (mine !== seq) return;
       state.rows = state.rows.concat(j.items);
       state.more = j.more; state.total = j.total;
+      var wOn = j.dist && j.dist !== 'hidden';
+      var pa = $('p-avail'); if (pa) pa.classList.toggle('av-where', !!wOn);
+      if ($('whereLegend')) $('whereLegend').style.display = wOn ? 'block' : '';
       setSummary(j.summary);
       $('countLine').textContent = 'Showing ' + state.rows.length + ' of ' + j.total;
       $('more').style.display = j.more ? '' : 'none';
@@ -194,7 +215,7 @@
 
   /* ---------- filters ---------- */
   var deb; $('q').addEventListener('input', function () { clearTimeout(deb); deb = setTimeout(function () { loadItems(true); }, 250); });
-  ['fCat', 'fStock', 'fState'].forEach(function (id) { $(id).addEventListener('change', function () { loadItems(true); }); });
+  ['fCat', 'fStock', 'fState', 'fSrc'].forEach(function (id) { $(id).addEventListener('change', function () { loadItems(true); }); });
 
   /* ---------- categories view ---------- */
   document.querySelectorAll('.av-view button').forEach(function (b) {
