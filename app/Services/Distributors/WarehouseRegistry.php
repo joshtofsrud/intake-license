@@ -127,7 +127,7 @@ class WarehouseRegistry
         return [
             'dropship_on'  => (bool) ($s['dropship_on'] ?? false),
             'own_first'    => (bool) ($s['dropship_own_first'] ?? true),
-            'order_mode'   => in_array(($s['dropship_order_mode'] ?? 'list'), ['list', 'stock'], true) ? $s['dropship_order_mode'] : 'list',
+            'order_mode'   => (($s['dropship_order_mode'] ?? 'list') === 'stock') ? 'stock' : 'list', // MARKER-WH-ORDERMODE-FIX
             'oversell_mode' => ($s['dropship_oversell_mode'] ?? 'supplier') === 'special' ? 'special' : 'supplier',
             'handling_days' => max(0, min(60, (int) ($s['dropship_handling_days'] ?? 2))),
             'label'        => trim((string) ($s['dropship_label'] ?? '')) ?: self::DEFAULT_LABEL,
