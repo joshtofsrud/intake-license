@@ -33,6 +33,7 @@ class DistributionWarehouses extends Page
     public array $set = [];       // feature_on, shop_default, stale_hours
     public array $wh = [];        // warehouse id => [shown, drop, zip, days]
     public array $ov = [];        // tenant id => follow|allow|block
+    public array $units = [];     // MARKER-SHIPPING-RATES: distributor code => [weight, length] its feed uses
     public string $dist = '';
     public string $status = '';
     public string $search = '';
@@ -46,9 +47,25 @@ class DistributionWarehouses extends Page
             $this->wh[$w->id] = ['shown' => (bool) $w->shown_to_shops, 'drop' => (bool) $w->dropship_enabled,
                 'zip' => (string) ($w->ship_from_zip ?? ''), 'days' => (int) $w->handling_days];
         }
+        $plat = (array) (\App\Models\PlatformSettings::current()->distribution_settings ?? []);
+        foreach ($this->unitCodes() as $code) {
+            $this->units[$code] = \App\Services\Shipping\ItemShipSpec::unitsFor($code, $plat);
+        }
         foreach (Tenant::query()->where('is_active', true)->get(['id', 'settings']) as $t) {
             $this->ov[$t->id] = (string) ($t->settings['distribution']['override'] ?? 'follow');
         }
+    }
+
+    /** Every distributor whose items a shop could ship: from the catalog, plus any with warehouses. */
+    public function unitCodes(): array
+    {
+        $codes = \App\Models\PlatformDistributorCatalog::query()->distinct()->pluck('distributor_code')->all();
+        if (WarehouseRegistry::ready()) {
+            $codes = array_merge($codes, DistributionWarehouse::query()->distinct()->pluck('distributor_code')->all());
+        }
+        $codes = array_values(array_unique(array_map('strtolower', array_filter($codes))));
+        sort($codes);
+        return $codes;
     }
 
     public function canEdit(): bool
@@ -140,7 +157,18 @@ class DistributionWarehouses extends Page
             'wh.*.zip'         => ['nullable', 'string', 'max:10'],
             'wh.*.days'        => ['nullable', 'integer', 'min:0', 'max:60'],
         ]);
+        $this->validate([
+            'units.*.weight' => ['required', 'in:' . implode(',', \App\Services\Shipping\Units::weightUnits())],
+            'units.*.length' => ['required', 'in:' . implode(',', \App\Services\Shipping\Units::lengthUnits())],
+        ]);
         WarehouseRegistry::saveSettings(array_merge($this->set, ['shop_default' => (string) ($this->set['shop_default'] ?? '0') === '1']));
+
+        $ps = \App\Models\PlatformSettings::current();
+        $ds = (array) ($ps->distribution_settings ?? []);
+        $ds['units'] = collect($this->units)->map(fn ($u) => ['weight' => $u['weight'], 'length' => $u['length']])->all();
+        $ps->distribution_settings = $ds;
+        $ps->save();
+        \App\Models\PlatformSettings::forget();
 
         foreach ($this->warehouses() as $w) {
             $r = $this->wh[$w->id] ?? null;

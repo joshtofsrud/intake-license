@@ -30,6 +30,9 @@
 .ec-actions{display:flex;gap:8px;align-items:center;padding-top:4px}
 .ec-actions .saved{font-size:12px;color:#3B6D11}
 .ec-note{font-size:12px;color:var(--ia-text-muted);line-height:1.55;max-width:70ch}
+.ec-mini{border-collapse:collapse;font-size:13px}.ec-mini th{font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--ia-text-muted);font-weight:600;text-align:left;padding:0 6px 4px 0}.ec-mini td{padding:2px 6px 2px 0}.ec-mini .ia-input{padding:5px 7px}
+.ec-car{border-bottom:.5px solid var(--ia-border)}.ec-car .ec-carbody{padding-left:14px}.ec-car.off .ec-carbody{display:none}
+#shipRated.hide,#shipTableBox.hide,#shipCarrierBox.hide{display:none}
 .ec-note b{color:var(--ia-text);font-weight:500}
 
 /* toggle — compact, readable off AND on in the light admin theme */
@@ -279,12 +282,60 @@
         <h3>Shipping</h3>
         <div class="ec-row"><div><div class="t">Ship orders to an address</div><div class="d">Customers enter a street address at checkout. An order that comes from more than one place ships as separate shipments, and each is priced on its own.</div></div><div class="ctl"><label class="tg"><input type="checkbox" name="ship_enabled" id="shipOn" value="1" @checked(old('ship_enabled', $cfg['ship_enabled']))><i></i></label></div></div>
         <div class="ec-sub" id="shipBox">
-          <div class="ec-row"><div><div class="t">Shipping price per shipment</div><div class="d">A flat price. Zero means free shipping.</div></div><div class="ctl"><span class="ec-pre">$ <input class="ia-input" name="ship_fee" inputmode="decimal" value="{{ old('ship_fee', $cfg['ship_fee']) }}" placeholder="0.00"></span></div></div>
+          <div class="ec-row"><div><div class="t">Shipping price per shipment</div><div class="d">A flat price. Zero means free shipping. With weight or carrier pricing below, this is the price charged if rates can't be worked out.</div></div><div class="ctl"><span class="ec-pre">$ <input class="ia-input" name="ship_fee" inputmode="decimal" value="{{ old('ship_fee', $cfg['ship_fee']) }}" placeholder="0.00"></span></div></div>
           @if (($dist['access'] ?? 'hidden') === 'on')
           <div class="ec-row"><div><div class="t">Price for a shipment from a supplier</div><div class="d">Leave blank to charge the same price as above.</div></div><div class="ctl"><span class="ec-pre">$ <input class="ia-input" name="ship_fee_supplier" inputmode="decimal" value="{{ old('ship_fee_supplier', $cfg['ship_fee_supplier']) }}" placeholder="same"></span></div></div>
           @endif
           <div class="ec-row"><div><div class="t">Free shipping over</div><div class="d">Leave blank for none. Judged after any discount, and applies to every shipment on the order.</div></div><div class="ctl"><span class="ec-pre">$ <input class="ia-input" name="ship_free_over" inputmode="decimal" value="{{ old('ship_free_over', $cfg['ship_free_over']) }}" placeholder="none"></span></div></div>
-          <div class="ec-note">Weight-based and carrier rates are planned. Today each shipment has one flat price.</div>
+          {{-- MARKER-SHIPPING-RATES --}}
+          <div class="ec-row"><div><div class="t">How shipping is priced</div><div class="d">A flat price, a table by weight, or live prices from your own UPS, USPS or FedEx accounts. Each shipment is priced from what's in it.</div></div><div class="ctl">
+            <select class="ia-select" name="ship_mode" id="shipMode">
+              <option value="flat" @selected(old('ship_mode', $ship['mode']) === 'flat')>Flat price</option>
+              <option value="weight" @selected(old('ship_mode', $ship['mode']) === 'weight')>Weight table</option>
+              <option value="carrier" @selected(old('ship_mode', $ship['mode']) === 'carrier')>Live carrier prices</option>
+            </select></div></div>
+
+          <div id="shipRated" class="hide">
+            <div class="ec-row"><div><div class="t">Ship-from ZIP code</div><div class="d">Where your own shipments leave from.{{ $ship['location_zip'] ? ' Blank uses your shop\'s ZIP, ' . $ship['location_zip'] . '.' : '' }}</div></div><div class="ctl"><input class="ia-input" style="width:110px" name="ship_from_zip" maxlength="12" value="{{ old('ship_from_zip', $ship['from_zip']) }}" placeholder="{{ $ship['location_zip'] ?: '99201' }}"></div></div>
+            <div class="ec-row"><div><div class="t">Weight to assume when an item has none</div><div class="d">Set a weight on an item (Inventory › edit) to be exact. Items with no weight anywhere count as this.</div></div><div class="ctl"><span class="ec-pre"><input class="ia-input" style="width:80px" name="ship_default_lb" inputmode="decimal" value="{{ old('ship_default_lb', $ship['default_lb']) }}" placeholder="1"> lb</span></div></div>
+
+            <div style="padding:11px 0;border-bottom:.5px solid var(--ia-border)">
+              <div class="t" style="font-size:13.5px;font-weight:500">Boxes you ship in</div>
+              <div class="d" style="font-size:12px;color:var(--ia-text-muted);margin:2px 0 8px;max-width:60ch;line-height:1.5">Items are packed into the smallest of these that fits, and into more boxes when one is not enough. Leave empty to pack by weight alone (up to 70 lb a box).</div>
+              <table class="ec-mini" id="boxTbl"><thead><tr><th>Name</th><th>L</th><th>W</th><th>H</th><th>Holds up to</th><th>Empty box</th><th></th></tr></thead><tbody></tbody></table>
+              <button type="button" class="ia-btn ia-btn-ghost" id="boxAdd" style="margin-top:8px">Add a box</button>
+            </div>
+
+            <div id="shipTableBox" class="hide" style="padding:11px 0;border-bottom:.5px solid var(--ia-border)">
+              <div class="t" style="font-size:13.5px;font-weight:500">Weight table</div>
+              <div class="d" style="font-size:12px;color:var(--ia-text-muted);margin:2px 0 8px;max-width:60ch;line-height:1.5">The price for a whole shipment, by its packed weight. A shipment heavier than the last row is charged the flat price above.</div>
+              <table class="ec-mini" id="wtTbl"><thead><tr><th>Up to (lb)</th><th>Price</th><th></th></tr></thead><tbody></tbody></table>
+              <button type="button" class="ia-btn ia-btn-ghost" id="wtAdd" style="margin-top:8px">Add a row</button>
+            </div>
+
+            <div id="shipCarrierBox" class="hide">
+              @foreach ($ship['carriers'] as $code => $c)
+                <div class="ec-car" data-code="{{ $code }}">
+                  <div class="ec-row"><div><div class="t">{{ $c['label'] }}</div><div class="d">Uses your own {{ $c['label'] }} account, so your negotiated prices apply.</div></div><div class="ctl"><label class="tg"><input type="checkbox" name="carrier[{{ $code }}][enabled]" value="1" @checked(old("carrier.$code.enabled", $c['enabled']))><i></i></label></div></div>
+                  <div class="ec-carbody">
+                    @foreach ($c['fields'] as $k => $f)
+                      <div class="ec-row"><div class="t" style="font-weight:400">{{ $f['label'] }}</div><div class="ctl"><input class="ia-input" style="width:260px" type="{{ ! empty($f['secret']) ? 'password' : 'text' }}" autocomplete="off" data-f="{{ $k }}" name="carrier[{{ $code }}][{{ $k }}]" value="{{ ! empty($f['secret']) ? '' : old("carrier.$code.$k", $f['value']) }}" placeholder="{{ ! empty($f['secret']) && $f['saved'] ? 'Saved. Leave blank to keep it' : '' }}"></div></div>
+                    @endforeach
+                    <div class="ec-row"><div class="t" style="font-weight:400">Services to offer</div><div class="ctl" style="flex-wrap:wrap;justify-content:flex-end;max-width:420px">
+                      @foreach ($c['all_services'] as $sc => $sn)
+                        <label style="font-size:12.5px;display:flex;gap:5px;align-items:center"><input type="checkbox" name="carrier[{{ $code }}][services][]" value="{{ $sc }}" @checked(in_array($sc, (array) old("carrier.$code.services", $c['services'])))> {{ $sn }}</label>
+                      @endforeach
+                    </div></div>
+                    <div class="ec-row"><div><div class="t" style="font-weight:400">Test mode</div><div class="d">Use the carrier's practice system. Leave off for real prices.</div></div><div class="ctl"><label class="tg"><input type="checkbox" name="carrier[{{ $code }}][sandbox]" value="1" data-sandbox @checked(old("carrier.$code.sandbox", $c['sandbox']))><i></i></label></div></div>
+                    <div class="ec-row"><div class="d" id="ct-{{ $code }}" style="max-width:none">Checks the details above without saving them.</div><div class="ctl"><button type="button" class="ia-btn ia-btn-ghost" data-test="{{ $code }}">Test connection</button></div></div>
+                  </div>
+                </div>
+              @endforeach
+              <div class="ec-row"><div><div class="t">Add to carrier prices</div><div class="d">Optional handling charge on top of what the carrier quotes: a percentage, a flat amount, or both.</div></div><div class="ctl"><span class="ec-pre"><input class="ia-input" style="width:70px" name="ship_markup_pct" inputmode="decimal" value="{{ old('ship_markup_pct', $ship['markup_pct']) }}" placeholder="0"> %</span><span class="ec-pre">+ $ <input class="ia-input" style="width:80px" name="ship_markup" inputmode="decimal" value="{{ old('ship_markup', $ship['markup']) }}" placeholder="0.00"></span></div></div>
+            </div>
+
+            <div class="ec-note" style="margin-top:12px"><b>What this changes.</b> Only online orders that ship. Pickup, local delivery and in-store sales are not affected. Customers see the options for their ZIP code at checkout and pick one per shipment. If a table has no row for the weight, or a carrier can't be reached, they are offered your flat price instead, so an order is never blocked. Free shipping over your threshold makes the cheapest option free. Supplier shipments are priced from the supplier warehouse's ZIP code; one with none set uses your flat price.</div>
+          </div>
         </div>
       </div>
 
@@ -437,6 +488,51 @@
       if(b.classList.contains('dn') && tr.nextElementSibling) tb.insertBefore(tr.nextElementSibling,tr);
     });
   });
+  // MARKER-SHIPPING-RATES: pricing mode, box and weight-table rows, carrier test
+  (function(){
+    var mode=document.getElementById('shipMode'); if(!mode) return;
+    var BOXES=@json(old('ship_boxes', $ship['boxes'])), TABLE=@json(old('ship_table', $ship['table']));
+    var bi=0, ti=0;
+    var esc=function(t){return String(t==null?'':t).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})};
+    function boxRow(b){b=b||{};var i=bi++;var r=document.createElement('tr');
+      r.innerHTML='<td><input class="ia-input" style="width:120px" name="ship_boxes['+i+'][name]" value="'+esc(b.name)+'" placeholder="Small box"></td>'
+      +['l','w','h'].map(function(k){return '<td><input class="ia-input" style="width:58px" inputmode="decimal" name="ship_boxes['+i+']['+k+']" value="'+esc(b[k])+'" placeholder="in"></td>'}).join('')
+      +'<td><span class="ec-pre"><input class="ia-input" style="width:64px" inputmode="decimal" name="ship_boxes['+i+'][max_lb]" value="'+esc(b.max_lb)+'" placeholder="70"> lb</span></td>'
+      +'<td><span class="ec-pre"><input class="ia-input" style="width:64px" inputmode="decimal" name="ship_boxes['+i+'][tare_oz]" value="'+esc(b.tare_oz)+'" placeholder="0"> oz</span></td>'
+      +'<td><button type="button" class="ia-btn ia-btn-ghost" data-rm>Remove</button></td>';
+      document.querySelector('#boxTbl tbody').appendChild(r);}
+    function wtRow(t){t=t||{};var i=ti++;var r=document.createElement('tr');
+      r.innerHTML='<td><input class="ia-input" style="width:90px" inputmode="decimal" name="ship_table['+i+'][upto_lb]" value="'+esc(t.upto_lb)+'" placeholder="1"></td>'
+      +'<td><span class="ec-pre">$ <input class="ia-input" style="width:90px" inputmode="decimal" name="ship_table['+i+'][price]" value="'+esc(t.price)+'" placeholder="0.00"></span></td>'
+      +'<td><button type="button" class="ia-btn ia-btn-ghost" data-rm>Remove</button></td>';
+      document.querySelector('#wtTbl tbody').appendChild(r);}
+    (Array.isArray(BOXES)?BOXES:Object.values(BOXES||{})).forEach(boxRow);
+    (Array.isArray(TABLE)?TABLE:Object.values(TABLE||{})).forEach(wtRow);
+    document.getElementById('boxAdd').addEventListener('click',function(){boxRow()});
+    document.getElementById('wtAdd').addEventListener('click',function(){wtRow()});
+    document.getElementById('shipRated').addEventListener('click',function(e){var b=e.target.closest('[data-rm]'); if(b) b.closest('tr').remove();});
+    var sync=function(){var m=mode.value;
+      document.getElementById('shipRated').classList.toggle('hide',m==='flat');
+      document.getElementById('shipTableBox').classList.toggle('hide',m!=='weight');
+      document.getElementById('shipCarrierBox').classList.toggle('hide',m!=='carrier');};
+    mode.addEventListener('change',sync); sync();
+    document.querySelectorAll('.ec-car').forEach(function(c){
+      var on=c.querySelector('input[name$="[enabled]"]'); var f=function(){c.classList.toggle('off',!on.checked)}; on.addEventListener('change',f); f();
+    });
+    document.querySelectorAll('[data-test]').forEach(function(b){
+      b.addEventListener('click',async function(){
+        var code=b.getAttribute('data-test'), c=b.closest('.ec-car'), out=document.getElementById('ct-'+code), fields={};
+        c.querySelectorAll('[data-f]').forEach(function(i){fields[i.getAttribute('data-f')]=i.value});
+        out.textContent='Checking…'; b.disabled=true;
+        try{
+          var res=await fetch(@json(route('tenant.storefront.settings.carrier_test')),{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json','X-CSRF-TOKEN':@json(csrf_token())},
+            body:JSON.stringify({carrier:code,fields:fields,sandbox:c.querySelector('[data-sandbox]').checked})});
+          var d=await res.json(); out.textContent=(d.ok?'✓ ':'✗ ')+(d.message||'No answer.'); out.style.color=d.ok?'':'#A32D2D';
+        }catch(e){out.textContent='✗ Could not reach the server. Try again.'; out.style.color='#A32D2D';}
+        b.disabled=false;
+      });
+    });
+  })();
   var so=document.getElementById('shipOn'),sb=document.getElementById('shipBox');
   if(so&&sb){var g=function(){sb.classList.toggle('hide',!so.checked)};so.addEventListener('change',g);g();}
   var on=document.getElementById('dsOn'),box=document.getElementById('dsBox');

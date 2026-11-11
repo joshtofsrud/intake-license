@@ -38,7 +38,31 @@ class StorefrontSettingsController extends Controller
             ->where('tenant_id', $tenant->id)
             ->where('is_active', true);
 
+        // MARKER-SHIPPING-RATES: how shipping is priced, in the units a shopkeeper thinks in
+        $rc = \App\Services\Shipping\ShippingRates::config($tenant);
+        $raw = (array) ($s['carriers'] ?? []);
+        $ship = [
+            'mode'       => $rc['mode'],
+            'from_zip'   => (string) ($s['ship_from_zip'] ?? ''),
+            'location_zip' => (string) ($tenant->defaultLocation?->postal_code ?? ''),
+            'default_lb' => rtrim(rtrim(number_format($rc['default_oz'] / 16, 2, '.', ''), '0'), '.'),
+            'boxes'      => array_map(fn ($b) => ['name' => $b['name'], 'l' => $b['l'], 'w' => $b['w'], 'h' => $b['h'],
+                                'max_lb' => round($b['max_oz'] / 16, 2), 'tare_oz' => $b['tare_oz']], $rc['boxes']),
+            'table'      => array_map(fn ($r) => ['upto_lb' => round($r['upto_oz'] / 16, 2), 'price' => $cents($r['cents'])], $rc['table']),
+            'markup_pct' => $rc['markup_pct'] ?: '',
+            'markup'     => $rc['markup_cents'] ? $cents($rc['markup_cents']) : '',
+            'carriers'   => collect(\App\Services\Shipping\CarrierClient::registry())->map(function ($cls, $code) use ($rc, $raw) {
+                $fields = [];
+                foreach ($cls::fields() as $k => $f) {
+                    $fields[$k] = $f + ['value' => empty($f['secret']) ? (string) ($raw[$code][$k] ?? '') : '', 'saved' => ! empty($f['secret']) && ($raw[$code][$k] ?? '') !== ''];
+                }
+                return ['label' => $cls::label(), 'enabled' => $rc['carriers'][$code]['enabled'], 'sandbox' => $rc['carriers'][$code]['sandbox'],
+                        'services' => $rc['carriers'][$code]['services'], 'all_services' => $cls::services(), 'fields' => $fields];
+            })->all(),
+        ];
+
         return view('tenant.storefront.settings', [
+            'ship' => $ship,
             'cfg' => [
                 'enabled'             => (bool) ($s['enabled'] ?? true),
                 'browse_layout'       => (string) ($s['browse_layout'] ?? 'chips'),
@@ -96,6 +120,31 @@ class StorefrontSettingsController extends Controller
     }
 
     /**
+     * POST /storefront/carrier-test — MARKER-SHIPPING-RATES. Checks the carrier details
+     * typed on the page (a blank secret falls back to the saved one) without saving them.
+     */
+    public function testCarrier(Request $request)
+    {
+        $this->guard();
+        $tenant = tenant();
+        $code = (string) $request->input('carrier');
+        $cls  = \App\Services\Shipping\CarrierClient::registry()[$code] ?? null;
+        abort_unless($cls, 422);
+
+        $saved = \App\Services\Shipping\ShippingRates::creds($tenant, $code) ?? [];
+        $creds = [];
+        foreach ($cls::fields() as $k => $f) {
+            $typed = trim((string) $request->input("fields.$k", ''));
+            $creds[$k] = $typed !== '' ? $typed : (string) ($saved[$k] ?? '');
+            if ($creds[$k] === '' && ! empty($f['required'])) {
+                return response()->json(['ok' => false, 'message' => "Fill in the {$f['label']} first."]);
+            }
+        }
+        $r = (new $cls($request->boolean('sandbox')))->test($creds);
+        return response()->json($r);
+    }
+
+    /**
      * MARKER-ECOM-SETTINGS: one tab at a time. Each tab only writes its own
      * keys, so an unticked box on one tab can never switch off another tab's setting.
      */
@@ -122,6 +171,23 @@ class StorefrontSettingsController extends Controller
                     'ship_fee'            => ['nullable', 'numeric', 'min:0', 'max:500'],
                     'ship_fee_supplier'   => ['nullable', 'numeric', 'min:0', 'max:500'],
                     'ship_free_over'      => ['nullable', 'numeric', 'min:0', 'max:100000'],
+                    // MARKER-SHIPPING-RATES
+                    'ship_mode'           => ['nullable', 'in:flat,weight,carrier'],
+                    'ship_from_zip'       => ['nullable', 'string', 'max:12'],
+                    'ship_default_lb'     => ['nullable', 'numeric', 'min:0', 'max:150'],
+                    'ship_markup_pct'     => ['nullable', 'numeric', 'min:0', 'max:100'],
+                    'ship_markup'         => ['nullable', 'numeric', 'min:0', 'max:500'],
+                    'ship_boxes'          => ['nullable', 'array', 'max:20'],
+                    'ship_boxes.*.name'   => ['nullable', 'string', 'max:40'],
+                    'ship_boxes.*.l'      => ['nullable', 'numeric', 'min:0', 'max:300'],
+                    'ship_boxes.*.w'      => ['nullable', 'numeric', 'min:0', 'max:300'],
+                    'ship_boxes.*.h'      => ['nullable', 'numeric', 'min:0', 'max:300'],
+                    'ship_boxes.*.max_lb' => ['nullable', 'numeric', 'min:0', 'max:150'],
+                    'ship_boxes.*.tare_oz' => ['nullable', 'numeric', 'min:0', 'max:500'],
+                    'ship_table'          => ['nullable', 'array', 'max:30'],
+                    'ship_table.*.upto_lb' => ['nullable', 'numeric', 'min:0', 'max:150'],
+                    'ship_table.*.price'  => ['nullable', 'numeric', 'min:0', 'max:5000'],
+                    'carrier'             => ['nullable', 'array'],
                 ]);
                 if (! $request->boolean('pickup_enabled') && ! $request->boolean('local_delivery') && ! $request->boolean('ship_enabled')) {
                     return back()->withInput()->with('ecom_tab', $tab)
@@ -141,6 +207,44 @@ class StorefrontSettingsController extends Controller
                     'install_offer'            => $request->boolean('install_offer'),
                     'install_label'            => trim((string) ($data['install_label'] ?? '')),
                 ]);
+                // MARKER-SHIPPING-RATES: how shipping is priced
+                if ($request->has('ship_mode')) {
+                    $mode  = $data['ship_mode'] ?? 'flat';
+                    $zip   = \App\Services\Shipping\ShippingRates::zip((string) ($data['ship_from_zip'] ?? ''));
+                    $table = \App\Services\Shipping\RateTable::clean(collect($data['ship_table'] ?? [])->map(fn ($r) => [
+                        'upto_oz' => (float) ($r['upto_lb'] ?? 0) * 16, 'cents' => $cents($r['price'] ?? null)])->all());
+                    $boxes = \App\Services\Shipping\PackageMath::cleanBoxes(collect($data['ship_boxes'] ?? [])->map(fn ($b) => [
+                        'name' => $b['name'] ?? '', 'l' => $b['l'] ?? 0, 'w' => $b['w'] ?? 0, 'h' => $b['h'] ?? 0,
+                        'max_oz' => (float) ($b['max_lb'] ?? 0) * 16, 'tare_oz' => $b['tare_oz'] ?? 0])->all());
+                    $carriers = [];
+                    foreach (\App\Services\Shipping\CarrierClient::registry() as $code => $cls) {
+                        $carriers[$code] = \App\Services\Shipping\ShippingRates::credsForSave($tenant, $code, (array) ($request->input("carrier.$code") ?? []));
+                    }
+                    $sf = array_merge($sf, ['ship_mode' => $mode, 'carriers' => $carriers]);   // the checks below read what was just typed
+                    $tenantCheck = clone $tenant;
+                    $tenantCheck->settings = array_merge((array) $settings, ['storefront' => $sf]);
+                    $usable = collect($carriers)->filter(fn ($c, $code) => $c['enabled'] && $c['services'] && \App\Services\Shipping\ShippingRates::creds($tenantCheck, $code))->isNotEmpty();
+                    $locZip = \App\Services\Shipping\ShippingRates::zip((string) ($tenant->defaultLocation?->postal_code ?? ''));
+                    $err = null;
+                    if ($request->boolean('ship_enabled') && $mode === 'weight' && ! $table) {
+                        $err = 'Add at least one row to the weight table, or choose another way to price shipping.';
+                    } elseif ($request->boolean('ship_enabled') && $mode === 'carrier' && ! $usable) {
+                        $err = 'Turn on a carrier, fill in its details and tick at least one service, or choose another way to price shipping.';
+                    } elseif ($request->boolean('ship_enabled') && $mode !== 'flat' && $zip === '' && $locZip === '') {
+                        $err = 'Enter the ZIP code you ship from. Weight and carrier prices need it.';
+                    }
+                    if ($err) {
+                        return back()->withInput()->with('ecom_tab', $tab)->with('error', $err);
+                    }
+                    $sf = array_merge($sf, [
+                        'ship_from_zip'     => $zip,
+                        'ship_default_oz'   => (float) ($data['ship_default_lb'] ?? 0) > 0 ? round((float) $data['ship_default_lb'] * 16, 2) : null,
+                        'ship_markup_pct'   => (float) ($data['ship_markup_pct'] ?? 0),
+                        'ship_markup_cents' => (int) ($cents($data['ship_markup'] ?? null) ?? 0),
+                        'ship_table'        => $table,
+                        'ship_boxes'        => $boxes,
+                    ]);
+                }
                 // MARKER-DISTRIBUTION-WAREHOUSES: only when master admin has allowed this shop dropshipping
                 if (\App\Services\Distributors\WarehouseRegistry::access($tenant) === 'on') {
                     $d = $request->validate([

@@ -182,6 +182,36 @@
         </div>
       </div>
 
+      {{-- MARKER-SHIPPING-RATES --}}
+      @php
+        $spec = \App\Services\Shipping\ItemShipSpec::for($item);
+        $shopOz = $item->shop_weight_oz !== null ? (float) $item->shop_weight_oz : null;
+        $catOz  = $spec['weight_from'] === 'catalog' ? $spec['oz'] : null;
+      @endphp
+      <div class="ia-form-group">
+        <label class="ia-form-label">Shipping weight</label>
+        <div class="ia-input-grid-2">
+          <input type="number" min="0" step="1" name="ship_weight_lb" class="ia-input" placeholder="lb"
+            value="{{ old('ship_weight_lb', $shopOz !== null ? (int) floor($shopOz / 16) : '') }}">
+          <input type="number" min="0" max="15.99" step="0.01" name="ship_weight_oz" class="ia-input" placeholder="oz"
+            value="{{ old('ship_weight_oz', $shopOz !== null ? round(fmod($shopOz, 16), 2) : '') }}">
+        </div>
+        <label class="ia-form-label" style="margin-top:10px">Packed size (inches)</label>
+        <div class="ia-input-grid-2" style="grid-template-columns:repeat(3,1fr)">
+          <input type="number" min="0" step="0.01" name="shop_length_in" class="ia-input" placeholder="Length" value="{{ old('shop_length_in', $item->shop_length_in) }}">
+          <input type="number" min="0" step="0.01" name="shop_width_in" class="ia-input" placeholder="Width" value="{{ old('shop_width_in', $item->shop_width_in) }}">
+          <input type="number" min="0" step="0.01" name="shop_height_in" class="ia-input" placeholder="Height" value="{{ old('shop_height_in', $item->shop_height_in) }}">
+        </div>
+        <div class="ia-form-hint">
+          Used for shipping rates on online orders. Leave blank to use
+          @if($spec['weight_from'] === 'catalog' || $spec['size_from'] === 'catalog')
+            the supplier's figure{{ $catOz ? ' (' . number_format($catOz / 16, 2) . ' lb' . ($spec['size_from'] === 'catalog' ? ', ' . $spec['l'] . ' × ' . $spec['w'] . ' × ' . $spec['h'] . ' in' : '') . ')' : '' }}.
+          @else
+            your default shipping weight (set under E-commerce settings).
+          @endif
+        </div>
+      </div>
+
       <div class="ia-form-group">
         <label class="ia-form-label">
           <input type="checkbox" name="allow_oversell" value="1" {{ old('allow_oversell', $item->allow_oversell) ? 'checked' : '' }}>

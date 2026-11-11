@@ -96,7 +96,7 @@
           @if($config['ship_enabled'] ?? false)
             <label id="ful-ship" class="{{ $defaultFul === 'ship' ? 'on' : '' }}">
               <input type="radio" name="ful" value="ship" {{ $defaultFul === 'ship' ? 'checked' : '' }}>
-              <b>Ship to me</b><span class="fee">{{ ($config['ship_fee_cents'] ?? 0) > 0 ? $money($config['ship_fee_cents']) . ' per shipment' : 'Free shipping' }}{{ ($config['ship_free_over_cents'] ?? null) !== null && ($config['ship_fee_cents'] ?? 0) > 0 ? ' — free over ' . $money($config['ship_free_over_cents']) : '' }}</span>
+              <b>Ship to me</b><span class="fee">@if(($shipMode ?? 'flat') !== 'flat')Priced for your address @else{{ ($config['ship_fee_cents'] ?? 0) > 0 ? $money($config['ship_fee_cents']) . ' per shipment' : 'Free shipping' }}{{ ($config['ship_free_over_cents'] ?? null) !== null && ($config['ship_fee_cents'] ?? 0) > 0 ? ' — free over ' . $money($config['ship_free_over_cents']) : '' }}@endif</span>
             </label>
           @endif
         </div>
@@ -193,20 +193,74 @@
   var IDS = { pickup: 'ful-pickup', local_delivery: 'ful-delivery', ship: 'ful-ship' };
   var money = function (c) { return '$' + (c / 100).toFixed(2); };
   var ful = @json($defaultFul ?? 'pickup'), stripe = null, elements = null, placed = false;
+  // MARKER-SHIPPING-RATES: when the shop prices shipping by weight or carrier, the options
+  // come from the server for the address typed, and the shopper picks one per shipment.
+  var RATED = @json(($shipMode ?? 'flat') !== 'flat');
+  var CHOICES = {}, rateTimer = null, rateSeq = 0, ratesReady = !RATED;
 
   function shipments(q) {
     var box = document.getElementById('s-ships');
     if (!q || !q.shipments || !q.shipments.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
     box.innerHTML = q.shipments.map(function (sh, i) {
       var title = sh.source === 'supplier' ? SUPPLIER_LABEL : 'Ships from our shop';
-      var when = sh.source === 'supplier' && sh.handling_days > 0 ? ' · ships in about ' + sh.handling_days + ' business day' + (sh.handling_days === 1 ? '' : 's') : '';
-      var rows = sh.lines.map(function (l) { return '<div style="display:flex;justify-content:space-between;font-size:12.5px;opacity:.75"><span>' + esc(l.name) + ' ×' + l.qty + (l.special ? ' (special order)' : '') + '</span></div>'; }).join('');
-      return '<div style="border:1.5px solid rgba(0,0,0,.09);border-radius:12px;padding:10px 12px;margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-weight:650;font-size:13px"><span>Shipment ' + (i + 1) + ' · ' + esc(title) + '</span><span>' + (sh.shipping_cents > 0 ? money(sh.shipping_cents) : 'Free') + '</span></div>'
-        + (when ? '<div style="font-size:12px;opacity:.6;margin:2px 0 6px">' + esc(when.replace(' · ', '')) + '</div>' : '<div style="height:6px"></div>') + rows + '</div>';
+      var when = sh.source === 'supplier' && sh.handling_days > 0 ? 'Ships in about ' + sh.handling_days + ' business day' + (sh.handling_days === 1 ? '' : 's') : '';
+      var rows = sh.lines.map(function (l) { return '<div style="font-size:12.5px;opacity:.75">' + esc(l.name) + ' ×' + l.qty + (l.special ? ' (special order)' : '') + '</div>'; }).join('');
+      var opts = sh.options || [];
+      var price = RATED && !opts.length ? '' : (sh.shipping_cents > 0 ? money(sh.shipping_cents) : 'Free');
+      var pick = '';
+      if (RATED && !opts.length) {
+        pick = '<div style="font-size:12.5px;opacity:.65;margin-top:8px">Enter your ZIP code to see shipping options.</div>';
+      } else if (opts.length > 1) {
+        pick = '<div style="margin-top:8px">' + opts.map(function (o) {
+          var on = o.id === sh.choice;
+          return '<label style="display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:5px 0;cursor:pointer"><span><input type="radio" name="sc-' + esc(sh.key) + '" data-key="' + esc(sh.key) + '" data-opt="' + esc(o.id) + '" ' + (on ? 'checked' : '') + '> ' + esc(o.name) + (o.days ? ' <span style="opacity:.6">· about ' + o.days + ' business day' + (o.days === 1 ? '' : 's') + '</span>' : '') + '</span><span>' + (o.cents > 0 ? money(o.cents) : 'Free') + '</span></label>';
+        }).join('') + '</div>';
+      } else if (opts.length === 1 && RATED) {
+        pick = '<div style="font-size:12.5px;opacity:.65;margin-top:6px">' + esc(opts[0].name) + (opts[0].days ? ' · about ' + opts[0].days + ' business days' : '') + (opts[0].source === 'fallback' ? ' · standard rate (live rates unavailable)' : '') + '</div>';
+      }
+      return '<div style="border:1.5px solid rgba(0,0,0,.09);border-radius:12px;padding:10px 12px;margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-weight:650;font-size:13px"><span>Shipment ' + (i + 1) + ' · ' + esc(title) + '</span><span>' + price + '</span></div>'
+        + (when ? '<div style="font-size:12px;opacity:.6;margin:2px 0 6px">' + esc(when) + '</div>' : '<div style="height:6px"></div>') + rows + pick + '</div>';
     }).join('');
     box.style.display = 'block';
+    box.querySelectorAll('input[data-key]').forEach(function (r) {
+      r.addEventListener('change', function () { CHOICES[r.getAttribute('data-key')] = r.getAttribute('data-opt'); fetchRates(true); });
+    });
   }
-  function pickFul(kind) {
+
+  function shipZip() { var z = (document.getElementById('f-szip').value || '').trim(); return /^\d{5}(-\d{4})?$/.test(z) ? z : ''; }
+
+  // price the shipments for the address typed so far, and refresh the totals
+  function fetchRates(immediate) {
+    if (!RATED || ful !== 'ship') return;
+    clearTimeout(rateTimer);
+    var run = async function () {
+      var zip = shipZip();
+      if (!zip) { ratesReady = false; syncGo(); return; }
+      var seq = ++rateSeq;
+      document.getElementById('s-fee').textContent = '…';
+      var data;
+      try {
+        var res = await fetch('/checkout/shipping-rates', { method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': @json(csrf_token()) },
+          body: JSON.stringify({ zip: zip, state: document.getElementById('f-sstate').value.trim(), choices: CHOICES }) });
+        data = await res.json();
+      } catch (e) { data = null; }
+      if (seq !== rateSeq) return;                       // a newer request is already on its way
+      if (!data || !data.ok) { ratesReady = false; syncGo(); var e = document.getElementById('err'); e.textContent = (data && data.message) || 'Could not get shipping prices — try again.'; e.style.display = 'block'; return; }
+      document.getElementById('err').style.display = 'none';
+      data.shipments.forEach(function (sh) { if (sh.choice) CHOICES[sh.key] = sh.choice; });
+      var q = QUOTES.ship;
+      q.shipments = data.shipments; q.shipping_cents = data.totals.shipping; q.tax_cents = data.totals.tax; q.total_cents = data.totals.total;
+      ratesReady = data.shipments.every(function (sh) { return !!sh.choice; });
+      pickFul('ship', true);
+    };
+    if (immediate) run(); else rateTimer = setTimeout(run, 450);
+  }
+  function syncGo() {
+    var blocked = (SHIP_ONLY && ful !== 'ship') || (ful === 'ship' && RATED && !ratesReady);
+    document.getElementById('go').disabled = blocked;
+  }
+  function pickFul(kind, keepRates) {
     ful = kind;
     document.querySelectorAll('.ful label').forEach(function (l) { l.classList.remove('on'); });
     var el = document.getElementById(IDS[kind]); if (el) el.classList.add('on');
@@ -216,7 +270,7 @@
     document.getElementById('s-fee-row').style.display = feeOn ? 'flex' : 'none';
     document.getElementById('s-fee-label').textContent = kind === 'ship' ? 'Shipping' : 'Delivery';
     var q = QUOTES[kind];
-    document.getElementById('s-fee').textContent = money(q.shipping_cents || 0);
+    document.getElementById('s-fee').textContent = (kind === 'ship' && RATED && !ratesReady) ? 'Enter ZIP' : money(q.shipping_cents || 0);
     document.getElementById('s-tax').textContent = money(q.tax_cents);
     document.getElementById('s-total').textContent = money(q.total_cents);
     shipments(kind === 'ship' ? q : null);
@@ -224,12 +278,14 @@
     var so = document.getElementById('ship-only');
     var blocked = SHIP_ONLY && kind !== 'ship';
     if (so) so.style.display = blocked ? 'block' : 'none';
-    document.getElementById('go').disabled = blocked;
+    syncGo();
+    if (kind === 'ship' && !keepRates) fetchRates(true);
   }
+  ['f-szip', 'f-sstate'].forEach(function (id) { document.getElementById(id).addEventListener('input', function () { fetchRates(false); }); });
   document.querySelectorAll('.ful input').forEach(function (r) {
     r.addEventListener('change', function () { pickFul(r.value); });
   });
-  if (ful !== 'pickup' || SHIP_ONLY) pickFul(ful); // start on whatever is offered first, and apply the ships-only notice
+  if (ful !== 'pickup' || SHIP_ONLY || RATED) pickFul(ful); // start on whatever is offered first, and apply the ships-only notice
 
   function fail(msg) {
     var e = document.getElementById('err');
@@ -257,6 +313,7 @@
         notes:      document.getElementById('f-notes').value.trim(),
         wants_install: document.getElementById('f-install').checked ? 1 : 0
       };
+      if (ful === 'ship') body.ship_choices = CHOICES;
       if (!body.first_name || !body.last_name || !body.email) return fail('Name and email are required.');
       if (ful === 'local_delivery' && !body.address) return fail('Delivery needs an address.');
       if (ful === 'ship' && (!body.ship_line1 || !body.ship_city || !body.ship_state || !body.ship_zip)) return fail('Shipping needs a full address: street, city, state and ZIP code.');
@@ -277,6 +334,8 @@
       } catch (e) { return fail('Network hiccup — try again.'); }
       // MARKER-ECOM-STOCK-GUARD: something sold out before payment started. Nothing was charged; say so, then show the cart.
       if (data && data.stock) { fail(data.message + ' Nothing was charged. Taking you back to your cart…'); setTimeout(function () { window.location = data.redirect || '/cart'; }, 3500); return; }
+      // MARKER-SHIPPING-RATES: the prices the shopper picked from are no longer offered; fetch fresh ones, nothing was charged
+      if (data && data.rates) { CHOICES = {}; fetchRates(true); return fail(data.message); }
       if (!data || !data.ok) return fail((data && data.message) || 'Could not start payment.');
 
       // manual method: order placed pending, go to instructions

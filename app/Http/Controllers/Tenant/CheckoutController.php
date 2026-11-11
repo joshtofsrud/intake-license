@@ -58,9 +58,46 @@ class CheckoutController extends Controller
             'quoteDelivery' => $orders->quote($cart, 'local_delivery'),
             'quoteShip'     => $cfgNow['ship_enabled'] ? $orders->quote($cart, 'ship') : null,
             'shipOnly'      => $shipOnly,
+            'shipMode'      => \App\Services\Shipping\ShippingRates::config($tenant)['mode'], // MARKER-SHIPPING-RATES
             'config'   => $orders->config(),
             'special'  => $stock['special'],
             'stripePk' => $pk,
+        ]);
+    }
+
+    /**
+     * POST /checkout/shipping-rates — MARKER-SHIPPING-RATES. The shipments the cart splits
+     * into, with the shipping options for each to this ZIP, and the order totals under the
+     * options picked so far. Nothing is saved.
+     */
+    public function shippingRates(Request $request)
+    {
+        $this->guard();
+        $tenant = tenant();
+        $in = $request->validate([
+            'zip'       => ['required', 'regex:/^\d{5}(-\d{4})?$/'],
+            'state'     => ['nullable', 'string', 'max:40'],
+            'choices'   => ['nullable', 'array'],
+            'choices.*' => ['nullable', 'string', 'max:80'],
+        ], ['zip.regex' => 'Please enter a 5-digit ZIP code.', 'zip.required' => 'Enter a ZIP code to see shipping options.']);
+
+        $cart = CartService::forTenant($tenant)->current();
+        if (! $cart || $cart->items->isEmpty()) {
+            return response()->json(['ok' => false, 'message' => 'Your cart is empty.'], 422);
+        }
+        $orders = OrderService::forTenant($tenant);
+        abort_unless($orders->config()['ship_enabled'], 422, 'Shipping is not available.');
+
+        $q = $orders->quote($cart, 'ship', ['address' => ['zip' => substr($in['zip'], 0, 5), 'state' => strtoupper(trim((string) ($in['state'] ?? '')))], 'choices' => (array) ($in['choices'] ?? [])]);
+        return response()->json([
+            'ok'        => true,
+            'shipments' => array_map(fn ($s) => [
+                'key' => $s['key'], 'source' => $s['source'], 'warehouse' => $s['warehouse'] ?? null, 'handling_days' => $s['handling_days'] ?? 0,
+                'lines' => $s['lines'], 'options' => $s['options'] ?? [], 'choice' => $s['choice'] ?? null,
+                'shipping_cents' => $s['shipping_cents'], 'note' => $s['rate_note'] ?? null,
+                'packages' => count($s['packages'] ?? []),
+            ], $q['shipments']),
+            'totals'    => ['subtotal' => $q['subtotal_cents'], 'discount' => $q['discount_cents'], 'tax' => $q['tax_cents'], 'shipping' => $q['shipping_cents'], 'total' => $q['total_cents']],
         ]);
     }
 
@@ -85,6 +122,8 @@ class CheckoutController extends Controller
             'notes'            => ['nullable', 'string', 'max:500'],
             'wants_install'    => ['nullable', 'boolean'],
             'payment_method'   => ['nullable', 'string', 'max:40'],
+            'ship_choices'     => ['nullable', 'array'],           // MARKER-SHIPPING-RATES: shipment key => option id
+            'ship_choices.*'   => ['nullable', 'string', 'max:80'],
         ]);
 
         // manual methods: validate against the tenant's
@@ -158,7 +197,11 @@ class CheckoutController extends Controller
                 'address'       => $shipAddress ?? (filled($data['address'] ?? null) ? ['line' => $data['address']] : null),
                 'notes'         => $data['notes'] ?? null,
                 'wants_install' => (bool) ($data['wants_install'] ?? false),
+                'ship'          => $shipAddress ? ['address' => ['zip' => substr($shipAddress['zip'], 0, 5), 'state' => $shipAddress['state']], 'choices' => (array) ($data['ship_choices'] ?? [])] : null,
             ], $manualMethod);
+        } catch (\App\Exceptions\ShippingChoiceException $e) {
+            // MARKER-SHIPPING-RATES: nothing was charged; the page re-fetches the options
+            return response()->json(['ok' => false, 'rates' => true, 'message' => $e->getMessage()], 409);
         } catch (\App\Exceptions\OnlineOrderStockException $e) {
             // MARKER-ECOM-STOCK-GUARD: nothing was charged; tell the shopper what changed.
             return response()->json([

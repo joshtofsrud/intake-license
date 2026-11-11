@@ -1752,6 +1752,12 @@ class InventoryController extends Controller
             'shop_reorder_threshold'  => ['nullable', 'integer', 'min:0'],
             'shop_reorder_quantity'   => ['nullable', 'integer', 'min:1'],
             'shop_bin_location'       => ['nullable', 'string', 'max:50'],
+            // MARKER-SHIPPING-RATES: entered as lb + oz, and inches
+            'ship_weight_lb'          => ['nullable', 'numeric', 'min:0', 'max:1000'],
+            'ship_weight_oz'          => ['nullable', 'numeric', 'min:0', 'max:15.99'],
+            'shop_length_in'          => ['nullable', 'numeric', 'min:0', 'max:300'],
+            'shop_width_in'           => ['nullable', 'numeric', 'min:0', 'max:300'],
+            'shop_height_in'          => ['nullable', 'numeric', 'min:0', 'max:300'],
             'allow_oversell'          => ['nullable', 'boolean'],
             'is_active'               => ['nullable', 'boolean'],
         ]);
@@ -1797,6 +1803,11 @@ class InventoryController extends Controller
             'shop_reorder_threshold' => $data['shop_reorder_threshold'] ?? null,
             'shop_reorder_quantity'  => $data['shop_reorder_quantity'] ?? null,
             'shop_bin_location'      => $data['shop_bin_location'] ?? null,
+            'shop_weight_oz'         => ((float) ($data['ship_weight_lb'] ?? 0) * 16 + (float) ($data['ship_weight_oz'] ?? 0)) > 0
+                ? round((float) ($data['ship_weight_lb'] ?? 0) * 16 + (float) ($data['ship_weight_oz'] ?? 0), 2) : null,
+            'shop_length_in'         => ((float) ($data['shop_length_in'] ?? 0)) > 0 ? $data['shop_length_in'] : null,
+            'shop_width_in'          => ((float) ($data['shop_width_in'] ?? 0)) > 0 ? $data['shop_width_in'] : null,
+            'shop_height_in'         => ((float) ($data['shop_height_in'] ?? 0)) > 0 ? $data['shop_height_in'] : null,
             'allow_oversell'         => (bool) ($data['allow_oversell'] ?? true),
             'is_active'              => (bool) ($data['is_active'] ?? true),
             // update() validated these three without

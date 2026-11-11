@@ -269,6 +269,7 @@ $tenantRoutes = function () {
     // Online Retail Wave 4: checkout + confirmation
     Route::get('/checkout',              [TenantControllers\CheckoutController::class, 'show'])->name('tenant.checkout.show');
     Route::post('/checkout/place',       [TenantControllers\CheckoutController::class, 'place'])->name('tenant.checkout.place');
+    Route::post('/checkout/shipping-rates', [TenantControllers\CheckoutController::class, 'shippingRates'])->name('tenant.checkout.shipping_rates')->middleware('throttle:30,1'); // MARKER-SHIPPING-RATES
     Route::get('/checkout/return',       [TenantControllers\CheckoutController::class, 'returnLeg'])->name('tenant.checkout.return');
     Route::get('/order/{token}',         [TenantControllers\CheckoutController::class, 'confirmation'])->name('tenant.order.confirmation');
     // public gift card pages
@@ -522,6 +523,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::get('/storefront',        [TenantControllers\StorefrontSettingsController::class, 'show'])->name('storefront.settings');
                 Route::post('/storefront',       [TenantControllers\StorefrontSettingsController::class, 'update'])->name('storefront.settings.update');
                 Route::post('/storefront/bulk',  [TenantControllers\StorefrontSettingsController::class, 'bulk'])->name('storefront.settings.bulk');
+                Route::post('/storefront/carrier-test', [TenantControllers\StorefrontSettingsController::class, 'testCarrier'])->name('storefront.settings.carrier_test')->middleware('throttle:10,1'); // MARKER-SHIPPING-RATES
                 Route::post('/storefront/item/{id}', [TenantControllers\StorefrontSettingsController::class, 'toggleItem'])->name('storefront.item.toggle');
                 // MARKER-ECOM-AVAILABILITY: what is for sale online / may be oversold
                 Route::get('/storefront/availability/items',      [TenantControllers\StorefrontAvailabilityController::class, 'items'])->name('storefront.availability.items');

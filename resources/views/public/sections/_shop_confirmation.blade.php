@@ -106,6 +106,7 @@
         @foreach($ships as $i => $sh)
           <div style="margin-top:8px">
             <b style="display:inline">{{ $ships->count() > 1 ? 'Shipment ' . ($i + 1) . ' · ' : '' }}{{ $sh->source === 'supplier' ? $supLabel : 'Ships from our shop' }}</b>{{ $sh->source === 'supplier' && $sh->handling_days > 0 ? ' — ships in about ' . $sh->handling_days . ' business day' . ($sh->handling_days === 1 ? '' : 's') : '' }}
+            @if($sh->service_name)<br>{{ $sh->service_name }}@endif
             @if($sh->tracking_number)<br>Tracking: {{ $sh->carrier ? $sh->carrier . ' ' : '' }}{{ $sh->tracking_number }}@endif
             <br>@foreach($sh->items as $it){{ $it->orderItem?->name_snapshot }} ×{{ $it->quantity }}@if(! $loop->last), @endif @endforeach
           </div>

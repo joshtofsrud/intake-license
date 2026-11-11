@@ -17,9 +17,10 @@ class TenantOrderShipment extends Model
     protected $fillable = [
         'tenant_id', 'order_id', 'source', 'warehouse_id', 'warehouse_name', 'handling_days',
         'shipping_cents', 'status', 'carrier', 'tracking_number', 'shipped_at',
+        'service_code', 'service_name', 'rate_source', 'packages',
     ];
 
-    protected $casts = ['shipping_cents' => 'integer', 'handling_days' => 'integer', 'shipped_at' => 'datetime'];
+    protected $casts = ['shipping_cents' => 'integer', 'handling_days' => 'integer', 'shipped_at' => 'datetime', 'packages' => 'array'];
 
     public function order(): BelongsTo { return $this->belongsTo(TenantOrder::class, 'order_id'); }
     public function items(): HasMany   { return $this->hasMany(TenantOrderShipmentItem::class, 'shipment_id'); }

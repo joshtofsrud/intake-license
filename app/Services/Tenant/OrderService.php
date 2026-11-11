@@ -96,7 +96,7 @@ class OrderService
      * rounding matches SaleService::recomputeTotals exactly so the PI amount
      * equals the sale total to the cent.
      */
-    public function quote(TenantOrder $cart, string $fulfillmentType = 'pickup'): array
+    public function quote(TenantOrder $cart, string $fulfillmentType = 'pickup', array $ship = []): array
     {
         $rate = (float) ($this->tenant->default_tax_rate ?? 0);
         $tax = 0;
@@ -140,7 +140,7 @@ class OrderService
         }
         $shipments = [];
         if ($fulfillmentType === 'ship') {
-            $shipments = $this->shipmentSummary($cart, $alloc, $meta, max(0, $subtotal - $discount), $cfg);
+            $shipments = $this->shipmentSummary($cart, $alloc, $meta, max(0, $subtotal - $discount), $cfg, $ship);
             $shipping  = (int) array_sum(array_column($shipments, 'shipping_cents'));
         }
         $shippingTaxed = $shipping > 0 && $cfg['tax_delivery_fee'] && $rate > 0;
@@ -251,7 +251,7 @@ class OrderService
     }
 
     /** One entry per shipment, priced on its own: what the shopper is shown and what is saved. */
-    protected function shipmentSummary(TenantOrder $order, array $alloc, array $meta, int $baseAfterDiscount, array $cfg): array
+    protected function shipmentSummary(TenantOrder $order, array $alloc, array $meta, int $baseAfterDiscount, array $cfg, array $ship = []): array
     {
         $order->loadMissing('items');
         $byId = $order->items->keyBy('id');
@@ -267,10 +267,67 @@ class OrderService
         $out = [];
         // the shop's own shipment first, then suppliers
         uksort($meta, fn ($a, $b) => [$a !== 'shop', $a] <=> [$b !== 'shop', $b]);
+        $free = $cfg['ship_free_over_cents'] !== null && $baseAfterDiscount >= $cfg['ship_free_over_cents'];
         foreach ($meta as $key => $m) {
-            $out[] = $m + ['key' => $key, 'shipping_cents' => (int) ($fees[$key] ?? 0), 'lines' => $lines[$key] ?? []];
+            $row = $m + ['key' => $key, 'shipping_cents' => (int) ($fees[$key] ?? 0), 'lines' => $lines[$key] ?? []];
+            $out[] = $this->rateShipment($row, $free, (int) ($fees[$key] ?? 0), $ship);
         }
         return $out;
+    }
+
+    /**
+     * MARKER-SHIPPING-RATES: price one shipment from its packed weight and size. Adds
+     * options (what the shopper may pick), the choice, and the cost of that choice.
+     * With $ship['strict'] (placing the order) a missing or stale choice is refused, so
+     * the charge is always for an option the shopper actually saw.
+     */
+    protected function rateShipment(array $row, bool $free, int $flatCents, array $ship): array
+    {
+        $ids = array_unique(array_column($row['lines'], 'line_id'));
+        $lineItems = \App\Models\Tenant\TenantOrderItem::query()->whereIn('id', $ids)->pluck('inventory_item_id', 'id');
+        $items = \App\Models\Tenant\TenantInventoryItem::query()->with('distributorCatalog')
+            ->whereIn('id', $lineItems->filter()->unique()->values())->get()->keyBy('id');
+        $platform = (array) (\App\Models\PlatformSettings::current()->distribution_settings ?? []);
+
+        $units = [];
+        foreach ($row['lines'] as $ln) {
+            $it = $items[$lineItems[$ln['line_id']] ?? null] ?? null;
+            $spec = $it ? \App\Services\Shipping\ItemShipSpec::for($it, $platform) : ['oz' => null, 'l' => null, 'w' => null, 'h' => null];
+            for ($i = 0; $i < min(500, max(1, (int) $ln['qty'])); $i++) {
+                $units[] = ['oz' => $spec['oz'], 'l' => $spec['l'], 'w' => $spec['w'], 'h' => $spec['h']];
+            }
+        }
+
+        $from = $row['source'] === 'supplier'
+            ? (string) (\App\Models\DistributionWarehouse::query()->whereKey($row['warehouse_id'])->value('ship_from_zip') ?? '')
+            : (string) (\App\Services\Shipping\ShippingRates::config($this->tenant)['from_zip'] ?? '');
+
+        $q = \App\Services\Shipping\ShippingRates::quote($this->tenant, ['from_zip' => $from, 'units' => $units],
+            (array) ($ship['address'] ?? []), $flatCents, $free);
+
+        $opts = $q['options'];
+        $chosen = null;
+        $want = $ship['choices'][$row['key']] ?? null;
+        foreach ($opts as $o) if ($o['id'] === $want) $chosen = $o;
+        if (! $chosen && count($opts) === 1) $chosen = $opts[0];
+        if (! $chosen && ! empty($ship['strict'])) {
+            throw new \App\Exceptions\ShippingChoiceException($q['needs_address']
+                ? 'Enter the shipping address to see shipping options.'
+                : 'Shipping prices changed. Please choose a shipping option again.');
+        }
+        $chosen ??= $opts[0] ?? null;
+
+        return $row + [
+            'options'        => $opts,
+            'choice'         => $chosen['id'] ?? null,
+            'service_code'   => $chosen['id'] ?? null,
+            'service_name'   => $chosen['name'] ?? null,
+            'rate_source'    => $chosen['source'] ?? null,
+            'packages'       => $q['packages'],
+            'needs_address'  => $q['needs_address'],
+            'rate_note'      => $q['note'],
+            'shipping_cents' => $chosen ? (int) $chosen['cents'] : 0,
+        ];
     }
 
     /** Save the shipments chosen at placement (replacing any from an earlier try at the same order). */
@@ -286,6 +343,8 @@ class OrderService
                 'tenant_id' => $this->tenant->id, 'order_id' => $order->id, 'source' => $sh['source'],
                 'warehouse_id' => $sh['warehouse_id'], 'warehouse_name' => $sh['warehouse'],
                 'handling_days' => (int) $sh['handling_days'], 'shipping_cents' => (int) $sh['shipping_cents'], 'status' => 'pending',
+                'service_code' => $sh['service_code'] ?? null, 'service_name' => $sh['service_name'] ?? null,
+                'rate_source' => $sh['rate_source'] ?? null, 'packages' => $sh['packages'] ?? null,
             ]);
             foreach ($sh['lines'] as $ln) {
                 \App\Models\Tenant\TenantOrderShipmentItem::create([
@@ -310,7 +369,7 @@ class OrderService
             throw new \App\Exceptions\OnlineOrderStockException($stock['blocked']);
         }
 
-        $quote = $this->quote($cart, $fulfillment['type']);
+        $quote = $this->quote($cart, $fulfillment['type'], ['address' => $fulfillment['ship']['address'] ?? [], 'choices' => $fulfillment['ship']['choices'] ?? [], 'strict' => true]);
 
         // Existing customer by email — link now; creation waits for money.
         $customer = TenantCustomer::query()

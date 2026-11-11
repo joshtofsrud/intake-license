@@ -76,6 +76,26 @@
     </div>
   </div>
 
+  {{-- MARKER-SHIPPING-RATES: the unit each distributor's feed uses for weight and size --}}
+  <div>
+    <p class="dw-h">Package data by distributor</p>
+    <table class="dw-tbl">
+      <thead><tr><th>Distributor</th><th>Weight in the feed is in</th><th>Size in the feed is in</th></tr></thead>
+      <tbody>
+      @forelse ($this->unitCodes() as $code)
+        <tr wire:key="unit-{{ $code }}">
+          <td>{{ $code }}</td>
+          <td><select class="dw-in" wire:model="units.{{ $code }}.weight" @disabled($ro)>@foreach (\App\Services\Shipping\Units::weightUnits() as $u)<option value="{{ $u }}">{{ $u }}</option>@endforeach</select></td>
+          <td><select class="dw-in" wire:model="units.{{ $code }}.length" @disabled($ro)>@foreach (\App\Services\Shipping\Units::lengthUnits() as $u)<option value="{{ $u }}">{{ $u }}</option>@endforeach</select></td>
+        </tr>
+      @empty
+        <tr><td colspan="3" class="dw-empty">No distributor catalogs yet. They appear here once a catalog has synced.</td></tr>
+      @endforelse
+      </tbody>
+    </table>
+    <div class="dw-legend" style="border-top:0">Shops with live shipping rates use these to turn a supplier's weight and size into pounds and inches. A shop's own weight on an item always wins. Check one item against the supplier's site before trusting a new distributor; the default is pounds and inches.</div>
+  </div>
+
   <div :class="on ? '' : 'dw-off'" style="display:flex;flex-direction:column;gap:14px">
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       <select class="dw-in" wire:model.live="dist"><option value="">All distributors</option>@foreach ($this->distributors() as $d)<option value="{{ $d }}">{{ $d }}</option>@endforeach</select>

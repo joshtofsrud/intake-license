@@ -80,6 +80,10 @@
             <span>Shipment {{ $i + 1 }} · {{ $sh->source === 'supplier' ? 'From supplier: ' . ($sh->warehouse_name ?: 'warehouse') : 'From your shop' }}</span>
             <span>{{ $sh->shipping_cents > 0 ? $money($sh->shipping_cents) : 'Free' }}</span>
           </div>
+          @if($sh->service_name)
+            @php $pk = (array) ($sh->packages ?? []); @endphp
+            <div style="font-size:12.5px;margin-top:3px">{{ $sh->service_name }}{{ $sh->rate_source === 'fallback' ? ' (your flat price; live prices were unavailable)' : '' }}@if($pk) · {{ count($pk) }} {{ count($pk) === 1 ? 'package' : 'packages' }}: {{ collect($pk)->map(fn ($p) => ($p['box'] ?? 'package') . ' ' . number_format(($p['oz'] ?? 0) / 16, 1) . ' lb' . (! empty($p['l']) ? ' (' . $p['l'] . '×' . $p['w'] . '×' . $p['h'] . ' in)' : ''))->implode(', ') }}@endif</div>
+          @endif
           @foreach($sh->items as $it)
             <div style="font-size:13px;color:var(--ia-text-muted);margin-top:2px">{{ $it->orderItem?->name_snapshot }} ×{{ $it->quantity }}{{ $it->special_quantity > 0 ? ' (' . $it->special_quantity . ' special order)' : '' }}</div>
           @endforeach
