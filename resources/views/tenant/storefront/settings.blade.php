@@ -274,6 +274,20 @@
         </div>
       </div>
 
+      {{-- MARKER-ORDER-SHIPMENTS --}}
+      <div class="ec-sec">
+        <h3>Shipping</h3>
+        <div class="ec-row"><div><div class="t">Ship orders to an address</div><div class="d">Customers enter a street address at checkout. An order that comes from more than one place ships as separate shipments, and each is priced on its own.</div></div><div class="ctl"><label class="tg"><input type="checkbox" name="ship_enabled" id="shipOn" value="1" @checked(old('ship_enabled', $cfg['ship_enabled']))><i></i></label></div></div>
+        <div class="ec-sub" id="shipBox">
+          <div class="ec-row"><div><div class="t">Shipping price per shipment</div><div class="d">A flat price. Zero means free shipping.</div></div><div class="ctl"><span class="ec-pre">$ <input class="ia-input" name="ship_fee" inputmode="decimal" value="{{ old('ship_fee', $cfg['ship_fee']) }}" placeholder="0.00"></span></div></div>
+          @if (($dist['access'] ?? 'hidden') === 'on')
+          <div class="ec-row"><div><div class="t">Price for a shipment from a supplier</div><div class="d">Leave blank to charge the same price as above.</div></div><div class="ctl"><span class="ec-pre">$ <input class="ia-input" name="ship_fee_supplier" inputmode="decimal" value="{{ old('ship_fee_supplier', $cfg['ship_fee_supplier']) }}" placeholder="same"></span></div></div>
+          @endif
+          <div class="ec-row"><div><div class="t">Free shipping over</div><div class="d">Leave blank for none. Judged after any discount, and applies to every shipment on the order.</div></div><div class="ctl"><span class="ec-pre">$ <input class="ia-input" name="ship_free_over" inputmode="decimal" value="{{ old('ship_free_over', $cfg['ship_free_over']) }}" placeholder="none"></span></div></div>
+          <div class="ec-note">Weight-based and carrier rates are planned. Today each shipment has one flat price.</div>
+        </div>
+      </div>
+
       <div class="ec-sec">
         <h3>Installation or assembly</h3>
         <div class="ec-row"><div><div class="t">Offer it at checkout</div><div class="d">Adds an "I'd like this installed" tick box. Requests show on the order for you to schedule.</div></div><div class="ctl"><label class="tg"><input type="checkbox" name="install_offer" value="1" @checked($cfg['install_offer'])><i></i></label></div></div>
@@ -341,7 +355,7 @@
       </div>
       <div class="ec-sec">
         <h3>What gets taxed</h3>
-        <div class="ec-row"><div><div class="t">Tax the delivery fee</div><div class="d">Off means delivery is untaxed. Some states tax it — check yours.</div></div><div class="ctl"><label class="tg"><input type="checkbox" name="tax_delivery_fee" value="1" @checked($cfg['tax_delivery_fee'])><i></i></label></div></div>
+        <div class="ec-row"><div><div class="t">Tax the delivery and shipping fees</div><div class="d">Off means delivery and shipping are untaxed. Some states tax them — check yours.</div></div><div class="ctl"><label class="tg"><input type="checkbox" name="tax_delivery_fee" value="1" @checked($cfg['tax_delivery_fee'])><i></i></label></div></div>
         <div class="ec-row"><div><div class="t">Tax-exempt items</div><div class="d">Items marked exempt in Inventory are never taxed, online or in store.</div></div><div class="ctl"><span class="ec-note">{{ $info['exempt'] }} {{ $info['exempt'] === 1 ? 'item' : 'items' }}</span></div></div>
         <div class="ec-row"><div><div class="t">Prices shown to customers</div><div class="d">Before tax. Tax is added at checkout.</div></div><div class="ctl"></div></div>
       </div>
@@ -423,6 +437,8 @@
       if(b.classList.contains('dn') && tr.nextElementSibling) tb.insertBefore(tr.nextElementSibling,tr);
     });
   });
+  var so=document.getElementById('shipOn'),sb=document.getElementById('shipBox');
+  if(so&&sb){var g=function(){sb.classList.toggle('hide',!so.checked)};so.addEventListener('change',g);g();}
   var on=document.getElementById('dsOn'),box=document.getElementById('dsBox');
   if(on&&box){var f=function(){box.classList.toggle('hide',!on.checked)};on.addEventListener('change',f);f();}
 })();

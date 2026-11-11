@@ -65,13 +65,35 @@
       @endforeach
       <div class="od-tot"><span>Subtotal</span><span>{{ $money($order->subtotal_cents) }}</span></div>
       <div class="od-tot"><span>Tax</span><span>{{ $money($order->tax_cents) }}</span></div>
-      @if($order->shipping_cents > 0)<div class="od-tot"><span>Delivery fee</span><span>{{ $money($order->shipping_cents) }}</span></div>@endif
+      @if($order->shipping_cents > 0)<div class="od-tot"><span>{{ $order->fulfillment_type === 'ship' ? 'Shipping' : 'Delivery fee' }}</span><span>{{ $money($order->shipping_cents) }}</span></div>@endif
       <div class="od-tot g"><span>Total</span><span>{{ $money($order->total_cents) }}</span></div>
     </div>
 
+    {{-- MARKER-ORDER-SHIPMENTS: one box per source, each priced on its own --}}
+    @php $ships = $order->fulfillment_type === 'ship' ? $order->shipments()->with('items.orderItem')->get() : collect(); @endphp
+    @if($ships->isNotEmpty())
+    <div class="od-card">
+      <h3>Shipments</h3>
+      @foreach($ships as $i => $sh)
+        <div style="padding:10px 0;{{ $loop->last ? '' : 'border-bottom:.5px solid var(--ia-border);' }}">
+          <div style="display:flex;justify-content:space-between;gap:10px;font-weight:600">
+            <span>Shipment {{ $i + 1 }} · {{ $sh->source === 'supplier' ? 'From supplier: ' . ($sh->warehouse_name ?: 'warehouse') : 'From your shop' }}</span>
+            <span>{{ $sh->shipping_cents > 0 ? $money($sh->shipping_cents) : 'Free' }}</span>
+          </div>
+          @foreach($sh->items as $it)
+            <div style="font-size:13px;color:var(--ia-text-muted);margin-top:2px">{{ $it->orderItem?->name_snapshot }} ×{{ $it->quantity }}{{ $it->special_quantity > 0 ? ' (' . $it->special_quantity . ' special order)' : '' }}</div>
+          @endforeach
+          @if($sh->source === 'supplier')
+            <div style="font-size:12px;color:var(--ia-text-muted);margin-top:6px">Order these from {{ $sh->warehouse_name ?: 'the supplier' }} and have them ship straight to the customer's address above. Your shelf was not touched.</div>
+          @endif
+        </div>
+      @endforeach
+    </div>
+    @endif
+
     <div class="od-card">
       <h3>Fulfillment</h3>
-      <div class="od-kv"><span class="k">Method</span><span>{{ $order->fulfillment_type === 'local_delivery' ? 'Local delivery' : 'Pickup in store' }}</span></div>
+      <div class="od-kv"><span class="k">Method</span><span>{{ $order->fulfillment_type === 'ship' ? 'Shipping' : ($order->fulfillment_type === 'local_delivery' ? 'Local delivery' : 'Pickup in store') }}</span></div>
       @if($order->fulfillment_address)
         <div class="od-kv"><span class="k">Address</span><span>{{ $order->fulfillment_address['line'] ?? '' }}</span></div>
       @endif

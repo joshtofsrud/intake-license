@@ -8,7 +8,9 @@
   $accent = $tenant->accent_color ?? '#BEF264';
   $tname  = $tenant->name ?? 'Shop';
   $money = fn ($c) => $c !== null ? '$' . number_format($c / 100, 2) : '';
-  $inStock = ($item->computed_stock_count ?? 0) > 0;
+  // MARKER-ORDER-SHIPMENTS: a supplier warehouse that can ship it counts as in stock
+  $supBacked = \App\Services\Tenant\OrderStock::forTenant($tenant)->supplierBacked([$item->id]);
+  $inStock = ($item->computed_stock_count ?? 0) > 0 || isset($supBacked[$item->id]);
   // MARKER-ECOM-SETTINGS: in stock / special order (oversell on) / out of stock (can't be ordered)
   $words   = \App\Services\Tenant\OrderService::wording($tenant);
   $canBuy  = $inStock || (bool) $item->allow_oversell;

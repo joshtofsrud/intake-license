@@ -79,7 +79,7 @@
       <div class="panel">
         <h2>How you'll get it</h2>
         <div class="ful">
-          @php $defaultFul = ($config['pickup_enabled'] ?? true) ? 'pickup' : 'local_delivery'; @endphp
+          @php $defaultFul = ($config['pickup_enabled'] ?? true) ? 'pickup' : (($config['local_delivery'] ?? false) ? 'local_delivery' : 'ship'); @endphp
           @if($config['pickup_enabled'] ?? true)
           <label class="on" id="ful-pickup">
             <input type="radio" name="ful" value="pickup" checked>
@@ -92,6 +92,26 @@
               <b>Local delivery</b><span class="fee">{{ $config['delivery_fee_cents'] > 0 ? $money($config['delivery_fee_cents']) : 'Free' }}{{ ($config['free_delivery_over_cents'] ?? null) !== null && $config['delivery_fee_cents'] > 0 ? ' — free over ' . $money($config['free_delivery_over_cents']) : '' }}{{ !empty($config['delivery_zips']) ? ' — ZIP ' . implode(', ', array_slice($config['delivery_zips'], 0, 6)) . (count($config['delivery_zips']) > 6 ? '…' : '') : ' — our service area' }}</span>
             </label>
           @endif
+          {{-- MARKER-ORDER-SHIPMENTS --}}
+          @if($config['ship_enabled'] ?? false)
+            <label id="ful-ship" class="{{ $defaultFul === 'ship' ? 'on' : '' }}">
+              <input type="radio" name="ful" value="ship" {{ $defaultFul === 'ship' ? 'checked' : '' }}>
+              <b>Ship to me</b><span class="fee">{{ ($config['ship_fee_cents'] ?? 0) > 0 ? $money($config['ship_fee_cents']) . ' per shipment' : 'Free shipping' }}{{ ($config['ship_free_over_cents'] ?? null) !== null && ($config['ship_fee_cents'] ?? 0) > 0 ? ' — free over ' . $money($config['ship_free_over_cents']) : '' }}</span>
+            </label>
+          @endif
+        </div>
+        @if(!empty($shipOnly))
+          <div class="err" id="ship-only" style="display:none">
+            @foreach($shipOnly as $m){{ $m }} @endforeach
+          </div>
+        @endif
+        <div id="ship-wrap" style="display:none">
+          <input type="text" id="f-sl1" placeholder="Street address" autocomplete="address-line1">
+          <input type="text" id="f-sl2" placeholder="Apartment, suite, etc. (optional)" autocomplete="address-line2" style="margin-top:8px">
+          <div class="grid2" style="margin-top:8px">
+            <input type="text" id="f-scity" placeholder="City" autocomplete="address-level2">
+            <div class="grid2"><input type="text" id="f-sstate" placeholder="State" maxlength="2" autocomplete="address-level1"><input type="text" id="f-szip" placeholder="ZIP code" inputmode="numeric" autocomplete="postal-code"></div>
+          </div>
         </div>
         <div id="addr-wrap">
           <input type="text" id="f-addr" placeholder="Delivery address" autocomplete="street-address">
@@ -148,6 +168,7 @@
           <span class="p">{{ $money($l->line_total_cents) }}</span>
         </div>
       @endforeach
+      <div id="s-ships" style="display:none;margin:10px 0"></div>
       <div class="sum-line"><span>Subtotal</span><span id="s-sub">{{ $money($quotePickup['subtotal_cents']) }}</span></div>
       {{-- the discount is already in the total, so it
            has to be shown or the numbers don't add up on screen. --}}
@@ -155,7 +176,7 @@
         <div class="sum-line"><span>{{ !empty($quotePickup['discount_code']) ? 'Discount (' . $quotePickup['discount_code'] . ')' : 'Discount' }}</span><span id="s-disc">&minus;{{ $money($quotePickup['discount_cents']) }}</span></div>
       @endif
       <div class="sum-line"><span>Tax</span><span id="s-tax">{{ $money($quotePickup['tax_cents']) }}</span></div>
-      <div class="sum-line" id="s-fee-row" style="display:none"><span>Delivery</span><span id="s-fee">{{ $money($quoteDelivery['shipping_cents']) }}</span></div>
+      <div class="sum-line" id="s-fee-row" style="display:none"><span id="s-fee-label">Delivery</span><span id="s-fee">{{ $money($quoteDelivery['shipping_cents']) }}</span></div>
       <div class="sum-line total"><span>Total</span><span id="s-total">{{ $money($quotePickup['total_cents']) }}</span></div>
     </div>
   </div>
@@ -165,24 +186,50 @@
 <script>
 (function () {
   var PK = @json($stripePk);
-  var QUOTES = { pickup: @json($quotePickup), local_delivery: @json($quoteDelivery) };
+  var QUOTES = { pickup: @json($quotePickup), local_delivery: @json($quoteDelivery), ship: @json($quoteShip ?? null) };
+  var SHIP_ONLY = @json(!empty($shipOnly));
+  var SUPPLIER_LABEL = @json(\App\Services\Distributors\WarehouseRegistry::shopConfig($tenant)['label']);
+  var esc = function (t) { return String(t == null ? '' : t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  var IDS = { pickup: 'ful-pickup', local_delivery: 'ful-delivery', ship: 'ful-ship' };
   var money = function (c) { return '$' + (c / 100).toFixed(2); };
   var ful = @json($defaultFul ?? 'pickup'), stripe = null, elements = null, placed = false;
 
+  function shipments(q) {
+    var box = document.getElementById('s-ships');
+    if (!q || !q.shipments || !q.shipments.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+    box.innerHTML = q.shipments.map(function (sh, i) {
+      var title = sh.source === 'supplier' ? SUPPLIER_LABEL : 'Ships from our shop';
+      var when = sh.source === 'supplier' && sh.handling_days > 0 ? ' · ships in about ' + sh.handling_days + ' business day' + (sh.handling_days === 1 ? '' : 's') : '';
+      var rows = sh.lines.map(function (l) { return '<div style="display:flex;justify-content:space-between;font-size:12.5px;opacity:.75"><span>' + esc(l.name) + ' ×' + l.qty + (l.special ? ' (special order)' : '') + '</span></div>'; }).join('');
+      return '<div style="border:1.5px solid rgba(0,0,0,.09);border-radius:12px;padding:10px 12px;margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-weight:650;font-size:13px"><span>Shipment ' + (i + 1) + ' · ' + esc(title) + '</span><span>' + (sh.shipping_cents > 0 ? money(sh.shipping_cents) : 'Free') + '</span></div>'
+        + (when ? '<div style="font-size:12px;opacity:.6;margin:2px 0 6px">' + esc(when.replace(' · ', '')) + '</div>' : '<div style="height:6px"></div>') + rows + '</div>';
+    }).join('');
+    box.style.display = 'block';
+  }
   function pickFul(kind) {
     ful = kind;
     document.querySelectorAll('.ful label').forEach(function (l) { l.classList.remove('on'); });
-    document.getElementById(kind === 'pickup' ? 'ful-pickup' : 'ful-delivery').classList.add('on');
+    var el = document.getElementById(IDS[kind]); if (el) el.classList.add('on');
     document.getElementById('addr-wrap').style.display = kind === 'local_delivery' ? 'block' : 'none';
-    document.getElementById('s-fee-row').style.display = kind === 'local_delivery' ? 'flex' : 'none';
+    document.getElementById('ship-wrap').style.display = kind === 'ship' ? 'block' : 'none';
+    var feeOn = kind === 'local_delivery' || kind === 'ship';
+    document.getElementById('s-fee-row').style.display = feeOn ? 'flex' : 'none';
+    document.getElementById('s-fee-label').textContent = kind === 'ship' ? 'Shipping' : 'Delivery';
     var q = QUOTES[kind];
+    document.getElementById('s-fee').textContent = money(q.shipping_cents || 0);
     document.getElementById('s-tax').textContent = money(q.tax_cents);
     document.getElementById('s-total').textContent = money(q.total_cents);
+    shipments(kind === 'ship' ? q : null);
+    // lines only a supplier can supply can't be picked up or delivered locally
+    var so = document.getElementById('ship-only');
+    var blocked = SHIP_ONLY && kind !== 'ship';
+    if (so) so.style.display = blocked ? 'block' : 'none';
+    document.getElementById('go').disabled = blocked;
   }
   document.querySelectorAll('.ful input').forEach(function (r) {
     r.addEventListener('change', function () { pickFul(r.value); });
   });
-  if (ful !== 'pickup') pickFul(ful); // MARKER-ECOM-SETTINGS: pickup turned off — start on delivery
+  if (ful !== 'pickup' || SHIP_ONLY) pickFul(ful); // start on whatever is offered first, and apply the ships-only notice
 
   function fail(msg) {
     var e = document.getElementById('err');
@@ -202,11 +249,17 @@
         phone:      document.getElementById('f-phone').value.trim(),
         fulfillment_type: ful,
         address:    document.getElementById('f-addr').value.trim(),
+        ship_line1: document.getElementById('f-sl1').value.trim(),
+        ship_line2: document.getElementById('f-sl2').value.trim(),
+        ship_city:  document.getElementById('f-scity').value.trim(),
+        ship_state: document.getElementById('f-sstate').value.trim(),
+        ship_zip:   document.getElementById('f-szip').value.trim(),
         notes:      document.getElementById('f-notes').value.trim(),
         wants_install: document.getElementById('f-install').checked ? 1 : 0
       };
       if (!body.first_name || !body.last_name || !body.email) return fail('Name and email are required.');
       if (ful === 'local_delivery' && !body.address) return fail('Delivery needs an address.');
+      if (ful === 'ship' && (!body.ship_line1 || !body.ship_city || !body.ship_state || !body.ship_zip)) return fail('Shipping needs a full address: street, city, state and ZIP code.');
       // manual methods don't need Stripe
       var pmEl = document.querySelector('input[name="pm"]:checked');
       body.payment_method = pmEl ? pmEl.value : 'card';

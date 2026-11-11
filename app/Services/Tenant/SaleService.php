@@ -537,6 +537,11 @@ class SaleService
         // (survives drafts/quotes; commitDraft activates from the row). Tax
         // is charged when the card is SPENT, never when it is sold.
         $metadata = null;
+        // MARKER-ORDER-SHIPMENTS: a product line a supplier ships straight to the customer. It is sold
+        // and costed like any other, but the shop never held it, so its shelf is never touched.
+        if ($type === 'product' && ! empty($data['dropship'])) {
+            $metadata = ['dropship' => true, 'warehouse_id' => $data['dropship']['warehouse_id'] ?? null, 'warehouse' => $data['dropship']['warehouse'] ?? null];
+        }
         if ($type === 'gift_card') {
             $isTaxable = false;
             $gc = (array) ($data['gift_card'] ?? []);
@@ -979,6 +984,7 @@ class SaleService
                     'service_id'          => $orig->service_id,
                     'inventory_item_id'   => $orig->inventory_item_id,
                     'gift_card_id'        => $orig->gift_card_id,
+                    'metadata'            => ! empty(((array) $orig->metadata)['dropship']) ? $orig->metadata : null, // MARKER-ORDER-SHIPMENTS: a supplier-shipped line stays marked on its refund
                     'name_snapshot'       => $orig->name_snapshot,
                     'description_snapshot'=> $orig->description_snapshot,
                     'cost_cents_snapshot' => $orig->cost_cents_snapshot,

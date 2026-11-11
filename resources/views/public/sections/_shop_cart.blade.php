@@ -9,6 +9,8 @@
   // MARKER-ECOM-STOCK-GUARD
   $blocked = $stock['blocked'] ?? [];
   $special = $stock['special'] ?? [];
+  $sources = $stock['sources'] ?? []; // MARKER-ORDER-SHIPMENTS: where each line ships from
+  $supplierLabel = $supplierLabel ?? 'Ships directly from our supplier';
   $specialNotice = \App\Services\Tenant\OrderService::wording($tenant)['special_notice'];
 @endphp
 <style>
@@ -42,6 +44,7 @@
   .spg-cart .cta-note { font-size: 12px; opacity: .5; text-align: center; margin-top: 8px; }
   .spg-cart .line.bad { background: rgba(192,57,43,.05); }
   .spg-cart .line .why { font-size: 12.5px; font-weight: 600; color: #b3261e; margin-top: 6px; line-height: 1.45; }
+  .spg-cart .line .src { font-size: 12.5px; opacity: .7; margin-top: 6px; line-height: 1.45; }
   .spg-cart .line .so { font-size: 12.5px; font-weight: 600; color: #8a5a00; margin-top: 6px; line-height: 1.45; }
   .spg-cart .stopbox { background: rgba(192,57,43,.07); border: 1.5px solid rgba(192,57,43,.28); color: #8f1d14; border-radius: 12px; padding: 12px 16px; font-size: 13.5px; line-height: 1.5; margin-bottom: 16px; }
   .spg-cart .stopbox b { display: block; margin-bottom: 2px; }
@@ -88,6 +91,13 @@
             <div class="unit">{{ $money($line->unit_price_cents) }} each</div>
             @if(isset($blocked[$line->id]))
               <div class="why">{{ $blocked[$line->id]['message'] }}</div>
+            @elseif(isset($sources[$line->id]) && collect($sources[$line->id])->contains(fn ($x) => $x['source'] === 'supplier'))
+              @php $segs = $sources[$line->id]; $many = count($segs) > 1; @endphp
+              <div class="src">
+                @foreach($segs as $sg)
+                  {{ $many ? $sg['qty'] . ' · ' : '' }}{{ $sg['source'] === 'supplier' ? $supplierLabel : ($sg['source'] === 'shop' ? 'Ships from our shop' : 'Special order') }}@if(! $loop->last)<br>@endif
+                @endforeach
+              </div>
             @elseif(isset($special[$line->id]))
               <div class="so">{{ $special[$line->id]['have'] > 0 ? $special[$line->id]['have'] . ' in stock now; the other ' . $special[$line->id]['short'] . ' ' . ($special[$line->id]['short'] === 1 ? 'is' : 'are') . ' a special order.' : 'Special order.' }} {{ $specialNotice }}</div>
             @endif
@@ -137,7 +147,7 @@
     @endif
 
 
-    <div class="sum-note">Tax and any delivery fee are calculated at checkout.</div>
+    <div class="sum-note">Tax and any delivery or shipping fee are calculated at checkout.</div>
 
     {{-- checkout is live --}}
     @if(count($blocked))
@@ -145,7 +155,7 @@
       <div class="cta-note">Nothing has been charged.</div>
     @else
       <a class="cta" href="/checkout" style="cursor:pointer;opacity:1;text-decoration:none">Checkout</a>
-      <div class="cta-note">Secure payment · pickup or local delivery</div>
+      <div class="cta-note">Secure payment</div>
     @endif
   @endif
 

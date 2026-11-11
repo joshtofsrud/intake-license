@@ -38,7 +38,7 @@ class CheckoutController extends Controller
 
         // MARKER-ECOM-STOCK-GUARD: something sold out since it went in the cart —
         // stop here, before any payment form, and say exactly what.
-        $stock = \App\Services\Tenant\OrderStock::forTenant($tenant)->inspect($cart);
+        $stock = \App\Services\Tenant\OrderStock::forTenant($tenant)->inspect($cart, \App\Services\Tenant\OrderStock::MODE_CART);
         if ($stock['blocked']) {
             return redirect('/cart')->with('shop_error', \App\Exceptions\OnlineOrderStockException::summary($stock['blocked']));
         }
@@ -46,11 +46,18 @@ class CheckoutController extends Controller
         $orders = OrderService::forTenant($tenant);
         $pk = (new DirectPaymentsService($tenant))->publishableKey();
 
+        // MARKER-ORDER-SHIPMENTS: lines only a supplier can supply can't be picked up or delivered locally
+        $pickupCheck = \App\Services\Tenant\OrderStock::forTenant($tenant)->inspect($cart, \App\Services\Tenant\OrderStock::MODE_PICKUP);
+        $shipOnly = collect($pickupCheck['blocked'])->filter(fn ($b) => ($b['reason'] ?? null) === \App\Services\Tenant\OrderStock::REASON_SHIP_ONLY)->pluck('message')->values()->all();
+        $cfgNow = $orders->config();
+
         return \App\Services\Tenant\SiteChromeService::render($tenant, 'shop_checkout', [
             'tenant'   => $tenant,
             'cart'     => $cart->load('items'),
             'quotePickup'   => $orders->quote($cart, 'pickup'),
             'quoteDelivery' => $orders->quote($cart, 'local_delivery'),
+            'quoteShip'     => $cfgNow['ship_enabled'] ? $orders->quote($cart, 'ship') : null,
+            'shipOnly'      => $shipOnly,
             'config'   => $orders->config(),
             'special'  => $stock['special'],
             'stripePk' => $pk,
@@ -68,8 +75,13 @@ class CheckoutController extends Controller
             'last_name'        => ['required', 'string', 'max:80'],
             'email'            => ['required', 'email', 'max:160'],
             'phone'            => ['nullable', 'string', 'max:40'],
-            'fulfillment_type' => ['required', 'in:pickup,local_delivery'],
+            'fulfillment_type' => ['required', 'in:pickup,local_delivery,ship'],
             'address'          => ['nullable', 'string', 'max:300'],
+            'ship_line1'       => ['nullable', 'string', 'max:120'],
+            'ship_line2'       => ['nullable', 'string', 'max:120'],
+            'ship_city'        => ['nullable', 'string', 'max:80'],
+            'ship_state'       => ['nullable', 'string', 'max:40'],
+            'ship_zip'         => ['nullable', 'string', 'max:12'],
             'notes'            => ['nullable', 'string', 'max:500'],
             'wants_install'    => ['nullable', 'boolean'],
             'payment_method'   => ['nullable', 'string', 'max:40'],
@@ -109,6 +121,27 @@ class CheckoutController extends Controller
             }
         }
 
+        // MARKER-ORDER-SHIPMENTS: shipping needs a full street address
+        $shipAddress = null;
+        if ($data['fulfillment_type'] === 'ship') {
+            abort_unless($cfg['ship_enabled'], 422, 'Shipping is not available.');
+            foreach (['ship_line1' => 'street address', 'ship_city' => 'city', 'ship_state' => 'state', 'ship_zip' => 'ZIP code'] as $k => $label) {
+                if (blank($data[$k] ?? null)) {
+                    return response()->json(['ok' => false, 'message' => "Shipping needs a {$label}."], 422);
+                }
+            }
+            $zip = trim((string) $data['ship_zip']);
+            if (! preg_match('/^\d{5}(-\d{4})?$/', $zip)) {
+                return response()->json(['ok' => false, 'message' => 'Please enter a 5-digit ZIP code.'], 422);
+            }
+            $line1 = trim((string) $data['ship_line1']); $line2 = trim((string) ($data['ship_line2'] ?? ''));
+            $city = trim((string) $data['ship_city']); $st = strtoupper(trim((string) $data['ship_state']));
+            $shipAddress = [
+                'line' => trim($line1 . ($line2 !== '' ? ', ' . $line2 : '') . ", {$city}, {$st} {$zip}"),
+                'line1' => $line1, 'line2' => $line2, 'city' => $city, 'state' => $st, 'zip' => $zip,
+            ];
+        }
+
         $cart = CartService::forTenant($tenant)->current();
         if (! $cart || $cart->items->isEmpty()) {
             return response()->json(['ok' => false, 'message' => 'Your cart is empty.'], 422);
@@ -122,7 +155,7 @@ class CheckoutController extends Controller
                 'phone'      => $data['phone'] ?? null,
             ], [
                 'type'          => $data['fulfillment_type'],
-                'address'       => filled($data['address'] ?? null) ? ['line' => $data['address']] : null,
+                'address'       => $shipAddress ?? (filled($data['address'] ?? null) ? ['line' => $data['address']] : null),
                 'notes'         => $data['notes'] ?? null,
                 'wants_install' => (bool) ($data['wants_install'] ?? false),
             ], $manualMethod);

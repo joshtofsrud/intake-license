@@ -50,6 +50,11 @@ class StorefrontSettingsController extends Controller
                 'delivery_fee'        => $cents($oc['delivery_fee_cents']),
                 'free_over'           => $cents($oc['free_delivery_over_cents']),
                 'delivery_zips'       => implode(', ', $oc['delivery_zips']),
+                // MARKER-ORDER-SHIPMENTS
+                'ship_enabled'        => $oc['ship_enabled'],
+                'ship_fee'            => $cents($oc['ship_fee_cents']),
+                'ship_fee_supplier'   => $cents($oc['ship_fee_supplier_cents']),
+                'ship_free_over'      => $cents($oc['ship_free_over_cents']),
                 'install_offer'       => $oc['install_offer'],
                 'install_label'       => (string) ($s['install_label'] ?? ''),
                 'install_default'     => \App\Services\Tenant\OrderService::DEFAULT_INSTALL_LABEL,
@@ -114,10 +119,13 @@ class StorefrontSettingsController extends Controller
                     'free_over'           => ['nullable', 'numeric', 'min:0', 'max:100000'],
                     'delivery_zips'       => ['nullable', 'string', 'max:2000'],
                     'install_label'       => ['nullable', 'string', 'max:160'],
+                    'ship_fee'            => ['nullable', 'numeric', 'min:0', 'max:500'],
+                    'ship_fee_supplier'   => ['nullable', 'numeric', 'min:0', 'max:500'],
+                    'ship_free_over'      => ['nullable', 'numeric', 'min:0', 'max:100000'],
                 ]);
-                if (! $request->boolean('pickup_enabled') && ! $request->boolean('local_delivery')) {
+                if (! $request->boolean('pickup_enabled') && ! $request->boolean('local_delivery') && ! $request->boolean('ship_enabled')) {
                     return back()->withInput()->with('ecom_tab', $tab)
-                        ->with('error', 'Turn on pickup or local delivery. With both off, nobody could check out.');
+                        ->with('error', 'Turn on pickup, local delivery or shipping. With all three off, nobody could check out.');
                 }
                 $sf = array_merge($sf, [
                     'pickup_enabled'           => $request->boolean('pickup_enabled'),
@@ -126,6 +134,10 @@ class StorefrontSettingsController extends Controller
                     'delivery_fee_cents'       => (int) ($cents($data['delivery_fee'] ?? null) ?? 0),
                     'free_delivery_over_cents' => $cents($data['free_over'] ?? null),
                     'delivery_zips'            => implode(', ', \App\Services\Tenant\OrderService::parseZips((string) ($data['delivery_zips'] ?? ''))),
+                    'ship_enabled'             => $request->boolean('ship_enabled'),
+                    'ship_fee_cents'           => (int) ($cents($data['ship_fee'] ?? null) ?? 0),
+                    'ship_fee_supplier_cents'  => $cents($data['ship_fee_supplier'] ?? null),
+                    'ship_free_over_cents'     => $cents($data['ship_free_over'] ?? null),
                     'install_offer'            => $request->boolean('install_offer'),
                     'install_label'            => trim((string) ($data['install_label'] ?? '')),
                 ]);

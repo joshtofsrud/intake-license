@@ -12,7 +12,7 @@
   @forelse($onlineOrders as $o)
     <a class="ac-list-row" href="{{ route('tenant.order.confirmation', $o->token) }}" style="text-decoration:none">
       <div><div class="ac-list-name">{{ $o->order_number }}</div>
-        <div class="ac-list-meta">{{ (int) $o->items->sum('quantity') }} {{ \Illuminate\Support\Str::plural('item', (int) $o->items->sum('quantity')) }} &middot; {{ $o->fulfillment_type === 'local_delivery' ? 'delivery' : 'pickup' }} &middot; {{ tlocal_date($o->created_at) }}</div></div>
+        <div class="ac-list-meta">{{ (int) $o->items->sum('quantity') }} {{ \Illuminate\Support\Str::plural('item', (int) $o->items->sum('quantity')) }} &middot; {{ $o->fulfillment_type === 'ship' ? 'shipping' : ($o->fulfillment_type === 'local_delivery' ? 'delivery' : 'pickup') }} &middot; {{ tlocal_date($o->created_at) }}</div></div>
       <div class="ac-list-right"><div style="font-weight:700">${{ number_format($o->total_cents / 100, 2) }}</div>
         <div style="font-size:11px;opacity:.55;text-transform:capitalize">{{ str_replace('_', ' ', $o->status) }}</div></div>
     </a>

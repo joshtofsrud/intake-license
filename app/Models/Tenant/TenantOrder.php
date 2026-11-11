@@ -71,6 +71,7 @@ class TenantOrder extends Model
     public function customer(): BelongsTo { return $this->belongsTo(TenantCustomer::class, 'customer_id'); }
     public function sale(): BelongsTo     { return $this->belongsTo(TenantSale::class, 'sale_id'); }
     public function location(): BelongsTo { return $this->belongsTo(TenantLocation::class, 'location_id'); }
+    public function shipments(): HasMany  { return $this->hasMany(TenantOrderShipment::class, 'order_id')->orderBy('created_at'); } // MARKER-ORDER-SHIPMENTS
 
     // ---- helpers ---------------------------------------------------
 

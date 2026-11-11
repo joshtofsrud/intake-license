@@ -50,7 +50,7 @@
         <td style="font-weight:700">{{ $o->order_number }}</td>
         <td>{{ $o->contactName() ?: '—' }}</td>
         <td>{{ (int) $o->items->sum('quantity') }} item{{ $o->items->sum('quantity') == 1 ? '' : 's' }}</td>
-        <td><span class="od-ful">{{ $o->fulfillment_type === 'local_delivery' ? '🚚 Delivery' : '🏪 Pickup' }}{{ $o->wants_install ? ' · install' : '' }}</span></td>
+        <td><span class="od-ful">{{ $o->fulfillment_type === 'ship' ? '📦 Shipping' : ($o->fulfillment_type === 'local_delivery' ? '🚚 Delivery' : '🏪 Pickup') }}{{ $o->wants_install ? ' · install' : '' }}</span></td>
         <td style="text-align:right;font-variant-numeric:tabular-nums">${{ number_format($o->total_cents / 100, 2) }}</td>
         <td><span class="od-st {{ $o->status }}">{{ str_replace('_', ' ', $o->status) }}</span></td>
         <td style="color:var(--ia-text-muted)">{{ $o->paid_at ? tlocal($o->paid_at, 'M j, g:i a') : tlocal($o->created_at, 'M j, g:i a') }}</td>

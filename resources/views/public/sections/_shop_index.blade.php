@@ -100,6 +100,7 @@
     <div class="empty">Nothing here yet{{ $q ? ' for "' . $q . '"' : '' }}.</div>
   @else
     <div class="grid">
+      @php $supBacked = \App\Services\Tenant\OrderStock::forTenant($tenant)->supplierBacked($items->pluck('id')->all()); @endphp
       @foreach($items as $item)
         <a class="card" href="/shop/{{ $item->id }}">
           <div class="ph">
@@ -111,7 +112,7 @@
             <div class="foot">
               <div class="price">{{ $money($item->effectiveSellPriceCents()) }}</div>
               {{-- MARKER-ECOM-SETTINGS: three honest states --}}
-              @if(($item->computed_stock_count ?? 0) > 0)
+              @if(($item->computed_stock_count ?? 0) > 0 || isset($supBacked[$item->id]))
                 <span class="stock in">In stock</span>
               @elseif($item->allow_oversell)
                 <span class="stock order">Special order</span>

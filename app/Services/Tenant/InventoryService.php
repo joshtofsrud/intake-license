@@ -44,6 +44,11 @@ class InventoryService
             return; // service / open_item / gift_card lines don't touch inventory
         }
 
+        // MARKER-ORDER-SHIPMENTS: shipped by a supplier; never on this shop's shelf
+        if (! empty(((array) $item->metadata)['dropship'])) {
+            return;
+        }
+
         $qty = $qtyOverride ?? (int) ceil((float) $item->quantity);
         if ($qty <= 0) {
             return;
@@ -198,6 +203,11 @@ class InventoryService
     public function incrementForRefund(TenantSale $refund, TenantSaleItem $item, string $locationId, ?int $qtyOverride = null): void
     {
         if ($item->type !== 'product' || !$item->inventory_item_id) {
+            return;
+        }
+
+        // MARKER-ORDER-SHIPMENTS: a supplier-shipped line never left this shop's shelf, so nothing goes back on it
+        if (! empty(((array) $item->metadata)['dropship'])) {
             return;
         }
 

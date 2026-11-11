@@ -98,7 +98,19 @@
 
   @if($paid)
     <div class="next">
-      @if($order->fulfillment_type === 'local_delivery')
+      @if($order->fulfillment_type === 'ship')
+        {{-- MARKER-ORDER-SHIPMENTS --}}
+        @php $ships = $order->shipments()->with('items.orderItem')->get(); $supLabel = \App\Services\Distributors\WarehouseRegistry::shopConfig($tenant)['label']; @endphp
+        <b>{{ $ships->count() > 1 ? 'Shipping in ' . $ships->count() . ' shipments' : 'Shipping' }}</b>
+        To {{ $order->fulfillment_address['line'] ?? 'your address' }}.
+        @foreach($ships as $i => $sh)
+          <div style="margin-top:8px">
+            <b style="display:inline">{{ $ships->count() > 1 ? 'Shipment ' . ($i + 1) . ' · ' : '' }}{{ $sh->source === 'supplier' ? $supLabel : 'Ships from our shop' }}</b>{{ $sh->source === 'supplier' && $sh->handling_days > 0 ? ' — ships in about ' . $sh->handling_days . ' business day' . ($sh->handling_days === 1 ? '' : 's') : '' }}
+            @if($sh->tracking_number)<br>Tracking: {{ $sh->carrier ? $sh->carrier . ' ' : '' }}{{ $sh->tracking_number }}@endif
+            <br>@foreach($sh->items as $it){{ $it->orderItem?->name_snapshot }} ×{{ $it->quantity }}@if(! $loop->last), @endif @endforeach
+          </div>
+        @endforeach
+      @elseif($order->fulfillment_type === 'local_delivery')
         <b>Local delivery</b>
         We'll reach out to line up a delivery window to {{ $order->fulfillment_address['line'] ?? 'your address' }}.
       @else

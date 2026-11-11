@@ -33,8 +33,9 @@ class CartController extends Controller
             'cart'   => $cart?->load('items'),
             // MARKER-ECOM-STOCK-GUARD: lines the shop can no longer hand over, and lines that will be special-ordered
             'stock'  => $cart && $cart->items->isNotEmpty()
-                ? \App\Services\Tenant\OrderStock::forTenant(tenant())->inspect($cart)
-                : ['blocked' => [], 'special' => []],
+                ? \App\Services\Tenant\OrderStock::forTenant(tenant())->inspect($cart, \App\Services\Tenant\OrderStock::MODE_CART)
+                : ['blocked' => [], 'special' => [], 'sources' => []],
+            'supplierLabel' => \App\Services\Distributors\WarehouseRegistry::shopConfig(tenant())['label'],
         ]);
     }
 
@@ -58,7 +59,7 @@ class CartController extends Controller
         $svc     = CartService::forTenant(tenant());
         $already = (int) ($svc->current()?->items->where('inventory_item_id', $item->id)->sum(fn ($l) => (float) $l->quantity) ?? 0);
         $want    = $already + (int) ($data['quantity'] ?? 1);
-        $r       = \App\Services\Tenant\OrderStock::forTenant(tenant())->checkItem($item, $want);
+        $r       = \App\Services\Tenant\OrderStock::forTenant(tenant())->checkItem($item, $want, null, \App\Services\Tenant\OrderStock::MODE_CART);
         if ($r['status'] === 'blocked') {
             $msg = $r['reason'] === \App\Services\Tenant\OrderStock::REASON_SHORT && $already > 0
                 ? "We only have {$r['have']} of {$item->name} and you already have {$already} in your cart."
@@ -82,7 +83,7 @@ class CartController extends Controller
                 $line = $cart->items->firstWhere('id', $lineId);
                 if ($line) {
                     $item = TenantInventoryItem::query()->where('tenant_id', tenant()->id)->find($line->inventory_item_id);
-                    $r    = \App\Services\Tenant\OrderStock::forTenant(tenant())->checkItem($item, (int) $data['quantity']);
+                    $r    = \App\Services\Tenant\OrderStock::forTenant(tenant())->checkItem($item, (int) $data['quantity'], null, \App\Services\Tenant\OrderStock::MODE_CART);
                     if ($r['status'] === 'blocked') {
                         return redirect('/cart')->with('shop_error', \App\Services\Tenant\OrderStock::message($line->name_snapshot, $r));
                     }

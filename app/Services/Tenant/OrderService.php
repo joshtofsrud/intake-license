@@ -45,6 +45,13 @@ class OrderService
             'tax_delivery_fee'    => (bool) ($s['tax_delivery_fee'] ?? false),
             'install_label'       => trim((string) ($s['install_label'] ?? '')) ?: self::DEFAULT_INSTALL_LABEL,
             'hold_hours'          => max(1, (int) ($s['hold_hours'] ?? 24)),
+            // MARKER-ORDER-SHIPMENTS: ship to an address, a flat fee per shipment
+            'ship_enabled'        => (bool) ($s['ship_enabled'] ?? false),
+            'ship_fee_cents'      => max(0, (int) ($s['ship_fee_cents'] ?? 0)),
+            'ship_fee_supplier_cents' => (isset($s['ship_fee_supplier_cents']) && $s['ship_fee_supplier_cents'] !== '' && $s['ship_fee_supplier_cents'] !== null)
+                ? max(0, (int) $s['ship_fee_supplier_cents']) : null,
+            'ship_free_over_cents' => (isset($s['ship_free_over_cents']) && $s['ship_free_over_cents'] !== '' && $s['ship_free_over_cents'] !== null)
+                ? (int) $s['ship_free_over_cents'] : null,
         ];
     }
 
@@ -97,36 +104,25 @@ class OrderService
         // or the charged amount and the sale ledger diverge per line.
         $cart->loadMissing('items.inventoryItem:id,tax_class_code');
 
-        // a whole-cart discount reduces the taxable
-        // base, so spread it over the lines before taxing them. Largest
-        // remainder, same as SaleService, so the parts sum to the discount
-        // exactly and the Stripe charge matches the sale ledger to the cent.
+        // MARKER-ORDER-SHIPMENTS: when the order ships, a line can split across sources (the
+        // shop's shelf and a supplier). Each piece is taxed on its own, exactly as the sale
+        // will carry it, so the charge and the ledger match to the cent.
+        $alloc = []; $meta = [];
+        if ($fulfillmentType === 'ship') {
+            [$alloc, $meta] = $this->planAllocations($cart, OrderStock::MODE_SHIP);
+        }
+        $pieces = $this->pieces($cart, $alloc, $meta);
+
+        // a whole-cart discount reduces the taxable base, so spread it over the pieces
+        // before taxing them (largest remainder, same as SaleService).
         $gross    = (int) $cart->items->sum('line_total_cents');
         $discount = max(0, min((int) ($cart->discount_cents ?? 0), $gross));
-        $alloc    = [];
+        $spread   = ShipmentMath::allocate($discount, array_map(fn ($p) => $p['gross'], $pieces));
 
-        if ($discount > 0 && $gross > 0) {
-            $rem = [];
-            $run = 0;
-            foreach ($cart->items as $line) {
-                $exact              = $line->line_total_cents * $discount / $gross;
-                $alloc[$line->id]   = (int) floor($exact);
-                $rem[$line->id]     = $exact - $alloc[$line->id];
-                $run               += $alloc[$line->id];
-            }
-            arsort($rem);
-            $left = $discount - $run;
-            foreach (array_keys($rem) as $lineId) {
-                if ($left <= 0) break;
-                $alloc[$lineId]++;
-                $left--;
-            }
-        }
-
-        foreach ($cart->items as $line) {
-            $exempt = ($line->inventoryItem?->tax_class_code ?? null) === 'exempt';
+        foreach ($pieces as $i => $p) {
+            $exempt = ($p['line']->inventoryItem?->tax_class_code ?? null) === 'exempt';
             if ($rate > 0 && ! $exempt) {
-                $base = max(0, (int) $line->line_total_cents - (int) ($alloc[$line->id] ?? 0));
+                $base = max(0, (int) $p['gross'] - (int) ($spread[$i] ?? 0));
                 $tax += (int) round($base * ($rate / 100));
             }
         }
@@ -142,6 +138,11 @@ class OrderService
                 $shipping = 0;
             }
         }
+        $shipments = [];
+        if ($fulfillmentType === 'ship') {
+            $shipments = $this->shipmentSummary($cart, $alloc, $meta, max(0, $subtotal - $discount), $cfg);
+            $shipping  = (int) array_sum(array_column($shipments, 'shipping_cents'));
+        }
         $shippingTaxed = $shipping > 0 && $cfg['tax_delivery_fee'] && $rate > 0;
         if ($shippingTaxed) {
             $tax += (int) round($shipping * ($rate / 100));
@@ -154,9 +155,144 @@ class OrderService
             'tax_cents'      => $tax,
             'shipping_cents' => $shipping,
             'shipping_taxed' => $shippingTaxed,
+            'shipments'      => $shipments,
             'total_cents'    => max(0, $subtotal - $discount) + $tax + $shipping,
             'tax_rate'       => $rate,
         ];
+    }
+
+    /**
+     * MARKER-ORDER-SHIPMENTS: where every unit of every line comes from, for an order that
+     * ships. Returns [alloc, meta]:
+     *   alloc  lineId => [['key', 'qty', 'special'], ...]
+     *   meta   key    => ['source' => shop|supplier, 'warehouse_id', 'warehouse', 'handling_days']
+     * The shop's own stock goes first (or the supplier's, if the shop turned that around);
+     * units neither can cover and the shop allows oversold ride with the shop's shipment.
+     */
+    protected function planAllocations(TenantOrder $order, string $mode): array
+    {
+        $order->loadMissing('items');
+        $results = OrderStock::forTenant($this->tenant)->itemResults($order, $mode);
+        $cfg     = \App\Services\Distributors\WarehouseRegistry::shopConfig($this->tenant);
+
+        $whIds = [];
+        foreach ($results as $r) {
+            foreach (($r['plan']['segments'] ?? []) as $sg) {
+                if ($sg['source'] === 'supplier' && ! empty($sg['warehouse_id'])) $whIds[$sg['warehouse_id']] = true;
+            }
+        }
+        $hold = $whIds
+            ? \App\Models\DistributionWarehouse::query()->whereIn('id', array_keys($whIds))->pluck('handling_days', 'id')->all()
+            : [];
+
+        $meta = [];
+        $alloc = [];
+        foreach ($order->items->groupBy('inventory_item_id') as $itemId => $lines) {
+            $plan = $results[$itemId]['plan'] ?? null;
+            if (! $plan) continue;
+            $segments = [];
+            foreach ($plan['segments'] as $sg) {
+                if ($sg['source'] === 'shop') {
+                    $key = 'shop';
+                    $meta[$key] ??= ['source' => 'shop', 'warehouse_id' => null, 'warehouse' => null, 'handling_days' => 0];
+                } else {
+                    $key = 'wh:' . $sg['warehouse_id'];
+                    $meta[$key] ??= ['source' => 'supplier', 'warehouse_id' => $sg['warehouse_id'], 'warehouse' => $sg['warehouse'],
+                        'handling_days' => (int) ($hold[$sg['warehouse_id']] ?? 0) + (int) $cfg['handling_days']];
+                }
+                $segments[] = ['key' => $key, 'qty' => (int) $sg['qty'], 'special' => 0];
+            }
+            if ((int) $plan['special'] > 0) {
+                $meta['shop'] ??= ['source' => 'shop', 'warehouse_id' => null, 'warehouse' => null, 'handling_days' => 0];
+                $segments[] = ['key' => 'shop', 'qty' => (int) $plan['special'], 'special' => (int) $plan['special']];
+            }
+            $lineQty = $lines->mapWithKeys(fn ($l) => [$l->id => (int) ceil((float) $l->quantity)])->all();
+            foreach (ShipmentMath::distribute($lineQty, $segments) as $lineId => $parts) {
+                $alloc[$lineId] = $parts;
+            }
+        }
+        return [$alloc, $meta];
+    }
+
+    /** The shipments of a saved order, in the same shape planAllocations() returns. */
+    protected function savedAllocations(TenantOrder $order): array
+    {
+        $order->loadMissing('shipments.items');
+        $alloc = []; $meta = [];
+        foreach ($order->shipments as $sh) {
+            $meta[$sh->id] = ['source' => $sh->source, 'warehouse_id' => $sh->warehouse_id, 'warehouse' => $sh->warehouse_name, 'handling_days' => (int) $sh->handling_days];
+            foreach ($sh->items as $it) {
+                $alloc[$it->order_item_id][] = ['key' => $sh->id, 'qty' => (int) $it->quantity, 'special' => (int) $it->special_quantity];
+            }
+        }
+        return [$alloc, $meta];
+    }
+
+    /**
+     * What gets taxed and rung up: one piece per order line, or several when a line is
+     * split across shipments. [['line', 'qty', 'gross', 'key', 'meta'], ...]
+     */
+    protected function pieces(TenantOrder $order, array $alloc = [], array $meta = []): array
+    {
+        $order->loadMissing('items');
+        $out = [];
+        foreach ($order->items as $l) {
+            $parts = $alloc[$l->id] ?? [];
+            if (count($parts) <= 1) {
+                $k = $parts[0]['key'] ?? null;
+                $out[] = ['line' => $l, 'qty' => (float) $l->quantity, 'gross' => (int) $l->line_total_cents, 'key' => $k, 'meta' => $k !== null ? ($meta[$k] ?? null) : null];
+                continue;
+            }
+            foreach ($parts as $pt) {
+                $out[] = ['line' => $l, 'qty' => (float) $pt['qty'], 'gross' => (int) round($l->unit_price_cents * $pt['qty']), 'key' => $pt['key'], 'meta' => $meta[$pt['key']] ?? null];
+            }
+        }
+        return $out;
+    }
+
+    /** One entry per shipment, priced on its own: what the shopper is shown and what is saved. */
+    protected function shipmentSummary(TenantOrder $order, array $alloc, array $meta, int $baseAfterDiscount, array $cfg): array
+    {
+        $order->loadMissing('items');
+        $byId = $order->items->keyBy('id');
+        $lines = [];
+        foreach ($alloc as $lineId => $parts) {
+            foreach ($parts as $pt) {
+                $lines[$pt['key']][] = ['line_id' => $lineId, 'name' => $byId[$lineId]->name_snapshot ?? '', 'qty' => (int) $pt['qty'], 'special' => (int) $pt['special']];
+            }
+        }
+        $fees = ShipmentMath::fees(array_map(fn ($m) => $m['source'], $meta), $baseAfterDiscount,
+            $cfg['ship_free_over_cents'], $cfg['ship_fee_cents'], $cfg['ship_fee_supplier_cents']);
+
+        $out = [];
+        // the shop's own shipment first, then suppliers
+        uksort($meta, fn ($a, $b) => [$a !== 'shop', $a] <=> [$b !== 'shop', $b]);
+        foreach ($meta as $key => $m) {
+            $out[] = $m + ['key' => $key, 'shipping_cents' => (int) ($fees[$key] ?? 0), 'lines' => $lines[$key] ?? []];
+        }
+        return $out;
+    }
+
+    /** Save the shipments chosen at placement (replacing any from an earlier try at the same order). */
+    protected function persistShipments(TenantOrder $order, array $shipments): void
+    {
+        $existing = \App\Models\Tenant\TenantOrderShipment::query()->where('order_id', $order->id)->pluck('id');
+        if ($existing->isNotEmpty()) {
+            \App\Models\Tenant\TenantOrderShipmentItem::query()->whereIn('shipment_id', $existing)->delete();
+            \App\Models\Tenant\TenantOrderShipment::query()->whereIn('id', $existing)->delete();
+        }
+        foreach ($shipments as $sh) {
+            $row = \App\Models\Tenant\TenantOrderShipment::create([
+                'tenant_id' => $this->tenant->id, 'order_id' => $order->id, 'source' => $sh['source'],
+                'warehouse_id' => $sh['warehouse_id'], 'warehouse_name' => $sh['warehouse'],
+                'handling_days' => (int) $sh['handling_days'], 'shipping_cents' => (int) $sh['shipping_cents'], 'status' => 'pending',
+            ]);
+            foreach ($sh['lines'] as $ln) {
+                \App\Models\Tenant\TenantOrderShipmentItem::create([
+                    'shipment_id' => $row->id, 'order_item_id' => $ln['line_id'], 'quantity' => $ln['qty'], 'special_quantity' => $ln['special'],
+                ]);
+            }
+        }
     }
 
     /**
@@ -169,7 +305,7 @@ class OrderService
 
         // MARKER-ECOM-STOCK-GUARD: the last look before anything is created or
         // charged. If a line can't be handed over, say so now (no quiet failing).
-        $stock = OrderStock::forTenant($this->tenant)->inspect($cart);
+        $stock = OrderStock::forTenant($this->tenant)->inspect($cart, $fulfillment['type'] === 'ship' ? OrderStock::MODE_SHIP : OrderStock::MODE_PICKUP);
         if ($stock['blocked']) {
             throw new \App\Exceptions\OnlineOrderStockException($stock['blocked']);
         }
@@ -207,6 +343,12 @@ class OrderService
                 // MARKER-ECOM-SETTINGS: remember whether delivery was taxed, so the sale matches what was charged even if the setting changes before payment lands
                 'metadata'            => array_merge((array) ($cart->metadata ?? []), ['delivery_taxed' => (bool) ($quote['shipping_taxed'] ?? false)]),
             ])->save();
+
+            // MARKER-ORDER-SHIPMENTS: remember exactly how this order will ship, so the sale and the
+            // shipments list match what was priced, even if stock moves before payment lands
+            if ($fulfillment['type'] === 'ship') {
+                $this->persistShipments($cart, (array) ($quote['shipments'] ?? []));
+            }
 
             // redeem here, inside the same
             // transaction as the order. A code held only in a cart never
@@ -342,6 +484,26 @@ class OrderService
     {
         $order->loadMissing('items');
         $out = [];
+        // MARKER-ORDER-SHIPMENTS: for an order that ships, only the shop's own shipment draws on its shelf
+        if ($order->fulfillment_type === 'ship' && $order->shipments()->exists()) {
+            $need = [];
+            foreach ($order->shipments()->where('source', 'shop')->with('items')->get() as $sh) {
+                foreach ($sh->items as $it) {
+                    $line = $order->items->firstWhere('id', $it->order_item_id);
+                    if (! $line) continue;
+                    $need[$line->inventory_item_id] ??= ['name' => $line->name_snapshot, 'qty' => 0];
+                    $need[$line->inventory_item_id]['qty'] += (int) $it->quantity;
+                }
+            }
+            $stock = OrderStock::forTenant($this->tenant);
+            $loc   = $stock->locationId($order);
+            $items = \App\Models\Tenant\TenantInventoryItem::query()->where('tenant_id', $this->tenant->id)->whereIn('id', array_keys($need))->get()->keyBy('id');
+            foreach ($need as $itemId => $n) {
+                $short = $n['qty'] - $stock->onHand($items[$itemId], $loc);
+                if ($short > 0 && ($items[$itemId]->allow_oversell ?? false)) $out[$itemId] = ['name' => $n['name'], 'qty' => $short];
+            }
+            return $out;
+        }
         foreach (OrderStock::forTenant($this->tenant)->inspect($order)['special'] as $lineId => $r) {
             $line = $order->items->firstWhere('id', $lineId);
             if ($line && $r['short'] > 0 && ! isset($out[$line->inventory_item_id])) {
@@ -390,26 +552,29 @@ class OrderService
     protected function saleLines(TenantOrder $order): array
     {
         $order->loadMissing('items');
+        // MARKER-ORDER-SHIPMENTS: an order that ships is rung up piece by piece, as priced
+        [$sAlloc, $sMeta] = ($order->fulfillment_type === 'ship') ? $this->savedAllocations($order) : [[], []];
+        $pieces   = $this->pieces($order, $sAlloc, $sMeta);
         $gross    = (int) $order->items->sum('line_total_cents');
         $discount = max(0, min((int) ($order->discount_cents ?? 0), $gross));
-        $alloc = [];
-        if ($discount > 0 && $gross > 0) {
-            $rem = []; $run = 0;
-            foreach ($order->items as $l) {
-                $exact = $l->line_total_cents * $discount / $gross;
-                $alloc[$l->id] = (int) floor($exact); $rem[$l->id] = $exact - $alloc[$l->id]; $run += $alloc[$l->id];
+        $alloc    = ShipmentMath::allocate($discount, array_map(fn ($p) => $p['gross'], $pieces));
+        $lines = [];
+        foreach ($pieces as $i => $p) {
+            $l = $p['line'];
+            $row = [
+                'type'              => 'product',
+                'inventory_item_id' => $l->inventory_item_id,
+                'name_snapshot'     => $l->name_snapshot,
+                'quantity'          => (float) $p['qty'],
+                'unit_price_cents'  => $l->unit_price_cents,
+                'discount_cents'    => (int) ($alloc[$i] ?? 0),
+            ];
+            if (($p['meta']['source'] ?? null) === 'supplier') {
+                // shipped by the supplier: the shop's shelf is never touched
+                $row['dropship'] = ['warehouse_id' => $p['meta']['warehouse_id'], 'warehouse' => $p['meta']['warehouse']];
             }
-            arsort($rem); $left = $discount - $run;
-            foreach (array_keys($rem) as $id) { if ($left <= 0) break; $alloc[$id]++; $left--; }
+            $lines[] = $row;
         }
-        $lines = $order->items->map(fn ($l) => [
-            'type'              => 'product',
-            'inventory_item_id' => $l->inventory_item_id,
-            'name_snapshot'     => $l->name_snapshot,
-            'quantity'          => (float) $l->quantity,
-            'unit_price_cents'  => $l->unit_price_cents,
-            'discount_cents'    => (int) ($alloc[$l->id] ?? 0),
-        ])->values()->all();
         if ((int) ($order->shipping_cents ?? 0) > 0) {
             $lines[] = [
                 'type'             => 'open_item',
@@ -562,10 +727,13 @@ class OrderService
                         'order_number'     => $result->order_number,
                         'total'            => '$' . number_format($result->total_cents / 100, 2),
                         'items_rows'       => "<table style='font-size:14px'>{$rows}</table>",
-                        'fulfillment_line' => $result->fulfillment_type === 'local_delivery'
+                        'fulfillment_line' => $result->fulfillment_type === 'ship'
+                            ? 'Shipping to ' . e((string) (($result->fulfillment_address['line'] ?? '') ?: 'your address'))
+                                . ($result->shipments->count() > 1 ? ' — it will arrive in ' . $result->shipments->count() . ' shipments' : '')
+                            : ($result->fulfillment_type === 'local_delivery'
                             ? 'Local delivery — we\'ll reach out to set a window'
                             : 'Pickup — we\'ll text you when it\'s ready'
-                                . ($this->config()['pickup_instructions'] !== '' ? '. ' . e($this->config()['pickup_instructions']) : ''),
+                                . ($this->config()['pickup_instructions'] !== '' ? '. ' . e($this->config()['pickup_instructions']) : '')),
                         'order_url'        => 'https://' . request()->getHost() . '/order/' . $result->token,
                         'whats_next'       => ($shorts ? e(self::wording($this->tenant)['special_notice']) . ' ' : '')
                             . ($result->wants_install
