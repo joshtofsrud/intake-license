@@ -673,6 +673,19 @@ HTML;
 <p style='margin-top:14px'><a href='{{order_url}}' style='color:#111'>View your order</a></p>
 <p>{{whats_next}}</p>",
             ],
+            // MARKER-ECOM-STOCK-GUARD: a paid online order couldn't be completed
+            'order_refunded_unavailable' => [
+                'subject'   => 'We couldn\'t complete your order — {{order_number}}',
+                'body_html' => "<p>Hi {{first_name}},</p>
+<p>{{what_happened}}</p>
+<p><strong>{{money_line}}</strong></p>
+<table style='font-size:14px;line-height:1.9;margin-top:8px'>
+  <tr><td style='color:#666;padding-right:16px'>Order</td><td>{{order_number}}</td></tr>
+  <tr><td style='color:#666;padding-right:16px'>Amount</td><td>{{total}}</td></tr>
+</table>
+<p style='margin-top:14px'>We're sorry about that. If you'd still like the item, just reply to this email and we'll help you get it.</p>
+<p>— The {$shop} team</p>",
+            ],
             'delivery_windows_ready' => [
                 'subject'   => 'Your {{asset_noun}} is ready — pick a delivery window',
                 'body_html' => "<p>Hi {{first_name}},</p>

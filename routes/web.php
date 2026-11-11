@@ -523,6 +523,12 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::post('/storefront',       [TenantControllers\StorefrontSettingsController::class, 'update'])->name('storefront.settings.update');
                 Route::post('/storefront/bulk',  [TenantControllers\StorefrontSettingsController::class, 'bulk'])->name('storefront.settings.bulk');
                 Route::post('/storefront/item/{id}', [TenantControllers\StorefrontSettingsController::class, 'toggleItem'])->name('storefront.item.toggle');
+                // MARKER-ECOM-AVAILABILITY: what is for sale online / may be oversold
+                Route::get('/storefront/availability/items',      [TenantControllers\StorefrontAvailabilityController::class, 'items'])->name('storefront.availability.items');
+                Route::get('/storefront/availability/categories', [TenantControllers\StorefrontAvailabilityController::class, 'categories'])->name('storefront.availability.categories');
+                Route::patch('/storefront/availability/item/{id}', [TenantControllers\StorefrontAvailabilityController::class, 'updateItem'])->name('storefront.availability.item');
+                Route::post('/storefront/availability/bulk',      [TenantControllers\StorefrontAvailabilityController::class, 'bulk'])->name('storefront.availability.bulk');
+                Route::post('/storefront/availability/undo',      [TenantControllers\StorefrontAvailabilityController::class, 'undo'])->name('storefront.availability.undo');
                 Route::post('/register/sales',           [TenantControllers\RegisterController::class, 'storeSale'])->name('register.sales.store');
                 // Direct Payments hand-keyed card endpoints
                 Route::post('/register/payment-intent',   [TenantControllers\RegisterController::class, 'createPaymentIntent'])->name('register.payment_intent.create');

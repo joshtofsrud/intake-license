@@ -36,6 +36,13 @@ class CheckoutController extends Controller
             return redirect('/cart');
         }
 
+        // MARKER-ECOM-STOCK-GUARD: something sold out since it went in the cart —
+        // stop here, before any payment form, and say exactly what.
+        $stock = \App\Services\Tenant\OrderStock::forTenant($tenant)->inspect($cart);
+        if ($stock['blocked']) {
+            return redirect('/cart')->with('shop_error', \App\Exceptions\OnlineOrderStockException::summary($stock['blocked']));
+        }
+
         $orders = OrderService::forTenant($tenant);
         $pk = (new DirectPaymentsService($tenant))->publishableKey();
 
@@ -45,6 +52,7 @@ class CheckoutController extends Controller
             'quotePickup'   => $orders->quote($cart, 'pickup'),
             'quoteDelivery' => $orders->quote($cart, 'local_delivery'),
             'config'   => $orders->config(),
+            'special'  => $stock['special'],
             'stripePk' => $pk,
         ]);
     }
@@ -81,10 +89,23 @@ class CheckoutController extends Controller
             $manualMethod = $pm->method_key;
         }
 
+        $cfg = OrderService::forTenant($tenant)->config();
+        if ($data['fulfillment_type'] === 'pickup' && ! $cfg['pickup_enabled']) {
+            return response()->json(['ok' => false, 'message' => 'Pickup is not available right now. Please choose delivery.'], 422);
+        }
         if ($data['fulfillment_type'] === 'local_delivery') {
-            abort_unless(OrderService::forTenant($tenant)->config()['local_delivery'], 422, 'Delivery is not available.');
+            abort_unless($cfg['local_delivery'], 422, 'Delivery is not available.');
             if (blank($data['address'] ?? null)) {
                 return response()->json(['ok' => false, 'message' => 'Delivery needs an address.'], 422);
+            }
+            // MARKER-ECOM-SETTINGS: only deliver inside the ZIP codes the shop listed
+            if ($cfg['delivery_zips']) {
+                $zip = OrderService::zipFromAddress($data['address']);
+                if ($zip === null || ! in_array($zip, $cfg['delivery_zips'], true)) {
+                    return response()->json(['ok' => false, 'message' => $zip === null
+                        ? 'Please include your ZIP code in the delivery address.'
+                        : "Sorry, we don't deliver to {$zip}. Choose a different address" . ($cfg['pickup_enabled'] ? ', or pick it up in store.' : '.')], 422);
+                }
             }
         }
 
@@ -105,6 +126,14 @@ class CheckoutController extends Controller
                 'notes'         => $data['notes'] ?? null,
                 'wants_install' => (bool) ($data['wants_install'] ?? false),
             ], $manualMethod);
+        } catch (\App\Exceptions\OnlineOrderStockException $e) {
+            // MARKER-ECOM-STOCK-GUARD: nothing was charged; tell the shopper what changed.
+            return response()->json([
+                'ok'       => false,
+                'stock'    => true,
+                'message'  => $e->getMessage(),
+                'redirect' => '/cart',
+            ], 409);
         } catch (\Throwable $e) {
             Log::error('checkout.place_failed', ['tenant' => $tenant->id, 'error' => $e->getMessage()]);
             return response()->json(['ok' => false, 'message' => 'Could not start payment — try again or give us a call.'], 500);

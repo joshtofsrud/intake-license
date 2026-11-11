@@ -105,10 +105,21 @@ class OrdersController extends Controller
             && $request->boolean('notify_text')
             && filled($order->contact_phone)) {
             try {
-                SmsService::send($tenant, $order->contact_phone,
-                    "{$tenant->name}: Your order {$order->order_number} is ready"
-                    . ($order->fulfillment_type === 'pickup' ? ' for pickup!' : '!')
-                    . ' Reply STOP to opt out.');
+                // MARKER-ECOM-SETTINGS: the shop's own wording for pickup orders (E-commerce > Messages)
+                $tpl = trim((string) ($tenant->settings['storefront']['ready_text'] ?? ''));
+                if ($order->fulfillment_type === 'pickup' && $tpl !== '') {
+                    $body = strtr($tpl, [
+                        '{first_name}'   => $order->contact_first_name ?: 'there',
+                        '{shop_name}'    => $tenant->name,
+                        '{order_number}' => $order->order_number,
+                    ]);
+                    if (! preg_match('/\bSTOP\b/i', $body)) $body .= ' Reply STOP to opt out.';
+                } else {
+                    $body = "{$tenant->name}: Your order {$order->order_number} is ready"
+                        . ($order->fulfillment_type === 'pickup' ? ' for pickup!' : '!')
+                        . ' Reply STOP to opt out.';
+                }
+                SmsService::send($tenant, $order->contact_phone, $body);
             } catch (\Throwable $e) {
                 Log::error('orders.ready_text_failed', ['order' => $order->id, 'error' => $e->getMessage()]);
                 return back()->with('success', 'Status updated — but the text failed to send (check SMS settings).');

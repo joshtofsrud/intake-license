@@ -33,10 +33,17 @@ class StorefrontController extends Controller
     private function visible()
     {
         $this->guardTier();
-        return TenantInventoryItem::query()
+        $q = TenantInventoryItem::query()
             ->where('tenant_id', tenant()->id)
             ->where('is_active', true)
             ->where('show_online', true);
+
+        // MARKER-ECOM-SETTINGS: the shop may hide items that are out of stock and can't be oversold
+        if (\App\Services\Tenant\OrderService::wording(tenant())['hide_out']) {
+            $q->where(fn ($w) => $w->where('computed_stock_count', '>', 0)->orWhere('allow_oversell', true));
+        }
+
+        return $q;
     }
 
     public function index(Request $request): View

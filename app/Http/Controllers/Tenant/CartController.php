@@ -31,6 +31,10 @@ class CartController extends Controller
         return \App\Services\Tenant\SiteChromeService::render(tenant(), 'shop_cart', [
             'tenant' => tenant(),
             'cart'   => $cart?->load('items'),
+            // MARKER-ECOM-STOCK-GUARD: lines the shop can no longer hand over, and lines that will be special-ordered
+            'stock'  => $cart && $cart->items->isNotEmpty()
+                ? \App\Services\Tenant\OrderStock::forTenant(tenant())->inspect($cart)
+                : ['blocked' => [], 'special' => []],
         ]);
     }
 
@@ -49,7 +53,20 @@ class CartController extends Controller
             ->with('distributorCatalog:id,images')
             ->findOrFail($data['item_id']);
 
-        CartService::forTenant(tenant())->addItem($item, (int) ($data['quantity'] ?? 1));
+        // MARKER-ECOM-STOCK-GUARD: never put more in the cart than the shop can
+        // hand over (unless the shop chose to oversell this item), and say why.
+        $svc     = CartService::forTenant(tenant());
+        $already = (int) ($svc->current()?->items->where('inventory_item_id', $item->id)->sum(fn ($l) => (float) $l->quantity) ?? 0);
+        $want    = $already + (int) ($data['quantity'] ?? 1);
+        $r       = \App\Services\Tenant\OrderStock::forTenant(tenant())->checkItem($item, $want);
+        if ($r['status'] === 'blocked') {
+            $msg = $r['reason'] === \App\Services\Tenant\OrderStock::REASON_SHORT && $already > 0
+                ? "We only have {$r['have']} of {$item->name} and you already have {$already} in your cart."
+                : \App\Services\Tenant\OrderStock::message($item->name, $r);
+            return back()->with('shop_error', $msg);
+        }
+
+        $svc->addItem($item, (int) ($data['quantity'] ?? 1));
 
         return redirect('/cart')->with('added', $item->name);
     }
@@ -60,6 +77,17 @@ class CartController extends Controller
         $data = $request->validate(['quantity' => ['required', 'integer', 'min:0', 'max:99']]);
         $svc  = CartService::forTenant(tenant());
         if ($cart = $svc->current()) {
+            // MARKER-ECOM-STOCK-GUARD: raising a quantity past what's on the shelf is refused with a reason.
+            if ((int) $data['quantity'] > 0) {
+                $line = $cart->items->firstWhere('id', $lineId);
+                if ($line) {
+                    $item = TenantInventoryItem::query()->where('tenant_id', tenant()->id)->find($line->inventory_item_id);
+                    $r    = \App\Services\Tenant\OrderStock::forTenant(tenant())->checkItem($item, (int) $data['quantity']);
+                    if ($r['status'] === 'blocked') {
+                        return redirect('/cart')->with('shop_error', \App\Services\Tenant\OrderStock::message($line->name_snapshot, $r));
+                    }
+                }
+            }
             $svc->updateQty($cart, $lineId, (int) $data['quantity']);
         }
         return redirect('/cart');

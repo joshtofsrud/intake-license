@@ -22,18 +22,34 @@ class OrdersReapAbandonedCommand extends Command
             ->where('status', TenantOrder::STATUS_CART)
             ->where('updated_at', '<', now()->subHours(48));
 
-        $stale = TenantOrder::query()
-            ->where('status', TenantOrder::STATUS_PENDING_PAYMENT)
-            ->whereNull('sale_id')
-            ->where('updated_at', '<', now()->subHours(24));
+        // MARKER-ECOM-SETTINGS: each shop sets how long an unpaid order is held
+        // (E-commerce > Payments). 24 hours unless they changed it.
+        $staleFor = function () {
+            $ids = TenantOrder::query()
+                ->where('status', TenantOrder::STATUS_PENDING_PAYMENT)
+                ->whereNull('sale_id')
+                ->distinct()->pluck('tenant_id');
+            $queries = [];
+            foreach ($ids as $tid) {
+                $hours = max(1, (int) (\App\Models\Tenant::find($tid)?->settings['storefront']['hold_hours'] ?? 24));
+                $queries[] = TenantOrder::query()
+                    ->where('tenant_id', $tid)
+                    ->where('status', TenantOrder::STATUS_PENDING_PAYMENT)
+                    ->whereNull('sale_id')
+                    ->where('updated_at', '<', now()->subHours($hours));
+            }
+            return $queries;
+        };
+        $staleQs = $staleFor();
 
         if ($this->option('dry-run')) {
-            $this->info("Would abandon: {$carts->count()} idle carts, {$stale->count()} stale pending-payment orders.");
+            $n = array_sum(array_map(fn ($q) => $q->count(), $staleQs));
+            $this->info("Would abandon: {$carts->count()} idle carts, {$n} stale pending-payment orders.");
             return self::SUCCESS;
         }
 
         $n1 = $carts->update(['status' => TenantOrder::STATUS_ABANDONED]);
-        $n2 = $stale->update(['status' => TenantOrder::STATUS_ABANDONED]);
+        $n2 = array_sum(array_map(fn ($q) => $q->update(['status' => TenantOrder::STATUS_ABANDONED]), $staleQs));
 
         $this->info("Abandoned {$n1} idle carts and {$n2} stale pending-payment orders.");
         return self::SUCCESS;

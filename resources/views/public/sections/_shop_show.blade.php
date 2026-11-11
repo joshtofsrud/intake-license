@@ -9,6 +9,9 @@
   $tname  = $tenant->name ?? 'Shop';
   $money = fn ($c) => $c !== null ? '$' . number_format($c / 100, 2) : '';
   $inStock = ($item->computed_stock_count ?? 0) > 0;
+  // MARKER-ECOM-SETTINGS: in stock / special order (oversell on) / out of stock (can't be ordered)
+  $words   = \App\Services\Tenant\OrderService::wording($tenant);
+  $canBuy  = $inStock || (bool) $item->allow_oversell;
 @endphp
 <style>
 
@@ -81,8 +84,14 @@
       <div class="price">{{ $money($item->effectiveSellPriceCents()) }}</div>
       <div class="avail {{ $inStock ? 'in' : 'order' }}">
         <span class="dot"></span>
-        {{ $inStock ? 'In stock — ready for pickup' : 'Special order — usually a few days' }}
+        {{ $inStock ? $words['stock_label'] : ($canBuy ? $words['special_label'] : $words['out_label']) }}
       </div>
+      @if(!$inStock && $canBuy)
+        <div class="cta-note" style="text-align:left;margin:-4px 0 12px">{{ $words['special_notice'] }}</div>
+      @endif
+      @if(session('shop_error'))
+        <div role="alert" style="background:rgba(192,57,43,.07);border:1.5px solid rgba(192,57,43,.28);color:#8f1d14;border-radius:12px;padding:10px 14px;font-size:13.5px;margin-bottom:12px">{{ session('shop_error') }}</div>
+      @endif
 
       {{-- qty + add-to-cart --}}
       <form method="POST" action="/cart/items" style="display:flex;gap:10px;align-items:stretch">
@@ -93,7 +102,11 @@
           <input id="sp-qty" name="quantity" type="number" value="1" min="1" max="99" inputmode="numeric">
           <button type="button" onclick="spQty(1)">+</button>
         </div>
-        <button class="cta" style="cursor:pointer;opacity:1;flex:1">Add to cart</button>
+        @if($canBuy)
+          <button class="cta" style="cursor:pointer;opacity:1;flex:1">Add to cart</button>
+        @else
+          <button class="cta" type="button" disabled style="cursor:not-allowed;opacity:.5;flex:1">{{ $words['out_label'] }}</button>
+        @endif
       </form>
       <script>
         function spQty(d) {
@@ -101,7 +114,6 @@
           el.value = Math.max(1, Math.min(99, (parseInt(el.value, 10) || 1) + d));
         }
       </script>
-      <div class="cta-note">Pickup in store — checkout online is on its way.</div>
 
       @if($item->description)<div class="desc">{{ $item->description }}</div>@endif
 

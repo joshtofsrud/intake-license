@@ -51,6 +51,19 @@
 
   <h1>Checkout</h1>
 
+  {{-- MARKER-ECOM-STOCK-GUARD: shown only when part of the order is a special order --}}
+  @if(!empty($special))
+    <div style="background:rgba(180,140,0,.09);border:1.5px solid rgba(180,140,0,.32);color:#6b4a00;border-radius:12px;padding:12px 16px;font-size:13.5px;line-height:1.5;margin-bottom:16px">
+      <b style="display:block;margin-bottom:2px">Part of this order is a special order</b>
+      @foreach($cart->items as $l)
+        @if(isset($special[$l->id]))
+          {{ $l->name_snapshot }}: {{ $special[$l->id]['have'] > 0 ? $special[$l->id]['have'] . ' in stock, ' . $special[$l->id]['short'] . ' on order' : 'on order' }}.
+        @endif
+      @endforeach
+      {{ \App\Services\Tenant\OrderService::wording($tenant)['special_notice'] }}
+    </div>
+  @endif
+
   <div class="cols">
     <div>
       <div class="panel">
@@ -66,14 +79,17 @@
       <div class="panel">
         <h2>How you'll get it</h2>
         <div class="ful">
+          @php $defaultFul = ($config['pickup_enabled'] ?? true) ? 'pickup' : 'local_delivery'; @endphp
+          @if($config['pickup_enabled'] ?? true)
           <label class="on" id="ful-pickup">
             <input type="radio" name="ful" value="pickup" checked>
-            <b>Pickup</b><span class="fee">Free — we'll text you when it's ready</span>
+            <b>Pickup</b><span class="fee">Free — we'll text you when it's ready{{ ($config['pickup_instructions'] ?? '') !== '' ? ' · ' . $config['pickup_instructions'] : '' }}</span>
           </label>
+          @endif
           @if($config['local_delivery'])
-            <label id="ful-delivery">
-              <input type="radio" name="ful" value="local_delivery">
-              <b>Local delivery</b><span class="fee">{{ $config['delivery_fee_cents'] > 0 ? $money($config['delivery_fee_cents']) : 'Free' }} — our service area</span>
+            <label id="ful-delivery" class="{{ $defaultFul === 'local_delivery' ? 'on' : '' }}">
+              <input type="radio" name="ful" value="local_delivery" {{ $defaultFul === 'local_delivery' ? 'checked' : '' }}>
+              <b>Local delivery</b><span class="fee">{{ $config['delivery_fee_cents'] > 0 ? $money($config['delivery_fee_cents']) : 'Free' }}{{ ($config['free_delivery_over_cents'] ?? null) !== null && $config['delivery_fee_cents'] > 0 ? ' — free over ' . $money($config['free_delivery_over_cents']) : '' }}{{ !empty($config['delivery_zips']) ? ' — ZIP ' . implode(', ', array_slice($config['delivery_zips'], 0, 6)) . (count($config['delivery_zips']) > 6 ? '…' : '') : ' — our service area' }}</span>
             </label>
           @endif
         </div>
@@ -84,7 +100,7 @@
         @if($config['install_offer'] ?? true)
         <label class="chk">
           <input type="checkbox" id="f-install">
-          <span>I'd like this installed — we'll reach out to get it scheduled.</span>
+          <span>{{ $config['install_label'] ?? \App\Services\Tenant\OrderService::DEFAULT_INSTALL_LABEL }}</span>
         </label>
         @else<input type="checkbox" id="f-install" style="display:none">@endif
       </div>
@@ -151,7 +167,7 @@
   var PK = @json($stripePk);
   var QUOTES = { pickup: @json($quotePickup), local_delivery: @json($quoteDelivery) };
   var money = function (c) { return '$' + (c / 100).toFixed(2); };
-  var ful = 'pickup', stripe = null, elements = null, placed = false;
+  var ful = @json($defaultFul ?? 'pickup'), stripe = null, elements = null, placed = false;
 
   function pickFul(kind) {
     ful = kind;
@@ -166,6 +182,7 @@
   document.querySelectorAll('.ful input').forEach(function (r) {
     r.addEventListener('change', function () { pickFul(r.value); });
   });
+  if (ful !== 'pickup') pickFul(ful); // MARKER-ECOM-SETTINGS: pickup turned off — start on delivery
 
   function fail(msg) {
     var e = document.getElementById('err');
@@ -205,6 +222,8 @@
         });
         data = await res.json();
       } catch (e) { return fail('Network hiccup — try again.'); }
+      // MARKER-ECOM-STOCK-GUARD: something sold out before payment started. Nothing was charged; say so, then show the cart.
+      if (data && data.stock) { fail(data.message + ' Nothing was charged. Taking you back to your cart…'); setTimeout(function () { window.location = data.redirect || '/cart'; }, 3500); return; }
       if (!data || !data.ok) return fail((data && data.message) || 'Could not start payment.');
 
       // manual method: order placed pending, go to instructions

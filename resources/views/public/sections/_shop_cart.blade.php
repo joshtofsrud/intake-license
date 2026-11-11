@@ -6,6 +6,10 @@
   $tname  = $tenant->name ?? 'Shop';
   $money  = fn ($c) => '$' . number_format(($c ?? 0) / 100, 2);
   $empty  = ! $cart || $cart->items->isEmpty();
+  // MARKER-ECOM-STOCK-GUARD
+  $blocked = $stock['blocked'] ?? [];
+  $special = $stock['special'] ?? [];
+  $specialNotice = \App\Services\Tenant\OrderService::wording($tenant)['special_notice'];
 @endphp
 <style>
 
@@ -36,6 +40,12 @@
   .spg-cart .sum-note { font-size: 12px; opacity: .5; text-align: right; }
   .spg-cart .cta { display: block; width: 100%; text-align: center; font: inherit; font-size: 15px; font-weight: 700; padding: 15px 0; border: 0; border-radius: 12px; background: var(--acc); margin-top: 16px; cursor: not-allowed; opacity: .55; }
   .spg-cart .cta-note { font-size: 12px; opacity: .5; text-align: center; margin-top: 8px; }
+  .spg-cart .line.bad { background: rgba(192,57,43,.05); }
+  .spg-cart .line .why { font-size: 12.5px; font-weight: 600; color: #b3261e; margin-top: 6px; line-height: 1.45; }
+  .spg-cart .line .so { font-size: 12.5px; font-weight: 600; color: #8a5a00; margin-top: 6px; line-height: 1.45; }
+  .spg-cart .stopbox { background: rgba(192,57,43,.07); border: 1.5px solid rgba(192,57,43,.28); color: #8f1d14; border-radius: 12px; padding: 12px 16px; font-size: 13.5px; line-height: 1.5; margin-bottom: 16px; }
+  .spg-cart .stopbox b { display: block; margin-bottom: 2px; }
+  .spg-cart .cta.off { cursor: not-allowed; opacity: .45; }
   .spg-cart .empty { text-align: center; padding: 60px 20px; }
   .spg-cart .empty p { opacity: .55; margin-bottom: 18px; }
   .spg-cart .empty a { display: inline-block; font-weight: 700; font-size: 14px; padding: 12px 26px; border-radius: 11px; background: var(--acc); }
@@ -49,6 +59,15 @@
 
   <h1>Your cart</h1>
 
+  @if(count($blocked))
+    <div class="stopbox" role="alert">
+      <b>We can't check out yet</b>
+      Something in your cart changed while you were shopping. Nothing has been charged. Fix the item{{ count($blocked) > 1 ? 's' : '' }} marked below and you can continue.
+    </div>
+  @elseif(session('shop_error'))
+    <div class="stopbox" role="alert">{{ session('shop_error') }}</div>
+  @endif
+
   @if(session('added'))
     <div class="flash">Added {{ session('added') }} to your cart.</div>
   @endif
@@ -61,12 +80,17 @@
   @else
     <div class="card">
       @foreach($cart->items as $line)
-        <div class="line">
+        <div class="line {{ isset($blocked[$line->id]) ? 'bad' : '' }}">
           @if($line->image_snapshot)<img src="{{ $line->image_snapshot }}" alt="">@else<div class="ph">{{ $tname }}</div>@endif
           <div class="b">
             <div class="n">{{ $line->name_snapshot }}</div>
             @if($line->variant_snapshot)<div class="v">{{ $line->variant_snapshot }}</div>@endif
             <div class="unit">{{ $money($line->unit_price_cents) }} each</div>
+            @if(isset($blocked[$line->id]))
+              <div class="why">{{ $blocked[$line->id]['message'] }}</div>
+            @elseif(isset($special[$line->id]))
+              <div class="so">{{ $special[$line->id]['have'] > 0 ? $special[$line->id]['have'] . ' in stock now; the other ' . $special[$line->id]['short'] . ' ' . ($special[$line->id]['short'] === 1 ? 'is' : 'are') . ' a special order.' : 'Special order.' }} {{ $specialNotice }}</div>
+            @endif
           </div>
           <div class="qty">
             <form method="POST" action="/cart/items/{{ $line->id }}">@csrf @method('PATCH')
@@ -112,15 +136,17 @@
       </form>
     @endif
 
-    @if(session('shop_error'))
-      <div style="font-size:12.5px;color:#c0392b;margin-bottom:8px">{{ session('shop_error') }}</div>
-    @endif
 
     <div class="sum-note">Tax and any delivery fee are calculated at checkout.</div>
 
     {{-- checkout is live --}}
-    <a class="cta" href="/checkout" style="cursor:pointer;opacity:1;text-decoration:none">Checkout</a>
-    <div class="cta-note">Secure payment · pickup or local delivery</div>
+    @if(count($blocked))
+      <span class="cta off" aria-disabled="true">Checkout unavailable until the marked items are fixed</span>
+      <div class="cta-note">Nothing has been charged.</div>
+    @else
+      <a class="cta" href="/checkout" style="cursor:pointer;opacity:1;text-decoration:none">Checkout</a>
+      <div class="cta-note">Secure payment · pickup or local delivery</div>
+    @endif
   @endif
 
   </div>

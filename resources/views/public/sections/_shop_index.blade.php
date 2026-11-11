@@ -54,7 +54,7 @@
     </div>
 
   <h1>Shop</h1>
-  <div class="sub">Parts, accessories, and gear — pickup and local delivery available.</div>
+  <div class="sub">{{ \App\Services\Tenant\OrderService::wording($tenant)['intro'] }}</div>
 
   <form class="bar" method="GET" action="/shop">
     @if($activeCat)<input type="hidden" name="category" value="{{ $activeCat }}">@endif
@@ -110,10 +110,13 @@
             <div class="name">{{ $item->name }}</div>
             <div class="foot">
               <div class="price">{{ $money($item->effectiveSellPriceCents()) }}</div>
+              {{-- MARKER-ECOM-SETTINGS: three honest states --}}
               @if(($item->computed_stock_count ?? 0) > 0)
                 <span class="stock in">In stock</span>
-              @else
+              @elseif($item->allow_oversell)
                 <span class="stock order">Special order</span>
+              @else
+                <span class="stock order">{{ \App\Services\Tenant\OrderService::wording($tenant)['out_label'] }}</span>
               @endif
             </div>
           </div>

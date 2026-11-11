@@ -6,8 +6,10 @@
   $tname  = $tenant->name ?? 'Shop';
   $money  = fn ($c) => '$' . number_format(($c ?? 0) / 100, 2);
   $paid   = in_array($order->status, ['paid', 'fulfilling', 'fulfilled', 'completed']);
+  // MARKER-ECOM-STOCK-GUARD: paid, then couldn't be completed, then refunded
+  $refunded = $order->payment_status === 'refunded';
 @endphp
-@unless(in_array($order->status, ['paid', 'fulfilling', 'fulfilled', 'completed']) || $order->payment_method)
+@unless($paid || $refunded || $order->payment_method)
 <script>setTimeout(function () { window.location.reload(); }, 6000);</script>
 @endunless
 <style>
@@ -39,7 +41,11 @@
   <a class="home" href="/">{{ $tname }}</a>
 
   <div class="hero">
-    @if($paid)
+    @if($refunded)
+      <div class="ic" style="background:rgba(192,57,43,.12)">!</div>
+      <h1>We couldn't complete your order</h1>
+      <div class="sub">{{ $order->order_number }} · An item sold out just as you were paying. We've refunded the full {{ $money($order->total_cents) }} to your card (allow 5–10 business days). We've emailed you the details.</div>
+    @elseif($paid)
       <div class="ic">✓</div>
       <h1>Order confirmed</h1>
       <div class="sub">{{ $order->order_number }} · a receipt is on its way to {{ $order->contact_email }}</div>
