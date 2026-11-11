@@ -44,13 +44,30 @@ class LeaseController extends Controller
     {
         $this->guard();
 
-        $leases = Lease::where('tenant_id', tenant()->id)
+        $tid    = tenant()->id;
+        $status = (string) $request->input('status', '');
+        // "overdue" isn't stored: it's an active lease whose season has ended
+        $scope = function ($q, string $s) {
+            return match ($s) {
+                'overdue'  => $q->where('status', 'active')->whereNull('returned_at')->where('season_end', '<', now()),
+                'active'   => $q->where('status', 'active')->where(fn ($w) => $w->whereNull('season_end')->orWhere('season_end', '>=', now())),
+                'returned', 'cancelled' => $q->where('status', $s),
+                default    => $q,
+            };
+        };
+
+        $leases = $scope(Lease::where('tenant_id', $tid), $status)
             ->with('customer:id,first_name,last_name')
-            ->when($request->input('status'), fn ($q, $s) => $q->where('status', $s))
+            ->withCount(['assignments as assignments_count'])
             ->orderByDesc('created_at')
             ->paginate(25)->withQueryString();
 
-        return view('tenant.rentals.leases.index', ['leases' => $leases]);
+        $counts = [];
+        foreach (['', 'active', 'overdue', 'returned'] as $k) {
+            $counts[$k] = $scope(Lease::where('tenant_id', $tid), $k)->count();
+        }
+
+        return view('tenant.rentals.leases.index', ['leases' => $leases, 'status' => $status, 'counts' => $counts]);
     }
 
     /** Fulfillment screen — choose a package, then fill its slots. */

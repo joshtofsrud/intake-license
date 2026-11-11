@@ -1,76 +1,93 @@
 @extends('layouts.tenant.app')
-{{-- offers activity. --}}
-@section('title', 'Last-minute offers')
+@php $pageTitle = 'Last-minute offers'; @endphp
+
+{{-- MARKER-RENTAL-OFFERS-STUDIO: did the robot make money? Same 30-day stats,
+     filters and CSV export, in the Studio design. --}}
+
+@section('mobile-fab', 'new-rental')
+@include('layouts.tenant._rental-styles')
+
 @section('content')
-{{-- nav first, then the title block, which
-     is what Desk / Fleet / Availability / Settings all do. Reversed, this
-     page looked like the only one in rentals with a page header. --}}
-@include('layouts.tenant._rental-nav', ['active' => 'offers'])
+@php
+  $filters = ['all' => 'All', 'accepted' => 'Accepted', 'dead' => 'Declined / expired'];
+  $delta   = $sent - $sentPrev;
+  $avgTxt  = $avgMins ? floor($avgMins / 60) . 'h ' . ($avgMins % 60) . 'm' : '—';
+@endphp
 
-<div class="ia-page-head">
-  <div class="ia-page-head-left">
-    <h1 class="ia-page-title">Last-minute offers</h1>
-    <p class="ia-page-subtitle">Auto-extension activity · last 30 days.</p>
-  </div>
-  <a href="{{ route('tenant.rentals.extension.activity', ['filter' => $filter, 'export' => 'csv']) }}" class="ia-btn">Export CSV</a>
-</div>
+<div class="sd rf" id="sd">
+  <header class="sd-head" id="sdHead">
+    <div class="sd-head-l">
+      <h1 class="sd-hi">Last-minute offers</h1>
+      <p class="sd-sub">Auto-extension activity · last 30 days.</p>
+    </div>
+    <div class="sd-head-r">
+      <a href="{{ route('tenant.rentals.extension.activity', ['filter' => $filter, 'export' => 'csv']) }}" class="ia-btn ia-btn--sm">Export CSV</a>
+    </div>
+  </header>
 
-<div class="ia-stat-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px;margin-bottom:22px">
-  <div class="ia-card" style="padding:16px 18px">
-    <div class="ia-label">Offers sent</div>
-    <div class="ia-stat-value">{{ $sent }}</div>
-    <div class="ia-stat-delta {{ $sent >= $sentPrev ? '' : 'down' }}">{{ $sent >= $sentPrev ? '+' : '' }}{{ $sent - $sentPrev }} vs. prev. 30d</div>
-  </div>
-  <div class="ia-card" style="padding:16px 18px">
-    <div class="ia-label">Accepted</div>
-    <div class="ia-stat-value">{{ $accepted }}</div>
-    <div class="ia-stat-delta">{{ $convPct }}% conversion</div>
-  </div>
-  <div class="ia-card" style="padding:16px 18px">
-    <div class="ia-label">Revenue captured</div>
-    <div class="ia-stat-value">{{ format_money($revenue) }}</div>
-    <div class="ia-stat-delta">{{ $accepted > 0 ? format_money($avgPer) . ' / accepted offer' : '—' }}</div>
-  </div>
-  <div class="ia-card" style="padding:16px 18px">
-    <div class="ia-label">Avg. extension</div>
-    <div class="ia-stat-value">{{ $avgMins ? floor($avgMins / 60) . 'h ' . ($avgMins % 60) . 'm' : '—' }}</div>
-    <div class="ia-stat-delta">per accepted offer</div>
-  </div>
-</div>
+  @include('layouts.tenant._rental-nav', ['active' => 'offers'])
 
-<div class="ia-card">
-  <div class="ia-card-head" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
-    <span class="ia-card-title">All offers</span>
-    <div style="display:flex;gap:6px">
-      @foreach(['all' => 'All', 'accepted' => 'Accepted', 'dead' => 'Declined / expired'] as $k => $label)
-        <a href="{{ route('tenant.rentals.extension.activity', ['filter' => $k]) }}" class="ia-btn ia-btn--sm {{ $filter === $k ? 'ia-btn--primary' : '' }}" style="text-decoration:none">{{ $label }}</a>
+  <div class="of-stats sd-in">
+    <div class="of-stat"><small>Offers sent</small><b>{{ $sent }}</b><span class="{{ $delta >= 0 ? 'up' : '' }}">{{ $delta >= 0 ? '+' : '' }}{{ $delta }} vs. prev. 30d</span></div>
+    <div class="of-stat"><small>Accepted</small><b>{{ $accepted }}</b><span>{{ $convPct }}% conversion</span></div>
+    <div class="of-stat"><small>Revenue captured</small><b>{{ format_money($revenue) }}</b><span>{{ $accepted > 0 ? format_money($avgPer) . ' / accepted offer' : '—' }}</span></div>
+    <div class="of-stat"><small>Avg. extension</small><b>{{ $avgTxt }}</b><span>per accepted offer</span></div>
+  </div>
+
+  <div class="rf-ctl sd-in">
+    <div class="sd-seg" role="tablist" aria-label="Show">
+      @foreach($filters as $k => $label)
+        <a href="{{ route('tenant.rentals.extension.activity', ['filter' => $k]) }}" class="{{ $filter === $k ? 'on' : '' }}" role="tab">{{ $label }} <em>{{ $counts[$k] ?? 0 }}</em></a>
       @endforeach
     </div>
   </div>
-  @if($offers->isEmpty())
-    <div style="padding:22px 20px;font-size:12.5px;opacity:.55">No offers yet — they'll appear here as the scan finds eligible rentals.</div>
-  @else
-    <table class="ia-table">
-      <thead><tr><th>Sent</th><th>Customer</th><th>Unit</th><th>Channel</th><th class="ia-num">Discount</th><th class="ia-num">Offer total</th><th>Status</th></tr></thead>
-      <tbody>
-        @foreach($offers as $o)
-          <tr @if($o->rental) onclick="window.location='{{ route('tenant.rentals.bookings.show', $o->rental_id) }}'" style="cursor:pointer" @endif>
-            <td class="ia-num">{{ $o->sent_at ? tlocal($o->sent_at) : '—' }}</td>
-            <td>{{ $o->rental?->customer?->fullName() ?? '—' }}</td>
-            <td>{{ $o->rental?->lines?->first()?->name_snapshot ?? '—' }}</td>
-            <td>{{ $o->channel === 'manual' ? 'Manual' : 'Auto' }}</td>
-            <td class="ia-num">{{ $o->discount_pct }}%</td>
-            <td class="ia-num">{{ format_money($o->total_cents) }}</td>
-            <td>
-              @if($o->status === 'paid')<span class="ia-badge ia-badge--healthy">Accepted · paid</span>
-              @elseif($o->status === 'sent')<span class="ia-badge ia-badge--out">Awaiting reply</span>
-              @else<span class="ia-badge">{{ ucfirst($o->status) }}</span>
-              @endif
-            </td>
-          </tr>
-        @endforeach
-      </tbody>
-    </table>
-  @endif
+
+  <div class="sd-list sd-in">
+    @if($offers->isEmpty())
+      <div class="sd-empty">
+        @if($filter === 'accepted') No accepted offers in this list yet.
+        @elseif($filter === 'dead') Nothing declined or expired.
+        @else Nothing here yet — offers appear as the scan finds rentals that are coming back with nobody booked next.
+        @endif
+        <div class="sd-empty-acts">
+          <a href="{{ route('tenant.rentals.settings') }}#ss-offers" class="ia-btn ia-btn--sm ia-btn--primary">Offer settings</a>
+          @if($filter !== 'all')<a href="{{ route('tenant.rentals.extension.activity') }}" class="ia-btn ia-btn--sm">Show all offers</a>@endif
+        </div>
+      </div>
+    @else
+      <div class="of-h"><span>Sent</span><span>Customer</span><span>Unit</span><span>Channel</span><span style="text-align:right">Discount</span><span style="text-align:right">Offer total</span><span>Status</span></div>
+      @foreach($offers as $o)
+        @php $go = $o->rental ? route('tenant.rentals.bookings.show', $o->rental_id) : null; @endphp
+        <div class="of-r" @if($go) data-href="{{ $go }}" @endif>
+          <span class="when">{{ $o->sent_at ? tlocal($o->sent_at) : '—' }}</span>
+          <b>{{ $o->rental?->customer?->fullName() ?? '—' }}</b>
+          <span>{{ $o->rental?->lines?->first()?->name_snapshot ?? '—' }}</span>
+          <span class="of-ch">{{ $o->channel === 'manual' ? 'Manual' : 'Auto' }}</span>
+          <span class="num of-pct">{{ $o->discount_pct }}%</span>
+          <span class="num">{{ format_money($o->total_cents) }}</span>
+          <span class="of-st">
+            @if($o->status === 'paid')<span class="rf-st out">Accepted · paid</span>
+            @elseif($o->status === 'sent')<span class="rf-st res">Awaiting reply</span>
+            @else<span class="rf-st off">{{ ucfirst($o->status) }}</span>
+            @endif
+          </span>
+        </div>
+      @endforeach
+      <div class="sd-end in"><i></i><span>{{ $offers->count() >= 200 ? 'Showing the latest 200' : 'End of the list' }}</span><i></i></div>
+    @endif
+  </div>
+
+  <p class="sd-legend">An offer is texted to the renter when their rental is about to come back and nothing is booked on the unit next. <b>Awaiting reply</b> means the pay link is still live; once it's paid the rental's due time moves for you automatically. Figures cover the last 30 days and compare with the 30 before. The rules for who gets an offer, and the discount, are in <a href="{{ route('tenant.rentals.settings') }}#ss-offers">Settings</a>.</p>
 </div>
 @endsection
+
+@push('scripts')
+@include('layouts.tenant._rental-boot')
+<script>
+// a row opens its booking
+document.addEventListener('click', function (e) {
+  var row = e.target.closest('.of-r[data-href]');
+  if (row && !e.target.closest('a, button')) location.href = row.getAttribute('data-href');
+});
+</script>
+@endpush

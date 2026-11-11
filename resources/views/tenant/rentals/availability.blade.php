@@ -1,168 +1,196 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = 'Availability'; @endphp
 
-{{-- fleet-wide availability timeline (mockup rentAvail). --}}
+{{-- MARKER-RENTAL-AVAILABILITY-STUDIO: fleet-wide timeline in the Studio design.
+     Same window, category filter and drag-to-reserve as before; bars now open a
+     detail card and the bottom row counts what is free each day. --}}
 
-@push('styles')
-<style>
-  .avail-legend { display:flex; align-items:center; gap:18px; margin-bottom:16px; flex-wrap:wrap; }
-  .avail-legend span { display:inline-flex; align-items:center; gap:6px; font-size:11.5px; opacity:.75; }
-  .avail-chip { width:14px; height:10px; border-radius:3px; display:inline-block; }
-  .avail-timeline { border-radius:12px; box-shadow:inset 0 0 0 .5px var(--ia-border); overflow:hidden; background:var(--ia-surface); }
-  .avail-row { display:grid; grid-template-columns:220px 1fr; border-bottom:.5px solid var(--ia-border); }
-  .avail-row:last-child { border-bottom:none; }
-  .avail-row-head { font-size:11px; text-transform:uppercase; letter-spacing:.06em; opacity:.6; }
-  .avail-unit { padding:10px 16px; display:flex; align-items:center; gap:10px; border-right:.5px solid var(--ia-border); min-width:0; }
-  .avail-unit-name { font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .avail-unit-sub { font-size:11px; opacity:.5; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .avail-track { position:relative; display:flex; min-height:46px; user-select:none; }
-  .avail-day { flex:1; border-right:.5px solid var(--ia-border); }
-  .avail-day:last-child { border-right:none; }
-  .avail-day.weekend { background:rgba(127,127,127,.05); }
-  .avail-day.is-dragover { background:rgba(190,242,100,.18); }
-  .avail-bar { position:absolute; top:7px; bottom:7px; border-radius:6px; color:#fff; font-size:11px; font-weight:600;
-               display:flex; align-items:center; padding:0 8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-               cursor:pointer; z-index:2; text-decoration:none; }
-  .avail-bar.out      { background:#185FA5; }
-  .avail-bar.reserved { background:#B8801A; }
-  .avail-bar.overdue  { background:#A32D2D; }
-  .avail-bar.maint    { background:#534AB7; }
-  .avail-bar.lease    { background:#3d6b2f; }
-  .avail-pills { display:flex; gap:6px; flex-wrap:wrap; }
-  .avail-pill { font-size:11.5px; padding:4px 10px; border-radius:999px; box-shadow:inset 0 0 0 .5px var(--ia-border);
-                cursor:pointer; text-decoration:none; color:inherit; opacity:.7; }
-  .avail-pill.is-active { background:var(--ia-text); color:var(--ia-bg, #fff); opacity:1; }
-</style>
-@endpush
+@section('mobile-fab', 'new-rental')
+@include('layouts.tenant._rental-styles')
 
 @section('content')
+@php
+  $nUnits   = count($rows);
+  $nowAt    = $nowPct;
+  $isOut    = fn ($r) => $nowAt !== null && collect($r['bars'])->contains(fn ($b) => in_array($b['type'], ['out', 'overdue'], true) && $b['left'] <= $nowAt && ($b['left'] + $b['width']) >= $nowAt);
+  $outNow   = $rows->filter($isOut)->count();
+  $lateN    = $rows->filter(fn ($r) => collect($r['bars'])->contains(fn ($b) => $b['type'] === 'overdue'))->count();
+  $maintN   = $rows->filter(fn ($r) => collect($r['bars'])->contains(fn ($b) => $b['type'] === 'maint'))->count();
+  $sub      = $nUnits . ' ' . ($nUnits === 1 ? 'unit' : 'units') . ' · ' . $outNow . ' out now'
+            . ($lateN ? ' · ' . $lateN . ' overdue' : '') . ($maintN ? ' · ' . $maintN . ' in maintenance' : '');
+  $qs       = fn (array $x) => array_filter($x, fn ($v) => $v !== null && $v !== '');
+  $dayCount = count($days);
+  // free per day: a unit counts when nothing at all sits on it that day
+  $free = [];
+  foreach ($days as $i => $d) {
+      $lo = $i / $dayCount * 100; $hi = ($i + 1) / $dayCount * 100;
+      $free[$i] = $rows->filter(fn ($r) => ! collect($r['bars'])->contains(fn ($b) => $b['left'] < $hi && ($b['left'] + $b['width']) > $lo))->count();
+  }
+  $lastCat = null;
+@endphp
 
-@include('layouts.tenant._rental-nav', ['active' => 'availability'])
+<div class="sd rf" id="sd">
+  <header class="sd-head" id="sdHead">
+    <div class="sd-head-l">
+      <h1 class="sd-hi">Availability</h1>
+      <p class="sd-sub">{{ $sub }}</p>
+    </div>
+    <div class="sd-head-r">
+      <div class="av-nav">
+        <a href="{{ route('tenant.rentals.availability.timeline', $qs(['start' => $prevStart, 'category' => $categoryId])) }}" class="ia-btn ia-btn--sm" aria-label="Previous week">‹</a>
+        <a href="{{ route('tenant.rentals.availability.timeline', $qs(['category' => $categoryId])) }}" class="ia-btn ia-btn--sm">Today</a>
+        <a href="{{ route('tenant.rentals.availability.timeline', $qs(['start' => $nextStart, 'category' => $categoryId])) }}" class="ia-btn ia-btn--sm" aria-label="Next week">›</a>
+        <span class="av-range">{{ $rangeLabel }}</span>
+      </div>
+      <a href="{{ route('tenant.rentals.bookings.create') }}" class="ia-btn ia-btn--sm ia-btn--primary">New reservation</a>
+    </div>
+  </header>
 
-<div class="ia-page-head">
-  <div class="ia-page-head-left">
-    <h1 class="ia-page-title">Availability</h1>
-    <p class="ia-page-subtitle">Fleet-wide timeline. Drag across empty days to create a reservation, or click a bar to open it.</p>
-  </div>
-  <div style="display:flex;gap:8px;align-items:center">
-    <a href="{{ route('tenant.rentals.availability.timeline', array_filter(['start' => $prevStart, 'category' => $categoryId])) }}" class="ia-btn" title="Previous week">‹</a>
-    <a href="{{ route('tenant.rentals.availability.timeline', array_filter(['category' => $categoryId])) }}" class="ia-btn">Today</a>
-    <a href="{{ route('tenant.rentals.availability.timeline', array_filter(['start' => $nextStart, 'category' => $categoryId])) }}" class="ia-btn" title="Next week">›</a>
-    <span style="font-size:12.5px;opacity:.65;margin:0 6px;white-space:nowrap">{{ $rangeLabel }}</span>
-    <a href="{{ route('tenant.rentals.bookings.create') }}" class="ia-btn ia-btn--primary" style="white-space:nowrap">New reservation</a>
-  </div>
-</div>
+  @include('layouts.tenant._rental-nav', ['active' => 'availability'])
 
-<div class="avail-legend">
-  <span><span class="avail-chip" style="background:#185FA5"></span> Out / in use</span>
-  <span><span class="avail-chip" style="background:#B8801A"></span> Reserved</span>
-  <span><span class="avail-chip" style="background:#A32D2D"></span> Overdue</span>
-  <span><span class="avail-chip" style="background:#534AB7"></span> Maintenance</span>
-  @if(tenant()->leases_enabled)<span><span class="avail-chip" style="background:#3d6b2f"></span> Lease</span>@endif
-  <span style="margin-left:auto" class="avail-pills">
-    <a class="avail-pill {{ $categoryId ? '' : 'is-active' }}" href="{{ route('tenant.rentals.availability.timeline', array_filter(['start' => request('start')])) }}">All</a>
-    @foreach($categories as $cat)
-      <a class="avail-pill {{ $categoryId === $cat->id ? 'is-active' : '' }}"
-         href="{{ route('tenant.rentals.availability.timeline', array_filter(['start' => request('start'), 'category' => $cat->id])) }}">{{ $cat->name }}</a>
-    @endforeach
-  </span>
-</div>
-
-<div class="avail-timeline" id="avail-timeline" data-win-start="{{ $winStart->toDateString() }}">
-  <div class="avail-row avail-row-head">
-    <div class="avail-unit" style="padding:9px 16px">Unit</div>
-    <div class="avail-track" style="min-height:auto">
-      @foreach($days as $d)
-        <div class="avail-day {{ $d['weekend'] ? 'weekend' : '' }}" style="padding:9px 0;text-align:center">{{ $d['label'] }}</div>
+  <div class="rf-ctl sd-in">
+    <div class="rf-pills" role="group" aria-label="Category">
+      <a class="rf-pill {{ $categoryId ? '' : 'on' }}" href="{{ route('tenant.rentals.availability.timeline', $qs(['start' => request('start')])) }}">All</a>
+      @foreach($categories as $cat)
+        <a class="rf-pill {{ $categoryId === $cat->id ? 'on' : '' }}" href="{{ route('tenant.rentals.availability.timeline', $qs(['start' => request('start'), 'category' => $cat->id])) }}">{{ $cat->name }}</a>
       @endforeach
     </div>
+    <div class="av-key">
+      <span><i style="background:var(--sd-t3)"></i>Out</span>
+      <span><i style="background:var(--sd-t4)"></i>Reserved</span>
+      <span><i style="background:var(--sd-bad)"></i>Overdue</span>
+      <span><i style="background:repeating-linear-gradient(135deg,var(--ia-text-dim) 0 3px,transparent 3px 6px)"></i>Maintenance</span>
+      @if(tenant()->leases_enabled)<span><i style="background:var(--sd-t1)"></i>Lease</span>@endif
+    </div>
   </div>
 
-  @forelse($rows as $row)
-    <div class="avail-row">
-      <div class="avail-unit">
-        <div style="min-width:0">
-          <div class="avail-unit-name">{{ $row['name'] }}</div>
-          <div class="avail-unit-sub">{{ $row['sub'] }}</div>
+  <div class="av-scroll sd-in">
+    <div class="av" id="avail-timeline" data-win-start="{{ $winStart->toDateString() }}">
+      <div class="av-row av-h">
+        <div class="av-u">Unit</div>
+        <div class="av-days">
+          @foreach($days as $d)
+            <div class="av-d {{ $d['weekend'] ? 'we' : '' }} {{ $d['today'] ? 'today' : '' }}"><small>{{ $d['dow'] }}</small>{!! $d['today'] ? '<b>' . $d['num'] . '</b>' : e($d['num']) !!}</div>
+          @endforeach
         </div>
       </div>
-      <div class="avail-track" data-unit="{{ $row['id'] }}">
-        @foreach($days as $i => $d)
-          <div class="avail-day {{ $d['weekend'] ? 'weekend' : '' }}" data-day="{{ $i }}"></div>
-        @endforeach
-        @foreach($row['bars'] as $bar)
-          <a class="avail-bar {{ $bar['type'] }}" href="{{ $bar['href'] }}"
-             style="left:{{ $bar['left'] }}%;width:{{ $bar['width'] }}%"
-             title="{{ $bar['label'] }}">{{ $bar['label'] }}</a>
-        @endforeach
-      </div>
+
+      @forelse($rows as $row)
+        @if($row['cat'] !== $lastCat)
+          <div class="av-row"><div class="av-cat">{{ $row['cat'] ?: 'Uncategorized' }}</div></div>
+          @php $lastCat = $row['cat']; @endphp
+        @endif
+        <div class="av-row">
+          <a class="av-u" href="{{ $row['url'] }}"><b>{{ $row['name'] }}</b><small>{{ $row['sub'] }}</small></a>
+          <div class="av-track" data-unit="{{ $row['id'] }}">
+            <div class="av-days">
+              @foreach($days as $i => $d)<div class="av-d {{ $d['weekend'] ? 'we' : '' }}" data-day="{{ $i }}"></div>@endforeach
+            </div>
+            @foreach($row['bars'] as $bar)
+              <a class="av-bar {{ $bar['type'] }}" href="{{ $bar['href'] }}"
+                 style="left:{{ $bar['left'] }}%;width:{{ $bar['width'] }}%"
+                 data-who="{{ $bar['who'] ?? $bar['label'] }}" data-ref="{{ $bar['ref'] ?? '' }}" data-when="{{ $bar['when'] ?? '' }}" data-status="{{ $bar['status'] ?? '' }}" data-unit-name="{{ $row['name'] }} {{ $row['sub'] }}"
+                 title="{{ $bar['label'] }}">{{ $bar['label'] }}</a>
+            @endforeach
+            @if($nowPct !== null)<i class="av-now" style="left:{{ $nowPct }}%"></i>@endif
+          </div>
+        </div>
+      @empty
+        <div class="sd-empty">
+          No units in this view.
+          <div class="sd-empty-acts">
+            @if($categoryId)<a href="{{ route('tenant.rentals.availability.timeline', $qs(['start' => request('start')])) }}" class="ia-btn ia-btn--sm">Show every category</a>@endif
+            <a href="{{ route('tenant.rentals.fleet') }}" class="ia-btn ia-btn--sm ia-btn--primary">Add units in Fleet</a>
+          </div>
+        </div>
+      @endforelse
+
+      @if($nUnits)
+        <div class="av-row av-foot">
+          <div class="av-u">Free that day</div>
+          <div class="av-days">
+            @foreach($days as $i => $d)<div class="av-d {{ $free[$i] <= 1 ? 'low' : '' }}">{{ $free[$i] }}</div>@endforeach
+          </div>
+        </div>
+      @endif
     </div>
-  @empty
-    <div style="padding:36px;text-align:center;font-size:13px;opacity:.6">No units in this view — add some in <a href="{{ route('tenant.rentals.fleet') }}">Fleet</a>.</div>
-  @endforelse
+  </div>
+
+  <p class="av-hint"><span class="mouse">Drag across empty days on a unit to start a reservation for that window, or click a bar to open it.</span><span class="touch">Tap a start day, then an end day, to start a reservation. Tap a bar to open it.</span></p>
+
+  <p class="sd-legend">Bars come from reservations, rentals that are out, @if(tenant()->leases_enabled)season leases @endif and units in maintenance. An overdue rental runs to now, in red, until it comes back. The red line is the current time. “Free that day” counts units with nothing on them at any point that day. Availability is worked out the same way booking does it, and a unit is checked again when the reservation is created, so a desk booking and an online booking can never take the same unit. Showing {{ $unitsShown }} unit{{ $unitsShown === 1 ? '' : 's' }}, up to 60.</p>
 </div>
 
-<p style="font-size:11.5px;opacity:.45;margin-top:14px">
-  Availability here is computed the same way booking does it — advisory locks per tenant re-verify every unit inside the
-  critical section, so an online reservation and a desk booking can never double-book a unit.
-  Showing {{ $unitsShown }} unit{{ $unitsShown === 1 ? '' : 's' }}.
-</p>
+<div class="sd-pop" id="sdPop" role="tooltip" hidden></div>
+<div class="rf-toast" id="avToast" hidden></div>
+@endsection
 
+@push('scripts')
+@include('layouts.tenant._rental-boot')
 <script>
 (function () {
-  // drag across empty days on a unit row -> New Rental
-  // prefilled with the unit + window (pickup 9:00 AM, return 5:00 PM).
+  'use strict';
+  function $$(s, e) { return Array.prototype.slice.call((e || document).querySelectorAll(s)); }
   var createUrl = '{{ route('tenant.rentals.bookings.create') }}';
-  var winStart  = document.getElementById('avail-timeline').getAttribute('data-win-start');
-
-  var drag = null; // { unit, startDay, endDay, track }
+  var grid = document.getElementById('avail-timeline');
+  if (!grid) return;
+  var winStart = grid.getAttribute('data-win-start');
 
   function dayPlus(base, days) {
-    var d = new Date(base + 'T00:00:00');
-    d.setDate(d.getDate() + days);
+    var d = new Date(base + 'T00:00:00'); d.setDate(d.getDate() + days);
     var p = function (n) { return (n < 10 ? '0' : '') + n; };
     return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
   }
-
+  var sel = null, dragging = false; // sel = { unit, a, b, track }
   function paint() {
-    document.querySelectorAll('.avail-day.is-dragover').forEach(function (el) { el.classList.remove('is-dragover'); });
-    if (!drag) return;
-    var lo = Math.min(drag.startDay, drag.endDay), hi = Math.max(drag.startDay, drag.endDay);
-    drag.track.querySelectorAll('.avail-day').forEach(function (el) {
-      var d = parseInt(el.getAttribute('data-day'), 10);
-      if (d >= lo && d <= hi) el.classList.add('is-dragover');
-    });
+    $$('.av-d.sel').forEach(function (e) { e.classList.remove('sel'); });
+    if (!sel) return;
+    var lo = Math.min(sel.a, sel.b), hi = Math.max(sel.a, sel.b);
+    $$('.av-d', sel.track).forEach(function (c) { var i = parseInt(c.getAttribute('data-day'), 10); if (i >= lo && i <= hi) c.classList.add('sel'); });
   }
+  function finish() {
+    if (!sel) return;
+    var lo = Math.min(sel.a, sel.b), hi = Math.max(sel.a, sel.b), unit = sel.unit;
+    sel = null; paint();
+    window.location = createUrl + '?starts=' + encodeURIComponent(dayPlus(winStart, lo) + 'T09:00') + '&due=' + encodeURIComponent(dayPlus(winStart, hi) + 'T17:00') + '&unit=' + encodeURIComponent(unit);
+  }
+  var toastEl = document.getElementById('avToast'), tt;
+  function toast(m) { toastEl.textContent = m; toastEl.hidden = false; clearTimeout(tt); tt = setTimeout(function () { toastEl.hidden = true; }, 2600); }
 
-  document.querySelectorAll('.avail-track[data-unit]').forEach(function (track) {
-    track.addEventListener('mousedown', function (e) {
-      var cell = e.target.closest('.avail-day');
-      if (!cell || e.target.closest('.avail-bar')) return;
-      drag = { unit: track.getAttribute('data-unit'), startDay: parseInt(cell.getAttribute('data-day'), 10),
-               endDay: parseInt(cell.getAttribute('data-day'), 10), track: track };
-      paint();
-      e.preventDefault();
-    });
-    track.addEventListener('mousemove', function (e) {
-      if (!drag || drag.track !== track) return;
-      var cell = e.target.closest('.avail-day');
-      if (!cell) return;
-      drag.endDay = parseInt(cell.getAttribute('data-day'), 10);
-      paint();
+  $$('.av-track[data-unit]').forEach(function (track) {
+    track.addEventListener('pointerdown', function (e) {
+      var cell = e.target.closest('.av-d'); if (!cell || e.target.closest('.av-bar')) return;
+      var i = parseInt(cell.getAttribute('data-day'), 10), unit = track.getAttribute('data-unit');
+      if (e.pointerType === 'touch') {            // phones: tap a start day, then an end day
+        if (sel && sel.track === track) { sel.b = i; paint(); finish(); }
+        else { sel = { unit: unit, a: i, b: i, track: track }; paint(); toast('Now tap the last day'); }
+        return;
+      }
+      dragging = true; sel = { unit: unit, a: i, b: i, track: track }; paint(); e.preventDefault();
     });
   });
-
-  document.addEventListener('mouseup', function () {
-    if (!drag) return;
-    var lo = Math.min(drag.startDay, drag.endDay), hi = Math.max(drag.startDay, drag.endDay);
-    var starts = dayPlus(winStart, lo) + 'T09:00';
-    var due    = dayPlus(winStart, hi) + 'T17:00';
-    var unit   = drag.unit;
-    drag = null;
-    paint();
-    window.location = createUrl + '?starts=' + encodeURIComponent(starts) + '&due=' + encodeURIComponent(due) + '&unit=' + encodeURIComponent(unit);
+  document.addEventListener('pointermove', function (e) {
+    if (!dragging || !sel) return;
+    var el = document.elementFromPoint(e.clientX, e.clientY), c = el && el.closest('.av-d');
+    if (c && sel.track.contains(c)) { sel.b = parseInt(c.getAttribute('data-day'), 10); paint(); }
   });
+  document.addEventListener('pointerup', function () { if (dragging) { dragging = false; finish(); } });
+
+  // hover/focus card on a bar
+  var pop = document.getElementById('sdPop');
+  function show(b) {
+    pop.textContent = '';
+    var h = document.createElement('h4'); h.textContent = (b.dataset.ref ? b.dataset.ref + ' · ' : '') + b.dataset.who; pop.appendChild(h);
+    [b.dataset.unitName, b.dataset.when, b.dataset.status].forEach(function (t) { if (!t) return; var d = document.createElement('div'); d.textContent = t; pop.appendChild(d); });
+    pop.hidden = false;
+    var r = b.getBoundingClientRect(), w = pop.offsetWidth;
+    pop.style.left = Math.max(12, Math.min(innerWidth - w - 12, r.left)) + 'px'; pop.style.top = (r.bottom + 8) + 'px';
+  }
+  document.addEventListener('mouseover', function (e) { var b = e.target.closest('.av-bar'); if (b && matchMedia('(hover: hover)').matches) show(b); });
+  document.addEventListener('mouseout', function (e) { if (e.target.closest('.av-bar')) pop.hidden = true; });
+  document.addEventListener('focusin', function (e) { var b = e.target.closest('.av-bar'); if (b) show(b); });
+  document.addEventListener('focusout', function (e) { if (e.target.closest('.av-bar')) pop.hidden = true; });
+  addEventListener('scroll', function () { pop.hidden = true; }, { passive: true });
 })();
 </script>
-
-@endsection
+@endpush

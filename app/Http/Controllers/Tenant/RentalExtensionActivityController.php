@@ -59,7 +59,14 @@ class RentalExtensionActivityController extends Controller
             ]);
         }
 
+        $counts = [
+            'all'      => (clone $base)->count(),
+            'accepted' => (clone $base)->where('status', 'paid')->count(),
+            'dead'     => (clone $base)->whereIn('status', ['declined', 'expired', 'cancelled'])->count(),
+        ];
+
         return view('tenant.rentals.extension-activity', [
+            'counts'   => $counts,
             'sent'     => $sent,
             'sentPrev' => $sentPrev,
             'accepted' => $accepted,

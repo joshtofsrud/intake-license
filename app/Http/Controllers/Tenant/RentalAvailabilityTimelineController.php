@@ -109,6 +109,11 @@ class RentalAvailabilityTimelineController extends Controller
                     'type'  => $type,
                     'label' => $label,
                     'href'  => route('tenant.rentals.bookings.show', $rental->id),
+                    // detail for the hover card
+                    'who'    => $name !== '' ? $name : ucfirst($type),
+                    'ref'    => $rental->rental_number,
+                    'when'   => $rental->starts_at->copy()->setTimezone($tz)->format('M j, g:i A') . ' → ' . $rental->due_at->copy()->setTimezone($tz)->format('M j, g:i A'),
+                    'status' => $isOverdue ? 'Overdue — due back ' . $rental->due_at->copy()->setTimezone($tz)->format('g:i A') . ', still out' : ucfirst($rental->status),
                 ];
             }
         }
@@ -148,6 +153,10 @@ class RentalAvailabilityTimelineController extends Controller
                 'type'  => 'lease',
                 'label' => $lease->lease_number . ($who !== '' ? ' · ' . $who : '') . ' — leased to ' . $lease->season_end->setTimezone(tenant()->timezone())->format('M j'),
                 'href'  => route('tenant.rentals.leases.show', $lease->id),
+                'who'    => $who !== '' ? $who : 'Lease',
+                'ref'    => $lease->lease_number,
+                'when'   => $lease->season_start->copy()->setTimezone($tz)->format('M j') . ' → ' . $lease->season_end->copy()->setTimezone($tz)->format('M j'),
+                'status' => 'Season lease',
             ];
         }
 
@@ -157,10 +166,14 @@ class RentalAvailabilityTimelineController extends Controller
                 $bars = [[
                     'left' => 0, 'width' => 100, 'type' => 'maint',
                     'label' => 'In maintenance', 'href' => route('tenant.rentals.fleet'),
+                    'who' => 'In maintenance', 'ref' => '', 'when' => '',
+                    'status' => 'Stays off new bookings until it is cleared in Fleet.',
                 ]];
             }
             return [
                 'id'   => $u->id,
+                'url'  => route('tenant.rentals.fleet.units.show', $u->id),
+                'cat'  => $u->category?->name ?? '',
                 'name' => $u->name,
                 'sub'  => trim(($u->identifier ? $u->identifier . ' · ' : '') . ($u->category?->name ?? '')),
                 'bars' => $bars,
@@ -171,7 +184,7 @@ class RentalAvailabilityTimelineController extends Controller
         $days = [];
         for ($i = 0; $i < self::DAYS; $i++) {
             $d = $winStartLocal->copy()->addDays($i);
-            $days[] = ['label' => $d->format('D j'), 'weekend' => $d->isWeekend()];
+            $days[] = ['dow' => $d->format('D'), 'num' => $d->format('j'), 'weekend' => $d->isWeekend(), 'today' => $d->isSameDay(Carbon::now($tz))];
         }
 
         return view('tenant.rentals.availability', [
@@ -184,6 +197,9 @@ class RentalAvailabilityTimelineController extends Controller
             'nextStart'   => $winStartLocal->copy()->addDays(self::DAYS)->toDateString(),
             'rangeLabel'  => $winStartLocal->format('M j') . ' – ' . $winEndLocal->copy()->subDay()->format('M j'),
             'unitsShown'  => $units->count(),
+            // red "now" line, as a % of the window (null when now is outside it)
+            'nowPct'      => ($nowUtc->greaterThan($winStartUtc) && $nowUtc->lessThan($winEndUtc))
+                ? round($winStartUtc->diffInMinutes($nowUtc) / $totalMin * 100, 3) : null,
         ]);
     }
 }
