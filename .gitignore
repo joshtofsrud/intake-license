@@ -72,6 +72,7 @@ database/database.sqlite
 /apply-*
 /chunk-*
 /*.zip
+/*.patch
 /*.sql
 .DS_Store
 # the one root script that IS the repo's business:

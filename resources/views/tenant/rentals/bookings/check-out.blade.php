@@ -1,323 +1,360 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = 'Check out ' . $rental->rental_number; @endphp
 
-{{-- guided check-out: Verify → Agreement → Condition →
-     Deposit & go. Resumable: every write step is its own POST; done steps
-     render done after reload. --}}
+{{-- MARKER-RENTAL-CHECKOUT-STUDIO: guided check-out in the Studio design.
+     Who & what → Agreement → Condition → Deposit & go. Resumable: every write
+     step is its own POST, so finished steps render finished after a reload. --}}
 
-@push('styles')
-<style>
-  .co-steps{display:flex;align-items:center;margin-bottom:24px;flex-wrap:wrap}
-  .co-step{display:flex;align-items:center;gap:9px;padding:0 4px;cursor:pointer}
-  .co-n{width:24px;height:24px;border-radius:50%;border:1.5px solid var(--ia-border-strong);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:650;color:var(--ia-text-dim,rgba(255,255,255,.55));flex-shrink:0}
-  .co-step.done .co-n{background:var(--ia-accent,#BEF264);border-color:var(--ia-accent,#BEF264);color:#0a0a0a}
-  .co-step.cur .co-n{border-color:var(--ia-accent,#BEF264);color:var(--ia-accent,#BEF264)}
-  .co-t{font-size:12.5px;font-weight:550;color:var(--ia-text-dim,rgba(255,255,255,.55))}
-  .co-step.cur .co-t,.co-step.done .co-t{color:var(--ia-text,#f0f0f0)}
-  .co-bar{width:34px;height:1.5px;background:var(--ia-border);margin:0 6px}
-  .co-pane{display:none}
-  .co-pane.on{display:block;animation:cofade .15s ease}
-  @keyframes cofade{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
-  .co-grid{display:grid;grid-template-columns:2fr 1fr;gap:16px;align-items:start}
-  @media(max-width:980px){.co-grid{grid-template-columns:1fr}}
-  .co-kv{display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:5px 0}
-  .co-kv span:first-child{opacity:.55}
-  .co-chk{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:.5px solid var(--ia-border)}
-  .co-chk:last-child{border-bottom:none}
-  .co-seg{display:inline-flex;border:.5px solid var(--ia-border);border-radius:var(--ia-r-md,8px);overflow:hidden;flex-shrink:0}
-  .co-seg button{padding:5px 12px;font-size:11.5px;background:none;border:none;color:var(--ia-text-dim,rgba(255,255,255,.55));font-weight:600;cursor:pointer}
-  .co-seg button.ok{background:rgba(123,201,111,.18);color:#7BC96F}
-  .co-seg button.flag{background:rgba(239,68,68,.16);color:#ef4444}
-  .co-agree-body{max-height:300px;overflow-y:auto;border:.5px solid var(--ia-border);border-radius:var(--ia-r-md,8px);padding:14px 16px;font-size:12.5px;line-height:1.65;white-space:pre-wrap;background:rgba(255,255,255,.02)}
-  .co-foot{display:flex;justify-content:space-between;margin-top:16px}
-</style>
-@endpush
+@section('mobile-fab', 'new-rental')
+@include('layouts.tenant._rental-styles')
 
 @section('content')
-
-@include('layouts.tenant._rental-nav', ['active' => 'bookings'])
-
-<div class="ia-page-head">
-  <div class="ia-page-head-left">
-    <h1 class="ia-page-title">Check out — {{ $rental->rental_number }}</h1>
-    <p class="ia-page-subtitle">{{ $rental->customer?->fullName() }} · {{ tlocal_datetime($rental->starts_at, 'M j, g:i A') }} → {{ tlocal_datetime($rental->due_at, 'M j, g:i A') }}</p>
-  </div>
-  <a href="{{ route('tenant.rentals.bookings.show', $rental->id) }}" class="ia-btn">Back to booking</a>
-</div>
-
-@if(session('flash'))<div class="ia-flash ia-flash--success" style="margin-bottom:16px">{{ session('flash') }}</div>@endif
-@if($errors->any())<div class="ia-flash ia-flash--error" style="margin-bottom:16px">{{ $errors->first() }}</div>@endif
-
 @php
+  $tones = ['--sd-t1', '--sd-t2', '--sd-t3', '--sd-t4'];
+  $ini = fn ($n) => mb_strtoupper(mb_substr(implode('', array_map(fn ($w) => mb_substr($w, 0, 1), preg_split('/\s+/', trim((string) $n)))), 0, 2)) ?: '?';
+  $who   = $rental->customer?->fullName() ?: 'Walk-in';
+  $first = explode(' ', trim($who))[0];
+  $tone  = $tones[crc32((string) ($rental->customer_id ?? $rental->id)) % 4];
+
   $agreementDone  = $agreementSigned || !$agreementTemplate;
   $allUnits       = $unitLines->count();
   $checkedUnits   = $unitLines->filter(fn ($l) => $checksByUnit->has($l->unit_id))->count();
   $conditionDone  = $allUnits > 0 && $checkedUnits >= $allUnits;
+  $depositHeld    = $rental->deposit_status === 'authorized';
+  $balancePaid    = $balanceCents <= 0;
   $startStep      = !$agreementDone ? 2 : (!$conditionDone ? 3 : 4);
+
+  $stepDefs = [
+    1 => ['Who & what', 'Confirm the booking', false],
+    2 => ['Agreement', 'Signed before it leaves', $agreementDone],
+    3 => ['Condition', 'Out-check each unit', $conditionDone],
+    4 => ['Deposit & go', 'Hold and balance', false],
+  ];
+  $prog = [
+    ['Booking confirmed', true, 'pr-book'],
+    [$agreementTemplate ? 'Agreement signed' : 'No agreement needed', $agreementDone, 'pr-agree'],
+    ["Units checked ({$checkedUnits} of {$allUnits})", $conditionDone, 'pr-cond'],
+    ['Deposit held', $depositHeld, 'pr-dep'],
+    ['Balance paid', $balancePaid, 'pr-bal'],
+  ];
+  $nowI = null; foreach ($prog as $i => $p) { if (!$p[1]) { $nowI = $i; break; } }
 @endphp
 
-<div class="co-steps" id="co-steps">
-  <div class="co-step done" data-step="1"><span class="co-n">✓</span><span class="co-t">Verify</span></div>
-  <div class="co-bar"></div>
-  <div class="co-step {{ $agreementDone ? 'done' : '' }}" data-step="2"><span class="co-n">{{ $agreementDone ? '✓' : '2' }}</span><span class="co-t">Agreement</span></div>
-  <div class="co-bar"></div>
-  <div class="co-step {{ $conditionDone ? 'done' : '' }}" data-step="3"><span class="co-n">{{ $conditionDone ? '✓' : '3' }}</span><span class="co-t">Condition ({{ $checkedUnits }}/{{ $allUnits }})</span></div>
-  <div class="co-bar"></div>
-  <div class="co-step" data-step="4"><span class="co-n">4</span><span class="co-t">Deposit &amp; go</span></div>
-</div>
-
-<div class="co-grid">
-  <div>
-    {{-- ---------------------------------------------------- step 1 verify --}}
-    <div class="co-pane" data-pane="1">
-      <div class="ia-card" style="padding:18px 20px;margin-bottom:14px">
-        <h2 class="ia-h3" style="margin-bottom:10px">Who &amp; what</h2>
-        <div class="co-kv"><span>Customer</span><span style="font-weight:600">{{ $rental->customer?->fullName() }}</span></div>
-        <div class="co-kv"><span>Contact</span><span>{{ $rental->customer?->email ?: '—' }}{{ $rental->customer?->phone ? ' · ' . $rental->customer->phone : '' }}</span></div>
-        <div class="co-kv"><span>Window</span><span>{{ tlocal_datetime($rental->starts_at, 'M j, g:i A') }} → {{ tlocal_datetime($rental->due_at, 'M j, g:i A') }}</span></div>
-        <div style="border-top:.5px solid var(--ia-border);margin-top:8px;padding-top:8px">
-          @foreach($unitLines as $line)
-            <div class="co-kv"><span>{{ $line->name_snapshot }}{{ $line->unit?->identifier ? ' · ' . $line->unit->identifier : '' }}</span><span>{{ $line->duration_units }} × {{ format_money($line->rate_cents_snapshot) }}</span></div>
-          @endforeach
-        </div>
-      </div>
-      <div class="co-foot"><span></span><button type="button" class="ia-btn ia-btn--primary" onclick="coGo(2)">Looks right →</button></div>
+<div class="sd rf" id="sd">
+  <header class="sd-head" id="sdHead">
+    <div class="sd-head-l">
+      <h1 class="sd-hi">Check out · {{ $who }}</h1>
+      <p class="sd-sub">{{ $rental->rental_number }} · {{ tlocal_datetime($rental->starts_at, 'M j, g:i A') }} → {{ tlocal_datetime($rental->due_at, 'M j, g:i A') }}</p>
     </div>
+    <div class="sd-head-r">
+      <a href="{{ route('tenant.rentals.bookings.show', $rental->id) }}" class="ia-btn ia-btn--sm">Back to booking</a>
+    </div>
+  </header>
 
-    {{-- ------------------------------------------------- step 2 agreement --}}
-    <div class="co-pane" data-pane="2">
-      <div class="ia-card" style="padding:18px 20px;margin-bottom:14px">
+  @include('layouts.tenant._rental-nav', ['active' => 'bookings'])
+
+  @if(session('flash'))<div class="ia-flash ia-flash--success" style="margin-bottom:16px">{{ session('flash') }}</div>@endif
+  @if($errors->any())<div class="ia-flash ia-flash--error" style="margin-bottom:16px">{{ $errors->first() }}</div>@endif
+
+  <div class="rf-flowbar sd-in">
+    <div class="rf-flow" id="coSteps">
+      @foreach($stepDefs as $n => $s)
+        <button type="button" data-step="{{ $n }}" data-done="{{ $s[2] ? 1 : 0 }}"><i>{{ $n }}</i><span>{{ $s[0] }}<small>{{ $n === 3 ? "{$checkedUnits} of {$allUnits} checked" : $s[1] }}</small></span></button>
+      @endforeach
+    </div>
+  </div>
+
+  <div class="dash-row">
+    <div class="dash-col" style="grid-column:span 8">
+
+      {{-- ---------------------------------------------------- step 1 verify --}}
+      <div class="co-pane" data-pane="1" hidden>
+        <div class="rf-step-h"><div><h2>Who &amp; what</h2><p>Check the customer and the units before anything is signed.</p></div></div>
+        <div class="rf-person" style="margin-bottom:6px">
+          <div class="sd-av" style="--c:var({{ $tone }})">{{ $ini($who) }}</div>
+          <div><b>{{ $who }}</b><small>{{ $rental->customer?->phone ?: '—' }}{{ $rental->customer?->email ? ' · ' . $rental->customer->email : '' }}</small></div>
+        </div>
+        <dl class="rf-kv" style="margin-bottom:18px">
+          <dt>Goes out</dt><dd>{{ tlocal_datetime($rental->starts_at, 'M j, g:i A') }}</dd>
+          <dt>Due back</dt><dd>{{ tlocal_datetime($rental->due_at, 'M j, g:i A') }}</dd>
+        </dl>
+        @foreach($unitLines as $line)
+          <div class="rf-line">
+            <div class="rf-thumb">{{ $ini($line->name_snapshot) }}</div>
+            <div><b>{{ $line->name_snapshot }}</b><small>@if($line->unit?->identifier)<span class="rf-mono">{{ $line->unit->identifier }}</span>@endif{{ $line->unit?->size ? ' · Size ' . $line->unit->size : '' }} · {{ $line->duration_units }} × {{ format_money($line->rate_cents_snapshot) }}</small></div>
+            <div></div>
+            <div class="amt">{{ format_money($line->line_total_cents ?? ($line->rate_cents_snapshot * $line->duration_units)) }}</div>
+          </div>
+        @endforeach
+        <div class="rf-step-f"><a href="{{ route('tenant.rentals.bookings.show', $rental->id) }}" class="ia-btn">← Booking</a><button type="button" class="ia-btn ia-btn--primary" data-step="2">Looks right →</button></div>
+      </div>
+
+      {{-- ------------------------------------------------- step 2 agreement --}}
+      <div class="co-pane" data-pane="2" hidden>
+        <div class="rf-step-h"><div><h2>Agreement</h2><p>{{ $first }} signs before anything leaves.</p></div></div>
         @if(!$agreementTemplate)
-          <h2 class="ia-h3" style="margin-bottom:8px">No agreement configured</h2>
-          <p style="font-size:12.5px;opacity:.55;line-height:1.6">You haven't set up a rental agreement yet, so this step is skipped. Add one in Rental Settings and every check-out from then on will require a signature.</p>
+          <div class="sd-empty">No agreement is set up yet, so this step is skipped. Add one in Rental settings and every check-out from then on will need a signature.</div>
         @elseif($agreementSigned)
-          <h2 class="ia-h3" style="margin-bottom:8px">Agreement signed</h2>
-          @if($rental->agreement_signature_path)
-            <img src="{{ Storage::disk('public')->url($rental->agreement_signature_path) }}" alt="Signature"
-                 style="max-height:64px;background:#F7F7F5;border-radius:7px;padding:5px 9px;margin-bottom:9px;display:block">
-          @endif
-          <p style="font-size:12.5px;opacity:.55">
-            @if($rental->agreement_signer_name){{ $rental->agreement_signer_name }} · @endif
-            v{{ $rental->agreement_template_version }} · {{ tlocal_datetime($rental->agreement_signed_at, 'M j, g:i A') }}
-            @if($rental->agreement_method === 'display') · signed on the customer display @endif
-            @if($rental->agreement_pdf_path) · <a href="{{ Storage::disk('public')->url($rental->agreement_pdf_path) }}" target="_blank" style="color:var(--ia-accent);text-decoration:none">PDF →</a>@endif
-          </p>
+          <div class="rf-signed">
+            <i>✓</i>
+            <div>
+              <b>Agreement signed</b>
+              <small class="rf-dim">
+                @if($rental->agreement_signer_name){{ $rental->agreement_signer_name }} · @endif
+                v{{ $rental->agreement_template_version }} · {{ tlocal_datetime($rental->agreement_signed_at, 'M j, g:i A') }}
+                @if($rental->agreement_method === 'display') · on the customer display @endif
+                @if($rental->agreement_pdf_path) · <a href="{{ Storage::disk('public')->url($rental->agreement_pdf_path) }}" target="_blank" rel="noopener">PDF →</a>@endif
+              </small>
+            </div>
+            @if($rental->agreement_signature_path)
+              <img src="{{ Storage::disk('public')->url($rental->agreement_signature_path) }}" alt="Signature" class="rf-sigimg">
+            @endif
+          </div>
         @else
-          <h2 class="ia-h3" style="margin-bottom:10px">{{ $agreementTemplate->title }} <span style="font-size:11px;opacity:.5;font-weight:400">v{{ $agreementTemplate->version }}</span></h2>
-          <div class="co-agree-body">{{ $agreementTemplate->body }}</div>
+          <div class="rf-agree"><b style="color:var(--ia-text)">{{ $agreementTemplate->title }}</b> <span class="rf-dim">v{{ $agreementTemplate->version }}</span><br><span style="white-space:pre-wrap">{{ $agreementTemplate->body }}</span></div>
 
-          {{-- where does the customer sign? --}}
-          <div id="ag-methods" style="display:grid;grid-template-columns:1fr 1fr;gap:11px;margin:14px 0 4px">
-            <div class="ag-method on" data-method="display" style="border:1.5px solid var(--ia-accent);border-radius:10px;padding:13px;cursor:pointer;background:rgba(190,242,100,.05)">
-              <div style="font-size:13px;font-weight:650;margin-bottom:4px">Send to customer display</div>
-              <div style="font-size:11.5px;opacity:.55;line-height:1.55">They read and sign on the paired screen.</div>
-            </div>
-            <div class="ag-method" data-method="desk" style="border:1.5px solid var(--ia-border,#282828);border-radius:10px;padding:13px;cursor:pointer">
-              <div style="font-size:13px;font-weight:650;margin-bottom:4px">Sign at this screen</div>
-              <div style="font-size:11.5px;opacity:.55;line-height:1.55">Type their name and confirm here.</div>
-            </div>
+          <div class="rf-choose" id="ag-methods">
+            <button type="button" class="rf-opt ag-method on" data-method="display"><b>Send to the customer display</b><small>They read and sign on the paired screen.</small></button>
+            <button type="button" class="rf-opt ag-method" data-method="desk"><b>Sign at this screen</b><small>They type their name here to confirm.</small></button>
           </div>
 
-          {{-- display path --}}
           <div id="ag-display-pane" style="margin-top:14px">
             <div id="ag-send-row">
               <button type="button" id="ag-send" class="ia-btn ia-btn--primary">Send to display →</button>
-              <span id="ag-send-note" style="font-size:11.5px;opacity:.55;margin-left:10px"></span>
+              <span id="ag-send-note" class="rf-dim" style="font-size:12px;margin-left:10px"></span>
             </div>
 
-            <div id="ag-waiting" style="display:none;border:1px solid #2A3317;background:rgba(190,242,100,.06);border-radius:9px;padding:13px 15px">
-              <div style="font-size:12.5px;font-weight:650;color:var(--ia-accent);margin-bottom:4px">Waiting on the renter</div>
-              <div style="font-size:11.5px;opacity:.7;line-height:1.6" id="ag-waiting-note">The waiver is up on the customer display. This step completes on its own when they sign — you can start the condition check and come back.</div>
-              <div style="margin-top:11px;display:flex;gap:9px;flex-wrap:wrap">
-                <button type="button" id="ag-recall" class="ia-btn">Recall from display</button>
-                <button type="button" class="ia-btn" onclick="coGo(3)">Start condition check →</button>
+            <div id="ag-waiting" class="rf-wait" style="display:none">
+              <i></i>
+              <div>
+                <b>Waiting on {{ $first }}…</b>
+                <small id="ag-waiting-note">The agreement is up on the customer display. This step completes on its own when they sign — you can start the condition check and come back.</small>
               </div>
+              <span class="rf-wait-acts">
+                <button type="button" id="ag-recall" class="ia-btn ia-btn--sm">Recall</button>
+                <button type="button" class="ia-btn ia-btn--sm" data-step="3">Start condition check →</button>
+              </span>
             </div>
 
-            <div id="ag-pick" style="display:none;border:1px solid #3A3117;background:rgba(240,198,116,.07);border-radius:9px;padding:13px 15px;margin-top:10px">
-              <div style="font-size:12.5px;font-weight:650;margin-bottom:4px">Pick the register at this counter</div>
-              <div style="font-size:11.5px;opacity:.7;line-height:1.6">The customer display is paired to a register, so choose the one in front of you — or have them sign at this screen instead.</div>
-              <div style="display:flex;gap:9px;margin-top:11px;flex-wrap:wrap">
+            <div id="ag-pick" class="rf-pickreg" style="display:none">
+              <b>Pick the register at this counter</b>
+              <small>The customer display is paired to a register, so choose the one in front of you — or have them sign at this screen instead.</small>
+              <div class="rf-collect">
                 <select id="ag-registers" class="ia-input" style="min-width:220px"></select>
-                <button type="button" id="ag-select-register" class="ia-btn">Use this register</button>
+                <button type="button" id="ag-select-register" class="ia-btn ia-btn--sm">Use this register</button>
               </div>
             </div>
           </div>
 
-          {{-- desk path --}}
           <form method="POST" action="{{ route('tenant.rentals.bookings.agreement.sign', $rental->id) }}" style="margin-top:14px;display:none" id="ag-desk-pane">
             @csrf
-            <div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap">
-              <div style="flex:1;min-width:220px">
-                <label class="ia-label" style="display:block;margin-bottom:5px">Customer signs by typing their full name</label>
-                <input type="text" name="signer_name" maxlength="160" class="ia-input" style="width:100%" placeholder="{{ $rental->customer?->fullName() }}">
-              </div>
-              <button type="submit" class="ia-btn ia-btn--primary">Sign agreement</button>
-            </div>
-            <label style="display:flex;gap:9px;align-items:center;font-size:12.5px;margin-top:10px;cursor:pointer">
-              <input type="checkbox" name="agreed" value="1"> Customer has read and agrees to the terms above
+            <label class="rf-note" style="margin-top:0"><span class="rf-lbl">Customer types their full name</span>
+              <input type="text" name="signer_name" maxlength="160" class="ia-input" placeholder="{{ $who }}">
             </label>
+            <label class="rf-agreed"><input type="checkbox" name="agreed" value="1"> Customer has read and agrees to the terms above</label>
+            <button type="submit" class="ia-btn ia-btn--primary" style="margin-top:12px">Sign agreement</button>
           </form>
 
           {{-- filled by the status poll the moment a signature lands --}}
-          <div id="ag-signed-live" style="display:none;margin-top:14px;border:1px solid #2A3317;background:rgba(190,242,100,.06);border-radius:9px;padding:14px 15px">
-            <div style="font-size:13.5px;font-weight:650" id="ag-signed-name"></div>
-            <div style="font-size:11.5px;opacity:.6;margin-top:3px" id="ag-signed-meta"></div>
+          <div id="ag-signed-live" class="rf-signed" style="display:none;margin-top:14px">
+            <i>✓</i>
+            <div><b id="ag-signed-name"></b><small class="rf-dim" id="ag-signed-meta"></small></div>
           </div>
         @endif
+        <div class="rf-step-f"><button type="button" class="ia-btn" data-step="1">← Back</button><button type="button" id="ag-continue" class="ia-btn ia-btn--primary" data-step="3" {{ $agreementDone ? '' : 'disabled' }}>Continue to condition →</button></div>
       </div>
-      <div class="co-foot"><button type="button" class="ia-btn" onclick="coGo(1)">← Back</button><button type="button" id="ag-continue" class="ia-btn ia-btn--primary" onclick="coGo(3)" {{ $agreementDone ? '' : 'disabled' }}>Continue →</button></div>
-    </div>
 
-    {{-- ------------------------------------------------- step 3 condition --}}
-    <div class="co-pane" data-pane="3">
-      @foreach($unitLines as $line)
-        @php
-          $unit  = $line->unit;
-          $check = $unit ? $checksByUnit->get($unit->id) : null;
-          $tpl   = $unit?->conditionTemplate;
-          $items = $tpl ? (array) $tpl->items : [];
-        @endphp
-        <div class="ia-card" style="padding:0;overflow:hidden;margin-bottom:14px">
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 18px;border-bottom:.5px solid var(--ia-border)">
-            <div>
-              <span style="font-size:12px;font-weight:550;text-transform:uppercase;letter-spacing:.06em">{{ $line->name_snapshot }}{{ $unit?->identifier ? ' · ' . $unit->identifier : '' }}</span>
-              <div style="font-size:11px;opacity:.5;margin-top:2px">{{ $tpl ? $tpl->name . ' template' : 'No template — quick visual' }}</div>
-            </div>
-            @if($check)<span style="font-size:11px;font-weight:600;color:{{ $check->flagged ? '#E0A82E' : '#7BC96F' }}">{{ $check->flagged ? 'noted with flags' : 'recorded' }}</span>@endif
-          </div>
-          @if($check)
-            <div style="padding:14px 18px;font-size:12.5px;opacity:.7">Out-check recorded {{ tlocal_datetime($check->performed_at, 'M j, g:i A') }}{{ $check->notes ? ' — ' . $check->notes : '' }}{{ is_array($check->photos) && count($check->photos) ? ' · ' . count($check->photos) . ' photo(s)' : '' }}</div>
-          @else
-            <form method="POST" action="{{ route('tenant.rentals.bookings.condition.store', $rental->id) }}" enctype="multipart/form-data" class="co-cond-form">
-              @csrf
-              <input type="hidden" name="unit_id" value="{{ $unit?->id }}">
-              <input type="hidden" name="phase" value="check_out">
-              @if(count($items))
-                @foreach($items as $item)
-                  @php $k = $item['key'] ?? ('item_' . $loop->index); @endphp
-                  <div class="co-chk">
-                    <span style="font-size:13px;flex:1">{{ $item['label'] ?? $k }}</span>
-                    <input type="hidden" name="results[{{ $k }}]" value="ok">
-                    <div class="co-seg" data-key="{{ $k }}">
-                      <button type="button" class="ok">OK</button>
-                      <button type="button">Flag</button>
-                    </div>
-                  </div>
-                @endforeach
+      {{-- ------------------------------------------------- step 3 condition --}}
+      <div class="co-pane" data-pane="3" hidden>
+        <div class="rf-step-h"><div><h2>Out-check</h2><p>Mark each item OK or flag it. Flags and photos go on the unit's record, so a return can be compared against them.</p></div></div>
+        @foreach($unitLines as $line)
+          @php
+            $unit  = $line->unit;
+            $check = $unit ? $checksByUnit->get($unit->id) : null;
+            $tpl   = $unit?->conditionTemplate;
+            $items = $tpl ? (array) $tpl->items : [];
+            $nPhotos = $check && is_array($check->photos) ? count($check->photos) : 0;
+          @endphp
+          <div class="rf-cu">
+            <div class="rf-cu-h">
+              <div class="rf-thumb">{{ $ini($line->name_snapshot) }}</div>
+              <div><b>{{ $line->name_snapshot }}</b><small>@if($unit?->identifier)<span class="rf-mono">{{ $unit->identifier }}</span> · @endif{{ $tpl ? $tpl->name . ' template' : 'No template — quick visual' }}</small></div>
+              @if($check)
+                <span class="rf-cu-st {{ $check->flagged ? 'flag' : 'ok' }}">{{ $check->flagged ? '⚑ Saved with flags' : '✓ Saved' }}</span>
               @else
-                <div class="co-chk">
-                  <span style="font-size:13px;flex:1">Visual check — unit is complete and ready to go out</span>
-                  <input type="hidden" name="results[visual]" value="ok">
-                  <div class="co-seg" data-key="visual"><button type="button" class="ok">OK</button><button type="button">Flag</button></div>
-                </div>
+                <span class="rf-cu-st" data-cu-st>All OK</span>
               @endif
-              <div style="display:flex;gap:10px;align-items:end;padding:12px 14px;border-top:.5px solid var(--ia-border);flex-wrap:wrap">
-                <div style="flex:1;min-width:200px">
-                  <label class="ia-label" style="display:block;margin-bottom:4px">Notes — existing condition, scuffs, etc.</label>
-                  <input type="text" name="notes" maxlength="2000" class="ia-input" style="width:100%">
-                </div>
-                <div>
-                  <label class="ia-label" style="display:block;margin-bottom:4px">Photos (≤4)</label>
-                  <input type="file" name="photos[]" accept="image/*" multiple class="ia-input" style="padding:6px">
-                </div>
-                <button type="submit" class="ia-btn ia-btn--primary">Save out-check</button>
-              </div>
-            </form>
-          @endif
-        </div>
-      @endforeach
-      <div class="co-foot"><button type="button" class="ia-btn" onclick="coGo(2)">← Back</button><button type="button" class="ia-btn ia-btn--primary" onclick="coGo(4)">Continue →</button></div>
-    </div>
-
-    {{-- --------------------------------------------- step 4 deposit & go --}}
-    <div class="co-pane" data-pane="4">
-      <div class="ia-card" style="padding:18px 20px;margin-bottom:14px">
-        <h2 class="ia-h3" style="margin-bottom:8px">Deposit hold</h2>
-        @if($rental->deposit_status === 'authorized')
-          <p style="font-size:13px"><b>{{ format_money($rental->deposit_hold_cents) }}</b> on hold — you're set.</p>
-        @elseif(tenant()->direct_payments_enabled)
-          <div id="dep-start">
-            <div style="display:flex;gap:6px;max-width:380px">
-              <input type="number" id="dep-amount" min="0.50" step="0.01" value="{{ number_format(max(0, $rental->lines->where('kind','unit')->sum(fn ($l) => (int) ($l->unit?->effectiveDepositCents() ?? 0))) / 100, 2, '.', '') }}" class="ia-input" style="flex:1;text-align:right">
-              <button type="button" class="ia-btn ia-btn--primary" id="dep-authorize">Authorize hold</button>
             </div>
-            <p style="font-size:11px;opacity:.45;margin-top:6px">Authorizes the card without charging it. Skippable — cash shops can just continue.</p>
+            @if($check)
+              <p class="rf-cu-done">Out-check recorded {{ tlocal_datetime($check->performed_at, 'M j, g:i A') }}{{ $check->notes ? ' — ' . $check->notes : '' }}{{ $nPhotos ? ' · ' . $nPhotos . ' photo' . ($nPhotos === 1 ? '' : 's') : '' }}</p>
+            @else
+              <form method="POST" action="{{ route('tenant.rentals.bookings.condition.store', $rental->id) }}" enctype="multipart/form-data" class="co-cond-form">
+                @csrf
+                <input type="hidden" name="unit_id" value="{{ $unit?->id }}">
+                <input type="hidden" name="phase" value="check_out">
+                @forelse($items as $item)
+                  @php $k = $item['key'] ?? ('item_' . $loop->index); @endphp
+                  <div class="rf-chk">
+                    <span>{{ $item['label'] ?? $k }}</span>
+                    <input type="hidden" name="results[{{ $k }}]" value="ok">
+                    <span class="rf-tog co-seg"><button type="button" class="ok">OK</button><button type="button">Flag</button></span>
+                  </div>
+                @empty
+                  <div class="rf-chk">
+                    <span>Visual check — unit is complete and ready to go out</span>
+                    <input type="hidden" name="results[visual]" value="ok">
+                    <span class="rf-tog co-seg"><button type="button" class="ok">OK</button><button type="button">Flag</button></span>
+                  </div>
+                @endforelse
+                <div class="rf-cu-more">
+                  <label><span class="rf-lbl">Notes — existing scuffs, marks</span><textarea name="notes" rows="2" maxlength="2000" class="ia-input"></textarea></label>
+                  <label><span class="rf-lbl">Photos (up to 4)</span>
+                    <span class="rf-drop-ph"><span data-ph-t>+ Add photos</span><input type="file" name="photos[]" accept="image/*" multiple hidden></span>
+                  </label>
+                </div>
+                <div style="display:flex;justify-content:flex-end;margin-top:10px"><button type="submit" class="ia-btn ia-btn--sm ia-btn--primary">Save out-check</button></div>
+              </form>
+            @endif
           </div>
-          <div id="dep-element-wrap" style="display:none;margin-top:10px;max-width:480px">
+        @endforeach
+        @if($unitLines->isEmpty())<div class="sd-empty">This rental has no units to check.</div>@endif
+        <div class="rf-step-f"><button type="button" class="ia-btn" data-step="2">← Back</button><button type="button" class="ia-btn ia-btn--primary" data-step="4">Continue →</button></div>
+      </div>
+
+      {{-- --------------------------------------------- step 4 deposit & go --}}
+      <div class="co-pane" data-pane="4" hidden>
+        <div class="rf-step-h"><div><h2>Deposit &amp; go</h2><p>Place the hold and settle anything owing, then it's theirs.</p></div></div>
+
+        <div class="sd-sec-h"><div><h2>Deposit hold</h2></div></div>
+        @if($rental->deposit_status === 'authorized')
+          <div class="rf-hold"><b>{{ format_money($rental->deposit_hold_cents) }} held</b><small>On the customer's card · authorised, not charged. Released when everything comes back.</small></div>
+        @elseif(tenant()->direct_payments_enabled)
+          <div class="rf-hold" id="dep-start">
+            <small style="margin-bottom:8px">Authorises the customer's card without charging it. Skippable — cash shops can just continue.</small>
+            <div class="rf-collect" style="margin-top:0">
+              <div class="rf-money"><input type="number" id="dep-amount" min="0.50" step="0.01" aria-label="Hold amount" value="{{ number_format(max(0, $rental->lines->where('kind','unit')->sum(fn ($l) => (int) ($l->unit?->effectiveDepositCents() ?? 0))) / 100, 2, '.', '') }}" class="ia-input" style="text-align:right"></div>
+              <button type="button" class="ia-btn ia-btn--sm ia-btn--primary" id="dep-authorize">Authorize hold</button>
+            </div>
+          </div>
+          <div id="dep-element-wrap" class="rf-hold" style="display:none;margin-top:10px;max-width:520px">
             <div id="dep-element"></div>
-            <button type="button" class="ia-btn ia-btn--primary" id="dep-confirm" style="width:100%;margin-top:8px">Place hold</button>
-            <div id="dep-error" style="font-size:12px;color:#ef4444;margin-top:6px"></div>
+            <button type="button" class="ia-btn ia-btn--primary" id="dep-confirm" style="width:100%;margin-top:10px;justify-content:center">Place hold</button>
+            <div id="dep-error" class="rf-err"></div>
           </div>
         @else
-          <p style="font-size:12.5px;opacity:.55">Card payments aren't enabled — deposits can be taken in cash through the register, or skipped.</p>
+          <div class="sd-empty">Card payments aren't enabled — deposits can be taken in cash through the register, or skipped.</div>
         @endif
-      </div>
 
-      @if($balanceCents > 0)
-      <div class="ia-card" style="padding:18px 20px;margin-bottom:14px">
-        <h2 class="ia-h3" style="margin-bottom:8px">Balance due — {{ format_money($balanceCents) }}</h2>
-        <form method="POST" action="{{ route('tenant.rentals.bookings.collect', $rental->id) }}" style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">
+        <div class="sd-sec-h" style="margin-top:24px"><div><h2>{{ $balanceCents > 0 ? 'Balance due — ' . format_money($balanceCents) : 'Balance' }}</h2></div></div>
+        @if($balanceCents > 0)
+          <form method="POST" action="{{ route('tenant.rentals.bookings.collect', $rental->id) }}" class="rf-collect" style="margin-top:0">
+            @csrf
+            {{-- come back to this flow after payment. --}}
+            <input type="hidden" name="return_to" value="{{ parse_url(route('tenant.rentals.bookings.checkout.flow', $rental->id), PHP_URL_PATH) }}">
+            <div class="rf-money"><input type="number" name="amount" min="0.01" step="0.01" required aria-label="Amount" value="{{ number_format($balanceCents / 100, 2, '.', '') }}" class="ia-input" style="text-align:right"></div>
+            <button type="submit" class="ia-btn ia-btn--sm ia-btn--primary">Collect in register</button>
+            <span class="rf-dim" style="font-size:11.5px">The register opens with a linked sale — cash, card or payment link — and comes back here when it's paid.</span>
+          </form>
+        @else
+          <div class="rf-signed"><i>✓</i><div><b>Paid in full</b><small class="rf-dim">{{ format_money($rental->paid_cents) }} taken</small></div></div>
+        @endif
+
+        <form method="POST" action="{{ route('tenant.rentals.bookings.checkout.complete', $rental->id) }}">
           @csrf
-          {{-- come back to this flow after payment. --}}
-          <input type="hidden" name="return_to" value="{{ parse_url(route('tenant.rentals.bookings.checkout.flow', $rental->id), PHP_URL_PATH) }}">
-          <div>
-            <label class="ia-label" style="display:block;margin-bottom:4px">Amount $</label>
-            <input type="number" name="amount" min="0.01" step="0.01" required value="{{ number_format($balanceCents / 100, 2, '.', '') }}" class="ia-input" style="width:140px;text-align:right">
+          <div class="rf-step-f">
+            <button type="button" class="ia-btn" data-step="3">← Back</button>
+            <button type="submit" class="ia-btn ia-btn--primary rf-big">Complete check-out ✓</button>
           </div>
-          <button type="submit" class="ia-btn">Collect in register</button>
-          <span style="font-size:11px;opacity:.45;align-self:center">Opens the register with a linked sale — cash, card, or payment link.</span>
         </form>
       </div>
-      @endif
+    </div>
 
-      <form method="POST" action="{{ route('tenant.rentals.bookings.checkout.complete', $rental->id) }}">
-        @csrf
-        <div class="co-foot">
-          <button type="button" class="ia-btn" onclick="coGo(3)">← Back</button>
-          <button type="submit" class="ia-btn ia-btn--primary" style="font-size:14px;padding:10px 22px">Complete check-out ✓</button>
-        </div>
-      </form>
+    {{-- ---------------------------------------------------------- the rail --}}
+    <div class="dash-col" style="grid-column:span 4">
+      <aside class="sd-rail rf-rail sd-in" style="--d:120ms">
+        <div class="rf-rh"><b>This check-out</b><span>{{ $rental->rental_number }}</span></div>
+        <ul class="rf-prog" id="coProg">
+          @foreach($prog as $i => $p)
+            <li id="{{ $p[2] }}" class="{{ $p[1] ? 'ok' : ($i === $nowI ? 'now' : '') }}"><i>{{ $p[1] ? '✓' : '' }}</i><span>{{ $p[0] }}</span></li>
+          @endforeach
+        </ul>
+        <div class="rf-rh"><b>Money</b></div>
+        <dl class="rf-tot">
+          <dt>Subtotal</dt><dd>{{ format_money($rental->subtotal_cents) }}</dd>
+          <dt>Tax</dt><dd>{{ format_money($rental->tax_cents) }}</dd>
+          <dt class="big">Total</dt><dd>{{ format_money($rental->total_cents) }}</dd>
+          <dt>Paid</dt><dd>{{ format_money($rental->paid_cents) }}</dd>
+          <dt class="{{ $balanceCents > 0 ? 'owe' : '' }}">Balance</dt><dd>{{ format_money($balanceCents) }}</dd>
+        </dl>
+      </aside>
     </div>
   </div>
 
-  {{-- ------------------------------------------------------- money rail --}}
-  <div>
-    <div class="ia-card" style="padding:16px 18px;margin-bottom:14px">
-      <span class="ia-label">Money</span>
-      <div class="co-kv" style="margin-top:6px"><span>Subtotal</span><span>{{ format_money($rental->subtotal_cents) }}</span></div>
-      <div class="co-kv"><span>Tax</span><span>{{ format_money($rental->tax_cents) }}</span></div>
-      <div class="co-kv" style="font-weight:650;border-top:.5px solid var(--ia-border);padding-top:8px"><span style="opacity:1">Total</span><span>{{ format_money($rental->total_cents) }}</span></div>
-      <div class="co-kv"><span>Paid</span><span>{{ format_money($rental->paid_cents) }}</span></div>
-      <div class="co-kv" style="font-weight:650;{{ $balanceCents > 0 ? 'color:#E0A82E' : 'color:#7BC96F' }}"><span style="opacity:1;color:inherit">Balance</span><span>{{ format_money($balanceCents) }}</span></div>
-    </div>
-    <div class="ia-card" style="padding:16px 18px">
-      <span class="ia-label">This flow</span>
-      <p style="font-size:11.5px;opacity:.55;margin-top:8px;line-height:1.6">Each step saves on its own — close this page and pick up where you left off. The agreement and condition checks stay on the rental record and come back at return time.</p>
-    </div>
-  </div>
+  <p class="sd-legend">Each step saves on its own — close this page and pick up where you left off. The deposit hold only authorises the card; nothing is charged by it. Completing marks the units Out and starts the due-back clock; the agreement, out-checks and photos stay on the booking and on each unit's history, and come back at return time.</p>
 </div>
+@endsection
 
+@push('scripts')
 <script>
-function coGo(n) {
-  document.querySelectorAll('.co-pane').forEach(function (p) { p.classList.toggle('on', p.dataset.pane == n); });
-  document.querySelectorAll('.co-step').forEach(function (s) {
-    s.classList.toggle('cur', s.dataset.step == n);
-  });
-  window.scrollTo({ top: 0 });
-}
-document.querySelectorAll('.co-step').forEach(function (s) {
-  s.addEventListener('click', function () { coGo(s.dataset.step); });
-});
-coGo({{ $startStep }});
+(function () {
+  'use strict';
+  function $$(s, e) { return Array.prototype.slice.call((e || document).querySelectorAll(s)); }
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!reduce) document.documentElement.classList.add('sd-motion');
+  function reveal() { var l = innerHeight * 0.92; $$('.sd-in:not(.is-in)').forEach(function (el) { if (el.getBoundingClientRect().top < l) el.classList.add('is-in'); }); }
+  reveal(); addEventListener('scroll', reveal, { passive: true }); addEventListener('resize', reveal);
+  setTimeout(function () { $$('.sd-in').forEach(function (el) { el.classList.add('is-in'); }); }, 2500);
+  var head = document.getElementById('sdHead');
+  function frost() { if (head) head.classList.toggle('frost', scrollY > 24 && innerWidth > 1023); }
+  addEventListener('scroll', frost, { passive: true }); frost();
 
-// OK/Flag segmented toggles write into the hidden results[] input.
-document.querySelectorAll('.co-seg').forEach(function (seg) {
-  var btns = seg.querySelectorAll('button');
-  var input = seg.parentElement.querySelector('input[type=hidden][name^="results"]');
-  btns[0].addEventListener('click', function () { btns[0].className = 'ok'; btns[1].className = ''; if (input) input.value = 'ok'; });
-  btns[1].addEventListener('click', function () { btns[1].className = 'flag'; btns[0].className = ''; if (input) input.value = 'flag'; });
-});
+  // ---- steps
+  var cur = {{ $startStep }};
+  function go(n) {
+    cur = parseInt(n, 10);
+    $$('.co-pane').forEach(function (p) { p.hidden = parseInt(p.getAttribute('data-pane'), 10) !== cur; });
+    $$('#coSteps button').forEach(function (b) {
+      var k = parseInt(b.getAttribute('data-step'), 10), done = b.getAttribute('data-done') === '1' || (k === 1 && cur > 1);
+      b.className = k === cur ? 'on' : (done ? 'ok' : '');
+      b.querySelector('i').textContent = (done && k !== cur) ? '✓' : k;
+    });
+    scrollTo({ top: 0 });
+  }
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-step]');
+    if (!b || b.disabled) return;
+    go(b.getAttribute('data-step'));
+  });
+  go(cur);
+
+  // ---- OK / Flag toggles write into the hidden results[] input
+  function summarize(form) {
+    var flags = $$('input[type=hidden][name^="results"]', form).filter(function (i) { return i.value === 'flag'; }).length;
+    var st = form.parentElement.querySelector('[data-cu-st]');
+    if (!st) return;
+    st.textContent = flags ? '⚑ ' + flags + ' flagged' : 'All OK';
+    st.className = 'rf-cu-st' + (flags ? ' flag' : '');
+  }
+  $$('.co-seg').forEach(function (seg) {
+    var btns = seg.querySelectorAll('button');
+    var input = seg.parentElement.querySelector('input[type=hidden][name^="results"]');
+    btns[0].addEventListener('click', function () { btns[0].className = 'ok'; btns[1].className = ''; if (input) input.value = 'ok'; summarize(seg.closest('form')); });
+    btns[1].addEventListener('click', function () { btns[1].className = 'flag'; btns[0].className = ''; if (input) input.value = 'flag'; summarize(seg.closest('form')); });
+  });
+  // photo picker label shows how many were chosen
+  $$('.rf-drop-ph').forEach(function (z) {
+    var f = z.querySelector('input[type=file]'), t = z.querySelector('[data-ph-t]');
+    z.addEventListener('click', function (e) { if (e.target !== f) f.click(); });
+    f.addEventListener('change', function () {
+      var n = Math.min(f.files.length, 4);
+      t.textContent = n ? n + ' photo' + (n === 1 ? '' : 's') + ' ready' : '+ Add photos';
+    });
+  });
+  // a double tap on Save shouldn't send the out-check twice
+  $$('.co-cond-form').forEach(function (f) { f.addEventListener('submit', function () { var b = f.querySelector('[type=submit]'); if (b) { b.disabled = true; b.textContent = 'Saving…'; } }); });
+  var cf = document.querySelector('form[action="{{ route('tenant.rentals.bookings.checkout.complete', $rental->id) }}"]');
+  if (cf) cf.addEventListener('submit', function () { var b = cf.querySelector('[type=submit]'); if (b) b.disabled = true; });
+})();
 </script>
 
 @if($rental->deposit_status === 'none' && tenant()->direct_payments_enabled)
@@ -330,6 +367,7 @@ document.querySelectorAll('.co-seg').forEach(function (seg) {
   var confirmUrl = '{{ route('tenant.rentals.bookings.deposit.confirm', $rental->id) }}';
   var csrf = '{{ csrf_token() }}';
   var stripe = null, elements = null, piId = null;
+  var errEl = document.getElementById('dep-error');
 
   function post(url, payload) {
     return fetch(url, {
@@ -338,13 +376,21 @@ document.querySelectorAll('.co-seg').forEach(function (seg) {
       body: JSON.stringify(payload || {})
     }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, json: j }; }); });
   }
+  function fail(msg) {
+    // the card element may not be open yet, so show the message where the person is looking
+    var wrap = document.getElementById('dep-element-wrap');
+    wrap.style.display = 'block';
+    errEl.textContent = msg;
+  }
 
   btn.addEventListener('click', function () {
+    if (typeof Stripe === 'undefined') { fail('Card payments could not load. Check your connection and refresh.'); return; }
     btn.disabled = true;
+    errEl.textContent = '';
     var dollars = parseFloat(document.getElementById('dep-amount').value || '0');
     post(intentUrl, { amount_cents: Math.round(dollars * 100) }).then(function (res) {
       if (!res.ok || !res.json.ok) {
-        alert(res.json.error || 'Could not start the hold.');
+        fail(res.json.error || 'Could not start the hold.');
         btn.disabled = false;
         return;
       }
@@ -353,23 +399,23 @@ document.querySelectorAll('.co-seg').forEach(function (seg) {
       elements = stripe.elements({ clientSecret: res.json.client_secret });
       elements.create('payment').mount('#dep-element');
       document.getElementById('dep-element-wrap').style.display = 'block';
-    }).catch(function () { alert('Could not start the hold.'); btn.disabled = false; });
+    }).catch(function () { fail('Could not start the hold.'); btn.disabled = false; });
   });
 
   document.getElementById('dep-confirm').addEventListener('click', function () {
     var confirmBtn = this;
     confirmBtn.disabled = true;
-    document.getElementById('dep-error').textContent = '';
+    errEl.textContent = '';
     stripe.confirmPayment({ elements: elements, redirect: 'if_required' }).then(function (result) {
       if (result.error) {
-        document.getElementById('dep-error').textContent = result.error.message || 'Card was not authorized.';
+        errEl.textContent = result.error.message || 'Card was not authorized.';
         confirmBtn.disabled = false;
         return;
       }
       post(confirmUrl, { payment_intent: piId }).then(function (res) {
         if (res.ok && res.json.ok) { window.location.reload(); }
         else {
-          document.getElementById('dep-error').textContent = (res.json && res.json.error) || 'Could not verify the hold.';
+          errEl.textContent = (res.json && res.json.error) || 'Could not verify the hold.';
           confirmBtn.disabled = false;
         }
       });
@@ -408,12 +454,7 @@ document.querySelectorAll('.co-seg').forEach(function (seg) {
   document.querySelectorAll('.ag-method').forEach(function (m) {
     m.addEventListener('click', function () {
       var isDisplay = m.dataset.method === 'display';
-      document.querySelectorAll('.ag-method').forEach(function (x) {
-        var on = x === m;
-        x.classList.toggle('on', on);
-        x.style.borderColor = on ? 'var(--ia-accent)' : '#282828';
-        x.style.background  = on ? 'rgba(190,242,100,.05)' : 'transparent';
-      });
+      document.querySelectorAll('.ag-method').forEach(function (x) { x.classList.toggle('on', x === m); });
       document.getElementById('ag-display-pane').style.display = isDisplay ? '' : 'none';
       document.getElementById('ag-desk-pane').style.display    = isDisplay ? 'none' : '';
     });
@@ -424,7 +465,7 @@ document.querySelectorAll('.co-seg').forEach(function (seg) {
     waiting.style.display = on ? '' : 'none';
     if (on && label) {
       document.getElementById('ag-waiting-note').textContent =
-        'The waiver is up on ' + label + '. This step completes on its own when they sign — you can start the condition check and come back.';
+        'The agreement is up on ' + label + '. This step completes on its own when they sign — you can start the condition check and come back.';
     }
   }
 
@@ -471,6 +512,18 @@ document.querySelectorAll('.co-seg').forEach(function (seg) {
     post(RECALL).then(function () { showWaiting(false); stop(); });
   });
 
+  function markSigned() {
+    var chip = document.querySelector('#coSteps button[data-step="2"]');
+    if (chip) { chip.setAttribute('data-done', '1'); if (!chip.classList.contains('on')) { chip.className = 'ok'; chip.querySelector('i').textContent = '✓'; } }
+    var li = document.getElementById('pr-agree');
+    if (li) {
+      li.className = 'ok'; li.querySelector('i').textContent = '✓';
+      var next = Array.prototype.filter.call(document.querySelectorAll('#coProg li'), function (x) { return !x.classList.contains('ok'); })[0];
+      document.querySelectorAll('#coProg li.now').forEach(function (x) { x.classList.remove('now'); });
+      if (next) next.classList.add('now');
+    }
+  }
+
   function check() {
     return fetch(STATUS, { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
       if (!j.ok) { return; }
@@ -480,22 +533,22 @@ document.querySelectorAll('.co-seg').forEach(function (seg) {
         sendRow.style.display = 'none';
         pick.style.display = 'none';
         document.getElementById('ag-methods').style.display = 'none';
+        document.getElementById('ag-display-pane').style.display = 'none';
         document.getElementById('ag-desk-pane').style.display = 'none';
         document.getElementById('ag-signed-name').textContent = 'Signed by ' + (j.signer_name || 'the renter');
         document.getElementById('ag-signed-meta').textContent =
-          'v' + j.version + ' \u00b7 ' + (j.method === 'display' ? 'on the customer display' : 'at the desk') + ' \u00b7 ' + j.signed_at;
+          'v' + j.version + ' · ' + (j.method === 'display' ? 'on the customer display' : 'at the desk') + ' · ' + j.signed_at;
         signed.style.display = '';
         var cont = document.getElementById('ag-continue');
         if (cont) { cont.removeAttribute('disabled'); }
-        var chip = document.querySelector('.co-step[data-step="2"]');
-        if (chip) { chip.classList.add('done'); chip.querySelector('.co-n').textContent = '\u2713'; }
+        markSigned();
         return;
       }
       if (j.display === 'expired') {
         // The push aged out. Say so rather than leaving a Waiting box that
         // will never resolve.
         showWaiting(false);
-        note.textContent = 'That waiver timed out on the screen — send it again.';
+        note.textContent = 'That agreement timed out on the screen — send it again.';
         stop();
       }
     }).catch(function () { /* transient; next tick */ });
@@ -504,7 +557,7 @@ document.querySelectorAll('.co-seg').forEach(function (seg) {
   function start() { stop(); timer = setInterval(check, 3000); }
   function stop()  { if (timer) { clearInterval(timer); timer = null; } }
 
-  // If a waiver is already live for this rental (staff reloaded the page or
+  // If an agreement is already live for this rental (staff reloaded the page or
   // came back from the condition step), pick the waiting state back up.
   check().then(function () {
     fetch(STATUS, { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
@@ -516,5 +569,4 @@ document.querySelectorAll('.co-seg').forEach(function (seg) {
 })();
 </script>
 @endif
-
-@endsection
+@endpush

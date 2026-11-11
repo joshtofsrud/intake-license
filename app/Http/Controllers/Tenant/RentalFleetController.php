@@ -123,6 +123,28 @@ class RentalFleetController extends Controller
             ->whereNull('archived_at')->where('status', '!=', 'retired')->count();
         $modelTotal = TenantRentalModel::where('tenant_id', $tenant->id)->whereNull('archived_at')->count();
 
+        // the status segments' counts, across the whole fleet (not just this
+        // page or filter): out / reserved are derived from live bookings.
+        $statusCounts = ['all' => 0, 'available' => 0, 'out' => 0, 'reserved' => 0, 'maintenance' => 0];
+        TenantRentalUnit::where('tenant_id', $tenant->id)
+            ->whereNull('archived_at')->where('status', '!=', 'retired')
+            ->get(['id', 'status'])
+            ->each(function ($u) use (&$statusCounts, $outUnitIds, $reservedUnitIds) {
+                $d = $u->status;
+                if ($d === 'available') {
+                    $d = $outUnitIds->has($u->id) ? 'out' : ($reservedUnitIds->has($u->id) ? 'reserved' : 'available');
+                }
+                $statusCounts['all']++;
+                if (isset($statusCounts[$d])) {
+                    $statusCounts[$d]++;
+                }
+            });
+
+        // real model counts per category (the page's own lists can be filtered),
+        // so the category drawer knows whether Delete is possible.
+        $catModelCounts = TenantRentalModel::where('tenant_id', $tenant->id)->whereNull('archived_at')
+            ->selectRaw('category_id, COUNT(*) as n')->groupBy('category_id')->pluck('n', 'category_id');
+
         // per-unit roster meta in four grouped
         // queries: last rented, 30d utilization overlap, in-check flags,
         // photo'd checks. Keyed by unit_id; blade falls back gracefully.
@@ -210,6 +232,8 @@ class RentalFleetController extends Controller
             'pageCount'          => max(1, (int) ceil($totalCats / self::PER_PAGE)),
             'unitTotal'          => $unitTotal,
             'modelTotal'         => $modelTotal,
+            'statusCounts'       => $statusCounts,
+            'catModelCounts'     => $catModelCounts,
         ]);
     }
 

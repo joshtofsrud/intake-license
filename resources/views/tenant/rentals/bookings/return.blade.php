@@ -1,304 +1,379 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = 'Return ' . $rental->rental_number; @endphp
 
-{{-- guided return: Inspect → Charges → Close. In-checks
-     render beside the 232 out-checks; charges collect through the register
-     (232B round-trip); deposit + routing decisions close it out. --}}
+{{-- MARKER-RENTAL-RETURN-STUDIO: guided return in the Studio design.
+     Condition → Charges → Deposit & close. In-checks sit beside the out-checks;
+     charges collect through the register round-trip; the deposit and routing
+     decisions close it out. --}}
 
-@push('styles')
-<style>
-  .rt-steps{display:flex;align-items:center;margin-bottom:24px;flex-wrap:wrap}
-  .rt-step{display:flex;align-items:center;gap:9px;padding:0 4px;cursor:pointer}
-  .rt-n{width:24px;height:24px;border-radius:50%;border:1.5px solid var(--ia-border-strong);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:650;color:var(--ia-text-dim,rgba(255,255,255,.55));flex-shrink:0}
-  .rt-step.done .rt-n{background:var(--ia-accent,#BEF264);border-color:var(--ia-accent,#BEF264);color:#0a0a0a}
-  .rt-step.cur .rt-n{border-color:var(--ia-accent,#BEF264);color:var(--ia-accent,#BEF264)}
-  .rt-t{font-size:12.5px;font-weight:550;color:var(--ia-text-dim,rgba(255,255,255,.55))}
-  .rt-step.cur .rt-t,.rt-step.done .rt-t{color:var(--ia-text,#f0f0f0)}
-  .rt-bar{width:34px;height:1.5px;background:var(--ia-border);margin:0 6px}
-  .rt-pane{display:none}
-  .rt-pane.on{display:block;animation:rtfade .15s ease}
-  @keyframes rtfade{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
-  .rt-grid{display:grid;grid-template-columns:2fr 1fr;gap:16px;align-items:start}
-  @media(max-width:980px){.rt-grid{grid-template-columns:1fr}}
-  .rt-kv{display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:5px 0}
-  .rt-kv span:first-child{opacity:.55}
-  .rt-chk{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:.5px solid var(--ia-border)}
-  .rt-chk:last-child{border-bottom:none}
-  .rt-seg{display:inline-flex;border:.5px solid var(--ia-border);border-radius:var(--ia-r-md,8px);overflow:hidden;flex-shrink:0}
-  .rt-seg button{padding:5px 12px;font-size:11.5px;background:none;border:none;color:var(--ia-text-dim,rgba(255,255,255,.55));font-weight:600;cursor:pointer}
-  .rt-seg button.ok{background:rgba(123,201,111,.18);color:#7BC96F}
-  .rt-seg button.flag{background:rgba(239,68,68,.16);color:#ef4444}
-  .rt-seg button.mt{background:rgba(224,87,62,.16);color:#E0573E}
-  .rt-out-note{font-size:11.5px;opacity:.55;padding:9px 14px;background:rgba(255,255,255,.025);border-bottom:.5px solid var(--ia-border)}
-  .rt-foot{display:flex;justify-content:space-between;margin-top:16px}
-  .rt-dmg-row{display:flex;gap:8px;margin-bottom:8px}
-</style>
-@endpush
+@section('mobile-fab', 'new-rental')
+@include('layouts.tenant._rental-styles')
 
 @section('content')
-
-@include('layouts.tenant._rental-nav', ['active' => 'bookings'])
-
-@php $late = $rental->isOverdue(); @endphp
-
-<div class="ia-page-head">
-  <div class="ia-page-head-left">
-    <h1 class="ia-page-title">Return — {{ $rental->rental_number }}</h1>
-    <p class="ia-page-subtitle">{{ $rental->customer?->fullName() }} · due {{ tlocal_datetime($rental->due_at, 'M j, g:i A') }}
-      @if($lateMinutes > 0)<span style="color:#ef4444;font-weight:600"> — {{ $lateMinutes >= 60 ? floor($lateMinutes / 60) . 'h ' . ($lateMinutes % 60) . 'm' : $lateMinutes . 'm' }} overdue</span>@endif
-    </p>
-  </div>
-  <a href="{{ route('tenant.rentals.bookings.show', $rental->id) }}" class="ia-btn">Back to booking</a>
-</div>
-
-@if(session('flash'))<div class="ia-flash ia-flash--success" style="margin-bottom:16px">{{ session('flash') }}</div>@endif
-@if($errors->any())<div class="ia-flash ia-flash--error" style="margin-bottom:16px">{{ $errors->first() }}</div>@endif
-
 @php
+  $tones = ['--sd-t1', '--sd-t2', '--sd-t3', '--sd-t4'];
+  $ini = fn ($n) => mb_strtoupper(mb_substr(implode('', array_map(fn ($w) => mb_substr($w, 0, 1), preg_split('/\s+/', trim((string) $n)))), 0, 2)) ?: '?';
+  $who = $rental->customer?->fullName() ?: 'Walk-in';
+  $lateTxt = $lateMinutes >= 60 ? floor($lateMinutes / 60) . 'h ' . ($lateMinutes % 60) . 'm' : $lateMinutes . 'm';
+
   $allUnits     = $unitLines->count();
   $checkedUnits = $unitLines->filter(fn ($l) => $inChecks->has($l->unit_id))->count();
   $inspectDone  = $allUnits > 0 && $checkedUnits >= $allUnits;
   $startStep    = $inspectDone ? 2 : 1;
+  $flaggedAny   = $unitLines->contains(fn ($l) => (bool) ($inChecks->get($l->unit_id)?->flagged ?? false));
+
+  $stepDefs = [
+    1 => ['Condition', "{$checkedUnits} of {$allUnits} checked", $inspectDone],
+    2 => ['Charges', 'Late fee and damage', false],
+    3 => ['Deposit & close', 'Hold and where units go', false],
+  ];
+  $prog = [
+    ["Units checked ({$checkedUnits} of {$allUnits})", $inspectDone, 'pr-cond'],
+    ['Charges settled', false, 'pr-chg'],
+    ['Deposit decided', false, 'pr-dep'],
+    ['Units put away', false, 'pr-put'],
+  ];
+  $nowI = $inspectDone ? 1 : 0;
 @endphp
 
-<div class="rt-steps" id="rt-steps">
-  <div class="rt-step {{ $inspectDone ? 'done' : '' }}" data-step="1"><span class="rt-n">{{ $inspectDone ? '✓' : '1' }}</span><span class="rt-t">Inspect ({{ $checkedUnits }}/{{ $allUnits }})</span></div>
-  <div class="rt-bar"></div>
-  <div class="rt-step" data-step="2"><span class="rt-n">2</span><span class="rt-t">Charges</span></div>
-  <div class="rt-bar"></div>
-  <div class="rt-step" data-step="3"><span class="rt-n">3</span><span class="rt-t">Deposit &amp; close</span></div>
-</div>
+<div class="sd rf" id="sd">
+  <header class="sd-head" id="sdHead">
+    <div class="sd-head-l">
+      <h1 class="sd-hi">Return · {{ $who }}</h1>
+      <p class="sd-sub">{{ $rental->rental_number }} · due {{ tlocal_datetime($rental->due_at, 'M j, g:i A') }}@if($lateMinutes > 0) <span class="rf-st late" style="margin-left:8px">{{ $lateTxt }} overdue</span>@endif</p>
+    </div>
+    <div class="sd-head-r">
+      <a href="{{ route('tenant.rentals.bookings.show', $rental->id) }}" class="ia-btn ia-btn--sm">Back to booking</a>
+    </div>
+  </header>
 
-<div class="rt-grid">
-  <div>
-    {{-- ---------------------------------------------------- step 1 inspect --}}
-    <div class="rt-pane" data-pane="1">
-      @foreach($unitLines as $line)
-        @php
-          $unit     = $line->unit;
-          $outCheck = $unit ? $outChecks->get($unit->id) : null;
-          $inCheck  = $unit ? $inChecks->get($unit->id) : null;
-          $tpl      = $unit?->conditionTemplate;
-          $items    = $tpl ? (array) $tpl->items : [];
-        @endphp
-        <div class="ia-card" style="padding:0;overflow:hidden;margin-bottom:14px">
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 18px;border-bottom:.5px solid var(--ia-border)">
-            <div>
-              <span style="font-size:12px;font-weight:550;text-transform:uppercase;letter-spacing:.06em">{{ $line->name_snapshot }}{{ $unit?->identifier ? ' · ' . $unit->identifier : '' }}</span>
-              <div style="font-size:11px;opacity:.5;margin-top:2px">{{ $tpl ? $tpl->name . ' template' : 'No template — quick visual' }}</div>
-            </div>
-            @if($inCheck)<span style="font-size:11px;font-weight:600;color:{{ $inCheck->flagged ? '#ef4444' : '#7BC96F' }}">{{ $inCheck->flagged ? 'flagged' : 'clear' }}</span>@endif
-          </div>
+  @include('layouts.tenant._rental-nav', ['active' => 'bookings'])
 
-          @if($outCheck)
-            <div class="rt-out-note">
-              Out-check {{ tlocal_datetime($outCheck->performed_at, 'M j, g:i A') }}{{ $outCheck->notes ? ' — "' . $outCheck->notes . '"' : '' }}
-              @if(is_array($outCheck->photos) && count($outCheck->photos))
-                ·
-                @foreach($outCheck->photos as $i => $p)
-                  <a href="{{ Storage::disk('public')->url($p) }}" target="_blank" style="color:var(--ia-accent);text-decoration:none">photo {{ $i + 1 }}</a>{{ !$loop->last ? ', ' : '' }}
-                @endforeach
-              @endif
-              @php $outFlags = collect((array) $outCheck->results)->filter(fn ($v) => $v === 'flag')->keys(); @endphp
-              @if($outFlags->count()) · <span style="color:#E0A82E">flagged going out: {{ $outFlags->implode(', ') }}</span>@endif
-            </div>
-          @else
-            <div class="rt-out-note">No out-check on file — this rental went out before condition checks (or via quick check-out).</div>
-          @endif
+  @if(session('flash'))<div class="ia-flash ia-flash--success" style="margin-bottom:16px">{{ session('flash') }}</div>@endif
+  @if($errors->any())<div class="ia-flash ia-flash--error" style="margin-bottom:16px">{{ $errors->first() }}</div>@endif
 
-          @if($inCheck)
-            <div style="padding:14px 18px;font-size:12.5px;opacity:.7">In-check recorded {{ tlocal_datetime($inCheck->performed_at, 'M j, g:i A') }}{{ $inCheck->notes ? ' — ' . $inCheck->notes : '' }}{{ is_array($inCheck->photos) && count($inCheck->photos) ? ' · ' . count($inCheck->photos) . ' photo(s)' : '' }}</div>
-          @else
-            <form method="POST" action="{{ route('tenant.rentals.bookings.condition.store', $rental->id) }}" enctype="multipart/form-data">
-              @csrf
-              <input type="hidden" name="unit_id" value="{{ $unit?->id }}">
-              <input type="hidden" name="phase" value="check_in">
-              @if(count($items))
-                @foreach($items as $item)
-                  @php $k = $item['key'] ?? ('item_' . $loop->index); @endphp
-                  <div class="rt-chk">
-                    <span style="font-size:13px;flex:1">{{ $item['label'] ?? $k }}</span>
-                    <input type="hidden" name="results[{{ $k }}]" value="ok">
-                    <div class="rt-seg" data-key="{{ $k }}">
-                      <button type="button" class="ok">OK</button>
-                      <button type="button">Flag</button>
-                    </div>
-                  </div>
-                @endforeach
-              @else
-                <div class="rt-chk">
-                  <span style="font-size:13px;flex:1">Visual check — returned complete, no new damage</span>
-                  <input type="hidden" name="results[visual]" value="ok">
-                  <div class="rt-seg" data-key="visual"><button type="button" class="ok">OK</button><button type="button">Flag</button></div>
-                </div>
-              @endif
-              <div style="display:flex;gap:10px;align-items:end;padding:12px 14px;border-top:.5px solid var(--ia-border);flex-wrap:wrap">
-                <div style="flex:1;min-width:200px">
-                  <label class="ia-label" style="display:block;margin-bottom:4px">Notes — new damage, missing parts, etc.</label>
-                  <input type="text" name="notes" maxlength="2000" class="ia-input" style="width:100%">
-                </div>
-                <div>
-                  <label class="ia-label" style="display:block;margin-bottom:4px">Photos (≤4)</label>
-                  <input type="file" name="photos[]" accept="image/*" multiple class="ia-input" style="padding:6px">
-                </div>
-                <button type="submit" class="ia-btn ia-btn--primary">Save in-check</button>
-              </div>
-            </form>
-          @endif
-        </div>
+  <div class="rf-flowbar sd-in">
+    <div class="rf-flow" id="rtSteps">
+      @foreach($stepDefs as $n => $s)
+        <button type="button" data-step="{{ $n }}" data-done="{{ $s[2] ? 1 : 0 }}"><i>{{ $n }}</i><span>{{ $s[0] }}<small>{{ $s[1] }}</small></span></button>
       @endforeach
-      <div class="rt-foot"><span></span><button type="button" class="ia-btn ia-btn--primary" onclick="rtGo(2)">Continue to charges →</button></div>
     </div>
+  </div>
 
-    {{-- ---------------------------------------------------- step 2 charges --}}
-    <div class="rt-pane" data-pane="2">
-      <form method="POST" action="{{ route('tenant.rentals.bookings.return.charges', $rental->id) }}">
-        @csrf
-        <div class="ia-card" style="padding:18px 20px;margin-bottom:14px">
-          <h2 class="ia-h3" style="margin-bottom:8px">Late fee</h2>
+  <div class="dash-row">
+    <div class="dash-col" style="grid-column:span 8">
+
+      {{-- --------------------------------------------------- step 1 condition --}}
+      <div class="rt-pane" data-pane="1" hidden>
+        <div class="rf-step-h"><div><h2>In-check</h2><p>Compare against how each unit went out. Anything flagged that costs money goes on the next step.</p></div></div>
+        @foreach($unitLines as $line)
+          @php
+            $unit     = $line->unit;
+            $outCheck = $unit ? $outChecks->get($unit->id) : null;
+            $inCheck  = $unit ? $inChecks->get($unit->id) : null;
+            $tpl      = $unit?->conditionTemplate;
+            $items    = $tpl ? (array) $tpl->items : [];
+            $outFlags = $outCheck ? collect((array) $outCheck->results)->filter(fn ($v) => $v === 'flag')->keys() : collect();
+            $inPhotos = $inCheck && is_array($inCheck->photos) ? count($inCheck->photos) : 0;
+          @endphp
+          <div class="rf-cu">
+            <div class="rf-cu-h">
+              <div class="rf-thumb">{{ $ini($line->name_snapshot) }}</div>
+              <div><b>{{ $line->name_snapshot }}</b><small>@if($unit?->identifier)<span class="rf-mono">{{ $unit->identifier }}</span> · @endif{{ $tpl ? $tpl->name . ' template' : 'No template — quick visual' }}</small></div>
+              @if($inCheck)
+                <span class="rf-cu-st {{ $inCheck->flagged ? 'flag' : 'ok' }}">{{ $inCheck->flagged ? '⚑ Saved with flags' : '✓ Saved' }}</span>
+              @else
+                <span class="rf-cu-st" data-cu-st>All OK</span>
+              @endif
+            </div>
+
+            <div class="rf-outnote">
+              @if($outCheck)
+                <b>Went out</b> {{ tlocal_datetime($outCheck->performed_at, 'M j, g:i A') }}{{ $outCheck->notes ? ' — “' . $outCheck->notes . '”' : '' }}
+                @if(is_array($outCheck->photos) && count($outCheck->photos))
+                  · @foreach($outCheck->photos as $i => $p)<a href="{{ Storage::disk('public')->url($p) }}" target="_blank" rel="noopener">photo {{ $i + 1 }}</a>{{ !$loop->last ? ', ' : '' }}@endforeach
+                @endif
+                @if($outFlags->count()) · <span class="rf-flag">⚑ flagged going out: {{ $outFlags->implode(', ') }}</span>@endif
+              @else
+                No out-check on file — this rental went out before condition checks (or via quick check-out).
+              @endif
+            </div>
+
+            @if($inCheck)
+              <p class="rf-cu-done">In-check recorded {{ tlocal_datetime($inCheck->performed_at, 'M j, g:i A') }}{{ $inCheck->notes ? ' — ' . $inCheck->notes : '' }}{{ $inPhotos ? ' · ' . $inPhotos . ' photo' . ($inPhotos === 1 ? '' : 's') : '' }}</p>
+            @else
+              <form method="POST" action="{{ route('tenant.rentals.bookings.condition.store', $rental->id) }}" enctype="multipart/form-data" class="rt-cond-form">
+                @csrf
+                <input type="hidden" name="unit_id" value="{{ $unit?->id }}">
+                <input type="hidden" name="phase" value="check_in">
+                @forelse($items as $item)
+                  @php $k = $item['key'] ?? ('item_' . $loop->index); @endphp
+                  <div class="rf-chk">
+                    <span>{{ $item['label'] ?? $k }}</span>
+                    <input type="hidden" name="results[{{ $k }}]" value="ok">
+                    <span class="rf-tog rt-seg"><button type="button" class="ok">OK</button><button type="button">Flag</button></span>
+                  </div>
+                @empty
+                  <div class="rf-chk">
+                    <span>Visual check — returned complete, no new damage</span>
+                    <input type="hidden" name="results[visual]" value="ok">
+                    <span class="rf-tog rt-seg"><button type="button" class="ok">OK</button><button type="button">Flag</button></span>
+                  </div>
+                @endforelse
+                <div class="rf-cu-more">
+                  <label><span class="rf-lbl">Notes — new damage, missing parts</span><textarea name="notes" rows="2" maxlength="2000" class="ia-input"></textarea></label>
+                  <label><span class="rf-lbl">Photos (up to 4)</span>
+                    <span class="rf-drop-ph"><span data-ph-t>+ Add photos</span><input type="file" name="photos[]" accept="image/*" multiple hidden></span>
+                  </label>
+                </div>
+                <div style="display:flex;justify-content:flex-end;margin-top:10px"><button type="submit" class="ia-btn ia-btn--sm ia-btn--primary">Save in-check</button></div>
+              </form>
+            @endif
+          </div>
+        @endforeach
+        @if($unitLines->isEmpty())<div class="sd-empty">This rental has no units to check.</div>@endif
+        <div class="rf-step-f"><a href="{{ route('tenant.rentals.bookings.show', $rental->id) }}" class="ia-btn">← Booking</a><button type="button" class="ia-btn ia-btn--primary" data-step="2">Continue to charges →</button></div>
+      </div>
+
+      {{-- ---------------------------------------------------- step 2 charges --}}
+      <div class="rt-pane" data-pane="2" hidden>
+        <form method="POST" action="{{ route('tenant.rentals.bookings.return.charges', $rental->id) }}" id="rtCharges">
+          @csrf
+          <div class="rf-step-h"><div><h2>Charges</h2><p>Anything owing on top of the rental.</p></div></div>
+
+          <div class="sd-sec-h"><div><h2>Late fee</h2></div></div>
           @if($lateMinutes > 0)
-            <p style="font-size:12.5px;opacity:.55;margin-bottom:10px">{{ $lateMinutes >= 60 ? floor($lateMinutes / 60) . 'h ' . ($lateMinutes % 60) . 'm' : $lateMinutes . 'm' }} past due.
-              @if($suggestedLateFeeCents > 0)Policy suggests <b style="opacity:1">{{ format_money($suggestedLateFeeCents) }}</b> — edit or zero it to waive.@elseif($latePolicy['per_hour_cents'] === 0)No late-fee rate is set (Rental Settings).@else Within the {{ $latePolicy['grace_minutes'] }}-minute grace period.@endif
-            </p>
+            <div class="rf-sugg">
+              <div>
+                @if($suggestedLateFeeCents > 0)
+                  <b>Suggested {{ format_money($suggestedLateFeeCents) }}</b>
+                  <small>{{ $lateTxt }} past due. Edit it, or waive it. Set in Rental settings.</small>
+                @elseif($latePolicy['per_hour_cents'] === 0)
+                  <b>No late-fee rate is set</b>
+                  <small>{{ $lateTxt }} past due. Add a rate in Rental settings, or enter an amount by hand.</small>
+                @else
+                  <b>Within the grace period</b>
+                  <small>{{ $lateTxt }} past due — inside the {{ $latePolicy['grace_minutes'] }}-minute grace.</small>
+                @endif
+              </div>
+              <div class="rf-money" style="width:120px"><input type="number" name="late_fee" id="rtLate" min="0" step="0.01" aria-label="Late fee" value="{{ number_format($suggestedLateFeeCents / 100, 2, '.', '') }}" class="ia-input" style="text-align:right"></div>
+              <span class="rf-tog"><button type="button" class="{{ $suggestedLateFeeCents > 0 ? 'ok' : '' }}" data-late="{{ number_format($suggestedLateFeeCents / 100, 2, '.', '') }}">Charge it</button><button type="button" data-late="0.00">Waive</button></span>
+            </div>
           @else
-            <p style="font-size:12.5px;opacity:.55;margin-bottom:10px">Returned on time — nothing suggested.</p>
+            <div class="sd-empty">Back on time — nothing suggested.</div>
+            <input type="hidden" name="late_fee" value="{{ number_format($suggestedLateFeeCents / 100, 2, '.', '') }}">
           @endif
-          <div style="display:flex;gap:8px;align-items:center">
-            <span style="font-size:13px;opacity:.55">$</span>
-            <input type="number" name="late_fee" min="0" step="0.01" value="{{ number_format($suggestedLateFeeCents / 100, 2, '.', '') }}" class="ia-input" style="width:130px;text-align:right">
-          </div>
-        </div>
 
-        <div class="ia-card" style="padding:18px 20px;margin-bottom:14px">
-          <h2 class="ia-h3" style="margin-bottom:8px">Damage &amp; missing items</h2>
-          <p style="font-size:12.5px;opacity:.55;margin-bottom:10px">Anything flagged in step 1 that costs money goes here.</p>
+          <div class="sd-sec-h" style="margin-top:24px"><div><h2>Damage &amp; missing items</h2><span>Anything flagged in the in-check that costs money</span></div></div>
           <div id="rt-dmg-rows">
-            <div class="rt-dmg-row">
-              <input type="text" name="damage_labels[]" maxlength="200" placeholder="e.g. Rear tire sidewall cut — Maxxis Dissector" class="ia-input" style="flex:1">
-              <input type="number" name="damage_amounts[]" min="0" step="0.01" placeholder="0.00" class="ia-input" style="width:110px;text-align:right">
+            <div class="rf-charge rf-charge--2">
+              <input type="text" name="damage_labels[]" maxlength="200" placeholder="What it's for — e.g. rear tire sidewall cut" class="ia-input" aria-label="Charge description">
+              <div class="rf-money"><input type="number" name="damage_amounts[]" min="0" step="0.01" placeholder="0.00" class="ia-input" style="text-align:right" aria-label="Charge amount"></div>
+              <button type="button" class="rf-ib" data-dx aria-label="Remove">×</button>
             </div>
           </div>
-          <button type="button" class="ia-btn ia-btn--sm" onclick="rtAddDmgRow()">+ Another line</button>
-        </div>
+          <button type="button" class="ia-btn ia-btn--sm" id="rtAddDmg" style="margin-top:10px">+ Add a charge</button>
 
-        <div class="ia-card" style="padding:14px 18px;margin-bottom:14px;font-size:11.5px;opacity:.6;line-height:1.55">
-          Collecting here opens the register with one linked sale (cash, card, or payment link) and brings you back. <b style="opacity:1">Taking charges from the deposit instead?</b> Skip this — capture in step 3 writes its own charge line.
-        </div>
+          <p class="rf-fine" style="text-align:left;margin-top:16px">Collecting here opens the register with one linked sale (cash, card or payment link) and brings you back. <b style="color:var(--ia-text)">Taking charges from the deposit instead?</b> Skip this — the capture on the booking page writes its own charge line.</p>
 
-        <div class="rt-foot">
-          <button type="button" class="ia-btn" onclick="rtGo(1)">← Back</button>
-          <div style="display:flex;gap:8px">
-            <button type="button" class="ia-btn" onclick="rtGo(3)">No charges — skip →</button>
-            <button type="submit" class="ia-btn ia-btn--primary">Add charges &amp; collect in register →</button>
+          <div class="rf-step-f">
+            <button type="button" class="ia-btn" data-step="1">← Back</button>
+            <span style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+              <button type="button" class="ia-btn" data-step="3">No charges — skip →</button>
+              <button type="submit" class="ia-btn ia-btn--primary">Add charges &amp; collect in register →</button>
+            </span>
           </div>
-        </div>
-      </form>
-    </div>
+        </form>
+      </div>
 
-    {{-- ---------------------------------------------- step 3 deposit & close --}}
-    <div class="rt-pane" data-pane="3">
-      <form method="POST" action="{{ route('tenant.rentals.bookings.return.complete', $rental->id) }}">
-        @csrf
+      {{-- ---------------------------------------------- step 3 deposit & close --}}
+      <div class="rt-pane" data-pane="3" hidden>
+        <form method="POST" action="{{ route('tenant.rentals.bookings.return.complete', $rental->id) }}" id="rtComplete">
+          @csrf
+          <div class="rf-step-h"><div><h2>Deposit &amp; close</h2><p>Decide the hold, then send each unit where it belongs.</p></div></div>
 
-        <div class="ia-card" style="padding:18px 20px;margin-bottom:14px">
-          <h2 class="ia-h3" style="margin-bottom:8px">Deposit</h2>
+          <div class="sd-sec-h"><div><h2>Deposit{{ $rental->deposit_status === 'authorized' ? ' — ' . format_money($rental->deposit_hold_cents) . ' held' : '' }}</h2></div></div>
           @if($rental->deposit_status === 'authorized')
-            <p style="font-size:13px;margin-bottom:12px"><b>{{ format_money($rental->deposit_hold_cents) }}</b> on hold.</p>
-            <div style="display:flex;flex-direction:column;gap:8px;font-size:12.5px">
-              <label style="display:flex;gap:9px;align-items:center;cursor:pointer"><input type="radio" name="deposit_action" value="release" checked> Release the full hold — clean return</label>
-              <label style="display:flex;gap:9px;align-items:center;cursor:pointer"><input type="radio" name="deposit_action" value="hold"> Keep holding — decide later from the booking page</label>
+            <div class="rf-radio">
+              <label class="rf-opt on" data-dep><input type="radio" name="deposit_action" value="release" checked hidden><b>Release the full hold</b><small>Clean return — nothing is charged.</small></label>
+              <label class="rf-opt" data-dep><input type="radio" name="deposit_action" value="hold" hidden><b>Keep holding</b><small>Decide later from the booking page. Need to capture for damage? Finish the return with this, then capture from the booking page — it writes its own charge line and sale.</small></label>
             </div>
-            <p style="font-size:11.5px;opacity:.5;margin-top:10px">Need to capture for damage? Finish the return with "keep holding", then capture from the booking page — the capture writes its own charge line and sale.</p>
           @elseif(in_array($rental->deposit_status, ['captured', 'partially_captured'], true))
-            <p style="font-size:12.5px;opacity:.65">Hold {{ $rental->deposit_status === 'captured' ? 'fully' : 'partially' }} captured — nothing to decide.</p>
+            <div class="rf-signed"><i>✓</i><div><b>Hold {{ $rental->deposit_status === 'captured' ? 'fully' : 'partially' }} captured</b><small class="rf-dim">Nothing to decide.</small></div></div>
           @else
-            <p style="font-size:12.5px;opacity:.55">No deposit was held on this rental.</p>
+            <div class="sd-empty">No deposit was held on this rental.</div>
           @endif
-        </div>
 
-        <div class="ia-card" style="padding:0;overflow:hidden;margin-bottom:14px">
-          <div style="padding:13px 18px;border-bottom:.5px solid var(--ia-border)"><span style="font-size:12px;font-weight:550;text-transform:uppercase;letter-spacing:.06em">Where does each unit go?</span></div>
+          <div class="sd-sec-h" style="margin-top:24px"><div><h2>Where does each unit go?</h2><span>Flagged units default to Maintenance</span></div></div>
           @foreach($unitLines as $line)
-            @php $unit = $line->unit; @endphp
+            @php
+              $unit = $line->unit;
+              $fl   = $unit ? (bool) ($inChecks->get($unit->id)?->flagged ?? false) : false;
+            @endphp
             @if($unit)
-              <div style="display:flex;gap:12px;align-items:center;padding:11px 18px;border-bottom:.5px solid var(--ia-border);flex-wrap:wrap">
-                <div style="flex:1;min-width:180px">
-                  <div style="font-size:13px;font-weight:600">{{ $line->name_snapshot }}{{ $unit->identifier ? ' · ' . $unit->identifier : '' }}</div>
-                  @if(($inChecks->get($unit->id)?->flagged) ?? false)<div style="font-size:11px;color:#ef4444">flagged at inspection</div>@endif
-                </div>
-                <div class="rt-seg rt-route" data-unit="{{ $unit->id }}">
-                  <button type="button" class="{{ (($inChecks->get($unit->id)?->flagged) ?? false) ? '' : 'ok' }}">Available</button>
-                  <button type="button" class="{{ (($inChecks->get($unit->id)?->flagged) ?? false) ? 'mt' : '' }}">Maintenance</button>
-                </div>
-                <input type="hidden" name="routing[{{ $unit->id }}]" value="{{ (($inChecks->get($unit->id)?->flagged) ?? false) ? 'maintenance' : 'available' }}">
-                <input type="text" name="routing_note[{{ $unit->id }}]" maxlength="500" placeholder="Maintenance note…" class="ia-input" style="width:220px;{{ (($inChecks->get($unit->id)?->flagged) ?? false) ? '' : 'display:none' }}">
+              <div class="rf-dest rf-route-row">
+                <div class="rf-thumb">{{ $ini($line->name_snapshot) }}</div>
+                <div><b>{{ $line->name_snapshot }}</b><small>@if($unit->identifier)<span class="rf-mono">{{ $unit->identifier }}</span>@endif{!! $fl ? ' · <span class="rf-flag">⚑ flagged at inspection</span>' : '' !!}</small></div>
+                <span class="rf-tog rt-route">
+                  <button type="button" class="{{ $fl ? '' : 'ok' }}">Available</button>
+                  <button type="button" class="{{ $fl ? 'mt' : '' }}">Maintenance</button>
+                </span>
+                <input type="hidden" name="routing[{{ $unit->id }}]" value="{{ $fl ? 'maintenance' : 'available' }}">
+                <input type="text" name="routing_note[{{ $unit->id }}]" maxlength="500" placeholder="Maintenance note…" class="ia-input rf-route-note" aria-label="Maintenance note for {{ $line->name_snapshot }}" style="{{ $fl ? '' : 'display:none' }}">
               </div>
             @endif
           @endforeach
-          <div style="padding:10px 18px;font-size:11.5px;opacity:.5">Maintenance blocks the unit from new bookings until you clear it on the Fleet page.</div>
-        </div>
 
-        <div class="rt-foot">
-          <button type="button" class="ia-btn" onclick="rtGo(2)">← Back</button>
-          <button type="submit" class="ia-btn ia-btn--primary" style="font-size:14px;padding:10px 22px">Complete return ✓</button>
-        </div>
-      </form>
+          <div class="rf-step-f">
+            <button type="button" class="ia-btn" data-step="2">← Back</button>
+            <button type="submit" class="ia-btn ia-btn--primary rf-big">Complete return ✓</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    {{-- ---------------------------------------------------------- the rail --}}
+    <div class="dash-col" style="grid-column:span 4">
+      <aside class="sd-rail rf-rail sd-in" style="--d:120ms">
+        <div class="rf-rh"><b>This return</b><span>{{ $rental->rental_number }}</span></div>
+        <ul class="rf-prog" id="rtProg">
+          @foreach($prog as $i => $p)
+            <li id="{{ $p[2] }}" class="{{ $p[1] ? 'ok' : ($i === $nowI ? 'now' : '') }}"><i>{{ $p[1] ? '✓' : '' }}</i><span>{{ $p[0] }}</span></li>
+          @endforeach
+        </ul>
+        <div class="rf-rh"><b>Money</b></div>
+        <dl class="rf-tot">
+          <dt>Rental</dt><dd>{{ format_money($rental->total_cents) }}</dd>
+          <dt>Paid</dt><dd>{{ format_money($rental->paid_cents) }}</dd>
+          <dt class="big {{ $balanceCents > 0 ? 'owe' : '' }}">Owing</dt><dd>{{ format_money($balanceCents) }}</dd>
+          <dt>Deposit hold</dt><dd>{{ $rental->deposit_status === 'authorized' ? format_money($rental->deposit_hold_cents) : ucfirst(str_replace('_', ' ', $rental->deposit_status)) }}</dd>
+        </dl>
+      </aside>
     </div>
   </div>
 
-  {{-- ------------------------------------------------------- money rail --}}
-  <div>
-    <div class="ia-card" style="padding:16px 18px;margin-bottom:14px">
-      <span class="ia-label">Money</span>
-      <div class="rt-kv" style="margin-top:6px"><span>Total</span><span>{{ format_money($rental->total_cents) }}</span></div>
-      <div class="rt-kv"><span>Paid</span><span>{{ format_money($rental->paid_cents) }}</span></div>
-      <div class="rt-kv" style="font-weight:650;{{ $balanceCents > 0 ? 'color:#E0A82E' : 'color:#7BC96F' }}"><span style="opacity:1;color:inherit">Balance</span><span>{{ format_money($balanceCents) }}</span></div>
-      <div class="rt-kv" style="border-top:.5px solid var(--ia-border);padding-top:8px"><span>Deposit</span><span>{{ $rental->deposit_status === 'authorized' ? format_money($rental->deposit_hold_cents) . ' held' : ucfirst(str_replace('_', ' ', $rental->deposit_status)) }}</span></div>
-    </div>
-    <div class="ia-card" style="padding:16px 18px">
-      <span class="ia-label">This flow</span>
-      <p style="font-size:11.5px;opacity:.55;margin-top:8px;line-height:1.6">Each step saves on its own. Charges land on the rental and route through the register; nothing here touches the ledger directly.</p>
-    </div>
-  </div>
+  <p class="sd-legend">Each step saves on its own. Completing marks the booking Returned and moves each unit to the status you chose. Return charges are collected in the register or captured from the hold — never both. Flags and photos are saved to each unit's history, and maintenance keeps a unit off new bookings until you clear it on the Fleet page.</p>
 </div>
-
-<script>
-function rtGo(n) {
-  document.querySelectorAll('.rt-pane').forEach(function (p) { p.classList.toggle('on', p.dataset.pane == n); });
-  document.querySelectorAll('.rt-step').forEach(function (s) { s.classList.toggle('cur', s.dataset.step == n); });
-  window.scrollTo({ top: 0 });
-}
-document.querySelectorAll('.rt-step').forEach(function (s) {
-  s.addEventListener('click', function () { rtGo(s.dataset.step); });
-});
-rtGo({{ $startStep }});
-
-// OK/Flag toggles (inspect step) — writes into hidden results[] input.
-document.querySelectorAll('.rt-seg:not(.rt-route)').forEach(function (seg) {
-  var btns = seg.querySelectorAll('button');
-  var input = seg.parentElement.querySelector('input[type=hidden][name^="results"]');
-  btns[0].addEventListener('click', function () { btns[0].className = 'ok'; btns[1].className = ''; if (input) input.value = 'ok'; });
-  btns[1].addEventListener('click', function () { btns[1].className = 'flag'; btns[0].className = ''; if (input) input.value = 'flag'; });
-});
-
-// Available/Maintenance routing toggles — writes routing[unit] and shows the note field.
-document.querySelectorAll('.rt-route').forEach(function (seg) {
-  var btns = seg.querySelectorAll('button');
-  var row = seg.parentElement;
-  var input = row.querySelector('input[type=hidden][name^="routing["]');
-  var note = row.querySelector('input[name^="routing_note"]');
-  btns[0].addEventListener('click', function () { btns[0].className = 'ok'; btns[1].className = ''; if (input) input.value = 'available'; if (note) note.style.display = 'none'; });
-  btns[1].addEventListener('click', function () { btns[1].className = 'mt'; btns[0].className = ''; if (input) input.value = 'maintenance'; if (note) note.style.display = ''; });
-});
-
-function rtAddDmgRow() {
-  var wrap = document.getElementById('rt-dmg-rows');
-  var row = document.createElement('div');
-  row.className = 'rt-dmg-row';
-  row.innerHTML = '<input type="text" name="damage_labels[]" maxlength="200" placeholder="Description" class="ia-input" style="flex:1">'
-    + '<input type="number" name="damage_amounts[]" min="0" step="0.01" placeholder="0.00" class="ia-input" style="width:110px;text-align:right">';
-  wrap.appendChild(row);
-}
-</script>
-
 @endsection
+
+@push('scripts')
+<script>
+(function () {
+  'use strict';
+  function $$(s, e) { return Array.prototype.slice.call((e || document).querySelectorAll(s)); }
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!reduce) document.documentElement.classList.add('sd-motion');
+  function reveal() { var l = innerHeight * 0.92; $$('.sd-in:not(.is-in)').forEach(function (el) { if (el.getBoundingClientRect().top < l) el.classList.add('is-in'); }); }
+  reveal(); addEventListener('scroll', reveal, { passive: true }); addEventListener('resize', reveal);
+  setTimeout(function () { $$('.sd-in').forEach(function (el) { el.classList.add('is-in'); }); }, 2500);
+  var head = document.getElementById('sdHead');
+  function frost() { if (head) head.classList.toggle('frost', scrollY > 24 && innerWidth > 1023); }
+  addEventListener('scroll', frost, { passive: true }); frost();
+
+  // ---- steps
+  var cur = {{ $startStep }}, seen = {};
+  function prog(id, ok) {
+    var li = document.getElementById(id); if (!li) return;
+    li.classList.toggle('ok', ok); li.querySelector('i').textContent = ok ? '✓' : '';
+  }
+  function go(n) {
+    cur = parseInt(n, 10); seen[cur] = true;
+    $$('.rt-pane').forEach(function (p) { p.hidden = parseInt(p.getAttribute('data-pane'), 10) !== cur; });
+    $$('#rtSteps button').forEach(function (b) {
+      var k = parseInt(b.getAttribute('data-step'), 10), done = b.getAttribute('data-done') === '1' || (k === 2 && cur > 2);
+      b.className = k === cur ? 'on' : (done ? 'ok' : '');
+      b.querySelector('i').textContent = (done && k !== cur) ? '✓' : k;
+    });
+    // the rail follows where the person has been, so "Charges settled" ticks once they are past it
+    prog('pr-chg', cur > 2);
+    if (cur === 3 && document.querySelector('[data-dep]')) prog('pr-dep', true); // the release default counts as a decision
+    $$('#rtProg li.now').forEach(function (x) { x.classList.remove('now'); });
+    var next = $$('#rtProg li').filter(function (x) { return !x.classList.contains('ok'); })[0];
+    if (next) next.classList.add('now');
+    scrollTo({ top: 0 });
+  }
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-step]');
+    if (!b || b.disabled) return;
+    go(b.getAttribute('data-step'));
+  });
+  go(cur);
+
+  // ---- in-check OK / Flag toggles
+  function summarize(form) {
+    var flags = $$('input[type=hidden][name^="results"]', form).filter(function (i) { return i.value === 'flag'; }).length;
+    var st = form.parentElement.querySelector('[data-cu-st]');
+    if (!st) return;
+    st.textContent = flags ? '⚑ ' + flags + ' flagged' : 'All OK';
+    st.className = 'rf-cu-st' + (flags ? ' flag' : '');
+  }
+  $$('.rt-seg').forEach(function (seg) {
+    var btns = seg.querySelectorAll('button');
+    var input = seg.parentElement.querySelector('input[type=hidden][name^="results"]');
+    btns[0].addEventListener('click', function () { btns[0].className = 'ok'; btns[1].className = ''; if (input) input.value = 'ok'; summarize(seg.closest('form')); });
+    btns[1].addEventListener('click', function () { btns[1].className = 'flag'; btns[0].className = ''; if (input) input.value = 'flag'; summarize(seg.closest('form')); });
+  });
+  $$('.rf-drop-ph').forEach(function (z) {
+    var f = z.querySelector('input[type=file]'), t = z.querySelector('[data-ph-t]');
+    z.addEventListener('click', function (e) { if (e.target !== f) f.click(); });
+    f.addEventListener('change', function () {
+      var n = Math.min(f.files.length, 4);
+      t.textContent = n ? n + ' photo' + (n === 1 ? '' : 's') + ' ready' : '+ Add photos';
+    });
+  });
+  $$('.rt-cond-form').forEach(function (f) { f.addEventListener('submit', function () { var b = f.querySelector('[type=submit]'); if (b) { b.disabled = true; b.textContent = 'Saving…'; } }); });
+
+  // ---- late fee: Charge it / Waive
+  var late = document.getElementById('rtLate');
+  $$('[data-late]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      if (!late) return;
+      late.value = b.getAttribute('data-late');
+      $$('[data-late]').forEach(function (x) { x.className = ''; });
+      b.className = parseFloat(late.value) > 0 ? 'ok' : 'flag';
+    });
+  });
+  if (late) late.addEventListener('input', function () {
+    var on = parseFloat(late.value) > 0;
+    var bs = $$('[data-late]'); bs[0].className = on ? 'ok' : ''; bs[1].className = on ? '' : 'flag';
+  });
+
+  // ---- damage rows
+  var rows = document.getElementById('rt-dmg-rows');
+  document.getElementById('rtAddDmg').addEventListener('click', function () {
+    var r = document.createElement('div');
+    r.className = 'rf-charge rf-charge--2';
+    r.innerHTML = '<input type="text" name="damage_labels[]" maxlength="200" placeholder="What it\'s for" class="ia-input" aria-label="Charge description">' +
+      '<div class="rf-money"><input type="number" name="damage_amounts[]" min="0" step="0.01" placeholder="0.00" class="ia-input" style="text-align:right" aria-label="Charge amount"></div>' +
+      '<button type="button" class="rf-ib" data-dx aria-label="Remove">×</button>';
+    rows.appendChild(r); r.querySelector('input').focus();
+  });
+  rows.addEventListener('click', function (e) {
+    var x = e.target.closest('[data-dx]'); if (!x) return;
+    var r = x.closest('.rf-charge');
+    if (rows.children.length > 1) r.remove(); else $$('input', r).forEach(function (i) { i.value = ''; });
+  });
+
+  // ---- deposit choice cards
+  $$('[data-dep]').forEach(function (l) {
+    l.addEventListener('click', function () {
+      $$('[data-dep]').forEach(function (x) { x.classList.toggle('on', x === l); });
+      var r = l.querySelector('input'); if (r) r.checked = true;
+      prog('pr-dep', true);
+    });
+  });
+  if (!document.querySelector('[data-dep]')) prog('pr-dep', true);
+
+  // ---- routing toggles
+  $$('.rt-route').forEach(function (seg) {
+    var btns = seg.querySelectorAll('button'), row = seg.closest('.rf-route-row');
+    var input = row.querySelector('input[type=hidden][name^="routing["]');
+    var note = row.querySelector('input[name^="routing_note"]');
+    btns[0].addEventListener('click', function () { btns[0].className = 'ok'; btns[1].className = ''; input.value = 'available'; note.style.display = 'none'; prog('pr-put', true); });
+    btns[1].addEventListener('click', function () { btns[1].className = 'mt'; btns[0].className = ''; input.value = 'maintenance'; note.style.display = ''; prog('pr-put', true); });
+  });
+  var cf = document.getElementById('rtComplete');
+  cf.addEventListener('submit', function () { var b = cf.querySelector('[type=submit]'); if (b) b.disabled = true; });
+})();
+</script>
+@endpush

@@ -1,461 +1,394 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = $rental->rental_number; @endphp
 
-{{-- rental detail: lines, ledger, transitions. --}}
+{{-- MARKER-RENTAL-BOOKING-STUDIO: one booking, in the Studio design — where it
+     is in its life, the units and the money, what happened, and on the right
+     the customer, the deposit hold and the quiet actions. Same routes and
+     forms as before. --}}
+
+@section('mobile-fab', 'new-rental')
+@include('layouts.tenant._rental-styles')
 
 @section('content')
-
 @php
-  $late = $rental->isOverdue();
-  $statusColor = $late ? '#ef4444' : ($rental->status === 'out' ? '#f59e0b' : ($rental->status === 'returned' ? '#34d399' : ($rental->status === 'cancelled' ? '#ef4444' : 'inherit')));
-  $balance = $rental->total_cents - $rental->paid_cents;
-@endphp
+  $late    = $rental->isOverdue();
+  $balance = (int) $rental->total_cents - (int) $rental->paid_cents;
+  $isRes   = $rental->status === 'reserved';
+  $isOut   = $rental->status === 'out';
+  $who     = $rental->customer?->fullName() ?: 'Walk-in';
+  $tones   = ['--sd-t1', '--sd-t2', '--sd-t3', '--sd-t4'];
+  $tone    = $tones[crc32((string) ($rental->customer_id ?? $rental->id)) % 4];
+  $ini     = fn ($n) => mb_strtoupper(mb_substr(implode('', array_map(fn ($w) => mb_substr($w, 0, 1), preg_split('/\s+/', trim((string) $n)))), 0, 2)) ?: '?';
+  $unitCount = $rental->lines->where('kind', 'unit')->count();
+  $canDiscount = (int) ($rental->paid_cents ?? 0) === 0 && in_array($rental->status, ['reserved', 'out'], true);
+  $hasDiscount = (int) ($rental->discount_cents ?? 0) > 0;
 
-<div class="ia-page-head">
-  <div class="ia-page-head-left">
-    <h1 class="ia-page-title" style="display:flex;align-items:center;gap:10px">{{ $rental->rental_number }}
-      {{-- shared pill vocabulary. --}}
-      @include('tenant.rentals._status-pill', ['rental' => $rental])
-    </h1>
-    <p class="ia-page-subtitle">{{ tlocal_datetime($rental->starts_at, 'M j, g:i A') }} → {{ tlocal_datetime($rental->due_at, 'M j, g:i A') }}</p>
-  </div>
-  <a href="{{ route('tenant.rentals.bookings.index') }}" class="ia-btn">All bookings</a>
-</div>
-
-@if(session('flash'))
-  <div class="ia-flash ia-flash--success" style="margin-bottom:16px">{{ session('flash') }}</div>
-@endif
-@if($errors->any())
-  <div class="ia-flash ia-flash--error" style="margin-bottom:16px">{{ $errors->first() }}</div>
-@endif
-
-{{-- pipeline stepper: real timestamps per stage, red
-     missed-due, cancelled short-circuits. --}}
-@php
-  $missedDue = $rental->due_at && $rental->due_at->isPast() && in_array($rental->status, ['out'], true);
+  // where it is in its life: real timestamps per stage, red when due-back was missed
+  $missedDue = $rental->due_at && $rental->due_at->isPast() && $isOut;
   $stages = $rental->status === 'cancelled'
-    ? [
-        ['t' => 'Reserved',  'at' => $rental->created_at,   'state' => 'hit'],
-        ['t' => 'Cancelled', 'at' => $rental->cancelled_at, 'state' => 'bad'],
-      ]
+    ? [['t' => 'Reserved', 'at' => $rental->created_at, 'state' => 'hit'], ['t' => 'Cancelled', 'at' => $rental->cancelled_at, 'state' => 'bad']]
     : [
         ['t' => 'Reserved',    'at' => $rental->created_at,     'state' => 'hit'],
         ['t' => 'Checked out', 'at' => $rental->checked_out_at, 'state' => in_array($rental->status, ['out', 'returned'], true) ? 'hit' : 'next'],
-        ['t' => 'Due back',    'at' => $rental->due_at,         'state' => $rental->status === 'returned' ? 'hit' : ($missedDue ? 'bad' : ($rental->status === 'out' ? 'now' : 'next'))],
+        ['t' => 'Due back',    'at' => $rental->due_at,         'state' => $rental->status === 'returned' ? 'hit' : ($missedDue ? 'bad' : ($isOut ? 'now' : 'next'))],
         ['t' => 'Returned',    'at' => $rental->returned_at,    'state' => $rental->status === 'returned' ? 'hit' : 'next'],
       ];
-@endphp
-{{-- eligibility panel: shows the live offer state or
-     why this rental can't get one, with a manual send. --}}
-@php
+
+  // live extension-offer state (only while it's out)
   $extPanel = null;
-  if (tenant()->rental_extensions_enabled && $rental->status === 'out' && !$rental->returned_at) {
+  if (tenant()->rental_extensions_enabled && $isOut && ! $rental->returned_at) {
       $extSvc = app(\App\Services\RentalExtensionOfferService::class);
-      $extOffer = \App\Models\Tenant\TenantRentalExtensionOffer::where('rental_id', $rental->id)
-          ->orderByDesc('created_at')->first();
+      $extOffer = \App\Models\Tenant\TenantRentalExtensionOffer::where('rental_id', $rental->id)->orderByDesc('created_at')->first();
       $extReason = null;
       $extElig = ($extOffer && in_array($extOffer->status, ['sent', 'paid'], true)) ? null : $extSvc->eligibility(tenant(), $rental, $extReason);
       $extPanel = ['offer' => $extOffer, 'elig' => $extElig, 'reason' => $extReason];
   }
+  $docChecks = $rental->conditionChecks->filter(fn ($c) => is_array($c->photos) && count($c->photos));
 @endphp
-@if($extPanel)
-  <div class="ia-card" style="margin-bottom:16px;padding:14px 18px">
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
-      <div>
-        <div style="font-size:12.5px;font-weight:700;margin-bottom:2px">Last-minute extension</div>
-        @if($extPanel['offer'] && $extPanel['offer']->status === 'paid')
-          <div style="font-size:12px;opacity:.6">Accepted &amp; paid {{ format_money($extPanel['offer']->total_cents) }} — extended to {{ tlocal_datetime($extPanel['offer']->extend_to, 'g:i A') }}.</div>
-        @elseif($extPanel['offer'] && $extPanel['offer']->status === 'sent')
-          <div style="font-size:12px;opacity:.6">Offer sent {{ tlocal_datetime($extPanel['offer']->sent_at, 'g:i A') }} — awaiting response. Extends to {{ tlocal_datetime($extPanel['offer']->extend_to, 'g:i A') }} for {{ format_money($extPanel['offer']->total_cents) }}.</div>
-        @elseif($extPanel['elig'])
-          <div style="font-size:12px;opacity:.6">Eligible — unit is free until {{ tlocal_datetime($extPanel['elig']['extend_to'], 'g:i A') }}. Offer price {{ format_money($extPanel['elig']['total_cents']) }} ({{ $extPanel['elig']['discount_pct'] }}% off).</div>
-        @else
-          <div style="font-size:12px;opacity:.6">Not eligible: {{ $extPanel['reason'] ?? ($extPanel['offer'] ? ucfirst($extPanel['offer']->status) . ' offer on file.' : 'n/a') }}</div>
-        @endif
-      </div>
-      @if($extPanel['elig'])
-        <form method="POST" action="{{ route('tenant.rentals.bookings.extension.send', $rental->id) }}">
-          @csrf
-          <button class="ia-btn ia-btn--sm">Send offer now</button>
-        </form>
+
+<div class="sd rf" id="sd">
+  <header class="sd-head" id="sdHead">
+    <div class="sd-head-l">
+      <div class="rf-crumb"><a href="{{ route('tenant.rentals.bookings.index') }}">Bookings</a> / {{ $rental->rental_number }}</div>
+      <h1 class="sd-hi">{{ $who }}<span class="rf-hpill">@include('tenant.rentals._status-pill', ['rental' => $rental])</span></h1>
+      <p class="sd-sub">{{ $rental->rental_number }} · {{ tlocal_datetime($rental->starts_at, 'M j, g:i A') }} → {{ tlocal_datetime($rental->due_at, 'M j, g:i A') }} · {{ $unitCount }} {{ $unitCount === 1 ? 'unit' : 'units' }}</p>
+    </div>
+    <div class="sd-head-r">
+      @if($canDiscount)<button type="button" class="ia-btn ia-btn--sm" data-disc-open>{{ $hasDiscount ? 'Change discount' : 'Discount' }}</button>@endif
+      @if($isRes)<a href="{{ route('tenant.rentals.bookings.checkout.flow', $rental->id) }}" class="ia-btn ia-btn--sm ia-btn--primary">Check out →</a>
+      @elseif($isOut)<a href="{{ route('tenant.rentals.bookings.return.flow', $rental->id) }}" class="ia-btn ia-btn--sm ia-btn--primary">Start return →</a>
+      @elseif($rental->agreement_pdf_path)<a href="{{ Storage::disk('public')->url($rental->agreement_pdf_path) }}" target="_blank" rel="noopener" class="ia-btn ia-btn--sm">Agreement PDF</a>
       @endif
     </div>
-  </div>
-@endif
+  </header>
 
-<div class="ia-card" style="margin-bottom:16px;padding:14px 18px;display:flex;align-items:center;flex-wrap:wrap">
-  @foreach($stages as $i => $st)
-    @php
-      [$dotStyle, $txtColor] = match ($st['state']) {
-        'hit' => ['background:var(--ia-accent,#BEF264)', 'inherit'],
-        'now' => ['background:#5BA3D0;box-shadow:0 0 0 4px rgba(91,163,208,.18)', 'inherit'],
-        'bad' => ['background:#ef4444;box-shadow:0 0 0 4px rgba(239,68,68,.16)', '#ef4444'],
-        default => ['background:var(--ia-border-strong,rgba(255,255,255,.22))', 'rgba(255,255,255,.55)'],
-      };
-    @endphp
-    <div style="display:flex;align-items:center;gap:8px">
-      <span style="width:9px;height:9px;border-radius:50%;{{ $dotStyle }}"></span>
-      <div>
-        <div style="font-size:11.5px;font-weight:550;color:{{ $txtColor }}">{{ $st['t'] }}</div>
-        <div style="font-size:10px;opacity:.5;{{ $st['state'] === 'bad' ? 'color:#ef4444;opacity:1' : '' }}">{{ $st['at'] ? tlocal_datetime($st['at'], 'M j, g:i a') . ($st['state'] === 'bad' ? ' — missed' : '') : '—' }}</div>
-      </div>
-    </div>
-    @if(!$loop->last)<span style="flex:1;min-width:18px;height:1.5px;background:{{ $st['state'] === 'hit' ? 'rgba(190,242,100,.5)' : 'var(--ia-border)' }};margin:0 10px"></span>@endif
-  @endforeach
-</div>
+  @include('layouts.tenant._rental-nav', ['active' => 'bookings'])
 
-<div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;align-items:start">
+  @if(session('flash'))<div class="ia-flash ia-flash--success" style="margin-bottom:16px">{{ session('flash') }}</div>@endif
+  @if($errors->any())<div class="ia-flash ia-flash--error" style="margin-bottom:16px">{{ $errors->first() }}</div>@endif
 
-  <div>
-    <div class="ia-card" style="padding:0;overflow:hidden;margin-bottom:16px">
-      <div style="padding:12px 16px;border-bottom:0.5px solid var(--ia-border)"><span class="ia-label">Lines</span></div>
-      @foreach($rental->lines as $line)
-        <div style="display:flex;justify-content:space-between;gap:10px;padding:10px 16px;border-bottom:0.5px solid var(--ia-border)">
-          <span style="font-size:13px">{{ $line->name_snapshot }}
-            <span style="opacity:.5;font-size:11.5px">{{ $line->duration_units }} × {{ format_money($line->rate_cents_snapshot) }} ({{ $line->rate_mode_snapshot }})</span>
-          </span>
-          <span style="font-size:13px;font-weight:600">{{ format_money($line->line_total_cents) }}</span>
-        </div>
-      @endforeach
-      <div style="padding:12px 16px;font-size:13px">
-        <div style="display:flex;justify-content:space-between"><span style="opacity:.65">Subtotal</span><span>{{ format_money($rental->subtotal_cents) }}</span></div>
-        @if((int) ($rental->discount_cents ?? 0) > 0)
-        <div style="display:flex;justify-content:space-between"><span style="opacity:.65">{{ $rental->discount_code ? 'Discount (' . $rental->discount_code . ')' : 'Discount' }}</span><span>&minus;{{ format_money($rental->discount_cents) }}</span></div>
-        @endif
-        <div style="display:flex;justify-content:space-between"><span style="opacity:.65">Tax</span><span>{{ format_money($rental->tax_cents) }}</span></div>
-        <div style="display:flex;justify-content:space-between;font-weight:800;margin-top:4px"><span>Total</span><span>{{ format_money($rental->total_cents) }}</span></div>
-        <div style="display:flex;justify-content:space-between;margin-top:4px"><span style="opacity:.65">Paid (ledger)</span><span>{{ format_money($rental->paid_cents) }}</span></div>
-        <div style="display:flex;justify-content:space-between;font-weight:700;{{ $balance > 0 ? 'color:#f59e0b' : '' }}"><span>Balance</span><span>{{ format_money(max(0, $balance)) }}</span></div>
+  <div class="dash-row">
+    <div class="dash-col" style="grid-column:span 8">
 
-        @if((int) ($rental->paid_cents ?? 0) === 0)
-          <div style="margin-top:10px;display:flex;gap:8px">
-            <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" onclick="RentalDiscount.open()">
-              {{ (int) ($rental->discount_cents ?? 0) > 0 ? 'Change discount' : 'Add discount' }}
-            </button>
-            @if((int) ($rental->discount_cents ?? 0) > 0)
-              <form method="POST" action="{{ route('tenant.rentals.bookings.discount.remove', $rental->id) }}">
-                @csrf
-                @method('DELETE')
-                <button type="submit" class="ia-btn ia-btn--ghost ia-btn--sm">Remove</button>
-              </form>
-            @endif
-          </div>
-        @elseif((int) ($rental->discount_cents ?? 0) > 0)
-          <div style="margin-top:8px;font-size:11.5px;opacity:.6;line-height:1.5">
-            Payment has started, so the discount is locked. Refund first to change it.
-          </div>
-        @endif
-      </div>
-    </div>
-
-    {{-- sales-as-money: payments flow through the register. --}}
-    <div class="ia-card" style="padding:0;overflow:hidden;margin-bottom:16px">
-      <div style="padding:12px 16px;border-bottom:0.5px solid var(--ia-border)"><span class="ia-label">Payments — via register</span></div>
-      @if($rental->sales->isEmpty())
-        <div style="padding:18px 16px;font-size:12.5px;opacity:.55">No register sales linked yet. Use Collect payment below.</div>
-      @else
-        @foreach($rental->sales as $sale)
-          <div style="padding:10px 16px;border-bottom:0.5px solid var(--ia-border)">
-            <div style="display:flex;justify-content:space-between;gap:10px;font-size:13px">
-              <span style="font-weight:600">{{ $sale->sale_number }}
-                <span style="font-size:11px;font-weight:700;margin-left:6px;{{ $sale->payment_status === 'paid' ? 'color:#34d399' : ($sale->payment_status === 'refunded' ? 'color:#ef4444' : 'opacity:.55') }}">{{ strtoupper($sale->payment_status) }}</span>
-              </span>
-              <span style="font-weight:700">{{ format_money($sale->total_cents) }}</span>
-            </div>
-            @foreach($sale->payments as $p)
-              <div style="display:flex;justify-content:space-between;gap:10px;font-size:12px;opacity:.75;margin-top:4px">
-                <span>{{ tlocal_datetime($p->recorded_at, 'M j, g:i A') }} · {{ ucfirst($p->kind) }} · {{ $p->method ?? '—' }}</span>
-                <span style="{{ $p->amount_cents < 0 ? 'color:#ef4444' : '' }}">{{ format_money(abs($p->amount_cents)) }}{{ $p->amount_cents < 0 ? ' refund' : '' }}</span>
-              </div>
-            @endforeach
+      {{-- life of the booking --}}
+      <div class="rf-track rf-track-t sd-in">
+        @foreach($stages as $i => $st)
+          @php
+            $cls = match ($st['state']) { 'hit' => 'done', 'now' => 'now', 'bad' => 'now late', default => '' };
+          @endphp
+          <div class="{{ $cls }}">
+            <i>{{ $st['state'] === 'hit' ? '✓' : ($st['state'] === 'bad' ? '!' : $i + 1) }}</i>
+            <span>{{ $st['t'] }}<small>{{ $st['at'] ? tlocal_datetime($st['at'], 'M j, g:i a') . ($st['state'] === 'bad' && $st['t'] === 'Due back' ? ' — missed' : '') : '—' }}</small></span>
           </div>
         @endforeach
-      @endif
-      @if($rental->status !== 'cancelled' && $balance > 0)
-      <form method="POST" action="{{ route('tenant.rentals.bookings.collect', $rental->id) }}" style="display:flex;gap:8px;padding:12px 16px;align-items:end">
-        @csrf
-        {{-- come back to this booking after payment. --}}
-        <input type="hidden" name="return_to" value="{{ parse_url(route('tenant.rentals.bookings.show', $rental->id), PHP_URL_PATH) }}">
-        <div>
-          <label class="ia-label" style="display:block;margin-bottom:4px">Amount $</label>
-          <input type="number" name="amount" min="0.01" step="0.01" required value="{{ number_format($balance / 100, 2, '.', '') }}" class="ia-input" style="width:140px;text-align:right">
-        </div>
-        <button type="submit" class="ia-btn ia-btn--primary">Collect payment</button>
-        <span style="font-size:11px;opacity:.45;align-self:center">Creates a register sale — take cash, card, or send a payment link there. Refunds: open the sale in register history.</span>
-      </form>
-      @endif
-    </div>
+      </div>
 
-    {{-- derived activity feed. --}}
-    <div class="ia-card" style="padding:0;overflow:hidden;margin-bottom:16px">
-      <div style="padding:12px 16px;border-bottom:0.5px solid var(--ia-border)"><span class="ia-label">Activity</span></div>
-      @if($feed->isEmpty())
-        <div style="padding:18px 16px;font-size:12.5px;opacity:.55">Nothing yet.</div>
-      @else
-        @foreach($feed as $i => $ev)
+      <section class="rf-blk sd-in" style="--d:60ms">
+        <div class="sd-sec-h"><div><h2>Units</h2><span>{{ $isRes ? 'Held for this window' : ($isOut ? 'With the customer' : ($rental->status === 'returned' ? 'Back in the fleet' : 'Released')) }}</span></div></div>
+        @foreach($rental->lines as $line)
           @php
-            $dotColor = match ($ev['dot']) {
-              'lime' => 'var(--ia-accent,#BEF264)',
-              'blue' => '#5BA3D0',
-              'red'  => '#ef4444',
-              default => 'var(--ia-border-strong,rgba(255,255,255,.3))',
+            $isUnit = $line->kind === 'unit';
+            $u = $isUnit ? $line->unit : null;
+            $thumbPhoto = $u?->photo_url ?: ($u?->model?->image_url);
+            $t = crc32((string) $line->id) % 4;
+            $lineChip = ! $isUnit ? null : match (true) {
+              $rental->status === 'cancelled' => ['off', 'Released'],
+              $rental->status === 'returned'  => ['done', 'Back'],
+              $late                           => ['late', 'Overdue'],
+              $isOut                          => ['out', 'Out'],
+              default                         => ['res', 'Held for this'],
             };
           @endphp
-          <div style="display:grid;grid-template-columns:20px 1fr;gap:12px;padding:9px 18px;position:relative">
-            @if(!$loop->last)<span style="position:absolute;left:27px;top:30px;bottom:-4px;width:1px;background:var(--ia-border)"></span>@endif
-            <span style="width:9px;height:9px;border-radius:50%;background:{{ $dotColor }};margin-top:6px;justify-self:center"></span>
+          <div class="rf-line {{ $isUnit ? '' : 'addon' }}">
+            <div class="rf-thumb" style="{{ $thumbPhoto ? "background-image:url('" . e($thumbPhoto) . "')" : 'background:linear-gradient(135deg,color-mix(in srgb,var(' . $tones[$t] . ') 70%,var(--ia-surface)),color-mix(in srgb,var(' . $tones[($t + 1) % 4] . ') 35%,var(--ia-surface)));color:var(--sd-ink)' }}">{{ $thumbPhoto ? '' : ($isUnit ? $ini($line->name_snapshot) : '+') }}</div>
             <div>
-              <div style="font-size:12.5px">{{ $ev['text'] }}</div>
-              <div style="font-size:11px;opacity:.5;font-family:var(--ia-font-mono,monospace)">{{ tlocal_datetime($ev['at'], 'M j, g:i a') }}</div>
+              <b>{{ $line->name_snapshot }}</b>
+              <small>
+                @if($u && ($u->identifier || $u->size))<span class="rf-mono">{{ $u->identifier ?: '—' }}</span>@if($u->size) · Size {{ $u->size }}@endif · @endif
+                {{ $line->duration_units }} × {{ format_money($line->rate_cents_snapshot) }} ({{ $line->rate_mode_snapshot }})
+              </small>
             </div>
+            <div>@if($lineChip)<span class="rf-st {{ $lineChip[0] }}">{{ $lineChip[1] }}</span>@endif</div>
+            <div class="amt">{{ format_money($line->line_total_cents) }}</div>
           </div>
         @endforeach
-      @endif
-    </div>
-  </div>
 
-  <div>
-    <div class="ia-card" style="padding:16px;margin-bottom:16px">
-      <span class="ia-label">Customer</span>
-      <div style="margin-top:8px">
-        <a href="{{ route('tenant.customers.show', $rental->customer_id) }}" style="font-size:14px;font-weight:700;text-decoration:none;color:inherit">{{ $rental->customer?->fullName() }}</a>
-        <div style="font-size:12px;opacity:.6;margin-top:2px">{{ $rental->customer?->email }}</div>
-        @if($rental->customer?->phone)<div style="font-size:12px;opacity:.6">{{ $rental->customer?->phone }}</div>@endif
-      </div>
-    </div>
+        <dl class="rf-tot">
+          <dt>Subtotal</dt><dd>{{ format_money($rental->subtotal_cents) }}</dd>
+          @if($hasDiscount)
+            <dt>{{ $rental->discount_code ? 'Discount (' . $rental->discount_code . ')' : 'Discount' }}
+              @if($canDiscount)
+                <form method="POST" action="{{ route('tenant.rentals.bookings.discount.remove', $rental->id) }}" style="display:inline">@csrf @method('DELETE')<button type="submit" class="rf-linkbtn">remove</button></form>
+              @endif
+            </dt><dd>−{{ format_money($rental->discount_cents) }}</dd>
+          @endif
+          <dt>Tax</dt><dd>{{ format_money($rental->tax_cents) }}</dd>
+          <dt class="big">Total</dt><dd>{{ format_money($rental->total_cents) }}</dd>
+          <dt>Paid</dt><dd>{{ format_money($rental->paid_cents) }}</dd>
+          <dt class="{{ $balance > 0 ? 'owe' : '' }}">Balance</dt><dd>{{ format_money(max(0, $balance)) }}</dd>
+        </dl>
+        @if($hasDiscount && (int) ($rental->paid_cents ?? 0) > 0)
+          <p class="rf-fine" style="text-align:right">Payment has started, so the discount is locked. Refund first to change it.</p>
+        @endif
+      </section>
 
-    {{-- deposit hold panel --}}
-    <div class="ia-card" style="padding:16px;margin-bottom:16px">
-      <span class="ia-label">Deposit</span>
-      <div style="margin-top:10px;font-size:12.5px">
-        @if($rental->deposit_status === 'authorized')
-          <div style="font-weight:700;margin-bottom:8px">{{ format_money($rental->deposit_hold_cents) }} on hold</div>
-          <form method="POST" action="{{ route('tenant.rentals.bookings.deposit.release', $rental->id) }}" style="margin-bottom:8px">@csrf
-            <button type="submit" class="ia-btn" style="width:100%">Release hold</button>
-          </form>
-          <form method="POST" action="{{ route('tenant.rentals.bookings.deposit.capture', $rental->id) }}" onsubmit="return confirm('Capture from the customer\'s card?')">@csrf
-            <div style="display:flex;gap:6px;margin-bottom:6px">
-              <input type="number" name="amount" min="0.50" step="0.01" max="{{ number_format($rental->deposit_hold_cents / 100, 2, '.', '') }}" placeholder="Amount $" required class="ia-input" style="flex:1;text-align:right">
-              <button type="submit" class="ia-btn ia-btn--primary">Capture</button>
+      <section class="rf-blk sd-in" style="--d:120ms">
+        <div class="sd-sec-h"><div><h2>Payments</h2><span>Taken in the register</span></div></div>
+        @forelse($rental->sales as $sale)
+          <div class="rf-pay">
+            <div>
+              <b>{{ $sale->sale_number }} <span class="rf-st {{ $sale->payment_status === 'paid' ? 'done' : ($sale->payment_status === 'refunded' ? 'late' : 'off') }}">{{ strtolower($sale->payment_status) }}</span></b>
+              @foreach($sale->payments as $p)
+                <small>{{ tlocal_datetime($p->recorded_at, 'M j, g:i A') }} · {{ ucfirst($p->kind) }} · {{ $p->method ?? '—' }} · {{ $p->amount_cents < 0 ? '−' : '' }}{{ format_money(abs($p->amount_cents)) }}{{ $p->amount_cents < 0 ? ' refund' : '' }}</small>
+              @endforeach
             </div>
-            <input type="text" name="reason" maxlength="500" placeholder="Reason (shows on the sale)" class="ia-input" style="width:100%">
+            <span class="rf-mono">{{ format_money($sale->total_cents) }}</span>
+            <span></span>
+          </div>
+        @empty
+          <div class="sd-empty">No payments yet. Collecting opens the register with this booking's balance and links the sale back here.</div>
+        @endforelse
+        @if($rental->status !== 'cancelled' && $balance > 0)
+          <form method="POST" action="{{ route('tenant.rentals.bookings.collect', $rental->id) }}" class="rf-collect">
+            @csrf
+            {{-- come back to this booking after payment --}}
+            <input type="hidden" name="return_to" value="{{ parse_url(route('tenant.rentals.bookings.show', $rental->id), PHP_URL_PATH) }}">
+            <div class="rf-money"><input class="ia-input" type="number" name="amount" min="0.01" step="0.01" required value="{{ number_format($balance / 100, 2, '.', '') }}" aria-label="Amount to collect"></div>
+            <button type="submit" class="ia-btn ia-btn--sm ia-btn--primary">Collect payment</button>
+            <span class="rf-dim" style="font-size:11.5px">Opens a register sale — take cash or card, or send a payment link there. Refunds: open the sale in register history.</span>
           </form>
-          <p style="font-size:11px;opacity:.45;margin-top:8px">Release = no charge, no ledger entry. Capture = damage charge through the register ledger.</p>
+        @endif
+      </section>
+
+      <section class="rf-blk sd-in" style="--d:180ms">
+        <div class="sd-sec-h"><div><h2>Activity</h2><span>Newest first</span></div></div>
+        @if($feed->isEmpty())
+          <div class="sd-empty">Nothing yet.</div>
+        @else
+          <div class="sd-tl rf-tl">
+            @foreach($feed as $i => $ev)
+              <div class="sd-tl-r {{ $ev['dot'] === 'red' ? 'late' : '' }}"><time>{{ tlocal_datetime($ev['at'], 'M j, g:i a') }}</time><div><b>{{ $ev['text'] }}</b></div></div>
+            @endforeach
+          </div>
+        @endif
+      </section>
+    </div>
+
+    <div class="dash-col" style="grid-column:span 4">
+      <aside class="sd-rail rf-rail sd-in" style="--d:100ms">
+        <div class="rf-rh"><b>Customer</b>@if($rental->customer_id)<a href="{{ route('tenant.customers.show', $rental->customer_id) }}" class="sd-link">Open →</a>@endif</div>
+        <div class="rf-person">
+          <div class="sd-av" style="--c:var({{ $tone }})">{{ $ini($who) }}</div>
+          <div><b>{{ $who }}</b>@if($rental->customer?->phone)<small>{{ $rental->customer->phone }}</small>@endif</div>
+        </div>
+        <dl class="rf-kv">
+          @if($rental->customer?->email)<dt>Email</dt><dd>{{ $rental->customer->email }}</dd>@endif
+          <dt>Customer since</dt><dd>{{ $rental->customer?->created_at && $priorRentals > 0 ? tlocal_date($rental->customer->created_at, 'M Y') : 'New customer' }}</dd>
+          <dt>Rentals</dt><dd>{{ $priorRentals > 0 ? $priorRentals . ' before this' : 'First rental' }}</dd>
+        </dl>
+
+        {{-- deposit hold --}}
+        <div class="rf-rh"><b>Deposit</b><span>{{ $rental->deposit_status === 'authorized' ? 'Authorised' : '' }}</span></div>
+        @if($rental->deposit_status === 'authorized')
+          <div class="rf-hold">
+            <b>{{ format_money($rental->deposit_hold_cents) }} held</b>
+            <small>On the customer's card · not charged</small>
+            <form method="POST" action="{{ route('tenant.rentals.bookings.deposit.release', $rental->id) }}" style="display:inline">@csrf<button type="submit" class="ia-btn ia-btn--sm">Release</button></form>
+            <details class="rf-capture">
+              <summary class="ia-btn ia-btn--sm">Capture…</summary>
+              <form method="POST" action="{{ route('tenant.rentals.bookings.deposit.capture', $rental->id) }}" data-confirm-title="Capture from the customer's card?" data-confirm-msg="This charges the amount you entered to the card that holds the deposit." data-confirm-yes="Capture">
+                @csrf
+                <div class="rf-money"><input class="ia-input" type="number" name="amount" min="0.50" step="0.01" max="{{ number_format($rental->deposit_hold_cents / 100, 2, '.', '') }}" placeholder="Amount" required aria-label="Amount to capture"></div>
+                <input class="ia-input" type="text" name="reason" maxlength="500" placeholder="Reason (shows on the sale)" aria-label="Reason">
+                <button type="submit" class="ia-btn ia-btn--sm ia-btn--primary">Capture</button>
+              </form>
+            </details>
+            <p class="rf-fine">Release = no charge, no ledger entry. Capture = a damage charge through the register ledger.</p>
+          </div>
         @elseif($rental->deposit_status === 'released')
-          <div style="opacity:.65">Hold released — no charge.</div>
+          <div class="rf-hold"><b>Released</b><small>Hold released — no charge.</small></div>
         @elseif(in_array($rental->deposit_status, ['captured', 'partially_captured'], true))
-          <div style="opacity:.85">{{ $rental->deposit_status === 'captured' ? 'Hold fully captured' : 'Hold partially captured' }} — see the linked sale above.</div>
+          <div class="rf-hold"><b>{{ $rental->deposit_status === 'captured' ? 'Fully captured' : 'Partly captured' }}</b><small>See the linked sale under Payments.</small></div>
         @elseif(in_array($rental->status, ['reserved', 'out'], true))
           @if(tenant()->direct_payments_enabled)
-            <div id="dep-start">
-              <div style="display:flex;gap:6px">
-                <input type="number" id="dep-amount" min="0.50" step="0.01" value="{{ number_format(max(0, $rental->lines->where('kind','unit')->sum(fn ($l) => (int) ($l->unit?->deposit_cents ?? 0))) / 100, 2, '.', '') }}" class="ia-input" style="flex:1;text-align:right">
-                <button type="button" class="ia-btn ia-btn--primary" id="dep-authorize">Authorize hold</button>
+            <div class="rf-hold" id="dep-start">
+              <b>No hold yet</b>
+              <small>It's usually placed at check-out; you can place it now if they've paid ahead. Authorises the card without charging it.</small>
+              <div class="rf-collect" style="margin:0">
+                <div class="rf-money"><input class="ia-input" type="number" id="dep-amount" min="0.50" step="0.01" value="{{ number_format(max(0, $rental->lines->where('kind', 'unit')->sum(fn ($l) => (int) ($l->unit?->effectiveDepositCents() ?? 0))) / 100, 2, '.', '') }}" aria-label="Deposit amount"></div>
+                <button type="button" class="ia-btn ia-btn--sm ia-btn--primary" id="dep-authorize">Authorize hold</button>
               </div>
-              <p style="font-size:11px;opacity:.45;margin-top:6px">Authorizes the customer's card without charging it.</p>
             </div>
             <div id="dep-element-wrap" style="display:none;margin-top:10px">
               <div id="dep-element"></div>
-              <button type="button" class="ia-btn ia-btn--primary" id="dep-confirm" style="width:100%;margin-top:8px">Place hold</button>
-              <div id="dep-error" style="font-size:12px;color:#ef4444;margin-top:6px"></div>
+              <button type="button" class="ia-btn ia-btn--primary rf-wide" id="dep-confirm" style="margin-top:8px">Place hold</button>
+              <p class="rf-err" id="dep-error"></p>
             </div>
           @else
-            <div style="opacity:.55">Enable card payments in Settings → Payments to take deposit holds.</div>
+            <div class="sd-empty">Turn on card payments in Settings → Payments to take deposit holds.</div>
           @endif
         @else
-          <div style="opacity:.55">No deposit was held on this rental.</div>
+          <div class="sd-empty">No deposit was held on this rental.</div>
         @endif
-      </div>
-    </div>
 
-    <div class="ia-card" style="padding:16px;margin-bottom:16px">
-      <span class="ia-label">Actions</span>
-      <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
-        @if($rental->status === 'reserved')
-          {{-- guided flow is the front door; one-click stays as the escape hatch. --}}
-          <a href="{{ route('tenant.rentals.bookings.checkout.flow', $rental->id) }}" class="ia-btn ia-btn--primary" style="width:100%;justify-content:center;text-decoration:none">Check out →</a>
-          <form method="POST" action="{{ route('tenant.rentals.bookings.checkout', $rental->id) }}" onsubmit="return confirm('Skip the agreement, condition check, and deposit steps?')">@csrf
-            <button type="submit" class="ia-btn" style="width:100%">Quick check out (skip flow)</button>
-          </form>
-          <form method="POST" action="{{ route('tenant.rentals.bookings.cancel', $rental->id) }}" onsubmit="return confirm('Cancel this reservation?')">@csrf
-            <button type="submit" class="ia-btn" style="width:100%">Cancel reservation</button>
-          </form>
-        @elseif($rental->status === 'out')
-          {{-- guided return is the front door; one-click stays as the escape hatch. --}}
-          <a href="{{ route('tenant.rentals.bookings.return.flow', $rental->id) }}" class="ia-btn ia-btn--primary" style="width:100%;justify-content:center;text-decoration:none">Start return →</a>
-          <form method="POST" action="{{ route('tenant.rentals.bookings.checkin', $rental->id) }}" onsubmit="return confirm('Skip inspection and charges? A clean check-in auto-releases any deposit hold.')">@csrf
-            <button type="submit" class="ia-btn" style="width:100%">Quick check in (skip flow)</button>
-          </form>
-        @else
-          <p style="font-size:12.5px;opacity:.55;margin:0">
-            {{ $rental->status === 'returned' ? 'Returned ' . ($rental->returned_at ? tlocal_datetime($rental->returned_at, 'M j, g:i A') : '') : 'Cancelled.' }}
-          </p>
-        @endif
-      </div>
-
-    </div>
-
-    {{-- documents: signed agreement + check photos. --}}
-    @php
-      $docChecks = $rental->conditionChecks->filter(fn ($c) => is_array($c->photos) && count($c->photos));
-    @endphp
-    @if($rental->agreement_pdf_path || $docChecks->isNotEmpty())
-    <div class="ia-card" style="padding:16px;margin-bottom:16px">
-      <span class="ia-label">Documents</span>
-      <div style="margin-top:10px;display:flex;flex-direction:column;gap:8px;font-size:12.5px">
-        @if($rental->agreement_pdf_path)
-          <div style="display:flex;justify-content:space-between;gap:10px">
-            <span>Agreement v{{ $rental->agreement_template_version }} — signed</span>
-            <a href="{{ Storage::disk('public')->url($rental->agreement_pdf_path) }}" target="_blank" style="color:var(--ia-accent);text-decoration:none">PDF →</a>
+        @if($extPanel)
+          <div class="rf-rh"><b>Last-minute extension</b><span>{{ $extPanel['offer'] && $extPanel['offer']->status === 'sent' ? 'Sent' : ($extPanel['offer'] && $extPanel['offer']->status === 'paid' ? 'Accepted' : '') }}</span></div>
+          <div class="rf-offer">
+            @if($extPanel['offer'] && $extPanel['offer']->status === 'paid')
+              <p>Accepted and paid {{ format_money($extPanel['offer']->total_cents) }} — extended to {{ tlocal_datetime($extPanel['offer']->extend_to, 'g:i A') }}.</p>
+            @elseif($extPanel['offer'] && $extPanel['offer']->status === 'sent')
+              <p>Offer sent {{ tlocal_datetime($extPanel['offer']->sent_at, 'g:i A') }} — waiting on an answer. Extends to {{ tlocal_datetime($extPanel['offer']->extend_to, 'g:i A') }} for {{ format_money($extPanel['offer']->total_cents) }}.</p>
+            @elseif($extPanel['elig'])
+              <p>Eligible — the unit is free until {{ tlocal_datetime($extPanel['elig']['extend_to'], 'g:i A') }}. Offer price {{ format_money($extPanel['elig']['total_cents']) }} ({{ $extPanel['elig']['discount_pct'] }}% off).</p>
+              <form method="POST" action="{{ route('tenant.rentals.bookings.extension.send', $rental->id) }}">@csrf<button type="submit" class="ia-btn ia-btn--sm">Send offer now</button></form>
+            @else
+              <p>Not eligible: {{ $extPanel['reason'] ?? ($extPanel['offer'] ? ucfirst($extPanel['offer']->status) . ' offer on file.' : 'n/a') }}</p>
+            @endif
           </div>
         @endif
-        @foreach($docChecks as $check)
-          <div style="display:flex;justify-content:space-between;gap:10px">
-            <span>{{ $check->phase === 'check_out' ? 'Out-check' : 'In-check' }} — {{ $check->unit?->identifier ?: 'unit' }} ({{ count($check->photos) }} photo{{ count($check->photos) === 1 ? '' : 's' }})</span>
-            <span>
-              @foreach($check->photos as $pi => $p)
-                <a href="{{ Storage::disk('public')->url($p) }}" target="_blank" style="color:var(--ia-accent);text-decoration:none">{{ $pi + 1 }}</a>{{ !$loop->last ? ' ' : '' }}
-              @endforeach
-            </span>
-          </div>
-        @endforeach
-      </div>
-    </div>
-    @endif
 
-    @if($rental->notes)
-    <div class="ia-card" style="padding:16px">
-      <span class="ia-label">Notes</span>
-      <p style="font-size:12.5px;margin-top:8px;white-space:pre-wrap">{{ $rental->notes }}</p>
+        @if($rental->agreement_pdf_path || $docChecks->isNotEmpty())
+          <div class="rf-rh"><b>Documents</b></div>
+          <div class="rf-docs">
+            @if($rental->agreement_pdf_path)
+              <a href="{{ Storage::disk('public')->url($rental->agreement_pdf_path) }}" target="_blank" rel="noopener"><b>Rental agreement</b><span>v{{ $rental->agreement_template_version }} · signed</span></a>
+            @endif
+            @foreach($docChecks as $check)
+              <div class="rf-doc-row">
+                <b>{{ $check->phase === 'check_out' ? 'Out-check' : 'In-check' }} — {{ $check->unit?->identifier ?: 'unit' }}</b>
+                <span>@foreach($check->photos as $pi => $p)<a href="{{ Storage::disk('public')->url($p) }}" target="_blank" rel="noopener" aria-label="Photo {{ $pi + 1 }}">{{ $pi + 1 }}</a>@endforeach</span>
+              </div>
+            @endforeach
+          </div>
+        @endif
+
+        @if($rental->notes)
+          <div class="rf-rh"><b>Notes</b></div>
+          <p class="rf-note-text">{{ $rental->notes }}</p>
+        @endif
+
+        @if($isRes || $isOut)
+          <div class="rf-rh"><b>More</b></div>
+          <div class="rf-quiet">
+            @if($isRes)
+              <form method="POST" action="{{ route('tenant.rentals.bookings.checkout', $rental->id) }}" data-confirm-title="Quick check out?" data-confirm-msg="This skips the agreement, condition check and deposit steps." data-confirm-yes="Check out">@csrf<button type="submit">Quick check out — skip the flow</button></form>
+              <form method="POST" action="{{ route('tenant.rentals.bookings.cancel', $rental->id) }}" data-confirm-title="Cancel this reservation?" data-confirm-msg="The units are released for other bookings." data-confirm-yes="Cancel reservation" data-confirm-danger="1">@csrf<button type="submit" class="bad">Cancel reservation</button></form>
+            @else
+              <form method="POST" action="{{ route('tenant.rentals.bookings.checkin', $rental->id) }}" data-confirm-title="Quick check in?" data-confirm-msg="This skips the inspection and charges. A clean check-in releases any deposit hold." data-confirm-yes="Check in">@csrf<button type="submit">Quick check in — skip the flow</button></form>
+            @endif
+          </div>
+        @endif
+      </aside>
     </div>
-    @endif
   </div>
 
+  <p class="sd-legend">Payments are taken in the register and land on this booking's ledger, so the balance here always matches the register. A deposit hold authorises the customer's card without charging it; nothing is taken unless you capture it.</p>
 </div>
 
+{{-- discount dialog (in-app, no browser prompts) --}}
+@if($canDiscount)
+<div class="ia-confirm-backdrop" id="discDlg" hidden>
+  <div class="ia-confirm-card" role="dialog" aria-modal="true" aria-labelledby="discT" style="max-width:420px">
+    <div class="ia-confirm-title" id="discT">Discount this rental</div>
+    <div class="ia-confirm-message">Applies to the whole rental, before tax. Damage and late charges added later are not discounted.</div>
+    <form method="POST" action="{{ route('tenant.rentals.bookings.discount.apply', $rental->id) }}" class="rf-disc-f">
+      @csrf
+      <label><span class="rf-lbl">Discount code</span><input class="ia-input" type="text" name="code" placeholder="SPRING20" autocapitalize="characters"></label>
+      <button type="submit" name="mode" value="code" class="ia-btn ia-btn--primary rf-wide">Apply code</button>
+    </form>
+    <div class="rf-or"><i></i>or<i></i></div>
+    <form method="POST" action="{{ route('tenant.rentals.bookings.discount.apply', $rental->id) }}" class="rf-disc-f">
+      @csrf
+      <div class="rf-disc-row">
+        <label><span class="rf-lbl">Amount off</span><input class="ia-input" type="text" name="amount" placeholder="0.00" inputmode="decimal"></label>
+        <label><span class="rf-lbl">Or percent</span><input class="ia-input" type="text" name="percent" placeholder="10" inputmode="decimal"></label>
+      </div>
+      <div class="ia-confirm-actions">
+        <button type="button" class="ia-confirm-btn" data-disc-close>Cancel</button>
+        <button type="submit" name="mode" value="amount" class="ia-confirm-btn">Apply amount</button>
+        <button type="submit" name="mode" value="percent" class="ia-confirm-btn ia-confirm-btn--primary">Apply percent</button>
+      </div>
+    </form>
+  </div>
+</div>
+@endif
+@endsection
+
+@push('scripts')
 @if($rental->deposit_status === 'none' && in_array($rental->status, ['reserved', 'out'], true) && tenant()->direct_payments_enabled)
 <script src="https://js.stripe.com/v3/"></script>
+@endif
 <script>
 (function () {
-  var btn = document.getElementById('dep-authorize');
-  if (!btn) return;
-  var intentUrl  = '{{ route('tenant.rentals.bookings.deposit.intent', $rental->id) }}';
-  var confirmUrl = '{{ route('tenant.rentals.bookings.deposit.confirm', $rental->id) }}';
-  var csrf = '{{ csrf_token() }}';
-  var stripe = null, elements = null, piId = null;
+  'use strict';
+  function $(s, e) { return (e || document).querySelector(s); }
+  function $$(s, e) { return Array.prototype.slice.call((e || document).querySelectorAll(s)); }
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!reduce) document.documentElement.classList.add('sd-motion');
+  function reveal() { var l = innerHeight * 0.92; $$('.sd-in:not(.is-in)').forEach(function (el) { if (el.getBoundingClientRect().top < l) el.classList.add('is-in'); }); }
+  reveal(); addEventListener('scroll', reveal, { passive: true }); addEventListener('resize', reveal);
+  setTimeout(function () { $$('.sd-in').forEach(function (el) { el.classList.add('is-in'); }); }, 2500);
+  var head = document.getElementById('sdHead');
+  function frost() { if (head) head.classList.toggle('frost', scrollY > 24 && innerWidth > 1023); }
+  addEventListener('scroll', frost, { passive: true }); frost();
 
-  function post(url, payload) {
-    return fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
-      body: JSON.stringify(payload || {})
-    }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, json: j }; }); });
-  }
-
-  btn.addEventListener('click', function () {
-    btn.disabled = true;
-    var dollars = parseFloat(document.getElementById('dep-amount').value || '0');
-    post(intentUrl, { amount_cents: Math.round(dollars * 100) }).then(function (res) {
-      if (!res.ok || !res.json.ok) {
-        alert(res.json.error || 'Could not start the hold.');
-        btn.disabled = false;
-        return;
-      }
-      piId = res.json.payment_intent;
-      stripe = Stripe(res.json.publishable_key);
-      elements = stripe.elements({ clientSecret: res.json.client_secret });
-      elements.create('payment').mount('#dep-element');
-      document.getElementById('dep-element-wrap').style.display = 'block';
-    }).catch(function () { alert('Could not start the hold.'); btn.disabled = false; });
-  });
-
-  document.getElementById('dep-confirm').addEventListener('click', function () {
-    var confirmBtn = this;
-    confirmBtn.disabled = true;
-    document.getElementById('dep-error').textContent = '';
-    stripe.confirmPayment({ elements: elements, redirect: 'if_required' }).then(function (result) {
-      if (result.error) {
-        document.getElementById('dep-error').textContent = result.error.message || 'Card was not authorized.';
-        confirmBtn.disabled = false;
-        return;
-      }
-      post(confirmUrl, { payment_intent: piId }).then(function (res) {
-        if (res.ok && res.json.ok) { window.location.reload(); }
-        else {
-          document.getElementById('dep-error').textContent = (res.json && res.json.error) || 'Could not verify the hold.';
-          confirmBtn.disabled = false;
-        }
-      });
+  // quiet actions and capture confirm in an in-app dialog, then submit for real
+  $$('form[data-confirm-title]').forEach(function (f) {
+    f.addEventListener('submit', function (e) {
+      if (f.dataset.ok) return;
+      e.preventDefault();
+      IntakeConfirm.show({ title: f.dataset.confirmTitle, message: f.dataset.confirmMsg || '', confirmText: f.dataset.confirmYes || 'OK', danger: !!f.dataset.confirmDanger })
+        .then(function (ok) { if (ok) { f.dataset.ok = '1'; f.submit(); } });
     });
   });
+
+  // discount dialog
+  var dlg = document.getElementById('discDlg');
+  function dOpen() { if (!dlg) return; dlg.hidden = false; requestAnimationFrame(function () { dlg.classList.add('is-shown'); var i = $('input', dlg); if (i) i.focus(); }); }
+  function dClose() { if (!dlg) return; dlg.classList.remove('is-shown'); setTimeout(function () { dlg.hidden = true; }, 160); }
+  $$('[data-disc-open]').forEach(function (b) { b.addEventListener('click', dOpen); });
+  if (dlg) {
+    dlg.addEventListener('click', function (e) { if (e.target === dlg || e.target.closest('[data-disc-close]')) dClose(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !dlg.hidden) dClose(); });
+  }
+
+  // deposit hold (Stripe): authorise → card element → place hold → verify
+  var btn = document.getElementById('dep-authorize');
+  if (btn) {
+    var intentUrl  = '{{ route('tenant.rentals.bookings.deposit.intent', $rental->id) }}';
+    var confirmUrl = '{{ route('tenant.rentals.bookings.deposit.confirm', $rental->id) }}';
+    var csrf = '{{ csrf_token() }}';
+    var stripe = null, elements = null, piId = null;
+    function post(url, payload) {
+      return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf }, body: JSON.stringify(payload || {}) })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, json: j }; }); });
+    }
+    function fail(msg) { IntakeConfirm.alert({ title: 'Deposit hold', message: msg }); }
+    btn.addEventListener('click', function () {
+      if (typeof Stripe === 'undefined') { fail("The card form didn't load — check your connection and reload the page."); return; }
+      btn.disabled = true;
+      var dollars = parseFloat(document.getElementById('dep-amount').value || '0');
+      post(intentUrl, { amount_cents: Math.round(dollars * 100) }).then(function (res) {
+        if (!res.ok || !res.json.ok) { fail(res.json.error || 'Could not start the hold.'); btn.disabled = false; return; }
+        piId = res.json.payment_intent;
+        stripe = Stripe(res.json.publishable_key);
+        elements = stripe.elements({ clientSecret: res.json.client_secret });
+        elements.create('payment').mount('#dep-element');
+        document.getElementById('dep-element-wrap').style.display = 'block';
+      }).catch(function () { fail('Could not start the hold.'); btn.disabled = false; });
+    });
+    document.getElementById('dep-confirm').addEventListener('click', function () {
+      var c = this; c.disabled = true;
+      document.getElementById('dep-error').textContent = '';
+      stripe.confirmPayment({ elements: elements, redirect: 'if_required' }).then(function (result) {
+        if (result.error) { document.getElementById('dep-error').textContent = result.error.message || 'Card was not authorized.'; c.disabled = false; return; }
+        post(confirmUrl, { payment_intent: piId }).then(function (res) {
+          if (res.ok && res.json.ok) location.reload();
+          else { document.getElementById('dep-error').textContent = (res.json && res.json.error) || 'Could not verify the hold.'; c.disabled = false; }
+        });
+      });
+    });
+  }
 })();
 </script>
-@endif
-
-
-{{-- in-app dialog, no browser prompts --}}
-@if((int) ($rental->paid_cents ?? 0) === 0)
-<div id="rental-disc-backdrop" style="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:220;display:none;align-items:center;justify-content:center;padding:20px"
-     onclick="if(event.target===this)RentalDiscount.close()">
-  <div role="dialog" aria-modal="true" aria-labelledby="rental-disc-title"
-       style="background:var(--ia-surface);border:.5px solid var(--ia-border);border-radius:16px;max-width:420px;width:100%;padding:22px 24px">
-    <h3 id="rental-disc-title" style="margin:0 0 6px;font-size:16px;font-weight:660;color:var(--ia-text)">Discount this rental</h3>
-    <p style="margin:0 0 16px;font-size:13px;line-height:1.55;color:var(--ia-text-dim)">
-      Applies to the whole rental, before tax. Damage and late charges added later are not discounted.
-    </p>
-
-    <form method="POST" action="{{ route('tenant.rentals.bookings.discount.apply', $rental->id) }}">
-      @csrf
-      <div style="margin-bottom:12px">
-        <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ia-text-dim);margin-bottom:5px">Discount code</label>
-        <input type="text" name="code" placeholder="SPRING20" autocapitalize="characters"
-               style="width:100%;box-sizing:border-box;background:var(--ia-surface-2);border:.5px solid var(--ia-border);border-radius:8px;color:var(--ia-text);padding:9px 12px;font-size:13px;font-family:inherit">
-      </div>
-      <button type="submit" name="mode" value="code" class="ia-btn ia-btn--primary" style="width:100%">Apply code</button>
-    </form>
-
-    <div style="display:flex;align-items:center;gap:10px;margin:16px 0;color:var(--ia-text-dim);font-size:11px">
-      <div style="flex:1;height:1px;background:var(--ia-border)"></div>OR<div style="flex:1;height:1px;background:var(--ia-border)"></div>
-    </div>
-
-    <form method="POST" action="{{ route('tenant.rentals.bookings.discount.apply', $rental->id) }}">
-      @csrf
-      <div style="display:flex;gap:8px;margin-bottom:12px">
-        <div style="flex:1">
-          <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ia-text-dim);margin-bottom:5px">Amount off</label>
-          <input type="text" name="amount" placeholder="0.00" inputmode="decimal"
-                 style="width:100%;box-sizing:border-box;background:var(--ia-surface-2);border:.5px solid var(--ia-border);border-radius:8px;color:var(--ia-text);padding:9px 12px;font-size:13px;font-family:inherit">
-        </div>
-        <div style="flex:1">
-          <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ia-text-dim);margin-bottom:5px">Or percent</label>
-          <input type="text" name="percent" placeholder="10" inputmode="decimal"
-                 style="width:100%;box-sizing:border-box;background:var(--ia-surface-2);border:.5px solid var(--ia-border);border-radius:8px;color:var(--ia-text);padding:9px 12px;font-size:13px;font-family:inherit">
-        </div>
-      </div>
-      <div style="display:flex;gap:8px;justify-content:flex-end">
-        <button type="button" class="ia-btn ia-btn--ghost" onclick="RentalDiscount.close()">Cancel</button>
-        <button type="submit" name="mode" value="amount" class="ia-btn ia-btn--ghost">Apply amount</button>
-        <button type="submit" name="mode" value="percent" class="ia-btn ia-btn--primary">Apply percent</button>
-      </div>
-    </form>
-  </div>
-</div>
-
-<script>
-window.RentalDiscount = {
-  open: function () {
-    var b = document.getElementById('rental-disc-backdrop');
-    if (b) { b.style.display = 'flex'; document.body.style.overflow = 'hidden'; }
-  },
-  close: function () {
-    var b = document.getElementById('rental-disc-backdrop');
-    if (b) { b.style.display = 'none'; document.body.style.overflow = ''; }
-  },
-};
-document.addEventListener('keydown', function (e) {
-  if (e.key === 'Escape') { window.RentalDiscount.close(); }
-});
-</script>
-@endif
-
-@endsection
+@endpush

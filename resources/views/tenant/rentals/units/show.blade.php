@@ -3,6 +3,9 @@
 
 {{-- unit detail: the serial's whole story. --}}
 
+{{-- the shared status pill (.rf-st) and its tone colours live in the rentals Studio CSS --}}
+@include('layouts.tenant._rental-styles')
+
 @section('content')
 
 @include('layouts.tenant._rental-nav', ['active' => 'fleet'])

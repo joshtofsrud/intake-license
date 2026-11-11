@@ -1,1039 +1,854 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = 'Fleet'; @endphp
 
-{{-- scaled fleet: category -> model -> unit, rollups,
-     search/filter/paginate, bulk add. Inline-edit reuses the fleet PATCH
-     protocol ({field,value}). --}}
+{{-- MARKER-RENTAL-FLEET-STUDIO: the fleet in the Studio design. Same data and
+     the same save endpoints as before (per-field PATCH, bulk add units,
+     checklists, categories); what changed is how it looks and where editing
+     happens: models, categories and checklists edit in a side drawer, and
+     Save only writes what you changed. --}}
 
-@push('styles')
-<style>
-  .fl-ctl{display:flex;gap:10px;align-items:center;margin:18px 0 16px;flex-wrap:wrap}
-  .fl-search{flex:1;min-width:220px;position:relative}
-  .fl-search svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--ia-text-dim,#888)}
-  .fl-search input{width:100%;background:var(--ia-input-bg,rgba(255,255,255,.07));border:.5px solid var(--ia-border);border-radius:var(--ia-r-md);padding:9px 12px 9px 36px;color:inherit;font:inherit;font-size:13.5px;outline:none}
-  .fl-count{font-size:12.5px;opacity:.55;margin-left:auto;white-space:nowrap}
-  .fl-cat{background:var(--ia-surface);border:.5px solid var(--ia-border);border-radius:var(--ia-r-lg);margin-bottom:12px;overflow:hidden}
-  .fl-cat-head{display:grid;grid-template-columns:auto 1fr auto auto;gap:16px;align-items:center;padding:15px 18px;cursor:pointer}
-  .fl-disc{width:20px;height:20px;display:flex;align-items:center;justify-content:center;opacity:.5;transition:transform var(--ia-t)}
-  .fl-cat.open .fl-disc,.fl-model.open .fl-disc{transform:rotate(90deg);opacity:1}
-  .fl-cat-name{font-size:16px;font-weight:640}
-  .fl-cat-axis{font-size:11.5px;opacity:.5;margin-top:2px}
-  .fl-roll{display:flex;align-items:center;gap:14px}
-  .fl-roll-stat{text-align:right}
-  .fl-roll-num{font-size:16px;font-weight:680}
-  .fl-roll-lbl{font-size:10px;opacity:.5;text-transform:uppercase;letter-spacing:.05em}
-  .fl-bar{width:120px;height:7px;border-radius:999px;background:var(--ia-surface-2,#262626);overflow:hidden;display:flex}
-  .fl-seg{height:100%}
-  .fl-seg.av{background:#7BC96F}.fl-seg.out{background:#5BA3D0}.fl-seg.res{background:#E0A82E}.fl-seg.mt{background:#E0573E}
-  .fl-cat-body{display:none;border-top:.5px solid var(--ia-border);padding:6px}
-  .fl-cat.open .fl-cat-body{display:block}
-  .fl-model{border-radius:var(--ia-r-md);margin:6px;background:var(--ia-bg);border:.5px solid var(--ia-border);overflow:hidden}
-  .fl-model-head{display:grid;grid-template-columns:auto 1fr auto auto auto;gap:14px;align-items:center;padding:11px 14px;cursor:pointer}
-  .fl-model-head:hover{background:var(--ia-hover,rgba(255,255,255,.05))}
-  .fl-model-name{font-size:13.5px;font-weight:600}
-  .fl-model-sub{font-size:11.5px;opacity:.5;margin-top:1px}
-  .fl-rates{display:flex;gap:6px;flex-wrap:wrap}
-  .fl-chip{font-size:11.5px;background:var(--ia-surface-2,#262626);border-radius:var(--ia-r-sm);padding:3px 8px;white-space:nowrap}
-  .fl-chip b{font-weight:600}
-  .fl-chip.season{background:rgba(224,168,46,.13);color:#E0A82E}
-  .fl-mins{font-size:11.5px;opacity:.6;white-space:nowrap}
-  /* pricing form is a drawer behind ✎ Edit, not the default view. */
-  .fl-model-body{display:none;border-top:.5px solid var(--ia-border-strong,rgba(255,255,255,.22));padding:14px;background:rgba(255,255,255,.03)}
-  .fl-photo{display:flex;align-items:center;gap:10px}
-  .fl-photo-thumb{width:64px;height:48px;border-radius:8px;border:.5px solid var(--ia-border);background:rgba(255,255,255,.05) center/cover no-repeat}
-  .fl-model.editing .fl-model-body{display:block;animation:fl-slide .14s ease}
-  @keyframes fl-slide{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
-  .fl-editbtn{font-size:11.5px;padding:4px 10px;border:.5px solid var(--ia-border);border-radius:6px;background:none;color:var(--ia-text-dim,rgba(255,255,255,.55));font-weight:550;white-space:nowrap}
-  .fl-editbtn:hover{color:var(--ia-text,#f0f0f0);background:var(--ia-hover,rgba(255,255,255,.07))}
-  .fl-model.editing .fl-editbtn{background:var(--ia-accent,#BEF264);color:#0a0a0a;border-color:transparent}
-  .fl-units{display:none;border-top:.5px solid var(--ia-border);background:rgba(255,255,255,.012);padding:4px}
-  .fl-model.open .fl-units{display:block}
-  /* roster grid: condition + last rented + utilization, whole row links to unit detail. */
-  .fl-uhead{display:grid;grid-template-columns:120px 80px 1fr 130px 90px 70px 64px;gap:10px;padding:6px 12px;font-size:10px;text-transform:uppercase;letter-spacing:.05em;opacity:.5}
-  .fl-uline{display:grid;grid-template-columns:120px 80px 1fr 130px 90px 70px 64px;gap:10px;align-items:center;padding:8px 12px;border-radius:var(--ia-r-sm);font-size:12.5px;text-decoration:none;color:inherit;cursor:pointer}
-  /* constant button, not a hover reveal. */
-  .fl-ulink{font-size:11.5px;font-weight:550;padding:4px 11px;border:.5px solid var(--ia-border);border-radius:6px;color:var(--ia-text-dim,rgba(255,255,255,.55));justify-self:end;white-space:nowrap;transition:all .1s}
-  .fl-uline:hover .fl-ulink{color:#0a0a0a;background:var(--ia-accent,#BEF264);border-color:transparent}
-  .fl-cond{display:flex;gap:8px;font-size:11.5px;align-items:center}
-  .fl-uline:hover{background:var(--ia-hover,rgba(255,255,255,.05))}
-  .fl-uline input,.fl-uline select{background:transparent;border:.5px solid transparent;border-radius:var(--ia-r-sm);padding:3px 6px;color:inherit;font:inherit;font-size:12.5px;width:100%}
-  .fl-uline input:hover,.fl-uline select:hover{border-color:var(--ia-border)}
-  /* axis help popover + identifier chips */
-  .fl-help{position:relative;display:inline-flex;margin-left:6px}
-  .fl-help-dot{width:15px;height:15px;border-radius:50%;border:.5px solid var(--ia-border-strong,rgba(255,255,255,.22));color:var(--ia-text-dim,rgba(255,255,255,.55));background:none;font-size:10px;font-weight:700;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
-  .fl-help-dot:hover,.fl-help.open .fl-help-dot{color:#0a0a0a;background:var(--ia-accent,#BEF264);border-color:transparent}
-  .fl-help-pop{display:none;position:absolute;left:0;top:21px;z-index:40;width:250px;background:#1c1c1c;border:.5px solid var(--ia-border-strong,rgba(255,255,255,.22));border-radius:var(--ia-r-md);padding:12px 14px;box-shadow:0 12px 32px rgba(0,0,0,.55);font-size:12px;text-transform:none;letter-spacing:0;font-weight:400;color:var(--ia-text,#f0f0f0)}
-  .fl-help.open .fl-help-pop{display:block}
-  .fl-help-title{display:block;font-weight:650;margin-bottom:7px}
-  .fl-help-pop dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:3px 12px}
-  .fl-help-pop dt{color:var(--ia-text-dim,rgba(255,255,255,.55))}
-  .fl-help-pop dd{margin:0}
-  .fl-idf{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-  .fl-idf-chip{display:inline-flex;align-items:center;gap:6px;background:var(--ia-surface-2,#262626);border:.5px solid var(--ia-border);border-radius:999px;padding:4px 6px 4px 12px;font-size:12.5px}
-  .fl-idf-x{width:16px;height:16px;border:none;border-radius:50%;background:rgba(255,255,255,.1);color:var(--ia-text-dim,rgba(255,255,255,.55));font-size:10px;line-height:1;cursor:pointer;padding:0}
-  .fl-idf-x:hover{background:#E0573E;color:#fff}
-  /* ✓ commit lives inside the input, shown with text */
-  .fl-idf-addwrap{position:relative;display:inline-flex;align-items:center}
-  .fl-idf-ok{position:absolute;right:5px;width:20px;height:20px;border:none;border-radius:50%;background:var(--ia-accent,#BEF264);color:#0a0a0a;font-size:11px;font-weight:700;line-height:1;cursor:pointer;padding:0;display:none;align-items:center;justify-content:center}
-  .fl-idf-addwrap.has-text .fl-idf-ok{display:flex}
-  /* model photo strip, unit photo buttons, picker modal */
-  .fl-pset{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-  .fl-pset-item{position:relative;width:56px;height:42px;border-radius:8px;border:.5px solid var(--ia-border);background:rgba(255,255,255,.05) center/cover no-repeat}
-  .fl-pset-x{position:absolute;top:-6px;right:-6px;width:17px;height:17px;border:none;border-radius:50%;background:#E0573E;color:#fff;font-size:10px;line-height:1;cursor:pointer;padding:0}
-  /* star marks the main photo; tabs in the picker */
-  .fl-pset-item{width:64px;height:48px}
-  .fl-pset-item.is-main{border:1.5px solid var(--ia-accent,#BEF264)}
-  .fl-pset-star{position:absolute;bottom:-6px;left:-6px;width:19px;height:19px;border:none;border-radius:50%;background:var(--ia-surface-2,#262626);color:rgba(255,255,255,.45);font-size:10px;line-height:1;cursor:pointer;padding:0;box-shadow:0 1px 4px rgba(0,0,0,.5)}
-  .fl-pset-star:hover{color:var(--ia-accent,#BEF264)}
-  .fl-pset-item.is-main .fl-pset-star{background:var(--ia-accent,#BEF264);color:#0a0a0a}
-  .fl-pset-main{position:absolute;top:-7px;left:0;font-size:9px;letter-spacing:.04em;text-transform:uppercase;color:var(--ia-accent,#BEF264);font-weight:700}
-  .fl-ptabs{display:flex;gap:6px;margin-bottom:12px}
-  .fl-ptab{font-size:12px;font-weight:600;padding:5px 12px;border-radius:999px;border:.5px solid var(--ia-border);background:none;color:var(--ia-text-dim,rgba(255,255,255,.55));cursor:pointer}
-  .fl-ptab.on{background:var(--ia-accent,#BEF264);color:#0a0a0a;border-color:transparent}
-  .fl-pbtn{width:30px;height:24px;border-radius:5px;border:.5px dashed var(--ia-border-strong,rgba(255,255,255,.22));background:rgba(255,255,255,.04) center/cover no-repeat;color:var(--ia-text-dim,rgba(255,255,255,.55));font-size:11px;line-height:1;cursor:pointer;padding:0}
-  .fl-pbtn:hover{border-color:var(--ia-accent,#BEF264)}
-  .fl-pbtn.has{border-style:solid}
-  .fl-pmodal{position:fixed;inset:0;z-index:2147483000;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;padding:20px}
-  .fl-pmodal.open{display:flex}
-  .fl-pmodal-card{background:#1c1c1c;border:.5px solid var(--ia-border-strong,rgba(255,255,255,.22));border-radius:var(--ia-r-lg);padding:18px;width:min(560px,100%);max-height:80vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.6)}
-  .fl-pmodal-title{font-weight:650;margin-bottom:4px}
-  .fl-pmodal-sub{font-size:12px;opacity:.5;margin-bottom:14px}
-  .fl-pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px}
-  .fl-pgrid button{aspect-ratio:4/3;border-radius:10px;border:1.5px solid var(--ia-border);background:rgba(255,255,255,.05) center/cover no-repeat;cursor:pointer;padding:0}
-  .fl-pgrid button.sel{border-color:var(--ia-accent,#BEF264)}
-  .fl-pmodal-acts{display:flex;gap:10px;justify-content:flex-end;margin-top:16px}
-  .fl-uline input:focus,.fl-uline select:focus{border-color:var(--ia-accent,#BEF264);outline:none;background:var(--ia-input-bg,rgba(255,255,255,.07))}
-  .fl-mono{font-family:var(--ia-font-mono,monospace)}
-  .pill{font-size:10px;font-weight:600;border-radius:999px;padding:2px 9px;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
-  .pill::before{content:"";width:5px;height:5px;border-radius:50%}
-  .pill.av{background:rgba(123,201,111,.13);color:#7BC96F}.pill.av::before{background:#7BC96F}
-  .pill.out{background:rgba(91,163,208,.13);color:#5BA3D0}.pill.out::before{background:#5BA3D0}
-  .pill.res{background:rgba(224,168,46,.13);color:#E0A82E}.pill.res::before{background:#E0A82E}
-  .pill.mt{background:rgba(224,87,62,.13);color:#E0573E}.pill.mt::before{background:#E0573E}
-  .fl-fieldgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:4px}
-  .fl-fg{display:flex;flex-direction:column;gap:5px}
-  .fl-lbl{font-size:10px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;opacity:.55}
-  .fl-inp{background:var(--ia-input-bg,rgba(255,255,255,.07));border:.5px solid var(--ia-border);border-radius:var(--ia-r-md);padding:8px 10px;color:inherit;font:inherit;font-size:13px;outline:none}
-  .fl-inp:focus{border-color:var(--ia-accent,#BEF264)}
-  .fl-money{position:relative}.fl-money::before{content:"$";position:absolute;left:10px;top:50%;transform:translateY(-50%);opacity:.5;font-size:12px}
-  .fl-money input{padding-left:20px}
-  .fl-pager{display:flex;gap:6px;justify-content:center;margin-top:22px}
-  .fl-pager a{padding:6px 11px;border-radius:var(--ia-r-md);border:.5px solid var(--ia-border);text-decoration:none;color:inherit;font-size:12.5px}
-  .fl-pager a.cur{background:var(--ia-accent,#BEF264);color:#0a0a0a;border-color:transparent;font-weight:650}
-  .fl-add-line{display:flex;gap:8px;align-items:center;padding:8px 12px}
-  /* slim ghost add-forms, no native triangle. The +
-     is the affordance and rotates to x when open. */
-  details.fl-section{border-style:dashed;background:transparent;transition:background var(--ia-t,.12s)}
-  details.fl-section:hover{background:var(--ia-hover,rgba(255,255,255,.05))}
-  details.fl-section[open]{border-style:solid;background:var(--ia-surface,#1c1c1c);grid-column:1/-1} /* open form gets the whole row */
-  details.fl-section summary{cursor:pointer;font-size:12.5px;font-weight:550;color:var(--ia-text-dim,rgba(255,255,255,.55));padding:2px 0;display:flex;align-items:center;gap:9px;list-style:none}
-  details.fl-section summary::-webkit-details-marker{display:none}
-  details.fl-section summary::before{content:'+';font-size:15px;font-weight:600;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;transition:transform .14s ease;flex-shrink:0}
-  details.fl-section[open] summary::before{transform:rotate(45deg)}
-  details.fl-section[open] summary{color:var(--ia-text,#f0f0f0)}
-  details.fl-section summary:hover{color:var(--ia-text,#f0f0f0)}
-  /* category inline edit + checklist manager rows. */
-  .fl-cat-editbtn{font-size:11px;padding:2px 8px;border:.5px solid var(--ia-border);border-radius:5px;background:none;color:var(--ia-text-dim,rgba(255,255,255,.55));margin-left:10px;vertical-align:2px}
-  .fl-cat-editbtn:hover{color:var(--ia-text,#f0f0f0);background:var(--ia-hover,rgba(255,255,255,.05))}
-  .fl-cat-edit{display:none;gap:10px;align-items:end;padding:12px 18px;border-top:.5px solid var(--ia-border);background:rgba(255,255,255,.02);flex-wrap:wrap}
-  .fl-cat-edit.open{display:flex}
-  .fl-ct-row{border:.5px solid var(--ia-border);border-radius:var(--ia-r-md,8px);padding:10px 12px;margin-bottom:10px}
-  .fl-ct-row textarea.fl-inp{min-height:74px;resize:vertical;font-size:12px;line-height:1.5;width:100%}
-  /* edit rows fill their card; content stays readable. */
-  .fl-ct-row input[data-ctf=name]{flex:1;min-width:0}
-  .fl-ct-wrap{max-width:660px}
-</style>
-@endpush
+@section('mobile-fab', 'new-rental')
+@include('layouts.tenant._rental-styles')
 
 @section('content')
+@php
+  $qs = fn (array $over = []) => array_filter(array_merge(
+      ['q' => $search ?: null, 'category' => $filterCategory ?: null, 'status' => $filterStatus ?: null], $over),
+      fn ($v) => $v !== null && $v !== '');
+  $filtering = $search !== '' || $filterCategory || $filterStatus;
+  $statusLabels = ['all' => 'All', 'available' => 'Free', 'out' => 'Out', 'reserved' => 'Reserved', 'maintenance' => 'Maintenance'];
+  $reservedIdf = ['size', 'serial', 'tag', 'serial / tag', 'status', 'condition', 'identifier'];
+  $tones = ['--sd-t1', '--sd-t2', '--sd-t3', '--sd-t4'];
+  $thumbStyle = function ($seed) use ($tones) {
+      $t = crc32((string) $seed) % 4;
+      return 'background:linear-gradient(135deg,color-mix(in srgb,var(' . $tones[$t] . ') 70%,var(--ia-surface)),color-mix(in srgb,var(' . $tones[($t + 1) % 4] . ') 35%,var(--ia-surface)));color:var(--sd-ink)';
+  };
+  $initials = fn ($n) => mb_strtoupper(mb_substr(implode('', array_map(fn ($w) => mb_substr($w, 0, 1), preg_split('/\s+/', trim((string) $n)))), 0, 2));
+@endphp
 
-@include('layouts.tenant._rental-nav', ['active' => 'fleet'])
+<div class="sd rf" id="sd">
+  <header class="sd-head" id="sdHead">
+    <div class="sd-head-l">
+      <h1 class="sd-hi">Fleet</h1>
+      <p class="sd-sub">{{ $unitTotal }} {{ $unitTotal === 1 ? 'unit' : 'units' }} across {{ $modelTotal }} {{ $modelTotal === 1 ? 'model' : 'models' }} · {{ $statusCounts['available'] }} free right now</p>
+    </div>
+    <div class="sd-head-r">
+      <form method="GET" action="{{ route('tenant.rentals.fleet') }}" class="rf-sform" role="search">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="search" name="q" value="{{ $search }}" placeholder="Search models, tags, sizes" aria-label="Search the fleet">
+        @if($filterCategory)<input type="hidden" name="category" value="{{ $filterCategory }}">@endif
+        @if($filterStatus)<input type="hidden" name="status" value="{{ $filterStatus }}">@endif
+      </form>
+      <button type="button" class="ia-btn ia-btn--sm sd-hide-m" data-open="d-checklists">Checklists</button>
+      <button type="button" class="ia-btn ia-btn--sm ia-btn--primary" data-open="d-newmodel">+ Add model</button>
+    </div>
+  </header>
 
-<div class="ia-page-head">
-  <div class="ia-page-head-left">
-    <h1 class="ia-page-title">Fleet</h1>
-    <p class="ia-page-subtitle">Models define what a thing is and what it costs. Units are the serial-tracked items customers take out.</p>
+  @include('layouts.tenant._rental-nav', ['active' => 'fleet'])
+
+  @if(session('flash'))<div class="ia-flash ia-flash--success" style="margin-bottom:16px">{{ session('flash') }}</div>@endif
+  @if($errors->any())<div class="ia-flash ia-flash--error" style="margin-bottom:16px">{{ $errors->first() }}</div>@endif
+
+  @if($allCategories->isEmpty())
+    <div class="sd-empty" style="padding:40px 0;text-align:center">
+      <b style="display:block;font-size:15px;color:var(--ia-text);margin-bottom:6px">Your fleet starts here</b>
+      Add a category, then a model, then units. A simple shop just adds one model per item.
+      <div class="sd-empty-acts" style="justify-content:center"><button type="button" class="ia-btn ia-btn--primary" data-open="d-newcat">Add a category</button></div>
+    </div>
+  @else
+  {{-- control line: what's shown, right above it --}}
+  <div class="rf-ctl sd-in">
+    <div class="sd-seg" role="tablist" aria-label="Status">
+      @foreach($statusLabels as $sk => $sl)
+        <a href="{{ route('tenant.rentals.fleet', $qs(['status' => $sk === 'all' ? null : $sk])) }}" class="{{ ($filterStatus ?: 'all') === $sk ? 'on' : '' }}" role="tab">{{ $sl }} <em>{{ $statusCounts[$sk] }}</em></a>
+      @endforeach
+    </div>
+    <div class="rf-pills">
+      <a class="rf-pill {{ $filterCategory ? '' : 'on' }}" href="{{ route('tenant.rentals.fleet', $qs(['category' => null])) }}">All categories</a>
+      @foreach($allCategories as $c)
+        <a class="rf-pill {{ $filterCategory === $c->id ? 'on' : '' }}" href="{{ route('tenant.rentals.fleet', $qs(['category' => $c->id])) }}">{{ $c->name }}</a>
+      @endforeach
+      <button type="button" class="rf-pill add" data-open="d-newcat">+ Category</button>
+      <button type="button" class="rf-pill add rf-only-m" data-open="d-checklists">Checklists</button>
+    </div>
   </div>
-  <div style="display:flex;gap:8px">
-    <button type="button" class="ia-btn ia-btn--primary" onclick="document.getElementById('fl-add-model').scrollIntoView({behavior:'smooth'});document.getElementById('fl-add-model-d').open=true">+ Add model</button>
-  </div>
-</div>
 
-@if(session('flash'))<div class="ia-flash ia-flash--success" style="margin-bottom:16px">{{ session('flash') }}</div>@endif
-@if($errors->any())<div class="ia-flash ia-flash--error" style="margin-bottom:16px">{{ $errors->first() }}</div>@endif
-
-{{-- control bar --}}
-<form method="GET" action="{{ route('tenant.rentals.fleet') }}" class="fl-ctl" id="fl-filter">
-  <div class="fl-search">
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-    <input type="text" name="q" value="{{ $search }}" placeholder="Search models, serials, sizes…" onchange="this.form.submit()">
-  </div>
-  <select name="category" class="fl-inp" onchange="this.form.submit()">
-    <option value="">All categories</option>
-    @foreach($allCategories as $c)<option value="{{ $c->id }}" {{ $filterCategory === $c->id ? 'selected' : '' }}>{{ $c->name }}</option>@endforeach
-  </select>
-  <select name="status" class="fl-inp" onchange="this.form.submit()">
-    <option value="">Any status</option>
-    @foreach(['available'=>'Available','out'=>'Out','reserved'=>'Reserved','maintenance'=>'Maintenance'] as $k=>$v)
-      <option value="{{ $k }}" {{ $filterStatus === $k ? 'selected' : '' }}>{{ $v }}</option>
-    @endforeach
-  </select>
-  <span class="fl-count"><b>{{ $unitTotal }}</b> units · <b>{{ $modelTotal }}</b> models</span>
-</form>
-
-{{-- categories --}}
-@forelse($categories as $cat)
-  @php $r = $rollups[$cat->id] ?? ['total'=>0,'available'=>0,'out'=>0,'reserved'=>0,'maintenance'=>0,'models'=>0]; $t = max(1,$r['total']); @endphp
-  <div class="fl-cat {{ $loop->first ? 'open' : '' }}">
-    <div class="fl-cat-head" onclick="this.parentElement.classList.toggle('open')">
-      <div class="fl-disc"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
-      <div>
-        <div class="fl-cat-name"><span class="fl-cat-name-txt">{{ $cat->name }}</span>
-          {{-- inline category edit. --}}
-          <button type="button" class="fl-cat-editbtn" onclick="event.stopPropagation();this.closest('.fl-cat').querySelector('.fl-cat-edit').classList.toggle('open');this.closest('.fl-cat').classList.add('open')">✎</button>
+  @php $shownCats = 0; @endphp
+  @foreach($categories as $cat)
+    @php
+      $r = $rollups[$cat->id] ?? ['total'=>0,'available'=>0,'out'=>0,'reserved'=>0,'maintenance'=>0,'models'=>0];
+      $t = max(1, $r['total']);
+      $fr = $r['available']; $ou = $r['out'] + $r['reserved']; $mt = $r['maintenance'];
+      $tag = $r['total'] === 0 ? ['none', 'No units'] : ($fr / $t > 0.4 ? ['ok', 'Plenty free'] : ($fr > 0 ? ['tight', 'Running low'] : ['full', 'All out']));
+      $catModels = collect($modelsByCat[$cat->id] ?? [])
+          ->filter(fn ($m) => ! $filterStatus || $m->view_units->isNotEmpty());
+      if ($filterStatus && $catModels->isEmpty()) continue;
+      $shownCats++;
+      $catOpen = $loop->first || $filtering;
+    @endphp
+    <section class="rf-cat sd-in {{ $catOpen ? 'open' : '' }}" style="--d:{{ min($loop->index, 6) * 80 }}ms" data-cat="{{ $cat->id }}">
+      <div class="rf-cat-h" data-ctoggle>
+        <div class="rf-disc"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
+        <div>
+          <h2 data-cat-name>{{ $cat->name }}</h2>
+          <small><span data-cat-axis>{{ $cat->size_axis ? 'Sized by ' . mb_strtolower($cat->size_axis) . ' · ' : '' }}</span>{{ $r['models'] }} {{ $r['models'] === 1 ? 'model' : 'models' }} · {{ $r['total'] }} {{ $r['total'] === 1 ? 'unit' : 'units' }}</small>
         </div>
-        <div class="fl-cat-axis"><span class="fl-cat-axis-txt">{{ $cat->size_axis ? 'Size axis: ' . $cat->size_axis . ' · ' : '' }}</span>{{ $r['models'] }} model{{ $r['models'] === 1 ? '' : 's' }}</div>
+        <div class="rd-bar"><i class="fr" style="width:{{ $fr / $t * 100 }}%"></i><i class="ou" style="width:{{ $ou / $t * 100 }}%"></i><i class="mt" style="width:{{ $mt / $t * 100 }}%"></i></div>
+        <div class="nums" style="font:500 11.5px var(--ia-font-mono);color:var(--ia-text-muted)">{{ $fr }} free · {{ $ou }} out</div>
+        <div class="rd-tag {{ $tag[0] }}">{{ $tag[1] }}</div>
+        <button type="button" class="rf-ib" data-open="d-cat-{{ $cat->id }}" title="Edit category" aria-label="Edit {{ $cat->name }}">✎</button>
       </div>
-      <div class="fl-roll">
-        <div class="fl-roll-stat"><div class="fl-roll-num">{{ $r['total'] }}</div><div class="fl-roll-lbl">units</div></div>
-        <div class="fl-roll-stat"><div class="fl-roll-num" style="color:#7BC96F">{{ $r['available'] }}</div><div class="fl-roll-lbl">free</div></div>
-      </div>
-      <div class="fl-bar">
-        <div class="fl-seg av" style="width:{{ $r['available']/$t*100 }}%"></div>
-        <div class="fl-seg res" style="width:{{ $r['reserved']/$t*100 }}%"></div>
-        <div class="fl-seg out" style="width:{{ $r['out']/$t*100 }}%"></div>
-        <div class="fl-seg mt" style="width:{{ $r['maintenance']/$t*100 }}%"></div>
-      </div>
-    </div>
-    {{-- category edit strip: same {field,value} auto-save
-         contract as everything else on this page. --}}
-    <div class="fl-cat-edit" data-cat="{{ $cat->id }}">
-      <div class="fl-fg" style="min-width:200px;flex:1"><span class="fl-lbl">Category name</span><input class="fl-inp" value="{{ $cat->name }}" data-cf="name"></div>
-      <div class="fl-fg" style="min-width:200px;flex:1"><span class="fl-lbl">Size axis (optional) @include('tenant.rentals._size_axis_help')</span><input class="fl-inp" value="{{ $cat->size_axis }}" data-cf="size_axis" placeholder="length (cm), Mondopoint…"></div>
-      <button type="button" class="ia-btn ia-btn--sm" style="color:#ff8b8b;border-color:rgba(239,68,68,.35)" onclick="flDeleteCategory('{{ $cat->id }}')">Delete category</button>
-      <span style="font-size:11px;opacity:.4;flex-basis:100%">Name and axis save as you type. Delete only works once the category is empty.</span>
-    </div>
-    <div class="fl-cat-body">
-      @forelse($modelsByCat[$cat->id] ?? [] as $model)
-        <div class="fl-model">
-          <div class="fl-model-head" onclick="this.parentElement.classList.toggle('open')">
-            <div class="fl-disc"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
-            <div><div class="fl-model-name">{{ $model->name }}</div><div class="fl-model-sub">{{ $model->subtitle ?: $cat->name }}{{ $model->conditionTemplate ? ' · ' . $model->conditionTemplate->name : '' }}</div></div>
-            <div class="fl-rates">
-              @if($model->daily_rate_cents)<span class="fl-chip"><b>{{ format_money($model->daily_rate_cents) }}</b>/day</span>@endif
-              @if($model->hourly_rate_cents)<span class="fl-chip"><b>{{ format_money($model->hourly_rate_cents) }}</b>/hr</span>@endif
-              @if($model->seasonal_rate_cents)<span class="fl-chip season"><b>{{ format_money($model->seasonal_rate_cents) }}</b>/season</span>@endif
-              <span class="fl-chip"><b>{{ format_money($model->deposit_cents) }}</b> dep</span>
-            </div>
-            <div class="fl-mins" data-unit-count>{{ $model->view_units->count() }} unit{{ $model->view_units->count() === 1 ? '' : 's' }}</div>
-            <span style="display:flex;gap:8px;align-items:center">
-              <span class="pill av" data-avail-count>{{ $model->avail_count }} free</span>
-              {{-- pricing form opens on demand. --}}
-              <button type="button" class="fl-editbtn" onclick="event.stopPropagation();this.closest('.fl-model').classList.toggle('editing');this.closest('.fl-model').classList.add('open')">✎ Edit</button>
-            </span>
-          </div>
 
-          {{-- model edit drawer --}}
-          <div class="fl-model-body" data-model="{{ $model->id }}">
-            <div class="fl-fieldgrid">
-              {{-- one marketing photo per model.
-                   Uploads through the tenant uploads endpoint, then saves the
-                   URL over the same data-mf autosave rail as every field. --}}
-              {{-- the set units pick from.
-                   one list; ★ marks the main photo
-                   (saved to image_url, which the public pages read). Any
-                   pre-existing main photo is merged in so nothing is lost. --}}
-              @php
-                $mPhotos = array_values(array_filter($model->photos ?? []));
-                if ($model->image_url && ! in_array($model->image_url, $mPhotos, true)) {
-                    array_unshift($mPhotos, $model->image_url);
-                }
-              @endphp
-              <div class="fl-fg" style="grid-column:1/5" data-pset-wrap data-model-photos="{{ $model->id }}">
-                <span class="fl-lbl">Photos <span style="opacity:.5;text-transform:none;letter-spacing:0">— ★ is the main photo on your public pages; units pick any of these. Up to 8</span></span>
-                <input type="hidden" data-mf="photos" value="{{ json_encode($mPhotos) }}">
-                <input type="hidden" data-mf="image_url" data-pset-main value="{{ $model->image_url }}">
-                <div class="fl-pset" data-pset></div>
-                <input type="file" accept="image/jpeg,image/png,image/webp,image/avif" data-pset-file style="display:none">
+      <div class="rf-cat-b">
+        @forelse($catModels as $model)
+          @php
+            $mIdents = array_values(array_filter($model->identifiers ?? [], fn ($n) => ! in_array(mb_strtolower($n), $reservedIdf, true)));
+            $mPhotos = array_values(array_filter($model->photos ?? []));
+            if ($model->image_url && ! in_array($model->image_url, $mPhotos, true)) array_unshift($mPhotos, $model->image_url);
+            $mainPhoto = $model->image_url ?: ($mPhotos[0] ?? null);
+            $live = $model->view_units->count();
+            $uGrid = '34px 104px 64px ' . str_repeat('minmax(70px,110px) ', count($mIdents)) . 'minmax(0,1fr) 128px 74px 70px 20px';
+            $mOpen = $filtering && ($filterStatus || $search !== '');
+          @endphp
+          <div class="rf-model {{ $mOpen ? 'open' : '' }}" data-model="{{ $model->id }}" data-idents="{{ json_encode($mIdents) }}">
+            <div class="rf-model-h" data-mtoggle>
+              <div class="rf-disc"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
+              <div class="rf-thumb" style="{{ $mainPhoto ? "background-image:url('" . e($mainPhoto) . "')" : $thumbStyle($model->id) }}">{{ $mainPhoto ? '' : $initials($model->name) }}</div>
+              <div class="rf-mname"><b data-model-name>{{ $model->name }}</b><small>{{ $model->subtitle ?: $cat->name }}{{ $model->conditionTemplate ? ' · ' . $model->conditionTemplate->name : '' }}</small></div>
+              <div class="rf-rates">
+                @if($model->hourly_rate_cents)<span class="rf-rate"><b>{{ format_money($model->hourly_rate_cents) }}</b>/hr</span>@endif
+                @if($model->daily_rate_cents)<span class="rf-rate"><b>{{ format_money($model->daily_rate_cents) }}</b>/day</span>@endif
+                @if($model->weekend_rate_cents)<span class="rf-rate"><b>{{ format_money($model->weekend_rate_cents) }}</b>/wknd</span>@endif
+                @if($model->seasonal_rate_cents)<span class="rf-rate"><b>{{ format_money($model->seasonal_rate_cents) }}</b>/season</span>@endif
+                <span class="rf-rate"><b>{{ format_money($model->deposit_cents) }}</b> deposit</span>
               </div>
-              <div class="fl-fg" style="grid-column:1/3"><span class="fl-lbl">Model name</span><input class="fl-inp" value="{{ $model->name }}" data-mf="name"></div>
-              <div class="fl-fg" style="grid-column:3/5"><span class="fl-lbl">Subtitle</span><input class="fl-inp" value="{{ $model->subtitle }}" data-mf="subtitle" placeholder="all-mountain, junior…"></div>
-              <div class="fl-fg"><span class="fl-lbl">Hourly</span><div class="fl-money"><input class="fl-inp" value="{{ $model->hourly_rate_cents ? number_format($model->hourly_rate_cents/100,2,'.','') : '' }}" data-mf="hourly_rate" placeholder="—"></div></div>
-              <div class="fl-fg"><span class="fl-lbl">Daily</span><div class="fl-money"><input class="fl-inp" value="{{ $model->daily_rate_cents ? number_format($model->daily_rate_cents/100,2,'.','') : '' }}" data-mf="daily_rate" placeholder="—"></div></div>
-              <div class="fl-fg"><span class="fl-lbl">Weekend</span><div class="fl-money"><input class="fl-inp" value="{{ $model->weekend_rate_cents ? number_format($model->weekend_rate_cents/100,2,'.','') : '' }}" data-mf="weekend_rate" placeholder="—"></div></div>
-              <div class="fl-fg"><span class="fl-lbl">Entire season / lease @if(!tenant()->leasing_available)<span style="opacity:.5">(Scale)</span>@endif</span><div class="fl-money"><input class="fl-inp" value="{{ $model->seasonal_rate_cents ? number_format($model->seasonal_rate_cents/100,2,'.','') : '' }}" data-mf="seasonal_rate" placeholder="—" {{ tenant()->leasing_available ? '' : 'disabled' }}></div></div>
-              <div class="fl-fg"><span class="fl-lbl">Deposit</span><div class="fl-money"><input class="fl-inp" value="{{ number_format($model->deposit_cents/100,2,'.','') }}" data-mf="deposit"></div></div>
-              <div class="fl-fg" style="grid-column:2/4"><span class="fl-lbl">Checklist</span>
-                <select class="fl-inp" data-mf="condition_template_id">
-                  <option value="">— none —</option>
-                  @foreach($conditionTemplates as $ct)<option value="{{ $ct->id }}" {{ $model->condition_template_id === $ct->id ? 'selected' : '' }}>{{ $ct->name }}</option>@endforeach
-                </select>
-              </div>
-              {{-- up to 3 per-model unit fields (Color, Wheel size…).
-                   ✓ commit in the input, reserved names
-                   filtered at render so built-in columns can't be duplicated. --}}
-              @php
-                $mIdents = array_values(array_filter($model->identifiers ?? [],
-                    fn ($n) => ! in_array(mb_strtolower($n), ['size', 'serial', 'tag', 'serial / tag', 'status', 'condition', 'identifier'], true)));
-              @endphp
-              <div class="fl-fg" style="grid-column:1/4">
-                <span class="fl-lbl">Identifiers <span style="opacity:.5;text-transform:none;letter-spacing:0">— extra fields on every unit of this model, staff-only</span></span>
-                <div class="fl-idf" data-idf-wrap>
-                  <input type="hidden" data-mf="identifiers" value="{{ json_encode($mIdents) }}">
-                  <span data-idf-chips style="display:contents"></span>
-                  <span class="fl-idf-addwrap" data-idf-addwrap>
-                    <input class="fl-inp" data-idf-new placeholder="e.g. Color" style="width:130px;padding-right:30px">
-                    <button type="button" class="fl-idf-ok" data-idf-add title="Add identifier">✓</button>
+              <div class="rf-mcount" data-unit-count>{{ $live }} {{ $live === 1 ? 'unit' : 'units' }}</div>
+              <span class="rf-st {{ $model->avail_count ? 'av' : 'off' }}" data-avail-count>{{ $model->avail_count }} free</span>
+              <button type="button" class="ia-btn ia-btn--sm" data-open="d-model-{{ $model->id }}">Edit</button>
+            </div>
+
+            <div class="rf-units">
+              <div class="rf-uh" data-uhead style="grid-template-columns:{{ $uGrid }}"><span></span><span>Tag</span><span>Size</span>@foreach($mIdents as $in)<span>{{ $in }}</span>@endforeach<span>Condition</span><span>Status</span><span>Last out</span><span>30-day use</span><span></span></div>
+              @foreach($model->view_units as $u)
+                @php $m = $unitMeta[$u->id] ?? ['last' => null, 'util' => null, 'flags' => 0, 'photos' => 0]; @endphp
+                <a class="rf-u" data-unit="{{ $u->id }}" data-uvals="{{ json_encode($u->identifier_values ?? []) }}" style="grid-template-columns:{{ $uGrid }}" href="{{ route('tenant.rentals.fleet.units.show', $u->id) }}">
+                  <span data-stop><button type="button" class="rf-upick {{ $u->photo_url ? 'has' : '' }}" data-upick="{{ $model->id }}" data-photo="{{ $u->photo_url }}" style="{{ $u->photo_url ? "background-image:url('" . e($u->photo_url) . "')" : '' }}" title="Photo" aria-label="Unit photo">{{ $u->photo_url ? '' : '▣' }}</button></span>
+                  <span class="rf-mono">{{ $u->identifier ?: '—' }}</span>
+                  <span class="c-size">{{ $u->size ?: '—' }}@if(! $u->available_for_rent) <small>· off</small>@endif</span>
+                  @foreach($mIdents as $in)
+                    <span class="rf-idc" data-stop><input class="rf-idv" data-ui="{{ $in }}" value="{{ ($u->identifier_values ?? [])[$in] ?? '' }}" placeholder="—" aria-label="{{ $in }}"></span>
+                  @endforeach
+                  <span class="rf-cond">
+                    @if($m['flags'] > 0)<span class="rf-flag">⚑ {{ $m['flags'] }} {{ $m['flags'] === 1 ? 'flag' : 'flags' }}</span> @endif
+                    @if($m['photos'] > 0)<span class="rf-dim">{{ $m['photos'] }} {{ $m['photos'] === 1 ? 'photo' : 'photos' }}</span>@endif
+                    @if($m['flags'] === 0 && $m['photos'] === 0)<span class="rf-dim">No incidents</span>@endif
                   </span>
-                  <span data-idf-max style="font-size:11px;opacity:.45;display:none">3 max</span>
-                  <span data-idf-err style="font-size:11px;color:#ff8b8b;display:none"></span>
-                </div>
-              </div>
-              <div class="fl-fg" style="justify-content:end"><button type="button" class="ia-btn" onclick="flArchiveModel('{{ $model->id }}')">Archive model</button></div>
-              {{-- explicit save, the app standard. --}}
-              <div style="grid-column:1/5;display:flex;gap:12px;align-items:center;justify-content:flex-end;border-top:.5px solid var(--ia-border);padding-top:12px">
-                <span data-msave-note style="font-size:11.5px;color:var(--ia-accent,#BEF264);opacity:0;transition:opacity .25s">✓ Saved</span>
-                <button type="button" class="ia-btn ia-btn--primary" data-msave>Save model</button>
-              </div>
+                  <span data-stop>
+                    @if($u->derived_status === 'out')<span class="rf-st out">Out</span>
+                    @elseif($u->derived_status === 'reserved')<span class="rf-st res">Reserved</span>
+                    @else
+                      <select data-uf="status" aria-label="Status">
+                        @foreach(['available' => 'Available', 'maintenance' => 'Maintenance', 'retired' => 'Retired'] as $sk => $sv)
+                          <option value="{{ $sk }}" {{ $u->status === $sk ? 'selected' : '' }}>{{ $sv }}</option>
+                        @endforeach
+                      </select>
+                    @endif
+                  </span>
+                  <span class="rf-dim c-last" style="font-size:11.5px">{{ $m['last'] ? tlocal_date($m['last'], 'M j') : 'never' }}</span>
+                  <span class="rf-use c-use" style="--w:{{ (int) ($m['util'] ?? 0) }}%"><i></i>{{ $m['util'] !== null ? $m['util'] . '%' : '—' }}</span>
+                  <span class="rf-go">›</span>
+                </a>
+              @endforeach
+
+              @unless($filterStatus)
+                <button type="button" class="ia-btn ia-btn--sm rf-addu-open" data-addu="{{ $model->id }}">+ Add units</button>
+                <form class="rf-addu" method="POST" action="{{ route('tenant.rentals.fleet.units.bulk') }}" data-add-form hidden>
+                  @csrf
+                  <input type="hidden" name="model_id" value="{{ $model->id }}">
+                  <input type="hidden" name="photo_url" value="">
+                  <label><span class="rf-lbl">Photo</span><button type="button" class="rf-upick" data-apick="{{ $model->id }}" title="Pick a photo for this batch" aria-label="Pick a photo for this batch">▣</button></label>
+                  <label><span class="rf-lbl">Qty</span><input class="ia-input" type="number" name="count" value="1" min="1" max="200" style="width:64px"></label>
+                  <label><span class="rf-lbl">Tag prefix</span><input class="ia-input rf-mono" type="text" name="tag_prefix" placeholder="#SK-" style="width:96px"></label>
+                  <label><span class="rf-lbl">Start #</span><input class="ia-input" type="number" name="start_number" value="{{ $model->units->count() + 1 }}" min="0" style="width:76px"></label>
+                  <label><span class="rf-lbl">Size</span><input class="ia-input" type="text" name="size" placeholder="optional" style="width:110px"></label>
+                  @foreach($mIdents as $in)
+                    <label class="rf-ident-fg"><span class="rf-lbl">{{ $in }}</span><input class="ia-input" type="text" name="ident[{{ $in }}]" placeholder="optional" style="width:110px"></label>
+                  @endforeach
+                  <button type="submit" class="ia-btn ia-btn--sm ia-btn--primary" style="height:32px" data-add-submit>Add units</button>
+                  <button type="button" class="ia-btn ia-btn--sm ia-btn--ghost" data-addx>Cancel</button>
+                </form>
+              @endunless
             </div>
+          </div>
+        @empty
+          <div class="sd-empty">No models in this category yet.
+            <div class="sd-empty-acts"><button type="button" class="ia-btn ia-btn--sm ia-btn--primary" data-open="d-newmodel" data-cat-pre="{{ $cat->id }}">Add a model</button></div>
+          </div>
+        @endforelse
+      </div>
+    </section>
+  @endforeach
+
+  @if($shownCats === 0)
+    <div class="sd-empty">Nothing matches.
+      <div class="sd-empty-acts"><a href="{{ route('tenant.rentals.fleet') }}" class="ia-btn ia-btn--sm">Show everything</a></div>
+    </div>
+  @else
+    <div class="rd-key" style="margin-top:14px"><span><i class="fr"></i>Free</span><span><i class="ou"></i>Out or reserved</span><span><i class="mt"></i>Maintenance</span></div>
+  @endif
+
+  @if($pageCount > 1)
+    <nav class="rf-pager" aria-label="Pages">
+      @for($p = 1; $p <= $pageCount; $p++)
+        <a href="{{ route('tenant.rentals.fleet', $qs(['page' => $p])) }}" class="{{ $p === $page ? 'cur' : '' }}">{{ $p }}</a>
+      @endfor
+    </nav>
+  @endif
+
+  <p class="sd-legend"><b>What changes on its own:</b> Out and Reserved come from bookings and update by themselves — you can't set them here. You set Available, Maintenance or Retired from a unit's status. 30-day use is hours out over the last 30 days. Rates, photos and identifiers only change when you press Save model.</p>
+  @endif
+</div>
+
+{{-- ============ drawers (outside .sd so the page's motion can't pin them) ============ --}}
+<div class="rf-drawers" id="rfDrawers">
+  <div class="rf-scrim" id="rfScrim" hidden></div>
+
+  {{-- one drawer per model: edits save on "Save model", per changed field --}}
+  @foreach($categories as $cat)
+    @foreach($modelsByCat[$cat->id] ?? [] as $model)
+      @php
+        $mIdents = array_values(array_filter($model->identifiers ?? [], fn ($n) => ! in_array(mb_strtolower($n), $reservedIdf, true)));
+        $mPhotos = array_values(array_filter($model->photos ?? []));
+        if ($model->image_url && ! in_array($model->image_url, $mPhotos, true)) array_unshift($mPhotos, $model->image_url);
+        $rate = fn ($c) => $c ? number_format($c / 100, 2, '.', '') : '';
+      @endphp
+      <aside class="rf-drawer" id="d-model-{{ $model->id }}" data-model-drawer="{{ $model->id }}" aria-hidden="true" role="dialog" aria-label="Edit {{ $model->name }}">
+        <div class="rf-dh"><div><h3>Edit model</h3><span>{{ $model->units->count() }} {{ $model->units->count() === 1 ? 'unit' : 'units' }} · {{ $cat->name }}</span></div><button type="button" class="rf-x" data-close aria-label="Close">×</button></div>
+        <div class="rf-db">
+          <div class="rf-dsec">Photos<small>★ is the main photo on your public pages · up to 8</small></div>
+          <div data-pset-wrap data-model-photos="{{ $model->id }}">
+            <input type="hidden" data-mf="photos" value="{{ json_encode($mPhotos) }}">
+            <input type="hidden" data-mf="image_url" data-pset-main value="{{ $model->image_url }}">
+            <div class="rf-photos" data-pset></div>
+            <input type="file" accept="image/jpeg,image/png,image/webp,image/avif" data-pset-file style="display:none">
           </div>
 
-          {{-- units --}}
-          <div class="fl-units">
-            {{-- roster rows: condition and history are the
-                 content; the whole row opens the unit detail page where
-                 damage, photos, and per-unit edits live. --}}
-            @php
-              // identifier columns slot between Size and
-              // Condition. $mIdents is set (reserved-filtered) in the drawer above.
-              $uGrid = count($mIdents)
-                  ? '120px 70px ' . str_repeat('minmax(80px,140px) ', count($mIdents)) . '1fr 130px 90px 70px 64px'
-                  : null;
-            @endphp
-            @php $uGrid = $uGrid ? '38px ' . $uGrid : '38px 120px 70px 1fr 130px 90px 70px 64px'; @endphp
-            <div class="fl-uhead" data-uhead style="grid-template-columns:{{ $uGrid }}"><span></span><span>Serial / tag</span><span>Size</span>@foreach($mIdents as $in)<span>{{ $in }}</span>@endforeach<span>Condition</span><span>Status</span><span>Last rented</span><span>Util 30d</span><span></span></div>
-            @foreach($model->view_units as $u)
-              @php $m = $unitMeta[$u->id] ?? ['last' => null, 'util' => null, 'flags' => 0, 'photos' => 0]; @endphp
-              <a class="fl-uline" data-unit="{{ $u->id }}" data-uvals="{{ json_encode($u->identifier_values ?? []) }}" style="grid-template-columns:{{ $uGrid }}" href="{{ route('tenant.rentals.fleet.units.show', $u->id) }}">
-                <span onclick="event.preventDefault();event.stopPropagation()"><button type="button" class="fl-pbtn {{ $u->photo_url ? 'has' : '' }}" data-upick="{{ $model->id }}" data-photo="{{ $u->photo_url }}" style="{{ $u->photo_url ? "background-image:url('" . $u->photo_url . "')" : '' }}" title="Photo">{{ $u->photo_url ? '' : '▣' }}</button></span>
-                <span class="fl-mono">{{ $u->identifier ?: '—' }}</span>
-                <span>{{ $u->size ?: '—' }}{{ !$u->available_for_rent ? ' ·off' : '' }}</span>
-                @foreach($mIdents as $in)
-                  <span class="fl-ui-cell" onclick="event.preventDefault();event.stopPropagation()"><input data-ui="{{ $in }}" value="{{ ($u->identifier_values ?? [])[$in] ?? '' }}" placeholder="—" style="min-width:0" title="{{ $in }} — saves on change"></span>
-                @endforeach
-                <span class="fl-cond">
-                  @if($m['flags'] > 0)<span style="color:#E0A82E;font-weight:600">⚑ {{ $m['flags'] }} flag{{ $m['flags'] === 1 ? '' : 's' }}</span>@endif
-                  @if($m['photos'] > 0)<span style="opacity:.55">{{ $m['photos'] }} photo{{ $m['photos'] === 1 ? '' : 's' }}</span>@endif
-                  @if($m['flags'] === 0 && $m['photos'] === 0)<span style="opacity:.3">no incidents</span>@endif
-                </span>
-                <span onclick="event.preventDefault();event.stopPropagation()">
-                  @if($u->derived_status === 'out')<span class="pill out">Out</span>
-                  @elseif($u->derived_status === 'reserved')<span class="pill res">Reserved</span>
-                  @else
-                    <select data-uf="status">
-                      @foreach(['available'=>'Available','maintenance'=>'Maintenance','retired'=>'Retired'] as $sk=>$sv)
-                        <option value="{{ $sk }}" {{ $u->status === $sk ? 'selected':'' }}>{{ $sv }}</option>
-                      @endforeach
-                    </select>
-                  @endif
-                </span>
-                <span style="opacity:.55;font-size:11.5px">{{ $m['last'] ? tlocal_date($m['last'], 'M j') : 'never' }}</span>
-                <span style="font-size:11.5px;{{ ($m['util'] ?? 0) >= 60 ? 'color:#7BC96F' : 'opacity:.55' }}">{{ $m['util'] !== null ? $m['util'] . '%' : '—' }}</span>
-                <span class="fl-ulink">History</span>
-              </a>
-            @endforeach
-            <div class="fl-add-line">
-              <button type="button" class="ia-btn ia-btn--sm" onclick="document.getElementById('bulk-{{ $model->id }}').style.display='flex';this.style.display='none'">+ Add units</button>
-              {{-- labeled inputs (the headers above belong
-                   to the unit list, not this form) + one input per model
-                   identifier, applied to every unit in the batch. --}}
-              <form method="POST" action="{{ route('tenant.rentals.fleet.units.bulk') }}" id="bulk-{{ $model->id }}" data-add-form style="display:none;gap:10px;align-items:flex-end;flex-wrap:wrap">
-                @csrf
-                <input type="hidden" name="model_id" value="{{ $model->id }}">
-                <input type="hidden" name="photo_url" value="">
-                <div class="fl-fg" style="width:44px"><span class="fl-lbl">Photo</span><button type="button" class="fl-pbtn" data-apick="{{ $model->id }}" style="height:33px;width:38px" title="Pick a photo for this batch">▣</button></div>
-                <div class="fl-fg" style="width:64px"><span class="fl-lbl">Qty</span><input type="number" name="count" value="1" min="1" max="200" class="fl-inp"></div>
-                <div class="fl-fg" style="width:90px"><span class="fl-lbl">Tag prefix</span><input type="text" name="tag_prefix" placeholder="#SK-" class="fl-inp fl-mono"></div>
-                <div class="fl-fg" style="width:70px"><span class="fl-lbl">Start #</span><input type="number" name="start_number" value="1" min="0" class="fl-inp"></div>
-                <div class="fl-fg" style="width:120px"><span class="fl-lbl">Size</span><input type="text" name="size" placeholder="optional" class="fl-inp"></div>
-                @foreach($mIdents as $in)
-                  <div class="fl-fg fl-ident-fg" style="width:110px"><span class="fl-lbl">{{ $in }}</span><input type="text" name="ident[{{ $in }}]" placeholder="optional" class="fl-inp"></div>
-                @endforeach
-                <div class="fl-fg" data-add-submit><span class="fl-lbl">&nbsp;</span><button type="submit" class="ia-btn ia-btn--primary ia-btn--sm" style="height:33px">Add units</button></div>
-              </form>
-            </div>
+          <div class="rf-dsec">Details</div>
+          <div class="rf-fg">
+            <label class="rf-c4"><span class="rf-lbl">Model name</span><input class="ia-input" data-mf="name" value="{{ $model->name }}" placeholder="What customers see"></label>
+            <label class="rf-c2"><span class="rf-lbl">Category</span>
+              <select class="ia-input" data-mf="category_id">@foreach($allCategories as $c)<option value="{{ $c->id }}" {{ $model->category_id === $c->id ? 'selected' : '' }}>{{ $c->name }}</option>@endforeach</select>
+            </label>
+            <label class="rf-c2"><span class="rf-lbl">Subtitle</span><input class="ia-input" data-mf="subtitle" value="{{ $model->subtitle }}" placeholder="all-mountain, junior…"></label>
           </div>
+
+          <div class="rf-dsec">Rates<small>Leave any blank you don't offer</small></div>
+          <div class="rf-fg">
+            <label><span class="rf-lbl">Hourly</span><div class="rf-money"><input class="ia-input" data-mf="hourly_rate" value="{{ $rate($model->hourly_rate_cents) }}" placeholder="—" inputmode="decimal"></div></label>
+            <label><span class="rf-lbl">Daily</span><div class="rf-money"><input class="ia-input" data-mf="daily_rate" value="{{ $rate($model->daily_rate_cents) }}" placeholder="—" inputmode="decimal"></div></label>
+            <label><span class="rf-lbl">Weekend</span><div class="rf-money"><input class="ia-input" data-mf="weekend_rate" value="{{ $rate($model->weekend_rate_cents) }}" placeholder="—" inputmode="decimal"></div></label>
+            <label><span class="rf-lbl">Deposit</span><div class="rf-money"><input class="ia-input" data-mf="deposit" value="{{ number_format($model->deposit_cents / 100, 2, '.', '') }}" inputmode="decimal"></div></label>
+            <label class="rf-c2"><span class="rf-lbl">Entire season / lease @unless(tenant()->leasing_available)<span style="text-transform:none;letter-spacing:0">(Scale plan)</span>@endunless</span><div class="rf-money"><input class="ia-input" data-mf="seasonal_rate" value="{{ $rate($model->seasonal_rate_cents) }}" placeholder="—" inputmode="decimal" {{ tenant()->leasing_available ? '' : 'disabled' }}></div></label>
+            <label class="rf-c2"><span class="rf-lbl">Condition checklist</span>
+              <select class="ia-input" data-mf="condition_template_id"><option value="">None</option>@foreach($conditionTemplates as $ct)<option value="{{ $ct->id }}" {{ $model->condition_template_id === $ct->id ? 'selected' : '' }}>{{ $ct->name }}</option>@endforeach</select>
+            </label>
+          </div>
+
+          <div class="rf-dsec">Identifiers<small>Extra fields on every unit of this model · staff only · 3 max</small></div>
+          <div data-idf-wrap>
+            <input type="hidden" data-mf="identifiers" value="{{ json_encode($mIdents) }}">
+            <div class="rf-chips" data-idf-chips></div>
+            <p class="rf-err" data-idf-err hidden></p>
+          </div>
+          <p class="rf-hint">Each identifier becomes a column in the unit list and a field when you add units. Size, tag and status are built in.</p>
         </div>
-      @empty
-        <div style="padding:18px;font-size:12.5px;opacity:.55">No models in this category yet.</div>
-      @endforelse
-    </div>
-  </div>
-@empty
-  <div class="ia-card" style="padding:40px;text-align:center">
-    <div class="ia-empty-title">Your fleet starts here</div>
-    <div class="ia-empty-body" style="margin-top:6px">Add a category, then a model, then units. A simple shop just adds one model per item.</div>
-  </div>
-@endforelse
+        <div class="rf-df">
+          <button type="button" class="ia-btn ia-btn--ghost rf-danger" data-archive-model="{{ $model->id }}">Archive model</button>
+          <span class="sp"></span>
+          <span class="rf-saved" data-saved>✓ Saved</span>
+          <button type="button" class="ia-btn" data-close>Close</button>
+          <button type="button" class="ia-btn ia-btn--primary" data-msave>Save model</button>
+        </div>
+      </aside>
+    @endforeach
 
-{{-- pagination --}}
-@if($pageCount > 1)
-<div class="fl-pager">
-  @for($p = 1; $p <= $pageCount; $p++)
-    <a href="{{ route('tenant.rentals.fleet', array_filter(['q'=>$search ?: null,'category'=>$filterCategory,'status'=>$filterStatus,'page'=>$p])) }}" class="{{ $p === $page ? 'cur' : '' }}">{{ $p }}</a>
-  @endfor
-</div>
-@endif
+    {{-- category drawer --}}
+    <aside class="rf-drawer" id="d-cat-{{ $cat->id }}" data-cat-drawer="{{ $cat->id }}" aria-hidden="true" role="dialog" aria-label="Edit {{ $cat->name }}">
+      @php $realModels = (int) ($catModelCounts[$cat->id] ?? 0); @endphp
+      <div class="rf-dh"><div><h3>Edit category</h3><span>{{ $realModels }} {{ $realModels === 1 ? 'model' : 'models' }}</span></div><button type="button" class="rf-x" data-close aria-label="Close">×</button></div>
+      <div class="rf-db">
+        <div class="rf-fg">
+          <label class="rf-c4"><span class="rf-lbl">Name</span><input class="ia-input" data-cf="name" value="{{ $cat->name }}"></label>
+          <label class="rf-c4"><span class="rf-lbl">Size axis (optional) @include('tenant.rentals._size_axis_help')</span><input class="ia-input" data-cf="size_axis" value="{{ $cat->size_axis }}" placeholder="Length (cm), Frame size, Boot size…"></label>
+        </div>
+        <p class="rf-hint">How this category is sized: shown as the Size label on its units and on your public pages. Leave blank if size doesn't matter.</p>
+        <div class="rf-dsec">Delete<small>{{ $realModels ? 'Move or archive its models first' : 'Nothing in it yet' }}</small></div>
+        <button type="button" class="ia-btn ia-btn--sm" data-cat-del="{{ $cat->id }}" {{ $realModels ? 'disabled style=opacity:.5' : '' }}>Delete category</button>
+      </div>
+      <div class="rf-df">
+        <span class="sp"></span>
+        <span class="rf-saved" data-saved>✓ Saved</span>
+        <button type="button" class="ia-btn" data-close>Close</button>
+        <button type="button" class="ia-btn ia-btn--primary" data-csave>Save category</button>
+      </div>
+    </aside>
+  @endforeach
 
-{{-- ============ add category / model / checklist (collapsed) ============ --}}
-<div style="margin-top:26px;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;align-items:start">
-  {{-- add category --}}
-  <details class="ia-card fl-section" style="padding:11px 16px">
-    <summary>Add a category</summary>
-    <form method="POST" action="{{ route('tenant.rentals.fleet.categories.store') }}" style="margin-top:12px">
+  {{-- add a category --}}
+  <aside class="rf-drawer" id="d-newcat" aria-hidden="true" role="dialog" aria-label="Add a category">
+    <form method="POST" action="{{ route('tenant.rentals.fleet.categories.store') }}" style="display:contents">
       @csrf
-      <div class="fl-fieldgrid" style="grid-template-columns:1fr 1fr">
-        <div class="fl-fg"><span class="fl-lbl">Name</span><input class="fl-inp" name="name" placeholder="e.g. Skis" required></div>
-        <div class="fl-fg"><span class="fl-lbl">Size axis (optional) @include('tenant.rentals._size_axis_help')</span><input class="fl-inp" name="size_axis" placeholder="length (cm), Mondopoint…"></div>
+      <div class="rf-dh"><div><h3>Add a category</h3><span>Group models the way customers shop</span></div><button type="button" class="rf-x" data-close aria-label="Close">×</button></div>
+      <div class="rf-db">
+        <div class="rf-fg">
+          <label class="rf-c4"><span class="rf-lbl">Name</span><input class="ia-input" name="name" placeholder="e.g. Skis" required maxlength="120"></label>
+          <label class="rf-c4"><span class="rf-lbl">Size axis (optional) @include('tenant.rentals._size_axis_help')</span><input class="ia-input" name="size_axis" placeholder="Length (cm), Frame size, Boot size…" maxlength="40"></label>
+        </div>
       </div>
-      <button type="submit" class="ia-btn ia-btn--primary ia-btn--sm" style="margin-top:12px">Add category</button>
+      <div class="rf-df"><span class="sp"></span><button type="button" class="ia-btn" data-close>Cancel</button><button type="submit" class="ia-btn ia-btn--primary">Add category</button></div>
     </form>
-  </details>
+  </aside>
 
-  {{-- add checklist --}}
-  <details class="ia-card fl-section" style="padding:11px 16px">
-    <summary>Condition checklists{{ $conditionTemplates->isNotEmpty() ? ' (' . $conditionTemplates->count() . ')' : '' }}</summary>
-
-    {{-- manage existing checklists: name + items edit
-         in place (one item per line, same shape as creation), delete with
-         confirm. Endpoints shipped in PATCH-218; this is their UI. --}}
-    @if($conditionTemplates->isNotEmpty())
-      <div class="fl-ct-wrap" style="margin-top:12px">
-        @foreach($conditionTemplates as $ct)
-          <div class="fl-ct-row" data-ct="{{ $ct->id }}">
-            <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px">
-              <input class="fl-inp" style="font-weight:600" value="{{ $ct->name }}" data-ctf="name">
-              <button type="button" class="ia-btn ia-btn--sm" style="color:#ff8b8b;border-color:rgba(239,68,68,.35);flex-shrink:0" onclick="flDeleteChecklist('{{ $ct->id }}')">Delete</button>
-            </div>
-            <textarea class="fl-inp" data-ctf="items" spellcheck="false">{{ collect($ct->items)->pluck('label')->implode("\n") }}</textarea>
-            <div style="font-size:10.5px;opacity:.4;margin-top:4px">One item per line — saves on blur. In-flight rentals keep the checklist they started with.</div>
-          </div>
-        @endforeach
-      </div>
-      <div class="fl-ct-wrap" style="font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;opacity:.45;margin-top:16px;padding-top:14px;border-top:.5px solid var(--ia-border)">Add another</div>
-    @endif
-    <form method="POST" action="{{ route('tenant.rentals.fleet.ct.store') }}" class="fl-ct-wrap" style="margin-top:12px">
+  {{-- add a model --}}
+  <aside class="rf-drawer" id="d-newmodel" aria-hidden="true" role="dialog" aria-label="Add a model">
+    <form method="POST" action="{{ route('tenant.rentals.fleet.models.store') }}" style="display:contents">
       @csrf
-      <div class="fl-fg"><span class="fl-lbl">Name</span><input class="fl-inp" name="name" placeholder="e.g. Ski checklist" required></div>
-      <div class="fl-fg" style="margin-top:10px"><span class="fl-lbl">Items (one per line)</span><textarea class="fl-inp" name="items" rows="3" required placeholder="Edges — no major gouges&#10;Bindings — DIN intact&#10;Bases — no core shots"></textarea></div>
-      <button type="submit" class="ia-btn ia-btn--primary ia-btn--sm" style="margin-top:12px">Add checklist</button>
-    </form>
-  </details>
-
-  {{-- add model — lives in the same row now --}}
-  <details class="ia-card fl-section" style="padding:11px 16px" id="fl-add-model-d">
-    <summary id="fl-add-model">Add a model</summary>
-  <form method="POST" action="{{ route('tenant.rentals.fleet.models.store') }}" style="margin-top:12px">
-    @csrf
-    <div class="fl-fieldgrid">
-      <div class="fl-fg" style="grid-column:1/3"><span class="fl-lbl">Model name</span><input class="fl-inp" name="name" placeholder="e.g. Rossignol Experience 80" required></div>
-      <div class="fl-fg"><span class="fl-lbl">Category</span>
-        <select class="fl-inp" name="category_id" required>
-          <option value="">Choose…</option>
-          @foreach($allCategories as $c)<option value="{{ $c->id }}">{{ $c->name }}</option>@endforeach
-        </select>
+      <div class="rf-dh"><div><h3>Add a model</h3><span>What a thing is and what it costs</span></div><button type="button" class="rf-x" data-close aria-label="Close">×</button></div>
+      <div class="rf-db">
+        <div class="rf-dsec">Details</div>
+        <div class="rf-fg">
+          <label class="rf-c4"><span class="rf-lbl">Model name</span><input class="ia-input" name="name" placeholder="e.g. Rossignol Experience 80" required></label>
+          <label class="rf-c2"><span class="rf-lbl">Category</span>
+            <select class="ia-input" name="category_id" id="nmCat" required><option value="">Choose…</option>@foreach($allCategories as $c)<option value="{{ $c->id }}" {{ $filterCategory === $c->id ? 'selected' : '' }}>{{ $c->name }}</option>@endforeach</select>
+          </label>
+          <label class="rf-c2"><span class="rf-lbl">Subtitle</span><input class="ia-input" name="subtitle" placeholder="all-mountain"></label>
+        </div>
+        <div class="rf-dsec">Rates<small>Leave any blank you don't offer</small></div>
+        <div class="rf-fg">
+          <label><span class="rf-lbl">Hourly</span><div class="rf-money"><input class="ia-input" name="hourly_rate" placeholder="—" inputmode="decimal"></div></label>
+          <label><span class="rf-lbl">Daily</span><div class="rf-money"><input class="ia-input" name="daily_rate" placeholder="—" inputmode="decimal"></div></label>
+          <label><span class="rf-lbl">Weekend</span><div class="rf-money"><input class="ia-input" name="weekend_rate" placeholder="—" inputmode="decimal"></div></label>
+          <label><span class="rf-lbl">Deposit</span><div class="rf-money"><input class="ia-input" name="deposit" placeholder="0.00" inputmode="decimal"></div></label>
+          @if(tenant()->leasing_available)
+            <label class="rf-c2"><span class="rf-lbl">Entire season / lease</span><div class="rf-money"><input class="ia-input" name="seasonal_rate" placeholder="—" inputmode="decimal"></div></label>
+          @endif
+        </div>
+        <div class="rf-dsec">First unit<small>Optional — add more from the model afterwards</small></div>
+        <div class="rf-fg">
+          <label class="rf-c2"><span class="rf-lbl">Tag</span><input class="ia-input rf-mono" name="first_unit_identifier" placeholder="#SK-001"></label>
+          <label class="rf-c2"><span class="rf-lbl">Size</span><input class="ia-input" name="first_unit_size" placeholder="optional"></label>
+        </div>
+        <p class="rf-hint">Photos and identifiers are added from the model once it exists.</p>
       </div>
-      <div class="fl-fg"><span class="fl-lbl">Subtitle</span><input class="fl-inp" name="subtitle" placeholder="all-mountain"></div>
-      <div class="fl-fg"><span class="fl-lbl">Hourly</span><div class="fl-money"><input class="fl-inp" name="hourly_rate" placeholder="—"></div></div>
-      <div class="fl-fg"><span class="fl-lbl">Daily</span><div class="fl-money"><input class="fl-inp" name="daily_rate" placeholder="—"></div></div>
-      <div class="fl-fg"><span class="fl-lbl">Weekend</span><div class="fl-money"><input class="fl-inp" name="weekend_rate" placeholder="—"></div></div>
-      <div class="fl-fg"><span class="fl-lbl">Deposit</span><div class="fl-money"><input class="fl-inp" name="deposit" placeholder="0.00"></div></div>
-      @if(tenant()->leasing_available)
-      <div class="fl-fg"><span class="fl-lbl">Season rate</span><div class="fl-money"><input class="fl-inp" name="seasonal_rate" placeholder="—"></div></div>
-      @endif
-      <div class="fl-fg"><span class="fl-lbl">First unit tag (optional)</span><input class="fl-inp fl-mono" name="first_unit_identifier" placeholder="#BH-001"></div>
-      <div class="fl-fg"><span class="fl-lbl">First unit size</span><input class="fl-inp" name="first_unit_size" placeholder="optional"></div>
+      <div class="rf-df"><span class="sp"></span><button type="button" class="ia-btn" data-close>Cancel</button><button type="submit" class="ia-btn ia-btn--primary">Add model</button></div>
+    </form>
+  </aside>
+
+  {{-- condition checklists --}}
+  <aside class="rf-drawer" id="d-checklists" aria-hidden="true" role="dialog" aria-label="Condition checklists">
+    <div class="rf-dh"><div><h3>Condition checklists</h3><span>Used in check-out and return. In-flight rentals keep the checklist they started with.</span></div><button type="button" class="rf-x" data-close aria-label="Close">×</button></div>
+    <div class="rf-db">
+      @foreach($conditionTemplates as $ct)
+        @php $ctItems = collect($ct->items)->pluck('label'); @endphp
+        <div class="rf-ct" data-ct="{{ $ct->id }}">
+          <div class="rf-ct-h"><input class="ia-input" style="font-weight:600" value="{{ $ct->name }}" data-ctf="name" aria-label="Checklist name"></div>
+          <textarea class="ia-input" rows="{{ max(3, $ctItems->count() + 1) }}" data-ctf="items" spellcheck="false" aria-label="Checklist items">{{ $ctItems->implode("\n") }}</textarea>
+          <div class="rf-ct-acts"><span class="rf-ct-note">One item per line</span><button type="button" class="ia-btn ia-btn--sm ia-btn--ghost rf-danger" data-ct-del="{{ $ct->id }}">Delete</button><button type="button" class="ia-btn ia-btn--sm ia-btn--primary" data-ct-save="{{ $ct->id }}">Save</button></div>
+        </div>
+      @endforeach
+      <form method="POST" action="{{ route('tenant.rentals.fleet.ct.store') }}">
+        @csrf
+        <div class="rf-dsec">Add a checklist</div>
+        <div class="rf-fg">
+          <label class="rf-c4"><span class="rf-lbl">Name</span><input class="ia-input" name="name" placeholder="e.g. Ski checklist" required></label>
+          <label class="rf-c4"><span class="rf-lbl">Items, one per line</span><textarea class="ia-input" name="items" rows="3" required placeholder="Edges — no major gouges&#10;Bindings — DIN intact&#10;Bases — no core shots"></textarea></label>
+        </div>
+        <button type="submit" class="ia-btn ia-btn--sm ia-btn--primary" style="margin-top:12px">Add checklist</button>
+      </form>
     </div>
-    <button type="submit" class="ia-btn ia-btn--primary ia-btn--sm" style="margin-top:14px">Add model</button>
-    <span style="font-size:11px;opacity:.5;margin-left:8px">Fill a tag/size to also create the first unit. Add more with "Add units" on the model.</span>
-  </form>
-  </details>
+  </aside>
 </div>
 
+<div class="rf-toast" id="rfToast" hidden></div>
+@endsection
+
+@push('scripts')
 <script>
-(function(){
+(function () {
+  'use strict';
   var csrf = '{{ csrf_token() }}';
-  // every auto-save reports through one toast; errors
-  // are no longer swallowed. Saving… → Saved ✓ / message.
-  var toast = document.createElement('div');
-  toast.id = 'fl-toast';
-  toast.style.cssText = 'position:fixed;bottom:22px;right:22px;z-index:400;font-size:12.5px;font-weight:600;padding:9px 16px;border-radius:9px;background:var(--ia-surface,#1c1c1c);border:.5px solid var(--ia-border,rgba(255,255,255,.13));color:var(--ia-text,#f0f0f0);box-shadow:0 8px 30px rgba(0,0,0,.4);opacity:0;transform:translateY(6px);transition:all .15s ease;pointer-events:none';
-  document.body.appendChild(toast);
-  var toastTimer = null;
-  function showToast(msg, tone){
-    toast.textContent = msg;
-    toast.style.color = tone === 'err' ? '#ff8b8b' : (tone === 'ok' ? 'var(--ia-accent,#BEF264)' : 'var(--ia-text,#f0f0f0)');
-    toast.style.opacity = '1';
-    toast.style.transform = 'none';
-    clearTimeout(toastTimer);
-    if (tone !== 'busy') toastTimer = setTimeout(function(){ toast.style.opacity = '0'; toast.style.transform = 'translateY(6px)'; }, tone === 'err' ? 3500 : 1400);
+  var URL_MODEL = '{{ url('admin/rentals/fleet/models') }}/';
+  var URL_UNIT  = '{{ url('admin/rentals/fleet/units') }}/';
+  var URL_CAT   = '{{ url('admin/rentals/fleet/categories') }}/';
+  var URL_CT    = '{{ url('admin/rentals/fleet/condition-templates') }}/';
+  var URL_FEED  = '{{ route('tenant.media.feed') }}';
+  var URL_UP    = '{{ route('tenant.uploads.store') }}';
+  var RESERVED  = ['size', 'serial', 'tag', 'serial / tag', 'status', 'condition', 'identifier'];
+
+  function $(s, e) { return (e || document).querySelector(s); }
+  function $$(s, e) { return Array.prototype.slice.call((e || document).querySelectorAll(s)); }
+  function parseList(v) { try { var l = JSON.parse(v || '[]'); return Array.isArray(l) ? l : []; } catch (e) { return []; } }
+
+  /* ---------------------------------------------------------- motion + header */
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!reduce) document.documentElement.classList.add('sd-motion');
+  function reveal() {
+    var line = innerHeight * 0.9;
+    $$('.sd-in:not(.is-in)').forEach(function (el) { if (el.getBoundingClientRect().top < line) el.classList.add('is-in'); });
   }
-  function patch(url, field, value, ok, fail){
-    showToast('Saving…', 'busy');
-    fetch(url, {method:'POST', headers:{'Content-Type':'application/json','X-CSRF-TOKEN':csrf,'Accept':'application/json','X-HTTP-Method-Override':'PATCH'},
-      body: JSON.stringify({field:field, value:value})})
-      .then(function(r){
-        if (!r.ok && r.status !== 422) throw new Error('http ' + r.status);
-        return r.json();
+  reveal(); addEventListener('scroll', reveal, { passive: true }); addEventListener('resize', reveal);
+  setTimeout(function () { $$('.sd-in').forEach(function (el) { el.classList.add('is-in'); }); }, 2500);
+  var head = $('#sdHead');
+  function frost() { if (head) head.classList.toggle('frost', scrollY > 24 && innerWidth > 1023); }
+  addEventListener('scroll', frost, { passive: true }); frost();
+
+  /* ---------------------------------------------------------- toast + saving */
+  var tT, toastEl = $('#rfToast');
+  function toast(msg, err, keep) {
+    toastEl.textContent = msg; toastEl.classList.toggle('err', !!err); toastEl.hidden = false;
+    clearTimeout(tT); if (!keep) tT = setTimeout(function () { toastEl.hidden = true; }, err ? 3600 : 1800);
+  }
+  // the one save rail: POST + X-HTTP-Method-Override PATCH, {field, value}
+  function patch(url, field, value, ok, fail) {
+    toast('Saving…', false, true);
+    fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json', 'X-HTTP-Method-Override': 'PATCH' }, body: JSON.stringify({ field: field, value: value }) })
+      .then(function (r) { if (!r.ok && r.status !== 422) throw new Error('http ' + r.status); return r.json(); })
+      .then(function (j) {
+        if (j && j.success === false) { toast(j.message || 'Could not save.', true); if (fail) fail(); return; }
+        toast('Saved ✓'); if (ok) ok();
       })
-      .then(function(j){
-        if (j && j.success === false) { showToast(j.message || 'Could not save.', 'err'); if (fail) fail(); return; }
-        showToast('Saved ✓', 'ok');
-        if (ok) ok();
-      })
-      .catch(function(){ showToast("Couldn't save — check your connection and retry.", 'err'); if (fail) fail(); });
+      .catch(function () { toast("Couldn't save — check your connection and retry.", true); if (fail) fail(); });
+  }
+  function del(url, title, message, confirmText, failTitle) {
+    IntakeConfirm.show({ title: title, message: message, confirmText: confirmText, danger: true }).then(function (ok) {
+      if (!ok) return;
+      fetch(url, { method: 'POST', headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json', 'X-HTTP-Method-Override': 'DELETE' } })
+        .then(function (r) { return r.json(); })
+        .then(function (j) { if (j.success) location.reload(); else IntakeConfirm.alert({ title: failTitle, message: j.message || 'Could not do that.' }); })
+        .catch(function () { IntakeConfirm.alert({ title: failTitle, message: "Couldn't reach the server — check your connection." }); });
+    });
   }
 
-  // Enter commits a text field (blur fires change fires save).
-  document.querySelectorAll('[data-mf],[data-uf],[data-cf],[data-ctf]').forEach(function(el){
-    if (el.tagName === 'INPUT') {
-      el.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); el.blur(); } });
+  /* ---------------------------------------------------------- drawers */
+  var scrim = $('#rfScrim'), openD = null, lastFocus = null, pm = null;
+  function openDrawer(id) {
+    var d = document.getElementById(id); if (!d) return;
+    if (openD && openD !== d) closeDrawer(true);
+    lastFocus = document.activeElement; openD = d;
+    scrim.hidden = false;
+    requestAnimationFrame(function () { scrim.classList.add('on'); d.classList.add('on'); });
+    d.setAttribute('aria-hidden', 'false');
+    var body = $('.rf-db', d); if (body) body.scrollTop = 0;
+    setTimeout(function () { var f = $('input:not([type=hidden]):not([disabled]),select,textarea', d); if (f && innerWidth > 900) f.focus({ preventScroll: true }); }, 340);
+  }
+  function closeDrawer(quick) {
+    if (!openD) return;
+    var d = openD; openD = null;
+    d.classList.remove('on'); d.setAttribute('aria-hidden', 'true'); scrim.classList.remove('on');
+    setTimeout(function () { if (!openD) scrim.hidden = true; }, quick ? 0 : 260);
+    if (lastFocus && lastFocus.focus) { try { lastFocus.focus({ preventScroll: true }); } catch (e) {} }
+  }
+  scrim.addEventListener('click', function () { closeDrawer(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && openD && !(pm && pm.classList.contains('open'))) closeDrawer(); });
+  document.addEventListener('click', function (e) {
+    var o = e.target.closest('[data-open]');
+    if (o) {
+      e.preventDefault(); e.stopPropagation();
+      var pre = o.getAttribute('data-cat-pre'); if (pre) { var s = $('#nmCat'); if (s) s.value = pre; }
+      openDrawer(o.getAttribute('data-open')); return;
     }
+    if (e.target.closest('[data-close]')) closeDrawer();
   });
-  // model field edits
-  // the drawer commits on "Save model" (explicit save is
-  // the app standard); fields mark dirty on change instead of auto-saving.
-  document.querySelectorAll('.fl-model-body').forEach(function(body){
-    var url = '{{ url('admin/rentals/fleet/models') }}/' + body.getAttribute('data-model');
-    var dirty = {};
-    body.querySelectorAll('[data-mf]').forEach(function(el){
-      el.addEventListener('change', function(){ dirty[el.getAttribute('data-mf')] = el; });
+
+  /* ---------------------------------------------------------- expand / collapse */
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('button, a, input, select, textarea, [data-stop]')) return;
+    var mh = e.target.closest('[data-mtoggle]');
+    if (mh) { mh.parentElement.classList.toggle('open'); return; }
+    var ch = e.target.closest('[data-ctoggle]');
+    if (ch) ch.parentElement.classList.toggle('open');
+  });
+  // the unit rows are links; their controls shouldn't navigate
+  document.addEventListener('click', function (e) {
+    var s = e.target.closest('[data-stop]'); if (s) { e.preventDefault(); e.stopPropagation(); }
+  }, true);
+
+  /* ---------------------------------------------------------- units */
+  function unitUrl(line) { return URL_UNIT + line.getAttribute('data-unit'); }
+  function bindIdent(line) {
+    $$('[data-ui]', line).forEach(function (el) {
+      if (el.dataset.bound) return; el.dataset.bound = '1';
+      el.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); el.blur(); } });
+      el.addEventListener('change', function () {
+        var map = {};
+        $$('[data-ui]', line).forEach(function (x) { if (x.value.trim() !== '') map[x.getAttribute('data-ui')] = x.value.trim(); });
+        patch(unitUrl(line), 'identifier_values', JSON.stringify(map));
+      });
     });
-    var saveBtn = body.querySelector('[data-msave]');
-    var note = body.querySelector('[data-msave-note]');
-    function flash(msg){ if (!note) return; note.textContent = msg; note.style.opacity = 1; setTimeout(function(){ note.style.opacity = 0; }, 1600); }
-    if (saveBtn) saveBtn.addEventListener('click', function(){
+  }
+  function bindUnit(line) {
+    $$('[data-uf]', line).forEach(function (el) { el.addEventListener('change', function () { patch(unitUrl(line), el.getAttribute('data-uf'), el.value); }); });
+    bindIdent(line);
+  }
+  $$('.rf-u').forEach(bindUnit);
+
+  function gridFor(n) { return '34px 104px 64px ' + new Array(n + 1).join('minmax(70px,110px) ') + 'minmax(0,1fr) 128px 74px 70px 20px'; }
+  // a model's identifiers changed: rebuild its unit columns and add-units fields in place
+  function syncIdentCols(card, idents) {
+    card.setAttribute('data-idents', JSON.stringify(idents));
+    var grid = gridFor(idents.length), units = $('.rf-units', card);
+    var hd = $('[data-uhead]', units);
+    if (hd) {
+      hd.style.gridTemplateColumns = grid; hd.textContent = '';
+      ['', 'Tag', 'Size'].concat(idents, ['Condition', 'Status', 'Last out', '30-day use', '']).forEach(function (h) { var s = document.createElement('span'); s.textContent = h; hd.appendChild(s); });
+    }
+    $$('.rf-u', units).forEach(function (line) {
+      var vals = {};
+      try { vals = JSON.parse(line.getAttribute('data-uvals') || '{}') || {}; } catch (e) {}
+      $$('[data-ui]', line).forEach(function (x) { vals[x.getAttribute('data-ui')] = x.value; });
+      line.setAttribute('data-uvals', JSON.stringify(vals));
+      $$('.rf-idc', line).forEach(function (c) { c.remove(); });
+      line.style.gridTemplateColumns = grid;
+      var after = line.children[2];
+      idents.forEach(function (name) {
+        var cell = document.createElement('span'); cell.className = 'rf-idc'; cell.setAttribute('data-stop', '');
+        var i = document.createElement('input'); i.className = 'rf-idv'; i.setAttribute('data-ui', name); i.placeholder = '—'; i.setAttribute('aria-label', name);
+        i.value = typeof vals[name] === 'string' ? vals[name] : '';
+        cell.appendChild(i); after.insertAdjacentElement('afterend', cell); after = cell;
+      });
+      bindIdent(line);
+    });
+    var form = $('[data-add-form]', units);
+    if (form) {
+      $$('.rf-ident-fg', form).forEach(function (f) { f.remove(); });
+      var submit = $('[data-add-submit]', form);
+      idents.forEach(function (name) {
+        var l = document.createElement('label'); l.className = 'rf-ident-fg';
+        var s = document.createElement('span'); s.className = 'rf-lbl'; s.textContent = name;
+        var i = document.createElement('input'); i.className = 'ia-input'; i.type = 'text'; i.name = 'ident[' + name + ']'; i.placeholder = 'optional'; i.style.width = '110px';
+        l.appendChild(s); l.appendChild(i); form.insertBefore(l, submit);
+      });
+    }
+  }
+
+  /* ---------------------------------------------------------- model drawers */
+  $$('[data-model-drawer]').forEach(function (d) {
+    var id = d.getAttribute('data-model-drawer'), url = URL_MODEL + id, dirty = {};
+    var saveBtn = $('[data-msave]', d), note = $('[data-saved]', d);
+    $$('[data-mf]', d).forEach(function (el) {
+      el.addEventListener('change', function () { dirty[el.getAttribute('data-mf')] = el; });
+      if (el.tagName === 'INPUT' && el.type === 'text') el.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); el.blur(); } });
+    });
+    d.__markDirty = function (el) { dirty[el.getAttribute('data-mf')] = el; };
+    function flash(msg) { note.textContent = msg; note.classList.add('on'); setTimeout(function () { note.classList.remove('on'); }, 1800); }
+    saveBtn.addEventListener('click', function () {
       var fields = Object.keys(dirty);
       if (!fields.length) { flash('Nothing to save'); return; }
+      var nm = dirty.name; if (nm && !nm.value.trim()) { toast('Give the model a name first', true); return; }
       saveBtn.disabled = true;
-      var i = 0;
-      function done(ok){ saveBtn.disabled = false; if (ok) { dirty = {}; flash('\u2713 Saved'); } }
-      function next(){
+      var i = 0, moved = false;
+      function done(ok) { saveBtn.disabled = false; if (ok) { dirty = {}; flash('✓ Saved'); if (moved) location.reload(); } }
+      (function next() {
         if (i >= fields.length) { done(true); return; }
-        var f = fields[i++]; var el = dirty[f];
-        patch(url, f, el.value, function(){
-          // model head name follows the drawer edit.
-          if (f === 'name') {
-            var head = body.closest('.fl-model');
-            var t = head ? head.querySelector('.fl-model-name') : null;
-            if (t) t.textContent = el.value;
-          }
-          // unit columns sync once identifiers save.
-          if (f === 'identifiers') {
-            var idents = [];
-            try { idents = JSON.parse(el.value || '[]') || []; } catch (e) {}
-            var card = body.closest('.fl-model');
-            if (card) flSyncIdentCols(card, idents);
-          }
+        var f = fields[i++], el = dirty[f];
+        patch(url, f, el.value, function () {
+          var card = $('.rf-model[data-model="' + id + '"]');
+          if (f === 'name' && card) { var t = $('[data-model-name]', card); if (t) t.textContent = el.value; }
+          if (f === 'identifiers' && card) syncIdentCols(card, parseList(el.value));
+          if (f === 'category_id') moved = true;
           next();
-        }, function(){ done(false); });
-      }
-      next();
+        }, function () { done(false); });
+      })();
     });
+    var arch = $('[data-archive-model]', d);
+    if (arch) arch.addEventListener('click', function () { del(url, 'Archive this model?', 'Its units must already be archived.', 'Archive', 'Archive failed'); });
   });
-  // unit field edits
-  // identifier cells save the row's whole map;
-  // rebind-safe so live column rebuilds can call it again.
-  function flUnitUrl(line){ return '{{ url('admin/rentals/fleet/units') }}/' + line.getAttribute('data-unit'); }
-  function flBindIdentCells(line){
-    line.querySelectorAll('[data-ui]').forEach(function(el){
-      if (el.dataset.uiBound) return;
-      el.dataset.uiBound = '1';
-      el.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); el.blur(); } });
-      el.addEventListener('change', function(){
-        var map = {};
-        line.querySelectorAll('[data-ui]').forEach(function(x){ if (x.value.trim() !== '') map[x.getAttribute('data-ui')] = x.value.trim(); });
-        patch(flUnitUrl(line), 'identifier_values', JSON.stringify(map));
-      });
-    });
-  }
-  // rebuild a model's unit columns + add-form fields
-  // in place when its identifiers change. No reload.
-  function flSyncIdentCols(card, idents){
-    var units = card.querySelector('.fl-units');
-    if (!units) return;
-    var grid = '38px 120px 70px '
-        + (idents.length ? Array(idents.length + 1).join('minmax(80px,140px) ') : '')
-        + '1fr 130px 90px 70px 64px';
-    var head = units.querySelector('.fl-uhead');
-    if (head) {
-      head.style.gridTemplateColumns = grid;
-      head.textContent = '';
-      ['', 'Serial / tag', 'Size'].concat(idents, ['Condition', 'Status', 'Last rented', 'Util 30d', '']).forEach(function(h){
-        var s = document.createElement('span'); s.textContent = h; head.appendChild(s);
-      });
-    }
-    units.querySelectorAll('.fl-uline').forEach(function(line){
-      var vals = {};
-      try { vals = JSON.parse(line.getAttribute('data-uvals') || '{}') || {}; } catch (e) { vals = {}; }
-      line.querySelectorAll('[data-ui]').forEach(function(x){ vals[x.getAttribute('data-ui')] = x.value; });
-      line.setAttribute('data-uvals', JSON.stringify(vals));
-      line.querySelectorAll('.fl-ui-cell').forEach(function(c){ c.remove(); });
-      line.style.gridTemplateColumns = grid;
-      var after = line.children[2]; // photo, tag, size — identifiers follow size
-      idents.forEach(function(name){
-        var cell = document.createElement('span');
-        cell.className = 'fl-ui-cell';
-        cell.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); });
-        var i = document.createElement('input');
-        i.setAttribute('data-ui', name);
-        i.placeholder = '\u2014';
-        i.title = name + ' \u2014 saves on change';
-        i.style.minWidth = '0';
-        i.value = typeof vals[name] === 'string' ? vals[name] : '';
-        cell.appendChild(i);
-        after.insertAdjacentElement('afterend', cell);
-        after = cell;
-      });
-      flBindIdentCells(line);
-    });
-    var form = units.querySelector('.fl-add-line form');
-    if (form) {
-      form.querySelectorAll('.fl-ident-fg').forEach(function(f){ f.remove(); });
-      var submit = form.querySelector('[data-add-submit]') || form.querySelector('button[type="submit"]');
-      idents.forEach(function(name){
-        var fg = document.createElement('div'); fg.className = 'fl-fg fl-ident-fg'; fg.style.width = '110px';
-        var l = document.createElement('span'); l.className = 'fl-lbl'; l.textContent = name;
-        var i = document.createElement('input'); i.type = 'text'; i.name = 'ident[' + name + ']'; i.placeholder = 'optional'; i.className = 'fl-inp';
-        fg.appendChild(l); fg.appendChild(i);
-        form.insertBefore(fg, submit);
-      });
-    }
-  }
-  document.querySelectorAll('.fl-uline').forEach(function(line){
-    line.querySelectorAll('[data-uf]').forEach(function(el){
-      el.addEventListener('change', function(){ patch(flUnitUrl(line), el.getAttribute('data-uf'), el.value); });
-    });
-    flBindIdentCells(line);
-  });
-  // category + checklist edit bindings (same patch()
-  // contract) and confirmed deletes.
-  document.querySelectorAll('.fl-cat-edit').forEach(function(strip){
-    var url = '{{ url('admin/rentals/fleet/categories') }}/' + strip.getAttribute('data-cat');
-    strip.querySelectorAll('[data-cf]').forEach(function(el){
-      el.addEventListener('change', function(){
-        var f = el.getAttribute('data-cf');
-        patch(url, f, el.value, function(){
-          // the header shows what just saved.
-          var cat = strip.closest('.fl-cat');
-          if (!cat) return;
-          if (f === 'name') {
-            var t = cat.querySelector('.fl-cat-name-txt');
-            if (t) t.textContent = el.value;
-          }
-          if (f === 'size_axis') {
-            var a = cat.querySelector('.fl-cat-axis-txt');
-            if (a) a.textContent = el.value ? 'Size axis: ' + el.value + ' \u00b7 ' : '';
-          }
-        });
-      });
-    });
-  });
-  document.querySelectorAll('.fl-ct-row').forEach(function(row){
-    var url = '{{ url('admin/rentals/fleet/condition-templates') }}/' + row.getAttribute('data-ct');
-    row.querySelectorAll('[data-ctf]').forEach(function(el){
-      el.addEventListener('change', function(){ patch(url, el.getAttribute('data-ctf'), el.value); });
-    });
-  });
-  // photo set editing + the picker modal.
-  var pmodal = document.createElement('div');
-  pmodal.className = 'fl-pmodal';
-  pmodal.innerHTML = '<div class="fl-pmodal-card">'
-    + '<div class="fl-pmodal-title">Choose a photo</div>'
-    + '<div class="fl-pmodal-sub" data-psub>Photos on this model. Switch to Library to pull one in.</div>'
-    + '<div class="fl-ptabs"><button type="button" class="fl-ptab on" data-ptab="model">This model</button>'
-    + '<button type="button" class="fl-ptab" data-ptab="lib">Library</button></div>'
-    + '<div class="fl-pgrid" data-pgrid></div>'
-    + '<div class="fl-pmodal-acts">'
-    + '<button type="button" class="ia-btn" data-pclear>No photo</button>'
-    + '<button type="button" class="ia-btn" data-pcancel>Cancel</button>'
-    + '<button type="button" class="ia-btn ia-btn--primary" data-pok>Use photo</button>'
-    + '</div></div>';
-  document.body.appendChild(pmodal);
-  var pgrid = pmodal.querySelector('[data-pgrid]');
-  var pTarget = null, pChosen = null;
 
-  function modelPhotos(modelId){
-    var wrap = document.querySelector('[data-model-photos="' + modelId + '"]');
-    if (!wrap) return [];
-    try { var l = JSON.parse(wrap.querySelector('[data-mf="photos"]').value || '[]'); return Array.isArray(l) ? l : []; }
-    catch (e) { return []; }
-  }
-  // two sources: this model's set, or the media library.
-  var pTab = 'model', pModelId = null, libCache = null;
-  function note(msg){
-    var d = document.createElement('div');
-    d.style.cssText = 'grid-column:1/-1;font-size:12.5px;opacity:.55';
-    d.textContent = msg;
-    pgrid.appendChild(d);
-  }
-  function tile(url){
-    var b = document.createElement('button');
-    b.type = 'button';
-    b.style.backgroundImage = "url('" + url + "')";
-    if (url === pChosen) b.classList.add('sel');
-    b.addEventListener('click', function(){
-      pChosen = url;
-      pgrid.querySelectorAll('button').forEach(function(x){ x.classList.remove('sel'); });
-      b.classList.add('sel');
+  /* ---------------------------------------------------------- category drawers */
+  $$('[data-cat-drawer]').forEach(function (d) {
+    var id = d.getAttribute('data-cat-drawer'), url = URL_CAT + id, dirty = {};
+    var note = $('[data-saved]', d);
+    function flash(msg) { note.textContent = msg; note.classList.add('on'); setTimeout(function () { note.classList.remove('on'); }, 1800); }
+    $$('[data-cf]', d).forEach(function (el) {
+      el.addEventListener('change', function () { dirty[el.getAttribute('data-cf')] = el; });
+      el.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); el.blur(); } });
     });
+    $('[data-csave]', d).addEventListener('click', function () {
+      var fields = Object.keys(dirty);
+      if (!fields.length) { flash('Nothing to save'); return; }
+      var i = 0, sec = $('.rf-cat[data-cat="' + id + '"]');
+      (function next() {
+        if (i >= fields.length) { dirty = {}; flash('✓ Saved'); return; }
+        var f = fields[i++], el = dirty[f];
+        patch(url, f, el.value, function () {
+          if (sec && f === 'name') $('[data-cat-name]', sec).textContent = el.value;
+          if (sec && f === 'size_axis') $('[data-cat-axis]', sec).textContent = el.value ? 'Sized by ' + el.value.toLowerCase() + ' · ' : '';
+          next();
+        });
+      })();
+    });
+    var cd = $('[data-cat-del]', d);
+    if (cd) cd.addEventListener('click', function () { if (!cd.disabled) del(url, 'Delete this category?', 'It must be empty (no models) first.', 'Delete', 'Delete failed'); });
+  });
+  // size-axis "?" popovers
+  document.addEventListener('click', function (e) {
+    var dot = e.target.closest('.fl-help-dot');
+    $$('[data-axis-help].open').forEach(function (o) { if (!dot || o !== dot.closest('[data-axis-help]')) o.classList.remove('open'); });
+    if (dot) { e.preventDefault(); e.stopPropagation(); dot.closest('[data-axis-help]').classList.toggle('open'); }
+  });
+
+  /* ---------------------------------------------------------- checklists */
+  $$('.rf-ct[data-ct]').forEach(function (row) {
+    var id = row.getAttribute('data-ct');
+    $('[data-ct-save]', row).addEventListener('click', function () {
+      var name = $('[data-ctf="name"]', row), items = $('[data-ctf="items"]', row);
+      if (!name.value.trim()) { toast('Give the checklist a name first', true); return; }
+      patch(URL_CT + id, 'name', name.value, function () { patch(URL_CT + id, 'items', items.value); });
+    });
+    $('[data-ct-del]', row).addEventListener('click', function () {
+      del(URL_CT + id, 'Delete this checklist?', 'Models using it fall back to no checklist; past condition checks are unaffected.', 'Delete', 'Delete failed');
+    });
+  });
+
+  /* ---------------------------------------------------------- add units */
+  $$('[data-addu]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var f = b.parentElement.querySelector('[data-add-form]'); f.hidden = false; b.hidden = true;
+      var q = $('[name="count"]', f); if (q) q.focus();
+    });
+  });
+  $$('[data-addx]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var f = b.closest('[data-add-form]'); f.hidden = true; var o = f.parentElement.querySelector('[data-addu]'); if (o) o.hidden = false;
+    });
+  });
+  $$('[data-add-form]').forEach(function (form) {
+    var units = form.closest('.rf-units'), btn = $('[data-add-submit]', form);
+    form.addEventListener('submit', function (e) {
+      e.preventDefault(); if (btn.disabled) return;
+      btn.disabled = true; toast('Adding…', false, true);
+      fetch(form.getAttribute('action'), { method: 'POST', body: new FormData(form), headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          btn.disabled = false;
+          if (!j || j.success === false) { toast((j && j.message) || 'Could not add units.', true); return; }
+          var card = form.closest('.rf-model');
+          var names = parseList(card.getAttribute('data-idents'));
+          var grid = gridFor(names.length), modelId = card.getAttribute('data-model');
+          var anchor = $('.rf-addu-open', units);
+          (j.units || []).forEach(function (u) {
+            var a = document.createElement('a');
+            a.className = 'rf-u'; a.setAttribute('data-unit', u.id); a.setAttribute('data-uvals', JSON.stringify(u.values || {}));
+            a.href = u.url; a.style.gridTemplateColumns = grid;
+            function cell(cls, txt) { var s = document.createElement('span'); if (cls) s.className = cls; if (txt != null) s.textContent = txt; a.appendChild(s); return s; }
+            var pc = cell(null); pc.setAttribute('data-stop', '');
+            var pb = document.createElement('button'); pb.type = 'button'; pb.className = 'rf-upick' + (u.photo ? ' has' : '');
+            pb.setAttribute('data-upick', modelId); pb.setAttribute('data-photo', u.photo || ''); pb.title = 'Photo'; pb.setAttribute('aria-label', 'Unit photo');
+            if (u.photo) pb.style.backgroundImage = "url('" + u.photo + "')"; else pb.textContent = '▣';
+            pc.appendChild(pb); bindPhotoBtn(pb);
+            cell('rf-mono', u.identifier || '—'); cell('c-size', u.size || '—');
+            names.forEach(function (n) {
+              var c = cell('rf-idc'); c.setAttribute('data-stop', '');
+              var i = document.createElement('input'); i.className = 'rf-idv'; i.setAttribute('data-ui', n); i.placeholder = '—'; i.setAttribute('aria-label', n);
+              i.value = (u.values && u.values[n]) || ''; c.appendChild(i);
+            });
+            var cd = cell('rf-cond'); var none = document.createElement('span'); none.className = 'rf-dim'; none.textContent = 'No incidents'; cd.appendChild(none);
+            var st = cell(null); st.setAttribute('data-stop', '');
+            var sel = document.createElement('select'); sel.setAttribute('data-uf', 'status'); sel.setAttribute('aria-label', 'Status');
+            [['available', 'Available'], ['maintenance', 'Maintenance'], ['retired', 'Retired']].forEach(function (o) { var op = document.createElement('option'); op.value = o[0]; op.textContent = o[1]; sel.appendChild(op); });
+            st.appendChild(sel);
+            var lastc = cell('rf-dim c-last', 'never'); lastc.style.fontSize = '11.5px';
+            var use = cell('rf-use c-use'); use.style.setProperty('--w', '0%'); use.innerHTML = '<i></i>—';
+            cell('rf-go', '›');
+            units.insertBefore(a, anchor); bindUnit(a);
+          });
+          var cEl = $('[data-unit-count]', card), aEl = $('[data-avail-count]', card);
+          if (cEl) cEl.textContent = j.unit_count + (j.unit_count === 1 ? ' unit' : ' units');
+          if (aEl) { aEl.textContent = j.avail_count + ' free'; aEl.classList.toggle('av', j.avail_count > 0); aEl.classList.toggle('off', j.avail_count === 0); }
+          var qty = $('[name="count"]', form), st2 = $('[name="start_number"]', form), sz = $('[name="size"]', form);
+          if (qty) qty.value = 1; if (st2 && j.next_start != null) st2.value = j.next_start; if (sz) sz.value = '';
+          toast(j.message || 'Added ✓'); if (qty) qty.focus();
+        })
+        .catch(function () { btn.disabled = false; toast("Couldn't add units — check your connection and retry.", true); });
+    });
+  });
+
+  /* ---------------------------------------------------------- identifier chips (model drawers, 3 max) */
+  $$('[data-idf-wrap]').forEach(function (wrap) {
+    var d = wrap.closest('[data-model-drawer]');
+    var hidden = $('[data-mf="identifiers"]', wrap), chips = $('[data-idf-chips]', wrap), errEl = $('[data-idf-err]', wrap);
+    function list() { return parseList(hidden.value); }
+    function save(l) {
+      hidden.value = JSON.stringify(l); draw();
+      if (d && d.__markDirty) d.__markDirty(hidden);
+    }
+    function err(m) { errEl.textContent = m; errEl.hidden = false; }
+    function commit(inp) {
+      var v = inp.value.trim().slice(0, 30); if (!v) return;
+      var l = list();
+      if (RESERVED.indexOf(v.toLowerCase()) !== -1) { err('“' + v + '” is already a built-in column — pick another name.'); return; }
+      if (l.some(function (x) { return x.toLowerCase() === v.toLowerCase(); })) { err('This model already has “' + v + '”.'); return; }
+      if (l.length >= 3) return;
+      errEl.hidden = true; l.push(v); save(l);
+      var n = $('.rf-chipin input', chips); if (n) n.focus();
+    }
+    function draw() {
+      var l = list(); chips.textContent = '';
+      l.forEach(function (name, i) {
+        var c = document.createElement('span'); c.className = 'rf-chip'; c.appendChild(document.createTextNode(name));
+        var x = document.createElement('button'); x.type = 'button'; x.textContent = '×';
+        x.title = 'Remove ' + name + ' (unit values are kept, hidden until re-added)'; x.setAttribute('aria-label', 'Remove ' + name);
+        x.addEventListener('click', function () { var n = list(); n.splice(i, 1); errEl.hidden = true; save(n); });
+        c.appendChild(x); chips.appendChild(c);
+      });
+      if (l.length < 3) {
+        var w = document.createElement('span'); w.className = 'rf-chipin';
+        var inp = document.createElement('input'); inp.className = 'ia-input'; inp.placeholder = 'e.g. Color'; inp.maxLength = 30; inp.setAttribute('aria-label', 'New identifier');
+        var ok = document.createElement('button'); ok.type = 'button'; ok.textContent = '✓'; ok.title = 'Add identifier'; ok.setAttribute('aria-label', 'Add identifier');
+        inp.addEventListener('input', function () { w.classList.toggle('has-text', inp.value.trim() !== ''); errEl.hidden = true; });
+        inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); commit(inp); } });
+        ok.addEventListener('click', function () { commit(inp); });
+        w.appendChild(inp); w.appendChild(ok); chips.appendChild(w);
+      } else {
+        var m = document.createElement('span'); m.className = 'rf-colon'; m.textContent = '3 max'; chips.appendChild(m);
+      }
+    }
+    draw();
+  });
+
+  /* ---------------------------------------------------------- photo picker (units + batches) */
+  pm = document.createElement('div');
+  pm.className = 'rf-pm'; pm.setAttribute('role', 'dialog'); pm.setAttribute('aria-label', 'Choose a photo');
+  pm.innerHTML = '<div class="rf-pm-card"><h3>Choose a photo</h3><div class="rf-pm-sub">Photos on this model. Switch to Library to pull one in.</div>' +
+    '<div class="rf-pills"><button type="button" class="rf-pill on" data-ptab="model">This model</button><button type="button" class="rf-pill" data-ptab="lib">Library</button></div>' +
+    '<div class="rf-pm-grid" data-pgrid></div>' +
+    '<div class="rf-pm-acts"><button type="button" class="ia-btn ia-btn--ghost" data-pclear>No photo</button><span class="sp"></span><button type="button" class="ia-btn" data-pcancel>Cancel</button><button type="button" class="ia-btn ia-btn--primary" data-pok>Use photo</button></div></div>';
+  document.body.appendChild(pm);
+  var pgrid = $('[data-pgrid]', pm), pTarget = null, pChosen = null, pTab = 'model', pModelId = null, libCache = null;
+
+  function modelWrap(id) { return document.querySelector('[data-model-photos="' + id + '"]'); }
+  function modelPhotos(id) { var w = modelWrap(id); return w ? parseList($('[data-mf="photos"]', w).value) : []; }
+  function pnote(msg) { var d = document.createElement('div'); d.className = 'rf-pm-note'; d.textContent = msg; pgrid.appendChild(d); }
+  function ptile(url) {
+    var b = document.createElement('button'); b.type = 'button'; b.style.backgroundImage = "url('" + url + "')"; b.setAttribute('aria-label', 'Photo');
+    if (url === pChosen) b.classList.add('sel');
+    b.addEventListener('click', function () { pChosen = url; $$('button', pgrid).forEach(function (x) { x.classList.remove('sel'); }); b.classList.add('sel'); });
     pgrid.appendChild(b);
   }
-  function drawTab(){
-    pmodal.querySelectorAll('[data-ptab]').forEach(function(t){ t.classList.toggle('on', t.getAttribute('data-ptab') === pTab); });
+  function drawTab() {
+    $$('[data-ptab]', pm).forEach(function (t) { t.classList.toggle('on', t.getAttribute('data-ptab') === pTab); });
     pgrid.textContent = '';
     if (pTab === 'model') {
-      var list = modelPhotos(pModelId);
-      if (!list.length) note('No photos on this model yet \u2014 add them in the model editor (Edit \u2192 Photos), or pick one from the Library tab.');
-      list.forEach(tile);
-      return;
+      var l = modelPhotos(pModelId);
+      if (!l.length) pnote('No photos on this model yet — add them in the model editor (Edit → Photos), or pick one from the Library tab.');
+      l.forEach(ptile); return;
     }
     if (libCache === null) {
-      note('Loading library\u2026');
-      fetch('{{ route('tenant.media.feed') }}', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-        .then(function(r){ return r.json(); })
-        .then(function(d){ libCache = (d && d.media) || []; drawTab(); })
-        .catch(function(){ libCache = []; drawTab(); });
+      pnote('Loading library…');
+      fetch(URL_FEED, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(function (r) { return r.json(); }).then(function (d) { libCache = (d && d.media) || []; drawTab(); })
+        .catch(function () { libCache = []; drawTab(); });
       return;
     }
-    if (!libCache.length) { note('Nothing in the media library yet.'); return; }
-    libCache.forEach(function(m){ if (m && m.url) tile(m.url); });
+    if (!libCache.length) { pnote('Nothing in the media library yet.'); return; }
+    libCache.forEach(function (m) { if (m && m.url) ptile(m.url); });
   }
-  function closeP(){ pmodal.classList.remove('open'); pTarget = null; pChosen = null; }
-  function openP(btn){
-    pTarget = btn;
-    pChosen = btn.getAttribute('data-photo') || null;
-    pModelId = btn.getAttribute('data-upick') || btn.getAttribute('data-apick');
-    pTab = 'model';
-    drawTab();
-    pmodal.classList.add('open');
+  function closeP() { pm.classList.remove('open'); pTarget = null; pChosen = null; }
+  function openP(btn) {
+    pTarget = btn; pChosen = btn.getAttribute('data-photo') || null;
+    pModelId = btn.getAttribute('data-upick') || btn.getAttribute('data-apick'); pTab = 'model'; drawTab(); pm.classList.add('open');
   }
-  pmodal.querySelectorAll('[data-ptab]').forEach(function(t){
-    t.addEventListener('click', function(){ pTab = t.getAttribute('data-ptab'); drawTab(); });
-  });
-  function applyPhoto(btn, url){
-    if (!btn) return;
+  $$('[data-ptab]', pm).forEach(function (t) { t.addEventListener('click', function () { pTab = t.getAttribute('data-ptab'); drawTab(); }); });
+  function setBtnPhoto(btn, url) {
     btn.setAttribute('data-photo', url || '');
     if (url) { btn.style.backgroundImage = "url('" + url + "')"; btn.textContent = ''; btn.classList.add('has'); }
-    else { btn.style.backgroundImage = ''; btn.textContent = '\u25A3'; btn.classList.remove('has'); }
-    var line = btn.closest('.fl-uline');
-    if (line) { patch(flUnitUrl(line), 'photo_url', url || ''); return; }
-    var form = btn.closest('form');
-    var hid = form && form.querySelector('[name="photo_url"]');
+    else { btn.style.backgroundImage = ''; btn.textContent = '▣'; btn.classList.remove('has'); }
+  }
+  function applyPhoto(btn, url) {
+    var line = btn.closest('.rf-u');
+    if (line) { patch(unitUrl(line), 'photo_url', url || '', function () { setBtnPhoto(btn, url); }); return; }
+    setBtnPhoto(btn, url);
+    var form = btn.closest('form'), hid = form && $('[name="photo_url"]', form);
     if (hid) hid.value = url || '';
   }
-  pmodal.querySelector('[data-pok]').addEventListener('click', function(){
-    if (pTarget && pChosen) {
-      // A library photo joins this model's set so units can reuse it.
-      var wrap = document.querySelector('[data-model-photos="' + pModelId + '"]');
-      if (wrap && modelPhotos(pModelId).indexOf(pChosen) === -1) {
-        var h = wrap.querySelector('[data-mf="photos"]');
-        var l = modelPhotos(pModelId);
-        if (l.length < 8) {
-          l.push(pChosen);
-          h.value = JSON.stringify(l);
-          h.dispatchEvent(new Event('change', { bubbles: false }));
-          if (wrap.__psetDraw) wrap.__psetDraw();
-          showToast('Added to this model \u2014 Save model to keep it', 'ok');
-        }
-      }
+  $('[data-pok]', pm).addEventListener('click', function () {
+    var target = pTarget, url = pChosen, mid = pModelId;
+    closeP(); if (!target || !url) return;
+    // a library photo joins the model's set first (the server only accepts a unit
+    // photo that is in the saved set), then the unit or batch takes it
+    var wrap = modelWrap(mid), l = modelPhotos(mid);
+    if (wrap && l.indexOf(url) === -1) {
+      if (l.length >= 8) { toast('This model already has 8 photos — remove one first.', true); return; }
+      l.push(url);
+      var h = $('[data-mf="photos"]', wrap); h.value = JSON.stringify(l);
+      if (wrap.__draw) wrap.__draw();
+      patch(URL_MODEL + mid, 'photos', h.value, function () { applyPhoto(target, url); });
+      return;
     }
-    if (pTarget) applyPhoto(pTarget, pChosen);
-    closeP();
+    applyPhoto(target, url);
   });
-  pmodal.querySelector('[data-pclear]').addEventListener('click', function(){ if (pTarget) applyPhoto(pTarget, ''); closeP(); });
-  pmodal.querySelector('[data-pcancel]').addEventListener('click', closeP);
-  pmodal.addEventListener('click', function(e){ if (e.target === pmodal) closeP(); });
-  document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && pmodal.classList.contains('open')) closeP(); });
-
-  function flBindPhotoBtn(btn){
-    if (btn.dataset.pBound) return;
-    btn.dataset.pBound = '1';
-    btn.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); openP(btn); });
+  $('[data-pclear]', pm).addEventListener('click', function () { var t = pTarget; closeP(); if (t) applyPhoto(t, ''); });
+  $('[data-pcancel]', pm).addEventListener('click', closeP);
+  pm.addEventListener('click', function (e) { if (e.target === pm) closeP(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && pm.classList.contains('open')) closeP(); });
+  function bindPhotoBtn(btn) {
+    if (btn.dataset.pBound) return; btn.dataset.pBound = '1';
+    btn.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); openP(btn); });
   }
-  document.querySelectorAll('[data-upick],[data-apick]').forEach(flBindPhotoBtn);
+  $$('[data-upick],[data-apick]').forEach(bindPhotoBtn);
 
-  // Model drawer photo set: upload, remove, saved with "Save model".
-  document.querySelectorAll('[data-pset-wrap]').forEach(function(wrap){
-    var hidden = wrap.querySelector('[data-mf="photos"]');
-    var mainEl = wrap.querySelector('[data-pset-main]');
-    var strip  = wrap.querySelector('[data-pset]');
-    var file   = wrap.querySelector('[data-pset-file]');
-    function list(){ try { var l = JSON.parse(hidden.value || '[]'); return Array.isArray(l) ? l : []; } catch (e) { return []; } }
-    function setMain(url){
-      mainEl.value = url || '';
-      mainEl.dispatchEvent(new Event('change', { bubbles: false }));
-      draw();
-    }
-    function save(l){
+  /* ---------------------------------------------------------- model photo set (in the drawer; saved with Save model) */
+  $$('[data-pset-wrap]').forEach(function (wrap) {
+    var d = wrap.closest('[data-model-drawer]');
+    var hidden = $('[data-mf="photos"]', wrap), mainEl = $('[data-pset-main]', wrap), strip = $('[data-pset]', wrap), file = $('[data-pset-file]', wrap);
+    function list() { return parseList(hidden.value); }
+    function dirty() { if (d && d.__markDirty) { d.__markDirty(hidden); d.__markDirty(mainEl); } }
+    function setMain(url) { mainEl.value = url || ''; dirty(); draw(); }
+    function save(l) {
       hidden.value = JSON.stringify(l);
-      // Main must be one of the photos; fall back to the first.
-      if (l.indexOf(mainEl.value) === -1) {
-        mainEl.value = l.length ? l[0] : '';
-        mainEl.dispatchEvent(new Event('change', { bubbles: false }));
-      }
-      draw();
-      hidden.dispatchEvent(new Event('change', { bubbles: false }));
+      if (l.indexOf(mainEl.value) === -1) mainEl.value = l.length ? l[0] : '';
+      dirty(); draw();
     }
-    function draw(){
-      var l = list();
-      strip.textContent = '';
-      l.forEach(function(url, i){
-        var it = document.createElement('div');
-        it.className = 'fl-pset-item' + (url === mainEl.value ? ' is-main' : '');
-        it.style.backgroundImage = "url('" + url + "')";
-        if (url === mainEl.value) {
-          var tag = document.createElement('span'); tag.className = 'fl-pset-main'; tag.textContent = 'Main';
-          it.appendChild(tag);
-        }
-        var star = document.createElement('button');
-        star.type = 'button'; star.className = 'fl-pset-star'; star.textContent = '\u2605';
-        star.title = url === mainEl.value ? 'This is the main photo' : 'Make this the main photo';
-        star.addEventListener('click', function(){ setMain(url); });
-        it.appendChild(star);
-        var x = document.createElement('button');
-        x.type = 'button'; x.className = 'fl-pset-x'; x.textContent = '\u2715';
-        x.title = 'Remove from the set (units using it keep their photo until changed)';
-        x.addEventListener('click', function(){ var n = list(); n.splice(i, 1); save(n); });
-        it.appendChild(x);
-        strip.appendChild(it);
+    function draw() {
+      var l = list(); strip.textContent = '';
+      l.forEach(function (url, i) {
+        var it = document.createElement('div'); it.className = 'rf-ph' + (url === mainEl.value ? ' main' : ''); it.style.backgroundImage = "url('" + url + "')";
+        var st = document.createElement('button'); st.type = 'button'; st.className = 'st'; st.textContent = url === mainEl.value ? '★' : '☆';
+        st.title = url === mainEl.value ? 'This is the main photo' : 'Make this the main photo'; st.setAttribute('aria-label', st.title);
+        st.addEventListener('click', function () { setMain(url); });
+        var rm = document.createElement('button'); rm.type = 'button'; rm.className = 'rm'; rm.textContent = '×';
+        rm.title = 'Remove from the set (units using it keep their photo until changed)'; rm.setAttribute('aria-label', 'Remove photo');
+        rm.addEventListener('click', function () { var n = list(); n.splice(i, 1); save(n); });
+        it.appendChild(st); it.appendChild(rm); strip.appendChild(it);
       });
+      var acts = wrap.querySelector('.rf-photos-act');
+      if (!acts) { acts = document.createElement('div'); acts.className = 'rf-photos-act'; wrap.appendChild(acts); }
+      acts.textContent = '';
       if (l.length < 8) {
-        var add = document.createElement('button');
-        add.type = 'button'; add.className = 'ia-btn ia-btn--sm'; add.textContent = '+ Upload';
-        add.addEventListener('click', function(){ file.click(); });
-        strip.appendChild(add);
-        var lib = document.createElement('button');
-        lib.type = 'button'; lib.className = 'ia-btn ia-btn--sm'; lib.textContent = '+ From library';
-        lib.addEventListener('click', function(){
-          pTarget = null; pChosen = null;
-          pModelId = wrap.getAttribute('data-model-photos');
-          pTab = 'lib';
-          drawTab();
-          pmodal.classList.add('open');
-        });
-        strip.appendChild(lib);
-      } else {
-        var max = document.createElement('span');
-        max.style.cssText = 'font-size:11px;opacity:.45'; max.textContent = '8 max';
-        strip.appendChild(max);
-      }
+        var up = document.createElement('button'); up.type = 'button'; up.className = 'ia-btn ia-btn--sm'; up.textContent = '+ Upload';
+        up.addEventListener('click', function () { file.click(); }); acts.appendChild(up);
+        var lib = document.createElement('button'); lib.type = 'button'; lib.className = 'ia-btn ia-btn--sm'; lib.textContent = '+ From library';
+        lib.addEventListener('click', function () { pTarget = null; pChosen = null; pModelId = wrap.getAttribute('data-model-photos'); pTab = 'lib'; drawTab(); pm.classList.add('open'); });
+        acts.appendChild(lib);
+      } else { var mx = document.createElement('span'); mx.className = 'rf-colon'; mx.textContent = '8 max'; acts.appendChild(mx); }
     }
-    wrap.__psetDraw = draw;
-    file.addEventListener('change', function(){
+    wrap.__draw = draw;
+    file.addEventListener('change', function () {
       if (!file.files || !file.files[0]) return;
-      var fd = new FormData();
-      fd.append('file', file.files[0]);
-      fd.append('type', 'general');
-      showToast('Uploading\u2026', 'busy');
-      fetch('{{ route('tenant.uploads.store') }}', {method:'POST', headers:{'X-CSRF-TOKEN':csrf,'Accept':'application/json'}, body:fd})
-        .then(function(r){ return r.json(); })
-        .then(function(j){
-          if (!j || !j.url) { showToast(j && j.message ? j.message : 'Upload failed.', 'err'); return; }
-          var l = list();
-          l.push(j.url);
-          if (!mainEl.value) mainEl.value = j.url; // first photo becomes main
-          save(l);
-          showToast('Added \u2014 Save model to keep it', 'ok');
+      var fd = new FormData(); fd.append('file', file.files[0]); fd.append('type', 'general');
+      toast('Uploading…', false, true);
+      fetch(URL_UP, { method: 'POST', headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' }, body: fd })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (!j || !j.url) { toast(j && j.message ? j.message : 'Upload failed.', true); return; }
+          var l = list(); l.push(j.url); if (!mainEl.value) mainEl.value = j.url;
+          save(l); toast('Added — Save model to keep it');
         })
-        .catch(function(){ showToast('Upload failed \u2014 check your connection.', 'err'); });
+        .catch(function () { toast('Upload failed — check your connection.', true); });
       file.value = '';
     });
     draw();
   });
-
-  // add units without losing your place: post by
-  // fetch, prepend the new rows, clear the inputs, keep the form open.
-  document.querySelectorAll('[data-add-form]').forEach(function(form){
-    var units = form.closest('.fl-units');
-    var btn   = form.querySelector('button[type="submit"]');
-    form.addEventListener('submit', function(e){
-      e.preventDefault();
-      if (btn.disabled) return;
-      btn.disabled = true;
-      showToast('Adding\u2026', 'busy');
-      fetch(form.getAttribute('action'), {
-        method: 'POST',
-        body: new FormData(form),
-        headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
-      })
-        .then(function(r){ return r.json(); })
-        .then(function(j){
-          btn.disabled = false;
-          if (!j || j.success === false) { showToast((j && j.message) || 'Could not add units.', 'err'); return; }
-
-          var head  = units.querySelector('[data-uhead]');
-          var grid  = head ? head.style.gridTemplateColumns : '';
-          var names = [];
-          form.querySelectorAll('.fl-ident-fg input').forEach(function(i){
-            var m = /^ident\[(.+)\]$/.exec(i.getAttribute('name') || '');
-            if (m) names.push(m[1]);
-          });
-
-          (j.units || []).slice().reverse().forEach(function(u){
-            var a = document.createElement('a');
-            a.className = 'fl-uline';
-            a.setAttribute('data-unit', u.id);
-            a.setAttribute('data-uvals', JSON.stringify(u.values || {}));
-            a.href = u.url;
-            if (grid) a.style.gridTemplateColumns = grid;
-
-            function span(txt, cls){ var s = document.createElement('span'); if (cls) s.className = cls; s.textContent = txt; a.appendChild(s); return s; }
-            var pcell = document.createElement('span');
-            pcell.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); });
-            var pb = document.createElement('button');
-            pb.type = 'button'; pb.className = 'fl-pbtn' + (u.photo ? ' has' : '');
-            pb.setAttribute('data-upick', form.querySelector('[data-apick]').getAttribute('data-apick'));
-            pb.setAttribute('data-photo', u.photo || '');
-            pb.title = 'Photo';
-            if (u.photo) pb.style.backgroundImage = "url('" + u.photo + "')"; else pb.textContent = '\u25A3';
-            pcell.appendChild(pb); a.appendChild(pcell);
-            flBindPhotoBtn(pb);
-            span(u.identifier || '\u2014', 'fl-mono');
-            span(u.size || '\u2014');
-            names.forEach(function(n){
-              var cell = document.createElement('span');
-              cell.className = 'fl-ui-cell';
-              cell.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); });
-              var i = document.createElement('input');
-              i.setAttribute('data-ui', n);
-              i.placeholder = '\u2014';
-              i.title = n + ' \u2014 saves on change';
-              i.style.minWidth = '0';
-              i.value = (u.values && u.values[n]) || '';
-              cell.appendChild(i);
-              a.appendChild(cell);
-            });
-            var cond = span('', 'fl-cond');
-            var none = document.createElement('span'); none.style.opacity = '.3'; none.textContent = 'no incidents'; cond.appendChild(none);
-            var st = document.createElement('span');
-            var pill = document.createElement('span'); pill.className = 'pill av'; pill.textContent = 'Available'; st.appendChild(pill);
-            a.appendChild(st);
-            span('never').style.opacity = '.55';
-            span('\u2014').style.opacity = '.55';
-            span('History', 'fl-ulink');
-
-            units.insertBefore(a, units.querySelector('.fl-add-line'));
-            flBindIdentCells(a);
-          });
-
-          // Counters follow without a reload.
-          var card = units.closest('.fl-model');
-          var cEl  = card && card.querySelector('[data-unit-count]');
-          var aEl  = card && card.querySelector('[data-avail-count]');
-          if (cEl) cEl.textContent = j.unit_count + ' unit' + (j.unit_count === 1 ? '' : 's');
-          if (aEl) aEl.textContent = j.avail_count + ' free';
-
-          // Ready for the next batch: qty back to 1, numbering continues,
-          // tag prefix and identifier values stay.
-          var qty = form.querySelector('[name="count"]');
-          var st2 = form.querySelector('[name="start_number"]');
-          var sz  = form.querySelector('[name="size"]');
-          if (qty) qty.value = 1;
-          if (st2 && j.next_start != null) st2.value = j.next_start;
-          if (sz) sz.value = '';
-          showToast(j.message || 'Added \u2713', 'ok');
-          if (qty) qty.focus();
-        })
-        .catch(function(){ btn.disabled = false; showToast("Couldn't add units \u2014 check your connection and retry.", 'err'); });
-    });
-  });
-
-  // identifier chips in the model drawer (3 max).
-  document.querySelectorAll('[data-idf-wrap]').forEach(function(wrap){
-    var hidden = wrap.querySelector('[data-mf="identifiers"]');
-    var chipsAt = wrap.querySelector('[data-idf-chips]');
-    var newInp  = wrap.querySelector('[data-idf-new]');
-    var addBtn  = wrap.querySelector('[data-idf-add]');
-    var maxNote = wrap.querySelector('[data-idf-max]');
-    function list(){ try { var l = JSON.parse(hidden.value || '[]'); return Array.isArray(l) ? l : []; } catch (e) { return []; } }
-    function save(l){ hidden.value = JSON.stringify(l); draw(); hidden.dispatchEvent(new Event('change', { bubbles: false })); }
-    function draw(){
-      var l = list();
-      chipsAt.textContent = '';
-      l.forEach(function(name, i){
-        var c = document.createElement('span'); c.className = 'fl-idf-chip';
-        var t = document.createElement('span'); t.textContent = name; c.appendChild(t);
-        var x = document.createElement('button'); x.type = 'button'; x.className = 'fl-idf-x'; x.textContent = '\u2715';
-        x.title = 'Remove ' + name + ' (unit values are kept, hidden until re-added)';
-        x.addEventListener('click', function(){ var n = list(); n.splice(i, 1); save(n); });
-        c.appendChild(x);
-        chipsAt.appendChild(c);
-      });
-      var full = l.length >= 3;
-      newInp.style.display = full ? 'none' : '';
-      addBtn.style.display = full ? 'none' : '';
-      maxNote.style.display = full ? '' : 'none';
-    }
-    // inline errors + ✓ visibility.
-    var errEl = wrap.querySelector('[data-idf-err]');
-    var addwrapEl = wrap.querySelector('[data-idf-addwrap]');
-    var RESERVED = ['size', 'serial', 'tag', 'serial / tag', 'status', 'condition', 'identifier'];
-    function err(msg){ if (errEl) { errEl.textContent = msg; errEl.style.display = ''; } }
-    function commit(){
-      var v = newInp.value.trim().slice(0, 30);
-      if (!v) return;
-      var l = list();
-      if (RESERVED.indexOf(v.toLowerCase()) !== -1) { err('\u201C' + v + '\u201D is already a built-in column.'); return; }
-      if (l.indexOf(v) !== -1) { err('\u201C' + v + '\u201D is already added.'); return; }
-      if (l.length >= 3) return;
-      l.push(v); newInp.value = '';
-      if (addwrapEl) addwrapEl.classList.remove('has-text');
-      save(l);
-    }
-    addBtn.addEventListener('click', commit);
-    newInp.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); commit(); } });
-    newInp.addEventListener('input', function(){
-      if (addwrapEl) addwrapEl.classList.toggle('has-text', newInp.value.trim() !== '');
-      if (errEl) errEl.style.display = 'none';
-    });
-    draw();
-  });
-  // size-axis help popovers (click toggles, outside closes).
-  document.querySelectorAll('[data-axis-help] .fl-help-dot').forEach(function(dot){
-    dot.addEventListener('click', function(e){
-      e.stopPropagation();
-      var h = dot.closest('[data-axis-help]');
-      document.querySelectorAll('[data-axis-help].open').forEach(function(o){ if (o !== h) o.classList.remove('open'); });
-      h.classList.toggle('open');
-    });
-  });
-  document.addEventListener('click', function(){
-    document.querySelectorAll('[data-axis-help].open').forEach(function(o){ o.classList.remove('open'); });
-  });
-  // in-app dialogs, no browser prompts.
-  window.flDeleteCategory = function(id){
-    IntakeConfirm.show({ title: 'Delete this category?', message: 'It must be empty (no models) first.', confirmText: 'Delete', danger: true }).then(function(ok){
-      if(!ok) return;
-      fetch('{{ url('admin/rentals/fleet/categories') }}/'+id, {method:'POST', headers:{'X-CSRF-TOKEN':csrf,'Accept':'application/json','X-HTTP-Method-Override':'DELETE'}})
-        .then(function(r){return r.json();}).then(function(j){ if(j.success) location.reload(); else IntakeConfirm.alert({ title: 'Delete failed', message: j.message||'Could not delete.' }); });
-    });
-  };
-  window.flDeleteChecklist = function(id){
-    IntakeConfirm.show({ title: 'Delete this checklist?', message: 'Models using it fall back to no checklist; past condition checks are unaffected.', confirmText: 'Delete', danger: true }).then(function(ok){
-      if(!ok) return;
-      fetch('{{ url('admin/rentals/fleet/condition-templates') }}/'+id, {method:'POST', headers:{'X-CSRF-TOKEN':csrf,'Accept':'application/json','X-HTTP-Method-Override':'DELETE'}})
-        .then(function(r){return r.json();}).then(function(j){ if(j.success) location.reload(); else IntakeConfirm.alert({ title: 'Delete failed', message: j.message||'Could not delete.' }); });
-    });
-  };
-  window.flArchiveModel = function(id){
-    IntakeConfirm.show({ title: 'Archive this model?', message: 'Its units must already be archived.', confirmText: 'Archive', danger: true }).then(function(ok){
-      if(!ok) return;
-      fetch('{{ url('admin/rentals/fleet/models') }}/'+id, {method:'POST', headers:{'X-CSRF-TOKEN':csrf,'Accept':'application/json','X-HTTP-Method-Override':'DELETE'}})
-        .then(function(r){return r.json();}).then(function(j){ if(j.success) location.reload(); else IntakeConfirm.alert({ title: 'Archive failed', message: j.message||'Could not archive.' }); });
-    });
-  };
 })();
 </script>
-
-@endsection
+@endpush

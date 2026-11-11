@@ -127,6 +127,7 @@ class RentalBookingController extends Controller
             'out'       => (clone $countBase)->where('status', 'out')->count(),
             'upcoming'  => (clone $countBase)->where('status', 'reserved')->count(),
             'done'      => (clone $countBase)->whereIn('status', ['returned', 'cancelled'])->count(),
+            'all'       => (clone $countBase)->count(),
         ];
 
         $categories = \App\Models\Tenant\TenantRentalCategory::where('tenant_id', $tenant->id)
@@ -295,7 +296,7 @@ class RentalBookingController extends Controller
             ->where('id', $id)
             ->with([
                 'customer',
-                'lines',
+                'lines.unit.model',
                 // money = linked register sales.
                 'sales' => fn ($q) => $q->orderBy('created_at')->with([
                     'payments' => fn ($p) => $p->orderBy('recorded_at'),
@@ -345,7 +346,15 @@ class RentalBookingController extends Controller
         }
         $feed = $feed->filter(fn ($e) => $e['at'])->sortByDesc('at')->values();
 
-        return view('tenant.rentals.bookings.show', compact('rental', 'feed'));
+        // for the customer card: how many other rentals they've had here.
+        $priorRentals = $rental->customer_id
+            ? TenantRental::where('tenant_id', $tenant->id)
+                ->where('customer_id', $rental->customer_id)
+                ->where('id', '!=', $rental->id)
+                ->where('status', '!=', 'cancelled')->count()
+            : 0;
+
+        return view('tenant.rentals.bookings.show', compact('rental', 'feed', 'priorRentals'));
     }
 
     // ------------------------------------------ check-out flow (PATCH-232)
