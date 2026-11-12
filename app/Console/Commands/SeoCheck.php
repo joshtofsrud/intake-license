@@ -218,7 +218,10 @@ class SeoCheck extends Command
             foreach ($m[1] as $json) {
                 $d = json_decode(trim($json), true);
                 if (! is_array($d)) { $p[] = $path . ' has structured data that does not parse'; continue; }
-                $types[] = $d['@type'] ?? null;
+                // MARKER-ITEM-SEO: an item page carries Product and BreadcrumbList together in one @graph
+                foreach (isset($d['@graph']) && is_array($d['@graph']) ? $d['@graph'] : [$d] as $node) {
+                    $types[] = is_array($node) ? ($node['@type'] ?? null) : null;
+                }
             }
         }
         if ($needType && ! in_array($needType, $types, true)) {
