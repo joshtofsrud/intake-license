@@ -3389,6 +3389,17 @@ class RegisterController extends Controller
             );
             $refundRow->stripe_refund_id = $stripeRefund->id;
             $refundRow->save();
+
+            // MARKER-DESTINATION-TAX: tax Stripe Tax was told about comes back out of its report with the refund
+            try {
+                $ord = \App\Models\Tenant\TenantOrder::query()->where('sale_id', $original->id)->first();
+                $ti  = (array) (((array) ($ord?->metadata ?? []))['tax'] ?? []);
+                if (($ti['source'] ?? null) === 'stripe' && ! empty($ti['transaction_id']) && (int) $refundRow->tax_cents !== 0) {
+                    \App\Services\Tenant\StripeTax::reverse($tenant, $ti['transaction_id'], 'refund-' . $refundRow->id, abs((int) $refundRow->tax_cents));
+                }
+            } catch (\Throwable $e) {
+                Log::error('stripe_tax.reverse_hook_failed', ['refund_sale_id' => $refundRow->id, 'error' => $e->getMessage()]);
+            }
             return null;
         } catch (\Throwable $e) {
             Log::error('direct_payments.refund_failed', [

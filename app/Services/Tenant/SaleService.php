@@ -121,6 +121,8 @@ class SaleService
                 // clamps it to the subtotal once the lines exist.
                 'sale_discount_cents'    => max(0, (int) ($data['sale_discount_cents'] ?? 0)),
                 'discount_redemption_id' => $data['discount_redemption_id'] ?? null,
+                // MARKER-DESTINATION-TAX: tax decided elsewhere (Stripe Tax) rides on the lines as given
+                'tax_locked'             => (bool) ($data['tax_locked'] ?? false),
             ]);
 
             $position = 0;

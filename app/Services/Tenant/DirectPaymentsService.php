@@ -488,6 +488,12 @@ class DirectPaymentsService
         return $out;
     }
 
+    /** MARKER-DESTINATION-TAX: the shop's own Stripe client, for Stripe Tax. */
+    public function stripe(): StripeClient
+    {
+        return $this->client();
+    }
+
     protected function client(): StripeClient
     {
         $key = $this->activeSecretKey();

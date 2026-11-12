@@ -84,6 +84,11 @@ class StorefrontSettingsController extends Controller
                 'install_default'     => \App\Services\Tenant\OrderService::DEFAULT_INSTALL_LABEL,
                 // tax / payments
                 'tax_delivery_fee'    => $oc['tax_delivery_fee'],
+                // MARKER-DESTINATION-TAX
+                'tax_mode'            => $oc['tax_mode'],
+                'stripe_tax_code'     => (string) ($s['stripe_tax_code'] ?? ''),
+                'dp_enabled'          => (bool) $tenant->direct_payments_enabled,
+                'tax_test_zip'        => \App\Services\Shipping\ShippingRates::zip((string) ($tenant->defaultLocation?->postal_code ?? '')),
                 'hold_hours'          => $oc['hold_hours'],
                 'auto_refund'         => $oc['auto_refund'],
                 // messages + wording
@@ -123,6 +128,18 @@ class StorefrontSettingsController extends Controller
      * POST /storefront/carrier-test — MARKER-SHIPPING-RATES. Checks the carrier details
      * typed on the page (a blank secret falls back to the saved one) without saving them.
      */
+    /** POST /storefront/tax-test — MARKER-DESTINATION-TAX. Does Stripe Tax answer for this shop? */
+    public function testTax(Request $request)
+    {
+        $this->guard();
+        $in = $request->validate(['zip' => ['required', 'regex:/^\d{5}$/'], 'state' => ['nullable', 'string', 'max:40']],
+            ['zip.required' => 'Enter a ZIP code to test with.', 'zip.regex' => 'Enter a 5-digit ZIP code.']);
+        if (! tenant()->direct_payments_enabled) {
+            return response()->json(['ok' => false, 'message' => 'Card payments are not turned on, so Stripe Tax is not available yet.']);
+        }
+        return response()->json(\App\Services\Tenant\StripeTax::test(tenant(), $in['zip'], strtoupper(trim((string) ($in['state'] ?? '')))));
+    }
+
     public function testCarrier(Request $request)
     {
         $this->guard();
@@ -270,6 +287,15 @@ class StorefrontSettingsController extends Controller
                 break;
 
             case 'tax':
+                $t = $request->validate([
+                    'tax_mode'        => ['nullable', 'in:rate,stripe'],
+                    'stripe_tax_code' => ['nullable', 'regex:/^txcd_\d{8}$/'],
+                ], ['stripe_tax_code.regex' => 'A Stripe tax code looks like txcd_99999999.']);
+                if (($t['tax_mode'] ?? 'rate') === 'stripe' && ! $tenant->direct_payments_enabled) {
+                    return back()->withInput()->with('ecom_tab', $tab)->with('error', 'Stripe Tax needs card payments turned on first (Settings › Payments).');
+                }
+                $sf['tax_mode']        = $t['tax_mode'] ?? 'rate';
+                $sf['stripe_tax_code'] = trim((string) ($t['stripe_tax_code'] ?? ''));
                 $sf['tax_delivery_fee'] = $request->boolean('tax_delivery_fee');
                 $msg = 'Tax settings saved.';
                 break;

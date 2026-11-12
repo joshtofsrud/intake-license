@@ -176,6 +176,7 @@
         <div class="sum-line"><span>{{ !empty($quotePickup['discount_code']) ? 'Discount (' . $quotePickup['discount_code'] . ')' : 'Discount' }}</span><span id="s-disc">&minus;{{ $money($quotePickup['discount_cents']) }}</span></div>
       @endif
       <div class="sum-line"><span>Tax</span><span id="s-tax">{{ $money($quotePickup['tax_cents']) }}</span></div>
+      <div id="s-taxnote" style="display:none;font-size:11.5px;opacity:.6;margin:-4px 0 6px">Tax is figured for your shipping address.</div>
       <div class="sum-line" id="s-fee-row" style="display:none"><span id="s-fee-label">Delivery</span><span id="s-fee">{{ $money($quoteDelivery['shipping_cents']) }}</span></div>
       <div class="sum-line total"><span>Total</span><span id="s-total">{{ $money($quotePickup['total_cents']) }}</span></div>
     </div>
@@ -196,6 +197,7 @@
   // MARKER-SHIPPING-RATES: when the shop prices shipping by weight or carrier, the options
   // come from the server for the address typed, and the shopper picks one per shipment.
   var RATED = @json(($shipMode ?? 'flat') !== 'flat');
+  var TAXDEST = @json((bool) ($taxDest ?? false));      // MARKER-DESTINATION-TAX: tax follows the shipping address
   var CHOICES = {}, rateTimer = null, rateSeq = 0, ratesReady = !RATED;
 
   function shipments(q) {
@@ -231,7 +233,7 @@
 
   // price the shipments for the address typed so far, and refresh the totals
   function fetchRates(immediate) {
-    if (!RATED || ful !== 'ship') return;
+    if (!(RATED || TAXDEST) || ful !== 'ship') return;
     clearTimeout(rateTimer);
     var run = async function () {
       var zip = shipZip();
@@ -242,7 +244,7 @@
       try {
         var res = await fetch('/checkout/shipping-rates', { method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': @json(csrf_token()) },
-          body: JSON.stringify({ zip: zip, state: document.getElementById('f-sstate').value.trim(), choices: CHOICES }) });
+          body: JSON.stringify({ zip: zip, state: document.getElementById('f-sstate').value.trim(), line1: document.getElementById('f-sl1').value.trim(), city: document.getElementById('f-scity').value.trim(), choices: CHOICES }) });
         data = await res.json();
       } catch (e) { data = null; }
       if (seq !== rateSeq) return;                       // a newer request is already on its way
@@ -272,6 +274,7 @@
     var q = QUOTES[kind];
     document.getElementById('s-fee').textContent = (kind === 'ship' && RATED && !ratesReady) ? 'Enter ZIP' : money(q.shipping_cents || 0);
     document.getElementById('s-tax').textContent = money(q.tax_cents);
+    document.getElementById('s-taxnote').style.display = (kind === 'ship' && TAXDEST) ? 'block' : 'none';
     document.getElementById('s-total').textContent = money(q.total_cents);
     shipments(kind === 'ship' ? q : null);
     // lines only a supplier can supply can't be picked up or delivered locally
@@ -282,10 +285,11 @@
     if (kind === 'ship' && !keepRates) fetchRates(true);
   }
   ['f-szip', 'f-sstate'].forEach(function (id) { document.getElementById(id).addEventListener('input', function () { fetchRates(false); }); });
+  ['f-sl1', 'f-scity'].forEach(function (id) { document.getElementById(id).addEventListener('change', function () { if (TAXDEST || RATED) fetchRates(true); }); });
   document.querySelectorAll('.ful input').forEach(function (r) {
     r.addEventListener('change', function () { pickFul(r.value); });
   });
-  if (ful !== 'pickup' || SHIP_ONLY || RATED) pickFul(ful); // start on whatever is offered first, and apply the ships-only notice
+  if (ful !== 'pickup' || SHIP_ONLY || RATED || TAXDEST) pickFul(ful); // start on whatever is offered first, and apply the ships-only notice
 
   function fail(msg) {
     var e = document.getElementById('err');

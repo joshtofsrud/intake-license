@@ -59,6 +59,7 @@ class CheckoutController extends Controller
             'quoteShip'     => $cfgNow['ship_enabled'] ? $orders->quote($cart, 'ship') : null,
             'shipOnly'      => $shipOnly,
             'shipMode'      => \App\Services\Shipping\ShippingRates::config($tenant)['mode'], // MARKER-SHIPPING-RATES
+            'taxDest'       => $cfgNow['tax_mode'] === 'stripe', // MARKER-DESTINATION-TAX
             'config'   => $orders->config(),
             'special'  => $stock['special'],
             'stripePk' => $pk,
@@ -77,6 +78,8 @@ class CheckoutController extends Controller
         $in = $request->validate([
             'zip'       => ['required', 'regex:/^\d{5}(-\d{4})?$/'],
             'state'     => ['nullable', 'string', 'max:40'],
+            'line1'     => ['nullable', 'string', 'max:120'],
+            'city'      => ['nullable', 'string', 'max:80'],
             'choices'   => ['nullable', 'array'],
             'choices.*' => ['nullable', 'string', 'max:80'],
         ], ['zip.regex' => 'Please enter a 5-digit ZIP code.', 'zip.required' => 'Enter a ZIP code to see shipping options.']);
@@ -88,7 +91,7 @@ class CheckoutController extends Controller
         $orders = OrderService::forTenant($tenant);
         abort_unless($orders->config()['ship_enabled'], 422, 'Shipping is not available.');
 
-        $q = $orders->quote($cart, 'ship', ['address' => ['zip' => substr($in['zip'], 0, 5), 'state' => strtoupper(trim((string) ($in['state'] ?? '')))], 'choices' => (array) ($in['choices'] ?? [])]);
+        $q = $orders->quote($cart, 'ship', ['address' => ['zip' => substr($in['zip'], 0, 5), 'state' => strtoupper(trim((string) ($in['state'] ?? ''))), 'line1' => trim((string) ($in['line1'] ?? '')), 'city' => trim((string) ($in['city'] ?? ''))], 'choices' => (array) ($in['choices'] ?? [])]);
         return response()->json([
             'ok'        => true,
             'shipments' => array_map(fn ($s) => [
@@ -197,7 +200,7 @@ class CheckoutController extends Controller
                 'address'       => $shipAddress ?? (filled($data['address'] ?? null) ? ['line' => $data['address']] : null),
                 'notes'         => $data['notes'] ?? null,
                 'wants_install' => (bool) ($data['wants_install'] ?? false),
-                'ship'          => $shipAddress ? ['address' => ['zip' => substr($shipAddress['zip'], 0, 5), 'state' => $shipAddress['state']], 'choices' => (array) ($data['ship_choices'] ?? [])] : null,
+                'ship'          => $shipAddress ? ['address' => ['zip' => substr($shipAddress['zip'], 0, 5), 'state' => $shipAddress['state'], 'line1' => $shipAddress['line1'], 'city' => $shipAddress['city']], 'choices' => (array) ($data['ship_choices'] ?? [])] : null,
             ], $manualMethod);
         } catch (\App\Exceptions\ShippingChoiceException $e) {
             // MARKER-SHIPPING-RATES: nothing was charged; the page re-fetches the options

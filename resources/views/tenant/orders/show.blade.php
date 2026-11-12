@@ -65,6 +65,13 @@
       @endforeach
       <div class="od-tot"><span>Subtotal</span><span>{{ $money($order->subtotal_cents) }}</span></div>
       <div class="od-tot"><span>Tax</span><span>{{ $money($order->tax_cents) }}</span></div>
+      {{-- MARKER-DESTINATION-TAX: where this order's tax came from --}}
+      @php $ti = (array) (((array) ($order->metadata ?? []))['tax'] ?? []); @endphp
+      @if(($ti['source'] ?? 'rate') === 'stripe')
+        <div style="font-size:11.5px;color:var(--ia-text-muted);margin:-2px 0 6px">Tax figured for the shipping address by Stripe Tax{{ ! empty($ti['jurisdictions']) ? ': ' . implode(', ', $ti['jurisdictions']) : '' }}.@if(! empty($ti['record_failed'])) <b style="color:#A32D2D">It could not be recorded in Stripe Tax for filing — check your Stripe dashboard.</b>@endif</div>
+      @elseif(($ti['source'] ?? 'rate') === 'fallback')
+        <div style="font-size:11.5px;color:#A32D2D;margin:-2px 0 6px">Stripe Tax could not be reached, so this order was taxed at your shop rate, not the destination's. Check what is owed for where it shipped.</div>
+      @endif
       @if($order->shipping_cents > 0)<div class="od-tot"><span>{{ $order->fulfillment_type === 'ship' ? 'Shipping' : 'Delivery fee' }}</span><span>{{ $money($order->shipping_cents) }}</span></div>@endif
       <div class="od-tot g"><span>Total</span><span>{{ $money($order->total_cents) }}</span></div>
     </div>

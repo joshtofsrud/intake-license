@@ -52,6 +52,9 @@ class OrderService
                 ? max(0, (int) $s['ship_fee_supplier_cents']) : null,
             'ship_free_over_cents' => (isset($s['ship_free_over_cents']) && $s['ship_free_over_cents'] !== '' && $s['ship_free_over_cents'] !== null)
                 ? (int) $s['ship_free_over_cents'] : null,
+            // MARKER-DESTINATION-TAX: shipped orders taxed by destination through Stripe Tax
+            'tax_mode'            => (($s['tax_mode'] ?? 'rate') === 'stripe') ? 'stripe' : 'rate',
+            'stripe_tax_code'     => preg_match('/^txcd_\d{8}$/', (string) ($s['stripe_tax_code'] ?? '')) ? $s['stripe_tax_code'] : StripeTax::GOODS,
         ];
     }
 
@@ -143,9 +146,34 @@ class OrderService
             $shipments = $this->shipmentSummary($cart, $alloc, $meta, max(0, $subtotal - $discount), $cfg, $ship);
             $shipping  = (int) array_sum(array_column($shipments, 'shipping_cents'));
         }
-        $shippingTaxed = $shipping > 0 && $cfg['tax_delivery_fee'] && $rate > 0;
-        if ($shippingTaxed) {
-            $tax += (int) round($shipping * ($rate / 100));
+        // MARKER-DESTINATION-TAX: an order that ships can be taxed where it is going. Stripe works
+        // it out per line (and for the shipping) from the address; anything it can't answer falls
+        // back to the shop's own rate, and the order says so.
+        $taxInfo = ['source' => 'rate'];
+        if ($fulfillmentType === 'ship' && $cfg['tax_mode'] === 'stripe' && ! empty($ship['address']['zip'])) {
+            $lines = [];
+            foreach ($pieces as $i => $p) {
+                $ref  = $p['line']->id . '|' . ($p['key'] ?? '');
+                $base = max(0, (int) $p['gross'] - (int) ($spread[$i] ?? 0));
+                $exempt = ($p['line']->inventoryItem?->tax_class_code ?? null) === 'exempt';
+                if (isset($lines[$ref])) { $lines[$ref]['amount'] += $base; continue; }
+                $lines[$ref] = ['ref' => $ref, 'amount' => $base, 'code' => $exempt ? StripeTax::NONTAXABLE : $cfg['stripe_tax_code']];
+            }
+            $r = StripeTax::calculate($this->tenant, array_values($lines), $shipping, $ship['address']);
+            if ($r['ok']) {
+                $tax = $r['tax_cents'];
+                $taxInfo = ['source' => 'stripe', 'calc_id' => $r['calc_id'], 'lines' => $r['lines'], 'shipping_tax' => $r['shipping_tax'], 'jurisdictions' => $r['jurisdictions']];
+            } else {
+                $taxInfo = ['source' => 'fallback', 'error' => mb_substr((string) $r['error'], 0, 300)];
+            }
+        }
+        if ($taxInfo['source'] === 'stripe') {
+            $shippingTaxed = $taxInfo['shipping_tax'] > 0;
+        } else {
+            $shippingTaxed = $shipping > 0 && $cfg['tax_delivery_fee'] && $rate > 0;
+            if ($shippingTaxed) {
+                $tax += (int) round($shipping * ($rate / 100));
+            }
         }
 
         return [
@@ -156,6 +184,7 @@ class OrderService
             'shipping_cents' => $shipping,
             'shipping_taxed' => $shippingTaxed,
             'shipments'      => $shipments,
+            'tax_info'       => $taxInfo,
             'total_cents'    => max(0, $subtotal - $discount) + $tax + $shipping,
             'tax_rate'       => $rate,
         ];
@@ -400,7 +429,7 @@ class OrderService
                 'total_cents'         => $quote['total_cents'],
                 'payment_method'      => $manualMethod, // null for card
                 // MARKER-ECOM-SETTINGS: remember whether delivery was taxed, so the sale matches what was charged even if the setting changes before payment lands
-                'metadata'            => array_merge((array) ($cart->metadata ?? []), ['delivery_taxed' => (bool) ($quote['shipping_taxed'] ?? false)]),
+                'metadata'            => array_merge((array) ($cart->metadata ?? []), ['delivery_taxed' => (bool) ($quote['shipping_taxed'] ?? false), 'tax' => $quote['tax_info'] ?? ['source' => 'rate']]),
             ])->save();
 
             // MARKER-ORDER-SHIPMENTS: remember exactly how this order will ship, so the sale and the
@@ -617,6 +646,19 @@ class OrderService
         $gross    = (int) $order->items->sum('line_total_cents');
         $discount = max(0, min((int) ($order->discount_cents ?? 0), $gross));
         $alloc    = ShipmentMath::allocate($discount, array_map(fn ($p) => $p['gross'], $pieces));
+        // MARKER-DESTINATION-TAX: tax decided by Stripe at checkout is carried to the sale as it was
+        $tinfo     = (array) (((array) ($order->metadata ?? []))['tax'] ?? []);
+        $stripeTax = ($tinfo['source'] ?? null) === 'stripe';
+        $taxByPiece = [];
+        if ($stripeTax) {
+            // a ref can span several pieces; hand its tax out in proportion to what each piece cost
+            $byRef = [];
+            foreach ($pieces as $i => $p) { $byRef[$p['line']->id . '|' . ($p['key'] ?? '')][] = $i; }
+            foreach ($byRef as $ref => $idxs) {
+                $parts = ShipmentMath::allocate((int) ($tinfo['lines'][$ref] ?? 0), array_map(fn ($i) => max(0, (int) $pieces[$i]['gross'] - (int) ($alloc[$i] ?? 0)), $idxs));
+                foreach ($idxs as $n => $i) { $taxByPiece[$i] = (int) ($parts[$n] ?? 0); }
+            }
+        }
         $lines = [];
         foreach ($pieces as $i => $p) {
             $l = $p['line'];
@@ -628,6 +670,12 @@ class OrderService
                 'unit_price_cents'  => $l->unit_price_cents,
                 'discount_cents'    => (int) ($alloc[$i] ?? 0),
             ];
+            if ($stripeTax) {
+                // MARKER-DESTINATION-TAX: the tax Stripe worked out, spread over this line's pieces
+                $ref = $l->id . '|' . ($p['key'] ?? '');
+                $row['tax_cents'] = (int) ($taxByPiece[$i] ?? 0);
+                $row['is_taxable'] = $row['tax_cents'] > 0;
+            }
             if (($p['meta']['source'] ?? null) === 'supplier') {
                 // shipped by the supplier: the shop's shelf is never touched
                 $row['dropship'] = ['warehouse_id' => $p['meta']['warehouse_id'], 'warehouse' => $p['meta']['warehouse']];
@@ -642,7 +690,7 @@ class OrderService
                 'unit_price_cents' => (int) $order->shipping_cents,
                 // MARKER-ECOM-SETTINGS: taxed only if it was taxed when the order was priced
                 'is_taxable'       => (bool) (((array) ($order->metadata ?? []))['delivery_taxed'] ?? false),
-            ];
+            ] + ($stripeTax ? ['tax_cents' => (int) ($tinfo['shipping_tax'] ?? 0)] : []);
         }
         return $lines;
     }
@@ -736,6 +784,7 @@ class OrderService
                     . ($fresh->wants_install ? ' — customer requested installation' : ''),
                 // MARKER-ORDER-SALE-PARITY: discount, delivery and tax as the customer paid them
                 'discount_redemption_id'   => $fresh->discount_redemption_id,
+                'tax_locked'               => ((((array) ($fresh->metadata ?? []))['tax']['source'] ?? null) === 'stripe'),
                 'items'                    => $this->saleLines($fresh),
             ]);
 
@@ -758,6 +807,22 @@ class OrderService
             // MARKER-ECOM-STOCK-GUARD: the card is charged but no sale could be built.
             // Never leave that quiet: refund, tell the shopper, tell the shop.
             return $this->failedAfterPayment($order, $pi, $e);
+        }
+
+        // MARKER-DESTINATION-TAX: the order is paid, so the tax Stripe worked out becomes a recorded
+        // tax transaction (what Stripe Tax reports and files from). Never allowed to disturb the order.
+        if ($result->sale_id) {
+            try {
+                $tax = (array) (((array) ($result->metadata ?? []))['tax'] ?? []);
+                if (($tax['source'] ?? null) === 'stripe' && ! empty($tax['calc_id']) && empty($tax['transaction_id'])) {
+                    $txId = StripeTax::record($this->tenant, $tax['calc_id'], (string) $result->order_number);
+                    $tax['transaction_id'] = $txId;
+                    $tax['record_failed'] = $txId === null;
+                    $result->forceFill(['metadata' => array_merge((array) ($result->metadata ?? []), ['tax' => $tax])])->save();
+                }
+            } catch (\Throwable $e) {
+                Log::error('online_order.tax_record_failed', ['order_id' => $result->id, 'error' => $e->getMessage()]);
+            }
         }
 
         // MARKER-ECOM-STOCK-GUARD: oversold part of a line -> special order

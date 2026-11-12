@@ -32,7 +32,7 @@
 .ec-note{font-size:12px;color:var(--ia-text-muted);line-height:1.55;max-width:70ch}
 .ec-mini{border-collapse:collapse;font-size:13px}.ec-mini th{font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--ia-text-muted);font-weight:600;text-align:left;padding:0 6px 4px 0}.ec-mini td{padding:2px 6px 2px 0}.ec-mini .ia-input{padding:5px 7px}
 .ec-car{border-bottom:.5px solid var(--ia-border)}.ec-car .ec-carbody{padding-left:14px}.ec-car.off .ec-carbody{display:none}
-#shipRated.hide,#shipTableBox.hide,#shipCarrierBox.hide{display:none}
+#shipRated.hide,#shipTableBox.hide,#shipCarrierBox.hide,#taxStripeBox.hide{display:none}
 .ec-note b{color:var(--ia-text);font-weight:500}
 
 /* toggle — compact, readable off AND on in the light admin theme */
@@ -303,14 +303,14 @@
               <div class="t" style="font-size:13.5px;font-weight:500">Boxes you ship in</div>
               <div class="d" style="font-size:12px;color:var(--ia-text-muted);margin:2px 0 8px;max-width:60ch;line-height:1.5">Items are packed into the smallest of these that fits, and into more boxes when one is not enough. Leave empty to pack by weight alone (up to 70 lb a box).</div>
               <table class="ec-mini" id="boxTbl"><thead><tr><th>Name</th><th>L</th><th>W</th><th>H</th><th>Holds up to</th><th>Empty box</th><th></th></tr></thead><tbody></tbody></table>
-              <button type="button" class="ia-btn ia-btn-ghost" id="boxAdd" style="margin-top:8px">Add a box</button>
+              <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" id="boxAdd" style="margin-top:8px">Add a box</button>
             </div>
 
             <div id="shipTableBox" class="hide" style="padding:11px 0;border-bottom:.5px solid var(--ia-border)">
               <div class="t" style="font-size:13.5px;font-weight:500">Weight table</div>
               <div class="d" style="font-size:12px;color:var(--ia-text-muted);margin:2px 0 8px;max-width:60ch;line-height:1.5">The price for a whole shipment, by its packed weight. A shipment heavier than the last row is charged the flat price above.</div>
               <table class="ec-mini" id="wtTbl"><thead><tr><th>Up to (lb)</th><th>Price</th><th></th></tr></thead><tbody></tbody></table>
-              <button type="button" class="ia-btn ia-btn-ghost" id="wtAdd" style="margin-top:8px">Add a row</button>
+              <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" id="wtAdd" style="margin-top:8px">Add a row</button>
             </div>
 
             <div id="shipCarrierBox" class="hide">
@@ -327,7 +327,7 @@
                       @endforeach
                     </div></div>
                     <div class="ec-row"><div><div class="t" style="font-weight:400">Test mode</div><div class="d">Use the carrier's practice system. Leave off for real prices.</div></div><div class="ctl"><label class="tg"><input type="checkbox" name="carrier[{{ $code }}][sandbox]" value="1" data-sandbox @checked(old("carrier.$code.sandbox", $c['sandbox']))><i></i></label></div></div>
-                    <div class="ec-row"><div class="d" id="ct-{{ $code }}" style="max-width:none">Checks the details above without saving them.</div><div class="ctl"><button type="button" class="ia-btn ia-btn-ghost" data-test="{{ $code }}">Test connection</button></div></div>
+                    <div class="ec-row"><div class="d" id="ct-{{ $code }}" style="max-width:none">Checks the details above without saving them.</div><div class="ctl"><button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" data-test="{{ $code }}">Test connection</button></div></div>
                   </div>
                 </div>
               @endforeach
@@ -403,6 +403,23 @@
       <div class="ec-sec">
         <h3>Sales tax</h3>
         <div class="ec-row"><div><div class="t">Shop rate</div><div class="d">Online orders use the same rate as your register, from Business settings.</div></div><div class="ctl"><b>{{ rtrim(rtrim(number_format($info['tax_rate'], 3), '0'), '.') }}%</b><a class="ia-btn ia-btn--ghost ia-btn--sm" href="{{ route('tenant.settings.index') }}">Change in Business</a></div></div>
+      </div>
+      {{-- MARKER-DESTINATION-TAX --}}
+      <div class="ec-sec">
+        <h3>Tax on shipped orders</h3>
+        <div class="ec-row"><div><div class="t">How shipped orders are taxed</div><div class="d">Use your shop rate for everything, or let Stripe Tax work out the tax from where each order is going. Stripe charges tax only in the states you have added a registration for in your Stripe Tax settings, and records every sale for filing.</div></div><div class="ctl">
+          <select class="ia-select" name="tax_mode" id="taxMode">
+            <option value="rate" @selected(old('tax_mode', $cfg['tax_mode']) === 'rate')>My shop rate</option>
+            <option value="stripe" @selected(old('tax_mode', $cfg['tax_mode']) === 'stripe')>By destination, with Stripe Tax</option>
+          </select></div></div>
+        <div id="taxStripeBox" class="hide">
+          @unless ($cfg['dp_enabled'])
+            <div class="ec-note" style="color:#A32D2D;margin:8px 0">Card payments are not turned on yet, so Stripe Tax can't be used. Turn them on in Settings › Payments first.</div>
+          @endunless
+          <div class="ec-row"><div><div class="t">Default product tax code</div><div class="d">What Stripe treats your items as. Blank uses general goods (txcd_99999999). Items marked exempt in Inventory are never taxed.</div></div><div class="ctl"><input class="ia-input" style="width:150px" name="stripe_tax_code" maxlength="13" value="{{ old('stripe_tax_code', $cfg['stripe_tax_code']) }}" placeholder="txcd_99999999"></div></div>
+          <div class="ec-row"><div class="d" id="taxTestOut" style="max-width:none">Sends a test $100 order to a ZIP code you choose and shows what Stripe would charge.</div><div class="ctl"><input class="ia-input" style="width:90px" id="taxTestZip" maxlength="5" placeholder="ZIP" value="{{ $cfg['tax_test_zip'] }}"><button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" id="taxTestBtn">Test Stripe Tax</button></div></div>
+          <div class="ec-note" style="margin-top:8px"><b>What this changes.</b> Only online orders that ship. In-store sales, pickup and local delivery still use your shop rate. If Stripe can't answer, the order is taxed at your shop rate instead and says so on the order, so checkout never stops. The tax is figured for the address typed at checkout, and the shipping fee is taxed or not as Stripe decides for that state, so the setting below does not apply to shipped orders.</div>
+        </div>
       </div>
       <div class="ec-sec">
         <h3>What gets taxed</h3>
@@ -488,6 +505,21 @@
       if(b.classList.contains('dn') && tr.nextElementSibling) tb.insertBefore(tr.nextElementSibling,tr);
     });
   });
+  // MARKER-DESTINATION-TAX: show the Stripe Tax box, and the test button
+  (function(){
+    var m=document.getElementById('taxMode'); if(!m) return;
+    var box=document.getElementById('taxStripeBox'), g=function(){box.classList.toggle('hide',m.value!=='stripe')};
+    m.addEventListener('change',g); g();
+    document.getElementById('taxTestBtn').addEventListener('click',async function(){
+      var out=document.getElementById('taxTestOut'), b=this; out.textContent='Asking Stripe…'; out.style.color=''; b.disabled=true;
+      try{
+        var res=await fetch(@json(route('tenant.storefront.settings.tax_test')),{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json','X-CSRF-TOKEN':@json(csrf_token())},body:JSON.stringify({zip:document.getElementById('taxTestZip').value.trim()})});
+        var d=await res.json(); if(res.status===422&&d.errors){d={ok:false,message:Object.values(d.errors)[0][0]}}
+        out.textContent=(d.ok?'✓ ':'✗ ')+(d.message||'No answer.'); out.style.color=d.ok?'':'#A32D2D';
+      }catch(e){out.textContent='✗ Could not reach the server. Try again.'; out.style.color='#A32D2D';}
+      b.disabled=false;
+    });
+  })();
   // MARKER-SHIPPING-RATES: pricing mode, box and weight-table rows, carrier test
   (function(){
     var mode=document.getElementById('shipMode'); if(!mode) return;
@@ -499,12 +531,12 @@
       +['l','w','h'].map(function(k){return '<td><input class="ia-input" style="width:58px" inputmode="decimal" name="ship_boxes['+i+']['+k+']" value="'+esc(b[k])+'" placeholder="in"></td>'}).join('')
       +'<td><span class="ec-pre"><input class="ia-input" style="width:64px" inputmode="decimal" name="ship_boxes['+i+'][max_lb]" value="'+esc(b.max_lb)+'" placeholder="70"> lb</span></td>'
       +'<td><span class="ec-pre"><input class="ia-input" style="width:64px" inputmode="decimal" name="ship_boxes['+i+'][tare_oz]" value="'+esc(b.tare_oz)+'" placeholder="0"> oz</span></td>'
-      +'<td><button type="button" class="ia-btn ia-btn-ghost" data-rm>Remove</button></td>';
+      +'<td><button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" data-rm>Remove</button></td>';
       document.querySelector('#boxTbl tbody').appendChild(r);}
     function wtRow(t){t=t||{};var i=ti++;var r=document.createElement('tr');
       r.innerHTML='<td><input class="ia-input" style="width:90px" inputmode="decimal" name="ship_table['+i+'][upto_lb]" value="'+esc(t.upto_lb)+'" placeholder="1"></td>'
       +'<td><span class="ec-pre">$ <input class="ia-input" style="width:90px" inputmode="decimal" name="ship_table['+i+'][price]" value="'+esc(t.price)+'" placeholder="0.00"></span></td>'
-      +'<td><button type="button" class="ia-btn ia-btn-ghost" data-rm>Remove</button></td>';
+      +'<td><button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" data-rm>Remove</button></td>';
       document.querySelector('#wtTbl tbody').appendChild(r);}
     (Array.isArray(BOXES)?BOXES:Object.values(BOXES||{})).forEach(boxRow);
     (Array.isArray(TABLE)?TABLE:Object.values(TABLE||{})).forEach(wtRow);

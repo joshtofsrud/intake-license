@@ -523,6 +523,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::get('/storefront',        [TenantControllers\StorefrontSettingsController::class, 'show'])->name('storefront.settings');
                 Route::post('/storefront',       [TenantControllers\StorefrontSettingsController::class, 'update'])->name('storefront.settings.update');
                 Route::post('/storefront/bulk',  [TenantControllers\StorefrontSettingsController::class, 'bulk'])->name('storefront.settings.bulk');
+                Route::post('/storefront/tax-test', [TenantControllers\StorefrontSettingsController::class, 'testTax'])->name('storefront.settings.tax_test')->middleware('throttle:10,1'); // MARKER-DESTINATION-TAX
                 Route::post('/storefront/carrier-test', [TenantControllers\StorefrontSettingsController::class, 'testCarrier'])->name('storefront.settings.carrier_test')->middleware('throttle:10,1'); // MARKER-SHIPPING-RATES
                 Route::post('/storefront/item/{id}', [TenantControllers\StorefrontSettingsController::class, 'toggleItem'])->name('storefront.item.toggle');
                 // MARKER-ECOM-AVAILABILITY: what is for sale online / may be oversold
