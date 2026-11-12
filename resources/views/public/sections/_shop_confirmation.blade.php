@@ -107,7 +107,9 @@
           <div style="margin-top:8px">
             <b style="display:inline">{{ $ships->count() > 1 ? 'Shipment ' . ($i + 1) . ' · ' : '' }}{{ $sh->source === 'supplier' ? $supLabel : 'Ships from our shop' }}</b>{{ $sh->source === 'supplier' && $sh->handling_days > 0 ? ' — ships in about ' . $sh->handling_days . ' business day' . ($sh->handling_days === 1 ? '' : 's') : '' }}
             @if($sh->service_name)<br>{{ $sh->service_name }}@endif
-            @if($sh->tracking_number)<br>Tracking: {{ $sh->carrier ? $sh->carrier . ' ' : '' }}{{ $sh->tracking_number }}@endif
+            {{-- MARKER-SHIPMENT-WORKFLOW --}}
+            @if(($sh->status ?? 'pending') !== 'pending')<br><b style="display:inline">{{ \App\Services\Tenant\ShipmentFlow::LABELS[$sh->status] ?? $sh->status }}</b>@endif
+            @if($sh->tracking_number)@php $tu = \App\Services\Tenant\ShipmentFlow::trackingUrl($sh->carrier, $sh->tracking_number); @endphp<br>Tracking: {{ \App\Services\Tenant\ShipmentFlow::carriers()[$sh->carrier] ?? '' }} @if($tu)<a href="{{ $tu }}" target="_blank" rel="noopener">{{ $sh->tracking_number }}</a>@else{{ $sh->tracking_number }}@endif @endif
             <br>@foreach($sh->items as $it){{ $it->orderItem?->name_snapshot }} ×{{ $it->quantity }}@if(! $loop->last), @endif @endforeach
           </div>
         @endforeach

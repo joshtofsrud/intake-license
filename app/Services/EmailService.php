@@ -686,6 +686,58 @@ HTML;
 <p style='margin-top:14px'>We're sorry about that. If you'd still like the item, just reply to this email and we'll help you get it.</p>
 <p>— The {$shop} team</p>",
             ],
+            // MARKER-SHIPMENT-WORKFLOW: shipment and refund emails
+            'order_shipped' => [
+                'subject'   => 'Your order has shipped — {{order_number}}',
+                'body_html' => "<p>Hi {{first_name}},</p>
+<p>Good news — {{shipment_label}} from {$shop} is on its way.</p>
+{{items_rows}}
+<table style='font-size:14px;line-height:1.9;margin-top:8px'>
+  <tr><td style='color:#666;padding-right:16px'>Order</td><td><strong>{{order_number}}</strong></td></tr>
+  <tr><td style='color:#666;padding-right:16px'>Carrier</td><td>{{carrier}}</td></tr>
+  <tr><td style='color:#666;padding-right:16px'>Tracking</td><td>{{tracking_html}}</td></tr>
+</table>
+<p>{{what_next}}</p>
+<p style='margin-top:14px'><a href='{{order_url}}' style='color:#111'>View your order</a></p>
+<p>— The {$shop} team</p>",
+            ],
+            'order_out_for_delivery' => [
+                'subject'   => 'Out for delivery today — {{order_number}}',
+                'body_html' => "<p>Hi {{first_name}},</p>
+<p>{{shipment_label}} from {$shop} is out for delivery.</p>
+{{items_rows}}
+<p>Tracking: {{tracking_html}}</p>
+<p>{{what_next}}</p>
+<p style='margin-top:14px'><a href='{{order_url}}' style='color:#111'>View your order</a></p>
+<p>— The {$shop} team</p>",
+            ],
+            'order_special_order' => [
+                'subject'   => 'An update on your order — {{order_number}}',
+                'body_html' => "<p>Hi {{first_name}},</p>
+<p>Some of your order has become a special order with {$shop}:</p>
+{{items_rows}}
+<p>{{what_next}}</p>
+<p style='margin-top:14px'><a href='{{order_url}}' style='color:#111'>View your order</a></p>
+<p>— The {$shop} team</p>",
+            ],
+            'order_shipment_cancelled' => [
+                'subject'   => 'Part of your order was cancelled — {{order_number}}',
+                'body_html' => "<p>Hi {{first_name}},</p>
+<p>We're sorry — we had to cancel part of your order:</p>
+{{items_rows}}
+<p>{{reason}}</p>
+<p><strong>{{money_line}}</strong></p>
+<p style='margin-top:14px'><a href='{{order_url}}' style='color:#111'>View your order</a></p>
+<p>— The {$shop} team</p>",
+            ],
+            'order_refund_issued' => [
+                'subject'   => 'Your refund — {{order_number}}',
+                'body_html' => "<p>Hi {{first_name}},</p>
+<p>We've refunded <strong>{{amount}}</strong> for your order {{order_number}}.</p>
+<p>{{money_line}}</p>
+<p style='margin-top:14px'><a href='{{order_url}}' style='color:#111'>View your order</a></p>
+<p>— The {$shop} team</p>",
+            ],
             'delivery_windows_ready' => [
                 'subject'   => 'Your {{asset_noun}} is ready — pick a delivery window',
                 'body_html' => "<p>Hi {{first_name}},</p>

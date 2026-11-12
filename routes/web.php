@@ -518,6 +518,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::get('/orders',            [TenantControllers\OrdersController::class, 'index'])->name('orders.index');
                 Route::get('/orders/{id}',       [TenantControllers\OrdersController::class, 'show'])->name('orders.show');
                 Route::post('/orders/{id}',      [TenantControllers\OrdersController::class, 'update'])->name('orders.update');
+                Route::post('/orders/{id}/shipments/{shipment}', [TenantControllers\OrdersController::class, 'shipment'])->name('orders.shipment'); // MARKER-SHIPMENT-WORKFLOW
 
                 // Online Retail Wave 5b: storefront settings
                 Route::get('/storefront',        [TenantControllers\StorefrontSettingsController::class, 'show'])->name('storefront.settings');

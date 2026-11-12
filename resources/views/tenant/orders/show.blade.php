@@ -97,8 +97,73 @@
           @if($sh->source === 'supplier')
             <div style="font-size:12px;color:var(--ia-text-muted);margin-top:6px">Order these from {{ $sh->warehouse_name ?: 'the supplier' }} and have them ship straight to the customer's address above. Your shelf was not touched.</div>
           @endif
+          {{-- MARKER-SHIPMENT-WORKFLOW --}}
+          @php
+            $st = $sh->status ?: 'pending';
+            $acts = \App\Services\Tenant\ShipmentFlow::actions($st);
+            $turl = \App\Services\Tenant\ShipmentFlow::trackingUrl($sh->carrier, $sh->tracking_number);
+            $canMail = filled($order->contact_email);
+            $action = route('tenant.orders.shipment', [$order->id, $sh->id]);
+          @endphp
+          <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <span class="od-st {{ ['shipped'=>'fulfilling','out_for_delivery'=>'fulfilling','delivered'=>'fulfilled','cancelled'=>'cancelled'][$st] ?? 'paid' }}">{{ \App\Services\Tenant\ShipmentFlow::LABELS[$st] ?? $st }}</span>
+            @if($sh->tracking_number)
+              <span style="font-size:12.5px">{{ \App\Services\Tenant\ShipmentFlow::carriers()[$sh->carrier] ?? '' }}
+                @if($turl)<a href="{{ $turl }}" target="_blank" rel="noopener">{{ $sh->tracking_number }}</a>@else{{ $sh->tracking_number }}@endif</span>
+            @endif
+            @if($sh->shipped_at)<span style="font-size:12px;color:var(--ia-text-muted)">shipped {{ $sh->shipped_at->format('M j') }}</span>@endif
+            @if($sh->delivered_at)<span style="font-size:12px;color:var(--ia-text-muted)">delivered {{ $sh->delivered_at->format('M j') }}</span>@endif
+          </div>
+          @if($sh->note)<div style="font-size:12px;color:var(--ia-text-muted);margin-top:4px">Note: {{ $sh->note }}</div>@endif
+
+          @if(in_array('ship', $acts))
+          <form method="POST" action="{{ $action }}" style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            @csrf <input type="hidden" name="op" value="ship">
+            <select name="carrier" class="ia-input" style="width:auto">
+              @foreach(\App\Services\Tenant\ShipmentFlow::carriers() as $k => $lbl)
+                <option value="{{ $k }}" @selected(($sh->carrier ?: str_before((string) $sh->service_code, '_')) === $k)>{{ $lbl }}</option>
+              @endforeach
+            </select>
+            <input type="text" name="tracking_number" class="ia-input" style="flex:1;min-width:150px" placeholder="Tracking number" value="{{ $sh->tracking_number }}">
+            @if($canMail)<label class="od-chk" style="padding:0"><input type="checkbox" name="notify" value="1" checked> Email the customer</label>@endif
+            <button class="ia-btn ia-btn--primary ia-btn--sm">{{ $st === 'shipped' ? 'Save tracking' : 'Mark shipped' }}</button>
+          </form>
+          @endif
+
+          @if(in_array('out_for_delivery', $acts) || in_array('delivered', $acts))
+          <form method="POST" action="{{ $action }}" style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            @csrf
+            @if($canMail && in_array('out_for_delivery', $acts))<label class="od-chk" style="padding:0"><input type="checkbox" name="notify" value="1" checked> Email the customer</label>@endif
+            @if(in_array('out_for_delivery', $acts))<button name="op" value="out_for_delivery" class="ia-btn ia-btn--ghost ia-btn--sm">Out for delivery</button>@endif
+            <button name="op" value="delivered" class="ia-btn ia-btn--ghost ia-btn--sm">Delivered</button>
+          </form>
+          @endif
+
+          @if(in_array('special_order', $acts) || in_array('cancel', $acts))
+          <form method="POST" action="{{ $action }}" style="margin-top:10px;border-top:.5px dashed var(--ia-border);padding-top:10px">
+            @csrf
+            <div style="font-size:12px;color:var(--ia-text-muted);margin-bottom:6px">{{ $sh->source === 'supplier' ? 'Supplier can\'t send this?' : 'Can\'t send this?' }} Add a note for the customer, then choose what happens.</div>
+            <input type="text" name="note" class="ia-input" style="width:100%" maxlength="300" placeholder="Note to the customer (optional)">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px">
+              @if($canMail)<label class="od-chk" style="padding:0"><input type="checkbox" name="notify" value="1" checked> Email the customer</label>@endif
+              @if(in_array('special_order', $acts))<button name="op" value="special_order" class="ia-btn ia-btn--ghost ia-btn--sm">Make it a special order</button>@endif
+              @if(in_array('cancel', $acts))<button name="op" value="cancel" class="ia-btn ia-btn--ghost ia-btn--sm">Cancel this shipment</button>@endif
+            </div>
+          </form>
+          @endif
+
+          @if(in_array($st, ['shipped','out_for_delivery','special_order','cancelled']) && $canMail)
+          <form method="POST" action="{{ $action }}" style="margin-top:6px">
+            @csrf <input type="hidden" name="op" value="resend">
+            <button class="ia-btn ia-btn--ghost ia-btn--sm">Send the email again</button>
+          </form>
+          @endif
         </div>
       @endforeach
+      <div style="font-size:11.5px;color:var(--ia-text-muted);margin-top:10px;line-height:1.5">
+        <b>To ship</b> → <b>Shipped</b> → <b>Out for delivery</b> → <b>Delivered</b>. The order moves on its own as its shipments do.
+        <b>Special order</b> adds the items to your special orders list and tells the customer. <b>Cancel</b> tells the customer a refund is coming; ring the refund up from the linked sale on the register.
+      </div>
     </div>
     @endif
 
@@ -118,6 +183,17 @@
   </div>
 
   <div>
+    @if($order->fulfillment_type === 'local_delivery' && in_array($order->status, ['paid','fulfilling','fulfilled']))
+      <div class="od-card">
+        <h3>Local delivery</h3>
+        <form method="POST" action="{{ route('tenant.orders.update', $order->id) }}">
+          @csrf <input type="hidden" name="op" value="out_for_delivery">
+          <button class="ia-btn ia-btn--ghost" style="width:100%" @disabled(! filled($order->contact_email))>Tell the customer it's out for delivery</button>
+          <div style="font-size:11.5px;color:var(--ia-text-muted);margin-top:6px">{{ filled($order->contact_email) ? 'Sends the "out for delivery" email.' : 'No email on this order.' }}</div>
+        </form>
+      </div>
+    @endif
+
     @if($advance || in_array($order->status, ['paid', 'fulfilling']))
       <div class="od-card">
         <h3>Move it along</h3>

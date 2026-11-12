@@ -3339,6 +3339,13 @@ class RegisterController extends Controller
                 $stripeRefundError = $this->fireStripeRefund($tenant, $refund);
             }
 
+            // MARKER-SHIPMENT-WORKFLOW: an online order's customer hears about their refund
+            try {
+                \App\Services\Tenant\ShipmentService::forTenant($tenant)->notifyRefund(
+                    $validated['original_sale_id'], (int) abs($refund->total_cents), $validated['refund_method']
+                );
+            } catch (\Throwable $e) { \Log::warning('order refund email skipped: ' . $e->getMessage()); }
+
             return response()->json([
                 'ok'                  => true,
                 'refund_id'           => $refund->id,

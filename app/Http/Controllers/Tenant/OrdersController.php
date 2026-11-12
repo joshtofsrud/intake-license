@@ -71,7 +71,7 @@ class OrdersController extends Controller
             ->findOrFail($id);
 
         $data = $request->validate([
-            'op'          => ['required', 'in:advance,cancel,mark_paid'],
+            'op'          => ['required', 'in:advance,cancel,mark_paid,out_for_delivery'],
             'notify_text' => ['nullable', 'boolean'],
         ]);
 
@@ -80,6 +80,24 @@ class OrdersController extends Controller
             abort_unless($order->status === TenantOrder::STATUS_PENDING_PAYMENT && $order->payment_method, 422);
             \App\Services\Tenant\OrderService::forTenant($tenant)->finalizeManual($order, \Illuminate\Support\Facades\Auth::guard('tenant')->id());
             return back()->with('success', 'Payment confirmed — order is paid and in the queue.');
+        }
+
+        // MARKER-SHIPMENT-WORKFLOW: a local delivery heading out the door
+        if ($data['op'] === 'out_for_delivery') {
+            abort_unless($order->fulfillment_type === 'local_delivery'
+                && in_array($order->status, [TenantOrder::STATUS_PAID, TenantOrder::STATUS_FULFILLING, TenantOrder::STATUS_FULFILLED], true), 422);
+            if (filled($order->contact_email)) {
+                $rows = $order->items->map(fn ($i) => "<tr><td style='padding:3px 14px 3px 0'>" . e($i->name_snapshot) . ' ×' . (int) $i->quantity . '</td></tr>')->implode('');
+                try {
+                    (new \App\Services\EmailService($tenant))->send('order_out_for_delivery', $order->contact_email, [
+                        'first_name' => $order->contact_first_name ?: 'there', 'order_number' => $order->order_number,
+                        'shop_name' => $tenant->name, 'items_rows' => "<table style='font-size:14px'>{$rows}</table>",
+                        'tracking_html' => '', 'shipment_label' => 'your order', 'what_next' => 'We are bringing it to you today.',
+                        'order_url' => 'https://' . request()->getHost() . '/order/' . $order->token,
+                    ]);
+                } catch (\Throwable $e) { Log::error('orders.out_for_delivery_email_failed', ['order' => $order->id, 'error' => $e->getMessage()]); }
+            }
+            return back()->with('success', 'Customer told it is out for delivery.');
         }
 
         if ($data['op'] === 'cancel') {
@@ -128,5 +146,38 @@ class OrdersController extends Controller
 
         return back()->with('success', 'Order is now ' . str_replace('_', ' ', $next) . '.');
     }
-}
 
+    /** POST /orders/{id}/shipments/{shipment} — MARKER-SHIPMENT-WORKFLOW */
+    public function shipment(Request $request, string $id, string $shipment)
+    {
+        $this->guard();
+        $tenant = tenant();
+        $order = TenantOrder::query()->where('tenant_id', $tenant->id)->findOrFail($id);
+        $sh = \App\Models\Tenant\TenantOrderShipment::query()->where('order_id', $order->id)->findOrFail($shipment);
+        $d = $request->validate([
+            'op'              => ['required', 'in:ship,out_for_delivery,delivered,special_order,cancel,resend'],
+            'carrier'         => ['nullable', 'string', 'max:20'],
+            'tracking_number' => ['nullable', 'string', 'max:80'],
+            'note'            => ['nullable', 'string', 'max:300'],
+            'notify'          => ['nullable', 'boolean'],
+        ]);
+        $svc = \App\Services\Tenant\ShipmentService::forTenant($tenant);
+        $notify = $request->boolean('notify');
+        switch ($d['op']) {
+            case 'ship':
+                $svc->markShipped($sh, (string) ($d['carrier'] ?? 'other'), (string) ($d['tracking_number'] ?? ''), $notify);
+                $msg = 'Marked shipped' . ($notify && filled($order->contact_email) ? ' and the customer was emailed.' : '.'); break;
+            case 'out_for_delivery':
+                $svc->markOutForDelivery($sh, $notify); $msg = 'Marked out for delivery.'; break;
+            case 'delivered':
+                $svc->markDelivered($sh); $msg = 'Marked delivered.'; break;
+            case 'special_order':
+                $svc->specialOrder($sh, $d['note'] ?? null, $notify); $msg = 'Moved to a special order — it is on your special orders list.'; break;
+            case 'cancel':
+                $svc->cancel($sh, $d['note'] ?? null, $notify); $msg = 'Shipment cancelled. Refund it from the linked sale on the register.'; break;
+            default:
+                $svc->resend($sh); $msg = 'Email sent again.';
+        }
+        return back()->with('success', $msg);
+    }
+}
