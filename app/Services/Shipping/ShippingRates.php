@@ -28,7 +28,8 @@ class ShippingRates
     public static function config(Tenant $t): array
     {
         $s = (array) (($t->settings ?? [])['storefront'] ?? []);
-        $mode = in_array($s['ship_mode'] ?? 'flat', self::MODES, true) ? $s['ship_mode'] : 'flat';
+        $mode = (string) ($s['ship_mode'] ?? 'flat');   // MARKER-SHIP-MODE-DEFAULT: a shop that never saved a mode has no key
+        $mode = in_array($mode, self::MODES, true) ? $mode : 'flat';
         $carriers = [];
         foreach (CarrierClient::registry() as $code => $cls) {
             $c = (array) ($s['carriers'][$code] ?? []);
