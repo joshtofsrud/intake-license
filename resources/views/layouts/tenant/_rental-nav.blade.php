@@ -15,6 +15,8 @@
   if (tenant()->rental_extensions_enabled) {
     $rnTabs[] = ['key' => 'offers', 'label' => 'Offers', 'route' => 'tenant.rentals.extension.activity'];
   }
+  // MARKER-LAUNCH-CHECKLIST
+  $rnTabs[] = ['key' => 'launch', 'label' => 'Launch checklist', 'route' => 'tenant.launch.rentals'];
   $rnTabs[] = ['key' => 'settings', 'label' => 'Settings', 'route' => 'tenant.rentals.settings'];
 @endphp
 <div class="rn-tabs">

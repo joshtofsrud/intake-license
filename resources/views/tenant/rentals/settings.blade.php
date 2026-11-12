@@ -14,7 +14,7 @@
   $extS    = $extOn ? app(\App\Services\RentalExtensionOfferService::class)->settings(tenant()) : [];
   $current = $agreementTemplates->first();
   $nextV   = $current ? $current->version + 1 : 1;
-  $secs    = ['rentals' => 'Rentals', 'leasing' => 'Leasing', 'late' => 'Late & overdue'];
+  $secs    = ['rentals' => 'Rentals', 'booking' => 'Hours & payment', 'leasing' => 'Leasing', 'late' => 'Late & overdue'];
   if ($extOn) $secs['offers'] = 'Extension offers';
   $secs['deposits'] = 'Deposits'; $secs['agreement'] = 'Agreement';
   // a switch is a real (hidden) checkbox, so the form posts exactly what it did before
@@ -24,6 +24,12 @@
   };
 @endphp
 
+<style>
+  .rh-grid{display:grid;grid-template-columns:90px 130px 130px;gap:8px 10px;align-items:center;margin:10px 0 16px}
+  .rh-day{display:flex;gap:8px;align-items:center;font-size:13px;font-weight:500}
+  .rh-date{display:inline-flex;gap:4px;align-items:center}
+  @media (max-width:520px){.rh-grid{grid-template-columns:70px 1fr 1fr}}
+</style>
 <div class="sd rf" id="sd">
   <header class="sd-head" id="sdHead">
     <div class="sd-head-l">
@@ -50,6 +56,43 @@
           <h2>Rentals</h2>
           <p>When on, the rental desk, fleet, bookings and availability show in your menu. Turn off to hide rentals entirely.</p>
           <div class="st-row"><div><b>Show rentals in my menu</b></div>{!! $tog('rentals_visible', $rentalsVisible, 'Show rentals in my menu') !!}</div>
+        </section>
+
+        {{-- MARKER-RENTAL-HOURS / MARKER-RENTAL-PAY-MODE --}}
+        <section class="st-sec sd-in" id="ss-booking">
+          <h2>Pickup and return hours</h2>
+          <p>Online bookings can only start and end inside these hours, and never on a closed date. Your desk can still book any time.</p>
+          <div class="rh-grid">
+            @foreach(\App\Support\Launch\RentalRules::DAY_NAMES as $dn => $dname)
+              @php $dh = $rentalHours['days'][$dn]; @endphp
+              <label class="rh-day"><input type="checkbox" name="hours[{{ $dn }}][open]" value="1" @checked($dh['open'])> {{ $dname }}</label>
+              <input class="ia-input" type="time" name="hours[{{ $dn }}][from]" value="{{ $dh['from'] }}" aria-label="{{ $dname }} opens">
+              <input class="ia-input" type="time" name="hours[{{ $dn }}][to]" value="{{ $dh['to'] }}" aria-label="{{ $dname }} closes">
+            @endforeach
+          </div>
+          <div class="st-row" style="display:block">
+            <div><b>Closed dates</b><small>Holidays and days off. Past dates drop off by themselves.</small></div>
+            <div id="rhClosed" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+              @foreach($rentalHours['closed'] as $cd)
+                @if($cd >= now()->toDateString())
+                  <span class="rh-date"><input class="ia-input" type="date" name="closed[]" value="{{ $cd }}"><button type="button" class="ia-btn ia-btn--sm" data-rh-del aria-label="Remove date">✕</button></span>
+                @endif
+              @endforeach
+            </div>
+            <button type="button" class="ia-btn ia-btn--sm" id="rhAdd" style="margin-top:8px">Add a closed date</button>
+          </div>
+
+          <h2 style="margin-top:22px">How renters pay</h2>
+          <p>For bookings made on your booking page. The desk takes payment however you like.</p>
+          @foreach(\App\Support\Launch\RentalRules::PAY_MODES as $pm => $pmLabel)
+            <label class="st-row" style="cursor:pointer">
+              <div><b>{{ $pmLabel }}</b><small>{{ ['online' => 'They pay by card to finish booking.', 'pickup' => 'Nothing is charged online; you take payment at the counter.', 'choice' => 'They pick: pay now by card, or at pickup.'][$pm] }}</small></div>
+              <input type="radio" name="pay_mode" value="{{ $pm }}" @checked($payMode === $pm) style="width:18px;height:18px;accent-color:var(--ia-accent)">
+            </label>
+          @endforeach
+          @unless($paymentsOn)
+            <p style="margin-top:8px;color:var(--ia-text-muted)">Card payments are not connected yet, so every booking is paid at pickup until you <a href="{{ route('tenant.settings.payments.index') }}" style="text-decoration:underline">connect Stripe</a>.</p>
+          @endunless
         </section>
 
         <section class="st-sec sd-in" id="ss-leasing">
@@ -194,6 +237,13 @@
     var cb = $('input[name="' + b.dataset.tg + '"]', form); cb.checked = !cb.checked; paintToggles(); sync();
   });
   form.addEventListener('input', sync); form.addEventListener('change', sync);
+  // MARKER-RENTAL-HOURS: closed dates
+  $('#rhAdd').addEventListener('click', function () {
+    var w = document.createElement('span'); w.className = 'rh-date';
+    w.innerHTML = '<input class="ia-input" type="date" name="closed[]"><button type="button" class="ia-btn ia-btn--sm" data-rh-del aria-label="Remove date">✕</button>';
+    $('#rhClosed').appendChild(w); $('input', w).focus(); sync();
+  });
+  $('#rhClosed').addEventListener('click', function (e) { var b = e.target.closest('[data-rh-del]'); if (b) { b.parentNode.remove(); sync(); } });
   $('[data-st-discard]', bar).addEventListener('click', function () { form.reset(); paintToggles(); sync(); });
 
   // publishing a new agreement version asks first, in the app's own dialog

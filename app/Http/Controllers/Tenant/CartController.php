@@ -22,6 +22,9 @@ class CartController extends Controller
             && (bool) ((tenant()->settings['storefront']['enabled'] ?? true)),
             404
         );
+        if (! \App\Support\Launch\Launch::visible(tenant(), 'ecom')) { // MARKER-LAUNCH-CHECKLIST: preview = staff only
+            abort(response()->view('public.launch-preview', ['module' => 'ecom'], 200));
+        }
     }
 
     public function show()

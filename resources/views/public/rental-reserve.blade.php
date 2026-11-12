@@ -36,6 +36,7 @@
   @include('public._ga4')
 </head>
 <body>
+@include('public._launch-ribbon', ['lrModule' => 'rent'])
 <div class="wrap">
   <div class="top">
     <a class="home" href="/">{{ $tname }}</a>
@@ -50,7 +51,7 @@
     <div class="kv"><span>Return</span><span>{{ $dueLocal->format('D M j, g:i A') }}</span></div>
     <div class="kv"><span>{{ $days }} day{{ $days === 1 ? '' : 's' }} × {{ format_money($rateCents) }}</span><span>{{ format_money($subtotal) }}</span></div>
     @if($tax > 0)<div class="kv"><span>Tax</span><span>{{ format_money($tax) }}</span></div>@endif
-    <div class="kv total"><span style="opacity:1">{{ $payOnline ? 'Pay now' : 'Due at pickup' }}</span><span>{{ format_money($total) }}</span></div>
+    <div class="kv total"><span style="opacity:1" id="due-label">{{ $payOnline ? 'Pay now' : 'Due at pickup' }}</span><span>{{ format_money($total) }}</span></div>
   </div>
 
   <div class="card" id="details-card">
@@ -65,12 +66,20 @@
       </div>
       <label>Email</label><input type="email" name="email" required maxlength="190">
       <label>Phone</label><input type="tel" name="phone" maxlength="40">
+      @if($payChoice ?? false)
+        {{-- MARKER-RENTAL-PAY-MODE: the shop lets the renter choose --}}
+        <label>How would you like to pay?</label>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;margin:4px 0 6px;font-size:14px">
+          <label style="display:flex;gap:7px;align-items:center;margin:0;font-weight:500"><input type="radio" name="pay" value="online" checked style="width:auto;margin:0"> Pay now by card</label>
+          <label style="display:flex;gap:7px;align-items:center;margin:0;font-weight:500"><input type="radio" name="pay" value="pickup" style="width:auto;margin:0"> Pay at pickup</label>
+        </div>
+      @endif
       <button type="submit" class="btn" id="reserve-btn">{{ $payOnline ? 'Continue to payment' : 'Reserve — pay at pickup' }}</button>
     </form>
     <div class="err" id="reserve-err"></div>
   </div>
 
-  @if($payOnline)
+  @if($payOnline || ($payChoice ?? false))
   <div class="card" id="pay-wrap">
     <div style="font-size:13px;font-weight:650;margin-bottom:12px">Payment — {{ format_money($total) }}</div>
     <div id="payment-element"></div>
@@ -79,7 +88,7 @@
   </div>
   @endif
 
-  <p class="hint">Your spot is held the moment you reserve. Bring ID at pickup{{ $payOnline ? '' : ' — payment is taken at the counter' }}.</p>
+  <p class="hint" id="pay-hint">Your spot is held the moment you reserve. Bring ID at pickup{{ $payOnline ? '' : ' — payment is taken at the counter' }}.</p>
 </div>
 
 <script src="https://js.stripe.com/v3/"></script>
@@ -92,6 +101,16 @@
   var stripe = null, elements = null, piId = null;
 
   function showErr(el, msg) { el.textContent = msg; el.style.display = 'block'; }
+
+  // MARKER-RENTAL-PAY-MODE: keep the wording in step with the renter's choice
+  form.querySelectorAll('input[name="pay"]').forEach(function (r) {
+    r.addEventListener('change', function () {
+      var now = form.querySelector('input[name="pay"]:checked').value === 'online';
+      btn.textContent = now ? 'Continue to payment' : 'Reserve — pay at pickup';
+      document.getElementById('due-label').textContent = now ? 'Pay now' : 'Due at pickup';
+      document.getElementById('pay-hint').textContent = 'Your spot is held the moment you reserve. Bring ID at pickup' + (now ? '.' : ' — payment is taken at the counter.');
+    });
+  });
 
   form.addEventListener('submit', function (e) {
     e.preventDefault();

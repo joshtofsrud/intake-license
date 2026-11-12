@@ -62,8 +62,8 @@
     $snPages = \App\Support\ShopNav::pages((string) $snT->id);
     $snApps  = collect([
         ['label' => 'Book',    'url' => '/book',    'on' => true],
-        ['label' => 'Shop',    'url' => '/shop',    'on' => $snT->online_store_enabled && (bool) (($snT->settings['storefront']['enabled'] ?? true))],
-        ['label' => 'Rentals', 'url' => '/rentals', 'on' => (bool) ($snT->rentals_visible ?? false)],
+        ['label' => 'Shop',    'url' => '/shop',    'on' => \App\Support\Launch\Launch::visible($snT, 'ecom')],
+        ['label' => 'Rentals', 'url' => '/rentals', 'on' => \App\Support\Launch\Launch::visible($snT, 'rent')],
     ])->filter(fn ($d) => $d['on'])->values()->map(fn ($d) => ['label' => $d['label'], 'url' => $d['url']])->all();
   @endphp
   <div class="pb2-group">

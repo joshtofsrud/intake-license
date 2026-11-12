@@ -7,7 +7,7 @@
 @php
   $rbTenant = $tenant ?? $currentTenant ?? null;
   $rbGroups = []; $rbStart = null; $rbDue = null; $rbError = null; $rbCount = 0;
-  if ($rbTenant && $rbTenant->rentals_visible) {
+  if ($rbTenant && \App\Support\Launch\Launch::visible($rbTenant, 'rent')) {
       $rbTz = $rbTenant->timezone();
       $rbDefStart = \Carbon\Carbon::now($rbTz)->addDay()->setTime(9, 0);
       $rbDefDue   = \Carbon\Carbon::now($rbTz)->addDay()->setTime(17, 0);
@@ -70,7 +70,7 @@
 @php $__rs_done = true;
 @endphp
 
-@if($rbTenant && $rbTenant->rentals_visible)
+@if($rbTenant && \App\Support\Launch\Launch::visible($rbTenant, 'rent'))
 <section class="p-section {{ $instId }} {{ $custClass }}" id="{{ $anchorId }}">
   <div class="p-container">
     <div class="p-section-head-wrap" style="text-align:center">

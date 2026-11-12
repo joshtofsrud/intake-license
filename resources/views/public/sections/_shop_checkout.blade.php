@@ -1,6 +1,7 @@
 {{-- chrome-wrapped shop body (checkout); rendered
      through public.layout via SiteChromeService between the tenant own
      nav + footer sections. Original standalone blade retired. --}}
+@include('public._launch-ribbon', ['lrModule' => 'ecom'])
 @php
   $accent = $tenant->accent_color ?? '#BEF264';
   $tname  = $tenant->name ?? 'Shop';
@@ -157,6 +158,11 @@
 
       <button class="pay" id="go">Continue to payment</button>
       <div class="err" id="err"></div>
+      @php $coReturns = \App\Support\Launch\ShopPolicies::returnsUrl($tenant); @endphp
+      @if($coReturns)
+        {{-- MARKER-SHOP-POLICIES --}}
+        <p style="font-size:12.5px;opacity:.6;margin-top:10px">By ordering you agree to our <a href="{{ $coReturns }}" target="_blank" rel="noopener" style="text-decoration:underline">returns policy</a>.</p>
+      @endif
     </div>
 
     <div class="panel">

@@ -1,6 +1,7 @@
 {{-- chrome-wrapped shop body (show); rendered
      through public.layout via SiteChromeService between the tenant own
      nav + footer sections. Original standalone blade retired. --}}
+@include('public._launch-ribbon', ['lrModule' => 'ecom'])
 @php
   // layout's mobile-nav loop clobbers $item in scope;
   // rebind from the alias before anything reads it.

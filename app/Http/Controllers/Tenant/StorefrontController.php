@@ -27,6 +27,9 @@ class StorefrontController extends Controller
         // tenant master switch on top of the addon gate
         $ok = $ok && (bool) ((tenant()->settings['storefront']['enabled'] ?? true));
         abort_unless($ok, 404);
+        if (! \App\Support\Launch\Launch::visible(tenant(), 'ecom')) { // MARKER-LAUNCH-CHECKLIST: preview = staff only
+            abort(response()->view('public.launch-preview', ['module' => 'ecom'], 200));
+        }
     }
 
     /** Base query for anything the store may show. */

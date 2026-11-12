@@ -157,6 +157,7 @@
 
       @include('layouts.tenant._staff-broadcast-banner')
       @include('layouts.tenant._standing-banner')
+      @include('layouts.tenant._launch-banner')
       @yield('content')
 
     </main>

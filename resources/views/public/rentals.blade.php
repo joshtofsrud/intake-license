@@ -42,6 +42,7 @@
   @include('public._ga4')
 </head>
 <body>
+@include('public._launch-ribbon', ['lrModule' => 'rent'])
 @include('public._chrome-inline', ['chromePos' => 'top'])
 <div class="wrap">
   <div class="top">
@@ -72,6 +73,14 @@
     </div>
   @endif
 
+  @php
+    // a message sent back from the reserve page (sold out, outside hours, paused) used to be dropped here
+    $error = $error ?: session('browse_error');
+    $rhHours = \App\Support\Launch\RentalRules::hours($currentTenant ?? tenant());
+  @endphp
+  @if(array_filter($rhHours['days'], fn ($d) => $d['open']))
+    <p class="sub" style="margin:10px 0 0;font-size:13px">Pickup and return: {{ \App\Support\Launch\RentalRules::summary($rhHours) }}</p>
+  @endif
   @if($error)<div class="err">{{ $error }}</div>@endif
 
   @if(empty($groups))

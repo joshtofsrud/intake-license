@@ -9,7 +9,8 @@
   $psItems = collect();
   $psStoreOpen = $psTenant
       && $psTenant->online_store_enabled
-      && (bool) (($psTenant->settings['storefront']['enabled'] ?? true));
+      && (bool) (($psTenant->settings['storefront']['enabled'] ?? true))
+      && \App\Support\Launch\Launch::visible($psTenant, 'ecom');
   if ($psStoreOpen) {
       $psItems = \App\Models\Tenant\TenantInventoryItem::where('tenant_id', $psTenant->id)
           ->where('is_active', true)

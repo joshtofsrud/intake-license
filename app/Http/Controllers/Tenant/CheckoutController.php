@@ -25,11 +25,23 @@ class CheckoutController extends Controller
             && (bool) ((tenant()->settings['storefront']['enabled'] ?? true)),
             404
         );
+        if (! \App\Support\Launch\Launch::visible(tenant(), 'ecom')) { // MARKER-LAUNCH-CHECKLIST: preview = staff only
+            abort(response()->view('public.launch-preview', ['module' => 'ecom'], 200));
+        }
+    }
+
+    /** MARKER-LAUNCH-CHECKLIST: paused (or preview to a visitor) means no new payments. */
+    private function open(): bool
+    {
+        return \App\Support\Launch\Launch::canTransact(tenant(), 'ecom');
     }
 
     public function show()
     {
         $this->guard();
+        if (! $this->open()) {
+            return redirect('/cart')->with('shop_error', \App\Support\Launch\Launch::pausedNotice('ecom'));
+        }
         $tenant = tenant();
         $cart = CartService::forTenant($tenant)->current();
         if (! $cart || $cart->items->isEmpty()) {
@@ -108,6 +120,9 @@ class CheckoutController extends Controller
     public function place(Request $request)
     {
         $this->guard();
+        if (! $this->open()) {
+            return response()->json(['ok' => false, 'message' => \App\Support\Launch\Launch::pausedNotice('ecom')], 423);
+        }
         $tenant = tenant();
 
         $data = $request->validate([

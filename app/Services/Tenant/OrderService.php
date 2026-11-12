@@ -470,6 +470,8 @@ class OrderService
         // stays pending_payment with instructions; staff mark it paid when
         // the money lands. No PaymentIntent, no client secret.
         if ($manualMethod !== null) {
+            // MARKER-SHOP-POLICIES: staff need to know there is money to watch for
+            \App\Support\Launch\ShopPolicies::notifyNewOrder($this->tenant, $order->loadMissing('items'), 'waiting for payment by ' . tender_label($manualMethod));
             return [$order, null];
         }
 
@@ -876,13 +878,25 @@ class OrderService
                         'whats_next'       => ($shorts ? e(self::wording($this->tenant)['special_notice']) . ' ' : '')
                             . ($result->wants_install
                                 ? 'You asked about installation — we\'ll be in touch to get it scheduled.'
-                                : 'Questions? Just reply to this email.'),
+                                : 'Questions? Just reply to this email.')
+                            // MARKER-SHOP-POLICIES: the returns page, when the shop chose one
+                            . (($ru = \App\Support\Launch\ShopPolicies::returnsUrl($this->tenant)) ? ' Our returns policy: https://' . request()->getHost() . $ru : ''),
                     ]
                 );
             } catch (\Throwable $e) {
                 Log::error('online_order.confirmation_email_failed', [
                     'order' => $result->id, 'error' => $e->getMessage(),
                 ]);
+            }
+        }
+
+        // MARKER-SHOP-POLICIES: tell the people the shop chose (never throws)
+        if ($result->sale_id && ! (((array) ($result->metadata ?? []))['staff_notified'] ?? false)) {
+            \App\Support\Launch\ShopPolicies::notifyNewOrder($this->tenant, $result, 'paid by card');
+            try {
+                $result->forceFill(['metadata' => array_merge((array) ($result->metadata ?? []), ['staff_notified' => true])])->save();
+            } catch (\Throwable $e) {
+                report($e);
             }
         }
 

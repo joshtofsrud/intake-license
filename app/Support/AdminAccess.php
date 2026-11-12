@@ -74,7 +74,8 @@ class AdminAccess
             'customer-cleanup', 'billing-discounts',
             'tenant-billing', 'billing-notices', 'sidebar', 'plan-prices', 'addons', 'scheduled-tasks',
             'dashboards', 'dashboard-editor',
-            'dashboard-blocks', 'dashboard-block', 'dashboard-preview', 'dashboard-people' => 'tenants', // MARKER-DASH-ADMIN, MARKER-DASH-BUILDER
+            'dashboard-blocks', 'dashboard-block', 'dashboard-preview', 'dashboard-people',
+            'launch-checklists' => 'tenants', // MARKER-DASH-ADMIN, MARKER-DASH-BUILDER, MARKER-LAUNCH-CHECKLIST
             'live-view'                                      => 'impersonation', // MARKER-LIVE-VIEW
             'tenant-domains'                                 => 'domains',
             'sales-channels', 'sales-prospects',

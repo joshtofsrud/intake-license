@@ -1,6 +1,7 @@
 {{-- chrome-wrapped shop body (index); rendered
      through public.layout via SiteChromeService between the tenant own
      nav + footer sections. Original standalone blade retired. --}}
+@include('public._launch-ribbon', ['lrModule' => 'ecom'])
 @php
   $accent = $tenant->accent_color ?? '#BEF264';
   $tname  = $tenant->name ?? 'Shop';

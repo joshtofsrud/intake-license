@@ -12,7 +12,7 @@
   $rcImgRaw = $c['category_images'] ?? [];
   $rcImgMap = is_array($rcImgRaw) ? $rcImgRaw : (json_decode((string) $rcImgRaw, true) ?: []);
   $rcCats = collect();
-  if ($rcTenant && $rcTenant->rentals_visible && $rcIds) {
+  if ($rcTenant && \App\Support\Launch\Launch::visible($rcTenant, 'rent') && $rcIds) {
       $found = \App\Models\Tenant\TenantRentalCategory::where('tenant_id', $rcTenant->id)
           ->whereNull('archived_at')
           ->whereIn('id', $rcIds)

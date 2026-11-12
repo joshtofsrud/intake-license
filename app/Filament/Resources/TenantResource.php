@@ -236,6 +236,13 @@ class TenantResource extends Resource
                     ->visible(fn () => \App\Support\AdminAccess::allows(auth()->user(), 'impersonation'))
                     ->url(fn (Tenant $t) => \App\Filament\Pages\LiveView::getUrl(['shop' => $t->id])),
 
+                // MARKER-LAUNCH-CHECKLIST: this shop's launch checklists
+                Tables\Actions\Action::make('launch_checklist')
+                    ->label('Launch checklist')
+                    ->icon('heroicon-o-rocket-launch')
+                    ->color('gray')
+                    ->url(fn (Tenant $t) => \App\Filament\Pages\LaunchChecklists::getUrl(['view' => 'shop', 'tenant' => $t->id])),
+
                 Tables\Actions\Action::make('reset_password')
                     ->label('Reset password')
                     ->icon('heroicon-o-key')

@@ -119,6 +119,16 @@ class StorefrontSettingsController extends Controller
                 'cfg'        => \App\Services\Distributors\WarehouseRegistry::shopConfig($tenant),
                 'warehouses' => \App\Services\Distributors\WarehouseRegistry::forShop($tenant),
             ],
+            // MARKER-SHOP-POLICIES
+            'policy' => [
+                'pages'      => \App\Models\Tenant\TenantPage::where('tenant_id', $tenant->id)->where(fn ($q) => $q->whereNull('kind')->orWhere('kind', 'page'))
+                                    ->orderBy('title')->get(['id', 'title', 'slug', 'is_published']),
+                'page_id'    => (string) ($s['returns_page_id'] ?? ''),
+                'team'       => \App\Models\Tenant\TenantUser::where('tenant_id', $tenant->id)->where('is_active', true)->orderBy('name')->get(['id', 'name', 'email']),
+                'notify_ids' => array_map('strval', (array) ($s['notify_user_ids'] ?? [])),
+            ],
+            // MARKER-LAUNCH-CHECKLIST
+            'launch' => \App\Support\Launch\Launch::evaluate($tenant, 'ecom'),
             'info' => [
                 'tax_rate'    => (float) ($tenant->default_tax_rate ?? 0),
                 'exempt'      => (clone $itemBase)->where('tax_class_code', 'exempt')->count(),
@@ -179,7 +189,7 @@ class StorefrontSettingsController extends Controller
     {
         $this->guard();
         $section = (string) $request->input('section', '');
-        abort_unless(in_array($section, ['fulfillment', 'tax', 'payments', 'wording', 'general', 'google'], true), 422);
+        abort_unless(in_array($section, ['fulfillment', 'tax', 'payments', 'wording', 'general', 'google', 'policies'], true), 422);
 
         $tenant   = tenant();
         $settings = $tenant->settings ?? [];
@@ -350,6 +360,20 @@ class StorefrontSettingsController extends Controller
                 $msg = $request->boolean('regen') && $sf['feed_on'] ? 'Google settings saved. The feed link changed: paste the new one into Merchant Center.' : 'Google settings saved.';
                 break;
 
+            case 'policies': // MARKER-SHOP-POLICIES
+                $data = $request->validate([
+                    'returns_page_id'   => ['nullable', 'uuid'],
+                    'notify_user_ids'   => ['nullable', 'array', 'max:50'],
+                    'notify_user_ids.*' => ['uuid'],
+                ]);
+                $pid = $data['returns_page_id'] ?? null;
+                $sf['returns_page_id'] = $pid && \App\Models\Tenant\TenantPage::where('tenant_id', $tenant->id)->where('id', $pid)->exists() ? $pid : null;
+                $sf['notify_user_ids'] = \App\Models\Tenant\TenantUser::where('tenant_id', $tenant->id)
+                    ->whereIn('id', (array) ($data['notify_user_ids'] ?? []))->pluck('id')->values()->all();
+                $tab = 'msg';
+                $msg = 'Returns page and order alerts saved.';
+                break;
+
             case 'general':
                 $data = $request->validate([
                     'browse_layout' => ['nullable', 'in:chips,sidebar'],
@@ -366,6 +390,7 @@ class StorefrontSettingsController extends Controller
         $settings['storefront'] = $sf;
         $tenant->settings = $settings;
         $tenant->save();
+        \App\Support\Launch\LaunchChecks::forget($tenant); // MARKER-LAUNCH-CHECKLIST: re-check with the new settings
 
         return back()->with('success', $msg)->with('ecom_tab', $tab);
     }

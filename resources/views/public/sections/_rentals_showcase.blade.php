@@ -7,7 +7,7 @@
 @php
   $rsTenant = $tenant ?? $currentTenant ?? null;
   $rsModels = collect();
-  if ($rsTenant && $rsTenant->rentals_visible) {
+  if ($rsTenant && \App\Support\Launch\Launch::visible($rsTenant, 'rent')) {
       $rsModels = \App\Models\Tenant\TenantRentalModel::where('tenant_id', $rsTenant->id)
           ->whereNull('archived_at')
           ->when(!empty($c['category_id']), fn ($q) => $q->where('category_id', $c['category_id']))

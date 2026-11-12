@@ -223,7 +223,7 @@ class Seo
 
         $urls[] = [$base . '/book', null];
         if (self::storefrontOn($tenant))            $urls[] = [$base . '/shop', null];
-        if ($tenant->rentals_visible)               $urls[] = [$base . '/rentals', null];
+        if (\App\Support\Launch\Launch::publiclyListed($tenant, 'rent')) $urls[] = [$base . '/rentals', null];
         if ($tenant->gift_cards_enabled)            $urls[] = [$base . '/gift-cards', null];
         if (\App\Models\Tenant\TenantClassTemplate::where('tenant_id', $tenant->id)->active()->exists()) {
             $urls[] = [$base . '/classes', null];
@@ -235,7 +235,8 @@ class Seo
     public static function storefrontOn(Tenant $tenant): bool
     {
         return app(\App\Services\FeatureAccessService::class)->hasAddon($tenant, 'online_store')
-            && (bool) (($tenant->settings['storefront']['enabled'] ?? true));
+            && (bool) (($tenant->settings['storefront']['enabled'] ?? true))
+            && \App\Support\Launch\Launch::publiclyListed($tenant, 'ecom'); // MARKER-LAUNCH-CHECKLIST: not while in preview
     }
 
     public static function productQuery(Tenant $tenant)

@@ -6,7 +6,7 @@
 @php
   $spTenant = $tenant ?? $currentTenant ?? null;
   $spModel = null;
-  if ($spTenant && $spTenant->rentals_visible && !empty($c['model_id'])) {
+  if ($spTenant && \App\Support\Launch\Launch::visible($spTenant, 'rent') && !empty($c['model_id'])) {
       $spModel = \App\Models\Tenant\TenantRentalModel::where('tenant_id', $spTenant->id)
           ->whereNull('archived_at')
           ->where('id', $c['model_id'])

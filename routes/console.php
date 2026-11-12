@@ -383,3 +383,9 @@ Schedule::command('reports:check-alerts')->hourly()->withoutOverlapping();
 // MARKER-REPORT-SUGGEST: Suggested builds on Reports > Custom. Hourly, but each shop
 // is checked once a night, after 2am in the shop's own time.
 Schedule::command('reports:suggest')->hourly()->withoutOverlapping();
+
+// MARKER-LAUNCH-CHECKLIST: live shops re-checked; broken required steps alert (and pause when set), fixed ones reopen
+Schedule::command('launch:sweep')
+    ->everyFifteenMinutes()
+    ->withoutOverlapping(10)
+    ->runInBackground();

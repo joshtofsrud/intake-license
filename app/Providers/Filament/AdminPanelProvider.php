@@ -118,6 +118,7 @@ class AdminPanelProvider extends PanelProvider
                 \App\Filament\Pages\DashboardBlockBuilder::class,
                 \App\Filament\Pages\DashboardPreview::class, // MARKER-DASH-PREVIEW
                 \App\Filament\Pages\LiveView::class, // MARKER-LIVE-VIEW: no route without this line
+                \App\Filament\Pages\LaunchChecklists::class, // MARKER-LAUNCH-CHECKLIST: explicit registration; no route without this line
                 // list-first Catalog Titles page. This panel
                 // lists pages explicitly, so a new page class is invisible until
                 // it appears here, cache or no cache.

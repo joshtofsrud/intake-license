@@ -357,7 +357,8 @@
           $navSearchTenant = $tenant ?? $currentTenant ?? tenant();
           $navShopSearch = $navSearchTenant
               && $navSearchTenant->online_store_enabled
-              && (bool) (($navSearchTenant->settings['storefront']['enabled'] ?? true));
+              && (bool) (($navSearchTenant->settings['storefront']['enabled'] ?? true))
+              && \App\Support\Launch\Launch::visible($navSearchTenant, 'ecom');
         @endphp
         @if($navShopSearch)
           <div class="p-nav-search" id="{{ $instId }}-search">

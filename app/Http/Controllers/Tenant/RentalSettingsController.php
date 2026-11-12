@@ -32,6 +32,10 @@ class RentalSettingsController extends Controller
             'agreementTemplates' => \App\Models\Tenant\TenantRentalAgreementTemplate::where('tenant_id', $tenant->id)
                 ->orderByDesc('version')->get(),
             'depositAutoRelease' => (bool) ($s['rental_deposit_autorelease_quick'] ?? true),
+            // MARKER-RENTAL-HOURS / MARKER-RENTAL-PAY-MODE
+            'rentalHours' => \App\Support\Launch\RentalRules::hours($tenant),
+            'payMode'     => (string) ($s['rental_pay_mode'] ?? \App\Support\Launch\RentalRules::payMode($tenant)),
+            'paymentsOn'  => (new \App\Services\Tenant\DirectPaymentsService($tenant))->isEnabled(),
         ]);
     }
 
@@ -77,6 +81,13 @@ class RentalSettingsController extends Controller
             'rentals_visible' => ['nullable', 'boolean'],
             // late & overdue policy.
             'late_grace_minutes' => ['nullable', 'integer', 'min:0', 'max:1440'],
+            // MARKER-RENTAL-HOURS / MARKER-RENTAL-PAY-MODE
+            'pay_mode'         => ['nullable', 'in:online,pickup,choice'],
+            'hours'            => ['nullable', 'array'],
+            'hours.*.from'     => ['nullable', 'date_format:H:i'],
+            'hours.*.to'       => ['nullable', 'date_format:H:i'],
+            'closed'           => ['nullable', 'array', 'max:120'],
+            'closed.*'         => ['nullable', 'date_format:Y-m-d'],
             'late_fee_per_hour'  => ['nullable', 'numeric', 'min:0', 'max:999'],
             'late_fee_cap'       => ['nullable', 'in:day_rate,none'],
             // deposit behavior.
@@ -103,6 +114,24 @@ class RentalSettingsController extends Controller
         }
         // deposit behavior.
         $settings['rental_deposit_autorelease_quick'] = (bool) $request->input('deposit_autorelease_quick');
+
+        // MARKER-RENTAL-HOURS: an open day needs a window that ends after it starts
+        $days = [];
+        foreach (\App\Support\Launch\RentalRules::DAY_NAMES as $n => $name) {
+            $h = (array) $request->input('hours.' . $n, []);
+            $from = (string) ($h['from'] ?? '09:00'); $to = (string) ($h['to'] ?? '17:00');
+            $open = (bool) ($h['open'] ?? false);
+            if ($open && $to <= $from) {
+                return back()->withErrors(['hours' => $name . ': closing time must be after opening time.'])->withInput();
+            }
+            $days[$n] = ['open' => $open, 'from' => $from, 'to' => $to];
+        }
+        $closed = array_values(array_unique(array_filter((array) $request->input('closed', []), fn ($d) => is_string($d) && $d >= now()->toDateString())));
+        sort($closed);
+        $settings['rental_hours'] = ['days' => $days, 'closed' => $closed];
+        if ($request->filled('pay_mode')) {
+            $settings['rental_pay_mode'] = $request->input('pay_mode');
+        }
 
         // The leasing toggle only takes effect when the plan tier makes
         // leasing available; otherwise it's forced off regardless of input.

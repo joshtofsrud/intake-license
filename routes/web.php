@@ -525,6 +525,11 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::get('/storefront',        [TenantControllers\StorefrontSettingsController::class, 'show'])->name('storefront.settings');
                 Route::post('/storefront',       [TenantControllers\StorefrontSettingsController::class, 'update'])->name('storefront.settings.update');
                 Route::post('/storefront/bulk',  [TenantControllers\StorefrontSettingsController::class, 'bulk'])->name('storefront.settings.bulk');
+                // MARKER-LAUNCH-CHECKLIST: the e-commerce checklist's actions (the checklist itself is the E-commerce page's first tab)
+                Route::post('/launch/{module}/go-live', [TenantControllers\LaunchChecklistController::class, 'goLive'])->name('launch.golive')->where('module', 'ecom');
+                Route::post('/launch/{module}/offline', [TenantControllers\LaunchChecklistController::class, 'offline'])->name('launch.offline')->where('module', 'ecom');
+                Route::post('/launch/{module}/mark',    [TenantControllers\LaunchChecklistController::class, 'mark'])->name('launch.mark')->where('module', 'ecom');
+                Route::post('/launch/{module}/recheck', [TenantControllers\LaunchChecklistController::class, 'recheck'])->name('launch.recheck')->where('module', 'ecom');
                 Route::get('/storefront/feed-report', [TenantControllers\StorefrontSettingsController::class, 'feedReport'])->name('storefront.settings.feed_report')->middleware('throttle:20,1'); // MARKER-GOOGLE-FEED
                 Route::post('/storefront/tax-test', [TenantControllers\StorefrontSettingsController::class, 'testTax'])->name('storefront.settings.tax_test')->middleware('throttle:10,1'); // MARKER-DESTINATION-TAX
                 Route::post('/storefront/carrier-test', [TenantControllers\StorefrontSettingsController::class, 'testCarrier'])->name('storefront.settings.carrier_test')->middleware('throttle:10,1'); // MARKER-SHIPPING-RATES
@@ -653,6 +658,12 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 // rentals settings (season window + leasing toggle).
                 Route::get('/rentals/extension-offers', [TenantControllers\RentalExtensionActivityController::class, 'index'])->name('rentals.extension.activity');
                 Route::get('/rentals/settings',  [TenantControllers\RentalSettingsController::class, 'index'])->name('rentals.settings');
+                // MARKER-LAUNCH-CHECKLIST: the rentals checklist
+                Route::get('/rentals/launch',                  [TenantControllers\LaunchChecklistController::class, 'rentals'])->name('launch.rentals');
+                Route::post('/rentals/launch/{module}/go-live', [TenantControllers\LaunchChecklistController::class, 'goLive'])->name('launch.rent.golive')->where('module', 'rent');
+                Route::post('/rentals/launch/{module}/offline', [TenantControllers\LaunchChecklistController::class, 'offline'])->name('launch.rent.offline')->where('module', 'rent');
+                Route::post('/rentals/launch/{module}/mark',    [TenantControllers\LaunchChecklistController::class, 'mark'])->name('launch.rent.mark')->where('module', 'rent');
+                Route::post('/rentals/launch/{module}/recheck', [TenantControllers\LaunchChecklistController::class, 'recheck'])->name('launch.rent.recheck')->where('module', 'rent');
                 Route::post('/rentals/settings', [TenantControllers\RentalSettingsController::class, 'save'])->name('rentals.settings.save');
                 // versioned agreement templates (publish-only).
                 Route::post('/rentals/settings/agreement-templates', [TenantControllers\RentalSettingsController::class, 'storeAgreementTemplate'])->name('rentals.settings.agreements.store');

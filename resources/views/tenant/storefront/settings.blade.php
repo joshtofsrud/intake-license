@@ -1,5 +1,10 @@
 @extends('layouts.tenant.app')
-@php $pageTitle = 'E-commerce'; $tab = session('ecom_tab', request('tab', 'avail')); @endphp
+@php
+  $pageTitle = 'E-commerce';
+  // MARKER-LAUNCH-CHECKLIST: the checklist opens first while anything required is left or broken
+  $lcOpen = $launch && ($launch['req_left'] || $launch['broken'] || ($launch['state']->state ?? '') === 'paused');
+  $tab = session('ecom_tab', request('tab', $lcOpen ? 'launch' : 'avail'));
+@endphp
 
 @section('content')
 {{-- MARKER-ECOM-SETTINGS: the e-commerce settings center (replaces the old Storefront page). --}}
@@ -172,6 +177,8 @@
   @if($errors->any())<div class="ec-err">{{ $errors->first() }}</div>@endif
 
   <div class="ec-tabs" id="tabs">
+    @php $lcN = $launch ? count($launch['req_left']) : 0; @endphp
+    <button type="button" class="ec-tab {{ $tab === 'launch' ? 'on' : '' }}" data-p="launch">Launch checklist <span class="pip {{ ($lcN || ($launch['broken'] ?? [])) ? 'warn' : '' }}">{{ ($launch['broken'] ?? []) ? 'needs attention' : ($lcN ? $lcN . ' to do' : 'done') }}</span></button>
     <button type="button" class="ec-tab {{ $tab === 'avail' ? 'on' : '' }}" data-p="avail">Availability <span class="pip {{ $counts['out'] > 0 ? 'warn' : '' }}" id="pipOut">{{ $counts['out'] }}</span></button>
     <button type="button" class="ec-tab {{ $tab === 'ful' || $tab === 'fulfillment' ? 'on' : '' }}" data-p="ful">Fulfillment</button>
     <button type="button" class="ec-tab {{ $tab === 'tax' ? 'on' : '' }}" data-p="tax">Tax</button>
@@ -180,6 +187,13 @@
     <button type="button" class="ec-tab {{ in_array($tab, ['goo','google']) ? 'on' : '' }}" data-p="goo">Google</button>
     <button type="button" class="ec-tab {{ $tab === 'gen' || $tab === 'general' ? 'on' : '' }}" data-p="gen">General</button>
   </div>
+
+  {{-- ============ LAUNCH CHECKLIST (MARKER-LAUNCH-CHECKLIST) ============ --}}
+  <section class="ec-panel {{ $tab === 'launch' ? 'on' : '' }}" id="p-launch">
+    @if($launch)
+      @include('tenant.launch._checklist', ['ev' => $launch])
+    @endif
+  </section>
 
   {{-- ============ AVAILABILITY ============ --}}
   <section class="ec-panel {{ $tab === 'avail' ? 'on' : '' }}" id="p-avail">
@@ -461,6 +475,39 @@
       <div class="ec-row msg-row"><div><div class="t">Order confirmation<span class="ch">Email</span></div><div class="d">Sent when payment clears.</div></div><div class="ctl"><a class="ia-btn ia-btn--secondary ia-btn--sm" href="{{ route('tenant.communication.index') }}">Messages</a></div></div>
       <div class="ec-row msg-row"><div><div class="t">Online order refunded<span class="ch">Email</span></div><div class="d">Sent if a paid order can't be completed and the money goes back. Edit it under Messages.</div></div><div class="ctl"><a class="ia-btn ia-btn--secondary ia-btn--sm" href="{{ route('tenant.communication.index') }}">Edit</a></div></div>
     </div>
+    {{-- MARKER-SHOP-POLICIES: who hears about new orders, and the returns page shoppers are shown --}}
+    <form method="POST" action="{{ route('tenant.storefront.settings.update') }}">
+      @csrf <input type="hidden" name="section" value="policies">
+      <div class="ec-sec">
+        <h3>New order alerts</h3>
+        <div class="ec-row"><div><div class="t">Email these people about each new order</div><div class="d">Card orders when payment clears; Venmo, Cash App and pay-in-store orders when they are placed, so someone watches for the money.</div></div></div>
+        <div class="ec-row" style="display:block">
+          @forelse($policy['team'] as $u)
+            <label style="display:inline-flex;gap:8px;align-items:center;margin:0 18px 8px 0;font-size:13px;{{ $u->email ? '' : 'opacity:.5' }}">
+              <input type="checkbox" name="notify_user_ids[]" value="{{ $u->id }}" @checked(in_array((string) $u->id, $policy['notify_ids'], true)) @disabled(! $u->email)>
+              {{ $u->name }} <span style="color:var(--ia-text-muted)">{{ $u->email ?: 'no email' }}</span>
+            </label>
+          @empty
+            <div class="d">Nobody on your team yet. <a href="{{ route('tenant.team.index') }}" style="text-decoration:underline">Add someone</a>.</div>
+          @endforelse
+        </div>
+      </div>
+      <div class="ec-sec">
+        <h3>Returns policy</h3>
+        <div class="ec-row"><div><div class="t">Returns page</div><div class="d">Linked at checkout and in the order confirmation email. Only published pages are linked.</div></div>
+          <div class="ctl">
+            <select class="ia-select" name="returns_page_id">
+              <option value="">None</option>
+              @foreach($policy['pages'] as $pg)
+                <option value="{{ $pg->id }}" @selected($policy['page_id'] === (string) $pg->id)>{{ $pg->title }}{{ $pg->is_published ? '' : ' (not published)' }}</option>
+              @endforeach
+            </select>
+            <a class="ia-btn ia-btn--secondary ia-btn--sm" href="{{ route('tenant.pages.index') }}">Pages</a>
+          </div>
+        </div>
+      </div>
+      <div class="ec-actions" style="margin-bottom:22px"><button class="ia-btn ia-btn--primary" type="submit">Save alerts and returns page</button></div>
+    </form>
     <form method="POST" action="{{ route('tenant.storefront.settings.update') }}">
       @csrf <input type="hidden" name="section" value="wording">
       <div class="ec-sec">

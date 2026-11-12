@@ -45,6 +45,10 @@ class RentalReserveController extends Controller
         if ($due->copy()->subDays(60)->greaterThan($start)) {
             throw new RuntimeException('Online reservations max out at 60 days — get in touch for longer.');
         }
+        // MARKER-RENTAL-HOURS: pickup and return inside the shop's hours, never on a closed date
+        $hours = \App\Support\Launch\RentalRules::hours(tenant());
+        if ($why = \App\Support\Launch\RentalRules::refuse($hours, $start, 'pickup')) throw new RuntimeException($why);
+        if ($why = \App\Support\Launch\RentalRules::refuse($hours, $due, 'return')) throw new RuntimeException($why);
         return [$start->utc(), $due->utc()];
     }
 
@@ -119,6 +123,12 @@ class RentalReserveController extends Controller
     {
         $tenant = tenant();
         abort_unless($tenant && $tenant->rentals_visible, 404);
+        if (! \App\Support\Launch\Launch::visible($tenant, 'rent')) { // MARKER-LAUNCH-CHECKLIST
+            return response()->view('public.launch-preview', ['module' => 'rent'], 200);
+        }
+        if (! \App\Support\Launch\Launch::canTransact($tenant, 'rent')) {
+            return redirect()->route('tenant.rentals.browse')->with('browse_error', \App\Support\Launch\Launch::pausedNotice('rent'));
+        }
 
         $tz = $tenant->timezone();
 
@@ -130,6 +140,10 @@ class RentalReserveController extends Controller
 
         try {
             [$startUtc, $dueUtc] = $this->window($request, $tz);
+        } catch (RuntimeException $e) {
+            return redirect()->route('tenant.rentals.browse', [
+                'starts' => $request->query('starts'), 'due' => $request->query('due'),
+            ])->with('browse_error', $e->getMessage());
         } catch (\Throwable $e) {
             return redirect()->route('tenant.rentals.browse');
         }
@@ -164,7 +178,9 @@ class RentalReserveController extends Controller
             'subtotal'   => $subtotal,
             'tax'        => $tax,
             'total'      => $subtotal + $tax,
-            'payOnline'  => $payments->isEnabled(),
+            // MARKER-RENTAL-PAY-MODE: online, at pickup, or the renter's choice
+            'payOnline'  => \App\Support\Launch\RentalRules::paysOnline($tenant, null),
+            'payChoice'  => $payments->isEnabled() && \App\Support\Launch\RentalRules::payMode($tenant) === 'choice',
         ]);
     }
 
@@ -173,6 +189,9 @@ class RentalReserveController extends Controller
     {
         $tenant = tenant();
         abort_unless($tenant && $tenant->rentals_visible, 404);
+        if (! \App\Support\Launch\Launch::canTransact($tenant, 'rent')) { // MARKER-LAUNCH-CHECKLIST: preview (to visitors) or paused
+            return response()->json(['ok' => false, 'error' => \App\Support\Launch\Launch::pausedNotice('rent')], 423);
+        }
 
         $request->validate([
             'model_id'   => ['required', 'uuid'],
@@ -201,7 +220,7 @@ class RentalReserveController extends Controller
         }
 
         $payments  = new DirectPaymentsService($tenant);
-        $payOnline = $payments->isEnabled();
+        $payOnline = \App\Support\Launch\RentalRules::paysOnline($tenant, $request->input('pay') === 'pickup' ? 'pickup' : 'online'); // MARKER-RENTAL-PAY-MODE
 
         $lock = app(MySQLLock::class);
         $lockKey = 'intake:' . substr($tenant->id, 0, 8) . ':rent:write';

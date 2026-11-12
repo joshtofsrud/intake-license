@@ -23,6 +23,9 @@ class RentalBrowseController extends Controller
     {
         $tenant = tenant();
         abort_unless($tenant && $tenant->rentals_visible, 404);
+        if (! \App\Support\Launch\Launch::visible($tenant, 'rent')) { // MARKER-LAUNCH-CHECKLIST: preview = staff only
+            return response()->view('public.launch-preview', ['module' => 'rent'], 200);
+        }
 
         $tz = $tenant->timezone();
 
@@ -92,6 +95,12 @@ class RentalBrowseController extends Controller
             if ($u->size && !in_array($u->size, $groups[$catName][$key]['sizes'], true)) {
                 $groups[$catName][$key]['sizes'][] = $u->size;
             }
+        }
+
+        // MARKER-RENTAL-HOURS: say so up front when the window is outside pickup/return hours
+        if (! $error) {
+            $rh = \App\Support\Launch\RentalRules::hours($tenant);
+            $error = \App\Support\Launch\RentalRules::refuse($rh, $startLocal, 'pickup') ?? \App\Support\Launch\RentalRules::refuse($rh, $dueLocal, 'return');
         }
 
         return view('public.rentals', [
