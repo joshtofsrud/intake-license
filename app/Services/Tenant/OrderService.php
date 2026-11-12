@@ -429,7 +429,7 @@ class OrderService
                 'total_cents'         => $quote['total_cents'],
                 'payment_method'      => $manualMethod, // null for card
                 // MARKER-ECOM-SETTINGS: remember whether delivery was taxed, so the sale matches what was charged even if the setting changes before payment lands
-                'metadata'            => array_merge((array) ($cart->metadata ?? []), ['delivery_taxed' => (bool) ($quote['shipping_taxed'] ?? false), 'tax' => $quote['tax_info'] ?? ['source' => 'rate']]),
+                'metadata'            => array_merge((array) ($cart->metadata ?? []), ['delivery_taxed' => (bool) ($quote['shipping_taxed'] ?? false), 'tax' => $quote['tax_info'] ?? ['source' => 'rate'], 'ga' => \App\Support\ShopGa4::on($this->tenant) ? \App\Support\ShopGa4::clientFromCookies(\App\Support\ShopGa4::id($this->tenant)) : null]), // MARKER-SHOP-GA4: the visit's Google ids, so a hand-confirmed payment or a refund is credited to the right visit
             ])->save();
 
             // MARKER-ORDER-SHIPMENTS: remember exactly how this order will ship, so the sale and the
@@ -562,6 +562,20 @@ class OrderService
 
             return $fresh;
         });
+    }
+
+    /** MARKER-SHOP-GA4: staff confirmed a hand-paid order, so tell Google it sold (needs the shop's API secret). */
+    public function reportPurchase(TenantOrder $order): void
+    {
+        $meta = (array) ($order->metadata ?? []);
+        if (empty($meta['ga'])) return;
+        $order->loadMissing('items');
+        \App\Support\ShopGa4::send($this->tenant, 'purchase', \App\Support\ShopGa4::purchase([
+            'number' => $order->order_number, 'subtotal_cents' => (int) $order->subtotal_cents, 'discount_cents' => (int) $order->discount_cents,
+            'tax_cents' => (int) $order->tax_cents, 'shipping_cents' => (int) $order->shipping_cents, 'currency' => $this->tenant->currency,
+            'coupon' => $order->discount_code,
+            'items' => $order->items->map(fn ($l) => ['id' => $l->inventory_item_id ?: $l->id, 'name' => $l->name_snapshot, 'price_cents' => $l->unit_price_cents, 'qty' => $l->quantity])->all(),
+        ]), (array) $meta['ga']);
     }
 
     /**

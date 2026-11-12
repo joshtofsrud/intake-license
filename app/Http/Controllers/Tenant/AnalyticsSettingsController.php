@@ -41,6 +41,19 @@ class AnalyticsSettingsController extends Controller
             $settings['analytics_ga4_id'] = $newId;
         }
 
+        // MARKER-SHOP-GA4: the shop events switch and the API secret live on the E-commerce > Google tab
+        $fromGoogleTab = $request->boolean('ecom_form');
+        if ($fromGoogleTab) {
+            $request->validate(['analytics_ga4_secret' => ['nullable', 'string', 'max:64', 'regex:/^[A-Za-z0-9_\-]*$/']]);
+            $settings['analytics_ecom_on'] = $request->boolean('analytics_ecom_on');
+            $secret = trim((string) $request->input('analytics_ga4_secret', ''));
+            if ($request->boolean('clear_secret')) {
+                unset($settings['analytics_ga4_secret']);
+            } elseif ($secret !== '') {
+                $settings['analytics_ga4_secret'] = \Illuminate\Support\Facades\Crypt::encryptString($secret);
+            }
+        }
+
         $tenant->settings = $settings;
         $tenant->save();
 
@@ -50,6 +63,7 @@ class AnalyticsSettingsController extends Controller
             'by'        => $me->email,
         ]);
 
-        return back()->with('success', 'Analytics settings saved.');
+        $back = back()->with('success', 'Analytics settings saved.');
+        return $fromGoogleTab ? $back->with('ecom_tab', 'goo') : $back;
     }
 }

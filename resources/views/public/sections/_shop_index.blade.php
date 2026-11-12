@@ -135,3 +135,21 @@
 
   </div>
 </div>
+
+{{-- MARKER-SHOP-GA4: which products were shown, and which one was picked --}}
+@if(\App\Support\ShopGa4::on($tenant) && $items->count())
+@php
+  $gaListName = $q ? 'Search: ' . $q : (($activeCat && ($gcn = optional($categories->firstWhere('id', $activeCat))->name)) ? $gcn : 'Shop');
+  $gaItems = $items->values()->map(fn ($it, $i) => \App\Support\ShopGa4::forItem($it) + ['index' => $i])->all();
+@endphp
+<script>
+(function () {
+  var list = @json($gaListName), items = @json($gaItems);
+  if (!window.shopEv) return;
+  shopEv('view_item_list', { item_list_name: list, items: items });
+  document.querySelectorAll('.grid .card').forEach(function (a, i) {
+    a.addEventListener('click', function () { if (items[i]) shopEv('select_item', { item_list_name: list, items: [items[i]], transport_type: 'beacon' }); });
+  });
+})();
+</script>
+@endif

@@ -161,3 +161,22 @@
 
   </div>
 </div>
+
+{{-- MARKER-SHOP-GA4 --}}
+@if(\App\Support\ShopGa4::on($tenant) && ! $empty)
+@php $gaLines = $cart->items->map(fn ($l) => \App\Support\ShopGa4::forLine($l))->values()->all(); @endphp
+<script>
+(function () {
+  var lines = @json($gaLines);
+  if (!window.shopEv) return;
+  var total = lines.reduce(function (s, l) { return s + l.price * l.quantity; }, 0);
+  shopEv('view_cart', { value: Math.round(total * 100) / 100, items: lines });
+  document.querySelectorAll('form input[name="_method"][value="DELETE"]').forEach(function (m, i) {
+    m.form.addEventListener('submit', function () {
+      var l = lines[i]; if (!l) return;
+      shopEv('remove_from_cart', { value: Math.round(l.price * l.quantity * 100) / 100, items: [l], transport_type: 'beacon' });
+    });
+  });
+})();
+</script>
+@endif

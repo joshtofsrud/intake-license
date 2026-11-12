@@ -135,3 +135,23 @@
   </div>
 </div>
 
+{{-- MARKER-SHOP-GA4: the sale, once. Only for a paid order from the last day, so an old link in an email can't count it again. --}}
+@if(\App\Support\ShopGa4::on($tenant) && $paid && ! $refunded && $order->paid_at && $order->paid_at->gt(now()->subDay()))
+@php
+  $gaPurchase = \App\Support\ShopGa4::purchase([
+      'number' => $order->order_number, 'subtotal_cents' => (int) $order->subtotal_cents, 'discount_cents' => (int) $order->discount_cents,
+      'tax_cents' => (int) $order->tax_cents, 'shipping_cents' => (int) $order->shipping_cents, 'currency' => $tenant->currency,
+      'coupon' => $order->discount_code,
+      'items' => $order->items->map(fn ($l) => ['id' => $l->inventory_item_id ?: $l->id, 'name' => $l->name_snapshot, 'price_cents' => $l->unit_price_cents, 'qty' => $l->quantity])->all(),
+  ]);
+@endphp
+<script>
+(function () {
+  var p = @json($gaPurchase), key = 'ga_purchase_' + p.transaction_id;
+  try { if (localStorage.getItem(key)) return; } catch (e) {}
+  if (!window.shopEv) return;
+  shopEv('purchase', p);
+  try { localStorage.setItem(key, '1'); } catch (e) {}
+})();
+</script>
+@endif

@@ -530,6 +530,55 @@
       </div>
       <div class="ec-actions"><button class="ia-btn ia-btn--primary" type="submit">Save Google settings</button></div>
     </form>
+
+    {{-- MARKER-SHOP-GA4 --}}
+    <form method="POST" action="{{ route('tenant.settings.analytics.update') }}" style="margin-top:26px">
+      @csrf <input type="hidden" name="ecom_form" value="1">
+      <div class="ec-sec">
+        <h3>Google Analytics</h3>
+        <div class="ec-note" style="margin-bottom:6px">
+          Status:
+          <b>{{ $cfg['ga_id'] !== '' ? 'tag on your site (' . $cfg['ga_id'] . ')' : 'no measurement ID yet' }}</b> ·
+          <b>shop events {{ $cfg['ga_id'] !== '' && $cfg['ga_ecom_on'] ? 'on' : 'off' }}</b> ·
+          <b>{{ $cfg['ga_has_secret'] ? 'API secret saved' : 'no API secret' }}</b>
+        </div>
+        <div class="ec-row"><div><div class="t">GA4 measurement ID</div><div class="d">From GA4 Admin &rsaquo; Data streams &rsaquo; your web stream. Starts with G-. The same ID the rest of your site uses.</div></div><div class="ctl"><input class="ia-input wide-in" name="analytics_ga4_id" maxlength="32" placeholder="G-XXXXXXXXXX" value="{{ old('analytics_ga4_id', $cfg['ga_raw_id']) }}"></div></div>
+        <div class="ec-row"><div><div class="t">Send shop events</div><div class="d">Product views, add to cart, checkout steps and purchases from your store.</div></div><div class="ctl"><label class="tg"><input type="checkbox" name="analytics_ecom_on" value="1" @checked($cfg['ga_ecom_on'])><i></i></label></div></div>
+        <div class="ec-row"><div style="flex:1"><div class="t">API secret <span style="font-weight:400;opacity:.6">(optional, recommended)</span></div><div class="d">Lets us tell Google about two things no shopper's browser sees: a payment you confirm by hand (Venmo and similar) and a refund. Without it, hand-paid orders are counted only if the shopper reopens their order page, and refunds are not sent. Create it in GA4 Admin &rsaquo; Data streams &rsaquo; your stream &rsaquo; Measurement Protocol API secrets. {{ $cfg['ga_has_secret'] ? 'One is saved; paste a new one to replace it.' : '' }}</div>
+          <div style="display:flex;gap:10px;align-items:center;margin-top:6px;flex-wrap:wrap"><input class="ia-input wide-in" name="analytics_ga4_secret" maxlength="64" autocomplete="off" placeholder="{{ $cfg['ga_has_secret'] ? '•••••••• saved' : 'Paste the secret' }}">
+          @if($cfg['ga_has_secret'])<label style="font-size:12.5px;display:flex;gap:6px;align-items:center"><input type="checkbox" name="clear_secret" value="1"> Remove the saved secret</label>@endif</div></div></div>
+      </div>
+      <div class="ec-actions"><button class="ia-btn ia-btn--primary" type="submit">Save Analytics</button></div>
+    </form>
+
+    <div class="ec-sec" style="margin-top:26px">
+      <h3>What your store sends to Google</h3>
+      <div class="ec-note">
+        <b>view_item_list / select_item</b> shop and category pages and clicks on a product ·
+        <b>view_item</b> a product page ·
+        <b>add_to_cart / remove_from_cart / view_cart</b> ·
+        <b>begin_checkout</b> checkout opened ·
+        <b>add_payment_info</b> card form shown ·
+        <b>purchase</b> payment cleared (value is the goods after any discount; tax and shipping are sent separately) ·
+        <b>refund</b> a register refund (needs the API secret).
+        Each product is sent with its item id, the same id your Google Shopping feed uses, so Analytics, Ads and Merchant Center agree on which product is which.
+        Links shoppers share from item pages carry a share tag, so visits that came from sharing show up as source <b>share</b>.
+        <b>Not counted:</b> visits to your admin, and the page builder preview. Your own visits to the public store do count unless you filter them (step 6).
+      </div>
+    </div>
+
+    <div class="ec-sec">
+      <h3>Set up conversions in Google Analytics</h3>
+      <ol style="margin:0 0 0 18px;padding:0;font-size:13px;line-height:1.7">
+        <li><b>Create the property.</b> At analytics.google.com, Admin &rsaquo; Create &rsaquo; Property, then add a <b>Web</b> data stream with your store's address. Copy its measurement ID (G-…) into the box above and save.</li>
+        <li><b>Check it works.</b> Open <a href="/shop?ga_debug=1" target="_blank" rel="noopener">your store with ?ga_debug=1</a>, then in GA4 go to Admin &rsaquo; DebugView. Click a product, add it to the cart and start checkout: you should see <i>view_item</i>, <i>add_to_cart</i> and <i>begin_checkout</i> appear within seconds. Place a test order to see <i>purchase</i>.</li>
+        <li><b>Mark purchase as a key event.</b> After your first purchase arrives (it can take up to a day to show in Admin &rsaquo; Events), turn on <b>Mark as key event</b> next to <i>purchase</i>. That is what makes it a conversion in reports and in Google Ads. You can do the same for <i>begin_checkout</i> to watch your checkout drop-off.</li>
+        <li><b>Add the API secret</b> (box above) so hand-confirmed payments and refunds are counted.</li>
+        <li><b>Connect Google Ads and Search Console</b> (Admin &rsaquo; Product links) if you advertise or want search data beside sales. In Merchant Center, link the same GA4 property under Settings &rsaquo; Linked accounts.</li>
+        <li><b>Filter out your own visits.</b> Admin &rsaquo; Data streams &rsaquo; your stream &rsaquo; Configure tag settings &rsaquo; Define internal traffic: add your shop's IP address, then Admin &rsaquo; Data filters, set the <i>Internal Traffic</i> filter to Active.</li>
+        <li><b>Where to look.</b> Reports &rsaquo; Monetization &rsaquo; Ecommerce purchases (sales by product), Reports &rsaquo; Acquisition &rsaquo; Traffic acquisition (where sales came from, including <i>share</i> and your Google Shopping listings), and Explore &rsaquo; Funnel exploration with view_item &rarr; add_to_cart &rarr; begin_checkout &rarr; purchase.</li>
+      </ol>
+    </div>
   </section>
 
   {{-- ============ GENERAL ============ --}}

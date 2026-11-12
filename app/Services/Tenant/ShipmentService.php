@@ -110,6 +110,13 @@ class ShipmentService
     public function notifyRefund(string $originalSaleId, int $cents, string $method): void
     {
         $order = TenantOrder::where('tenant_id', $this->tenant->id)->where('sale_id', $originalSaleId)->first();
+        // MARKER-SHOP-GA4: a refund lowers the shop's revenue in Analytics too (needs the API secret and the visit's ids)
+        if ($order && ! empty(((array) $order->metadata)['ga'])) {
+            \App\Support\ShopGa4::send($this->tenant, 'refund', [
+                'transaction_id' => $order->order_number, 'value' => round($cents / 100, 2),
+                'currency' => strtoupper((string) ($this->tenant->currency ?: 'USD')),
+            ], (array) $order->metadata['ga']);
+        }
         if (! $order || ! filled($order->contact_email)) return;
         try {
             (new EmailService($this->tenant))->send('order_refund_issued', $order->contact_email, [

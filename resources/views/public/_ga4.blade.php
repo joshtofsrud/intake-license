@@ -11,6 +11,13 @@
   window.dataLayer = window.dataLayer || [];
   function gtag(){dataLayer.push(arguments);}
   gtag('js', new Date());
-  gtag('config', '{{ $shopGa4 }}', { 'anonymize_ip': true });
+  // MARKER-SHOP-GA4: add ?ga_debug=1 to any page address to watch events live in GA4 DebugView
+  gtag('config', '{{ $shopGa4 }}', { 'anonymize_ip': true, 'debug_mode': /[?&]ga_debug=1/.test(location.search) });
+  // shop events: pages call shopEv(); it does nothing unless the shop has events switched on
+  window.shopEv = {!! \App\Support\ShopGa4::on($currentTenant)
+      ? "function (n, p) { try { p = p || {}; if (!p.currency) { p.currency = " . json_encode(strtoupper((string) ($currentTenant->currency ?: 'USD'))) . "; } gtag('event', n, p); } catch (e) {} }"
+      : 'function () {}' !!};
 </script>
+@else
+<script>window.shopEv = function () {};</script>
 @endif

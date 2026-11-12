@@ -172,3 +172,21 @@
 
   </div>
 </div>
+
+{{-- MARKER-SHOP-GA4 --}}
+@if(\App\Support\ShopGa4::on($tenant))
+@php $gaItem = \App\Support\ShopGa4::forItem($item); @endphp
+<script>
+(function () {
+  var it = @json($gaItem);
+  if (!window.shopEv) return;
+  shopEv('view_item', { value: it.price, items: [it] });
+  var f = document.querySelector('form[action="/cart/items"]');
+  if (f) f.addEventListener('submit', function () {
+    var q = parseInt((document.getElementById('sp-qty') || {}).value, 10) || 1;
+    var line = Object.assign({}, it, { quantity: q });
+    shopEv('add_to_cart', { value: Math.round(it.price * q * 100) / 100, items: [line], transport_type: 'beacon' });
+  });
+})();
+</script>
+@endif

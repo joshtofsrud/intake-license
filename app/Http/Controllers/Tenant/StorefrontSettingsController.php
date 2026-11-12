@@ -70,6 +70,10 @@ class StorefrontSettingsController extends Controller
                 'share_on'            => (bool) ($s['share_on'] ?? true), // MARKER-ITEM-SEO
                 // MARKER-GOOGLE-FEED
                 'feed_on'             => (bool) ($s['feed_on'] ?? false),
+                'ga_id'               => \App\Support\ShopGa4::id($tenant),
+                'ga_ecom_on'          => (bool) (($tenant->settings ?? [])['analytics_ecom_on'] ?? true),
+                'ga_has_secret'       => \App\Support\ShopGa4::secret($tenant) !== null,
+                'ga_raw_id'           => (string) ($tenant->settings['analytics_ga4_id'] ?? ''),
                 'feed_url'            => \App\Services\Feeds\GoogleFeed::url($tenant),
                 'feed_ship'           => ($oc['ship_enabled'] ? $rc['mode'] : 'off'),
                 'google_cats'         => \App\Models\Tenant\TenantInventoryCategory::where('tenant_id', $tenant->id)->orderBy('name')->get(['id', 'name', 'google_category'])->map(fn ($c) => ['id' => $c->id, 'name' => $c->name, 'g' => (string) $c->google_category])->all(),

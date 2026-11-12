@@ -78,7 +78,9 @@ class OrdersController extends Controller
         // staff confirm a manual payment landed (Venmo etc.)
         if ($data['op'] === 'mark_paid') {
             abort_unless($order->status === TenantOrder::STATUS_PENDING_PAYMENT && $order->payment_method, 422);
-            \App\Services\Tenant\OrderService::forTenant($tenant)->finalizeManual($order, \Illuminate\Support\Facades\Auth::guard('tenant')->id());
+            $svc = \App\Services\Tenant\OrderService::forTenant($tenant);
+            $done = $svc->finalizeManual($order, \Illuminate\Support\Facades\Auth::guard('tenant')->id());
+            $svc->reportPurchase($done); // MARKER-SHOP-GA4
             return back()->with('success', 'Payment confirmed — order is paid and in the queue.');
         }
 

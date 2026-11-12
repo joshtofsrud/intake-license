@@ -350,6 +350,7 @@
       elements.create('payment').mount('#payment-element');
       document.getElementById('pay-panel').style.display = 'block';
       window.__orderToken = data.order_token;
+      if (window.shopEv && window.__ga) { shopEv('add_payment_info', { value: window.__ga.value, items: window.__ga.items, payment_type: 'card' }); } // MARKER-SHOP-GA4
       placed = true;
       b.textContent = 'Pay ' + money(data.total_cents);
       b.disabled = false;
@@ -368,3 +369,15 @@
 })();
 </script>
 
+{{-- MARKER-SHOP-GA4 --}}
+@if(\App\Support\ShopGa4::on($tenant) && $cart && $cart->items->isNotEmpty())
+@php $gaLines = $cart->items->map(fn ($l) => \App\Support\ShopGa4::forLine($l))->values()->all(); @endphp
+<script>
+(function () {
+  var lines = @json($gaLines);
+  var total = Math.round(lines.reduce(function (s, l) { return s + l.price * l.quantity; }, 0) * 100) / 100;
+  window.__ga = { value: total, items: lines };
+  if (window.shopEv) shopEv('begin_checkout', { value: total, items: lines });
+})();
+</script>
+@endif
