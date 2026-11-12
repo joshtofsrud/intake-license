@@ -47,19 +47,21 @@ class ItemSeoTest extends TestCase
             'in_stock' => true, 'url' => 'https://shop/shop/chain-x', 'shop' => 'Shop',
             'crumbs' => [['Home', 'https://shop/'], ['Shop', 'https://shop/shop'], ['Chain', 'https://shop/shop/chain-x']],
         ]);
-        $p = $ld['@graph'][0];
+        $p = $ld[0];
+        $this->assertSame('https://schema.org', $p['@context']);
         $this->assertSame('Product', $p['@type']);
         $this->assertSame('29.99', $p['offers']['price']);
         $this->assertSame('USD', $p['offers']['priceCurrency']);
         $this->assertSame('https://schema.org/InStock', $p['offers']['availability']);
         $this->assertSame('012345678905', $p['gtin12']);
         $this->assertCount(2, $p['image']);
-        $this->assertSame(3, count($ld['@graph'][1]['itemListElement']));
+        $this->assertSame(3, count($ld[1]['itemListElement']));
+        $this->assertSame('BreadcrumbList', $ld[1]['@type']);
     }
 
     public function test_no_price_means_no_offer_and_odd_barcodes_are_left_out(): void
     {
-        $p = ItemSeo::jsonld(['name' => 'X', 'url' => 'u', 'shop' => 'S', 'upc' => '123', 'price_cents' => null])['@graph'][0];
+        $p = ItemSeo::jsonld(['name' => 'X', 'url' => 'u', 'shop' => 'S', 'upc' => '123', 'price_cents' => null])[0];
         $this->assertArrayNotHasKey('offers', $p);
         $this->assertArrayNotHasKey('gtin12', $p);
     }

@@ -81,10 +81,11 @@ class ItemSeo
     }
 
     /**
-     * Schema.org markup for one item, from plain facts:
+     * Schema.org markup for one item, as a list of blocks (Product, then breadcrumbs), from plain facts:
      *   name, description, images[], sku, mpn, upc, ean, brand, color, size, price_cents, currency,
      *   in_stock, url, shop, shop_url, crumbs[ [name, url], ... ]
      */
+    /** @return array[] */
     public static function jsonld(array $f): array
     {
         $product = ['@type' => 'Product', 'name' => $f['name'], 'url' => $f['url']];
@@ -114,10 +115,13 @@ class ItemSeo
             ];
         }
 
-        $graph = [$product];
+        // MARKER-ITEM-SEO-BLOCKS: two separate blocks, Product first, so any reader (Google, our own
+        // nightly check) finds the Product as a block's top-level type
+        $blocks = [['@context' => 'https://schema.org'] + $product];
         $crumbs = array_values((array) ($f['crumbs'] ?? []));
         if (count($crumbs) >= 2) {
-            $graph[] = [
+            $blocks[] = [
+                '@context' => 'https://schema.org',
                 '@type' => 'BreadcrumbList',
                 'itemListElement' => array_map(fn ($c, $i) => [
                     '@type' => 'ListItem', 'position' => $i + 1, 'name' => $c[0], 'item' => $c[1],
@@ -125,7 +129,7 @@ class ItemSeo
             ];
         }
 
-        return ['@context' => 'https://schema.org', '@graph' => $graph];
+        return $blocks;
     }
 
     /** UTM tags on a link a shopper shares, so the shop can see what sharing brings in. */

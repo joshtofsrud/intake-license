@@ -69,9 +69,13 @@ class SeoSignals
             $inject .= '<link rel="canonical" href="' . e($v['canonical']) . '">' . "\n";
         }
         if ($v['jsonld']) {
-            $inject .= '<script type="application/ld+json">'
-                . json_encode($v['jsonld'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP)
-                . '</script>' . "\n";
+            // MARKER-ITEM-SEO-BLOCKS: a list of blocks becomes one script tag each
+            $blocks = array_is_list($v['jsonld']) ? $v['jsonld'] : [$v['jsonld']];
+            foreach ($blocks as $block) {
+                $json = json_encode($block, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP);
+                if ($json === false) continue; // never publish an empty block
+                $inject .= '<script type="application/ld+json">' . $json . '</script>' . "\n";
+            }
         }
         if ($inject === '') {
             return $response;
