@@ -57,7 +57,7 @@
       <div class="sd-tl sd-tl--drop">
         @foreach ($dp['rows'] as $r)
           <a class="sd-tl-r {{ $r['state'] }}" href="{{ $r['url'] }}">
-            <time>{{ $r['state'] === 'done' ? 'Done' : ($r['state'] === 'active' ? 'Working' : ($r['state'] === 'next' ? 'Next' : '')) }}</time>
+            <time>{{ ! empty($r['route']) ? $r['time'] : ($r['state'] === 'done' ? 'Done' : ($r['state'] === 'active' ? 'Working' : ($r['state'] === 'next' ? 'Next' : ''))) }}</time>
             <div>
               <b>@if ($r['state'] === 'next')<em>Next up</em>@endif{{ $r['title'] }}</b>
               <span>{{ $r['who'] }} · {{ $r['status'] }}@if (count($r['assets']) > 1) · <button type="button" class="sd-multi" data-assets='@json($r['assets'])'>{{ count($r['assets']) }} {{ $assetP }}</button>@endif</span>

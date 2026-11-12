@@ -261,15 +261,8 @@ class DashboardStudioData
                 'assets' => $this->assets($a), 'url' => route('tenant.appointments.show', $a->id)];
         }
         // pickups and drop-offs on the route, between the appointments
-        try {
-            foreach ((new TenantDeliveryService($this->tenant))->forDay($this->now) as $dl) {
-                $at = Carbon::parse($dl->scheduled_at, 'UTC')->setTimezone($this->tz);
-                $rows[] = ['t' => $at, 'id' => 'dl-' . $dl->id, 'time' => $at->format('g:i A'),
-                    'title' => ($dl->type === 'pickup' ? 'Pickup' : 'Drop-off'), 'who' => trim(($dl->customer?->first_name ?? '') . ' ' . ($dl->customer?->last_name ?? '')) ?: 'On the route',
-                    'state' => $at->lt($this->now) ? 'done' : 'todo', 'assets' => [], 'url' => route('tenant.calendar.index'), 'route' => true];
-            }
-        } catch (\Throwable $e) {
-            report($e);
+        foreach ($this->routeStops() as $r) {
+            $rows[] = $r;
         }
         usort($rows, fn ($x, $y) => $x['t'] <=> $y['t']);
         foreach ($rows as &$r) {
@@ -280,6 +273,28 @@ class DashboardStudioData
         $left = count(array_filter($rows, fn ($r) => $r['state'] !== 'done'));
 
         return ['rows' => $rows, 'left' => $left, 'nextId' => $nextId];
+    }
+
+    /**
+     * Pickups and drop-offs on the route for today, for both kinds of shop.
+     * Each row carries its own time ('t' is used for ordering and removed by the caller).
+     */
+    private function routeStops(): array  // MARKER-STUDIO-ROUTE-STOPS
+    {
+        $rows = [];
+        try {
+            foreach ((new TenantDeliveryService($this->tenant))->forDay($this->now) as $dl) {
+                $at = Carbon::parse($dl->scheduled_at, 'UTC')->setTimezone($this->tz);
+                $rows[] = ['t' => $at, 'id' => 'dl-' . $dl->id, 'time' => $at->format('g:i A'),
+                    'title' => ($dl->type === 'pickup' ? 'Pickup' : 'Drop-off'), 'who' => trim(($dl->customer?->first_name ?? '') . ' ' . ($dl->customer?->last_name ?? '')) ?: 'On the route',
+                    'state' => $at->lt($this->now) ? 'done' : 'todo', 'status' => $at->lt($this->now) ? 'Done' : 'Scheduled',
+                    'assets' => [], 'url' => route('tenant.calendar.index'), 'route' => true];
+            }
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
+        return $rows;
     }
 
     private function dropoffs(Collection $appts): array
@@ -294,6 +309,13 @@ class DashboardStudioData
             $rows[] = ['id' => $a->id, 'title' => $this->serviceSummary($a), 'who' => $this->who($a),
                 'state' => $done ? 'done' : ($active ? 'active' : 'todo'), 'status' => AppointmentStatus::label($a->status),
                 'assets' => $this->assets($a), 'url' => route('tenant.appointments.show', $a->id)];
+        }
+        // route pickups and drop-offs follow the shop's own jobs, in time order
+        $stops = $this->routeStops();
+        usort($stops, fn ($x, $y) => $x['t'] <=> $y['t']);
+        foreach ($stops as $st) {
+            unset($st['t']);
+            $rows[] = $st;
         }
         foreach ($rows as &$r) {
             if ($r['id'] === $next) $r['state'] = 'next';
