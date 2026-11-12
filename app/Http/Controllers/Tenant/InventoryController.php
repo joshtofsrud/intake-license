@@ -1760,6 +1760,7 @@ class InventoryController extends Controller
             'shop_height_in'          => ['nullable', 'numeric', 'min:0', 'max:300'],
             'seo_title'               => ['nullable', 'string', 'max:120'], // MARKER-ITEM-SEO
             'seo_description'         => ['nullable', 'string', 'max:300'],
+            'google_category'         => ['nullable', 'string', 'max:300'], // MARKER-GOOGLE-FEED
             'allow_oversell'          => ['nullable', 'boolean'],
             'is_active'               => ['nullable', 'boolean'],
         ]);
@@ -1821,6 +1822,8 @@ class InventoryController extends Controller
             // MARKER-ITEM-SEO: blank = the item's own name and description
             'seo_title'              => filled($data['seo_title'] ?? null) ? trim($data['seo_title']) : null,
             'seo_description'        => filled($data['seo_description'] ?? null) ? trim($data['seo_description']) : null,
+            'google_category'        => filled($data['google_category'] ?? null) ? trim($data['google_category']) : null, // MARKER-GOOGLE-FEED
+            'feed_exclude'           => (bool) ($data['feed_exclude'] ?? false),
         ]);
 
         $this->syncItemSources($request, $item);

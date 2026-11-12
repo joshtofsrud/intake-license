@@ -177,6 +177,7 @@
     <button type="button" class="ec-tab {{ $tab === 'tax' ? 'on' : '' }}" data-p="tax">Tax</button>
     <button type="button" class="ec-tab {{ $tab === 'pay' || $tab === 'payments' ? 'on' : '' }}" data-p="pay">Payments</button>
     <button type="button" class="ec-tab {{ $tab === 'msg' ? 'on' : '' }}" data-p="msg">Messages</button>
+    <button type="button" class="ec-tab {{ in_array($tab, ['goo','google']) ? 'on' : '' }}" data-p="goo">Google</button>
     <button type="button" class="ec-tab {{ $tab === 'gen' || $tab === 'general' ? 'on' : '' }}" data-p="gen">General</button>
   </div>
 
@@ -479,6 +480,58 @@
     </form>
   </section>
 
+  {{-- ============ GOOGLE (MARKER-GOOGLE-FEED) ============ --}}
+  <section class="ec-panel {{ in_array($tab, ['goo','google']) ? 'on' : '' }}" id="p-goo">
+    <form method="POST" action="{{ route('tenant.storefront.settings.update') }}">
+      @csrf <input type="hidden" name="section" value="google">
+      <div class="ec-sec">
+        <h3>Google Shopping feed</h3>
+        <div class="ec-row"><div><div class="t">Share my products with Google</div><div class="d">Gives Google Merchant Center a link to read your online products, so they can show in Google Shopping and free listings. Prices and stock follow your store, and Google re-reads the link on its own.</div></div><div class="ctl"><label class="tg"><input type="checkbox" name="feed_on" value="1" @checked($cfg['feed_on'])><i></i></label></div></div>
+        @if($cfg['feed_url'])
+        <div class="ec-row"><div style="flex:1"><div class="t">Your feed link</div><div class="d">Paste this into Merchant Center (Products &rsaquo; Feeds &rsaquo; scheduled fetch). Keep it to yourself: anyone with the link can read the feed. {{ $cfg['feed_on'] ? '' : 'The link works only while sharing is on.' }}</div>
+          <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;align-items:center">
+            <input class="ia-input" id="feedUrl" readonly style="flex:1;min-width:240px" value="{{ $cfg['feed_url'] }}" onclick="this.select()">
+            <button type="button" class="ia-btn ia-btn--secondary ia-btn--sm" id="feedCopy">Copy</button>
+            <button type="submit" name="regen" value="1" class="ia-btn ia-btn--ghost ia-btn--sm">Make a new link</button>
+            <span id="feedCopied" style="font-size:12px;color:var(--ia-text-muted)"></span>
+          </div></div></div>
+        @endif
+      </div>
+
+      <div class="ec-sec">
+        <h3>What goes in the feed</h3>
+        <div class="ec-note">
+          <b>In:</b> every item you sell online that has a price and a photo, with its name, description, brand, barcode, part number, size, colour, photos, weight, and whether it is in stock (a supplier that can ship it counts as in stock).
+          <b>Not in:</b> items that are hidden or inactive, items with no price or photo, and any item you tick "Leave out of the Google feed" on (Edit item &rsaquo; Search &amp; sharing).
+          Special-order items with nothing on hand are sent as out of stock.
+          <b>Shipping:</b>
+          @if($cfg['feed_ship'] === 'flat') your flat shipping fee is included on each item. A "free over" amount can't be expressed per item, so set that in Merchant Center under Shipping.
+          @elseif($cfg['feed_ship'] === 'off') shipping is off in your store, so none is sent. Set what you offer in Merchant Center under Shipping.
+          @else your shipping is priced by {{ $cfg['feed_ship'] === 'weight' ? 'weight' : 'carrier rates' }}, which Google can't read per item. Each item's weight is sent; set matching rates in Merchant Center under Shipping.
+          @endif
+          <b>Tax:</b> set in Merchant Center under Tax; it is not in the feed.
+        </div>
+      </div>
+
+      <div class="ec-sec">
+        <h3>Feed health</h3>
+        <div class="ec-note" style="margin-bottom:8px">Checks your products against what Google needs, using the same rules the feed does.</div>
+        <div id="feedReport" style="font-size:13px"><button type="button" class="ia-btn ia-btn--secondary ia-btn--sm" id="feedCheck">Check my products</button></div>
+      </div>
+
+      <div class="ec-sec">
+        <h3>Google product categories</h3>
+        <div class="ec-note" style="margin-bottom:6px">Google sorts products by its own category list. Enter the category number or full name from <a href="https://support.google.com/merchants/answer/6324436" target="_blank" rel="noopener">Google's list</a> for each of your categories. Items inherit it; an item can override it on its own page. Blank lets Google guess.</div>
+        @forelse($cfg['google_cats'] as $gc)
+          <div class="ec-row"><div><div class="t">{{ $gc['name'] }}</div></div><div class="ctl"><input class="ia-input wide-in" name="google_cat[{{ $gc['id'] }}]" maxlength="300" value="{{ old('google_cat.' . $gc['id'], $gc['g']) }}" placeholder="e.g. 1234 or Sporting Goods &gt; ..."></div></div>
+        @empty
+          <div class="ec-note">You have no categories yet. Add some under Inventory and they will show here.</div>
+        @endforelse
+      </div>
+      <div class="ec-actions"><button class="ia-btn ia-btn--primary" type="submit">Save Google settings</button></div>
+    </form>
+  </section>
+
   {{-- ============ GENERAL ============ --}}
   <section class="ec-panel {{ in_array($tab, ['gen','general']) ? 'on' : '' }}" id="p-gen">
     <form method="POST" action="{{ route('tenant.storefront.settings.update') }}">
@@ -581,5 +634,53 @@
      data-bulk="{{ route('tenant.storefront.availability.bulk') }}"
      data-undo="{{ route('tenant.storefront.availability.undo') }}"
      data-csrf="{{ csrf_token() }}"></div>
+<script>
+/* MARKER-GOOGLE-FEED: copy the feed link; check the products against Google's needs */
+(function () {
+  var cp = document.getElementById('feedCopy');
+  if (cp) cp.addEventListener('click', function () {
+    var f = document.getElementById('feedUrl'), n = document.getElementById('feedCopied');
+    function ok() { n.textContent = 'Copied'; setTimeout(function () { n.textContent = ''; }, 2000); }
+    if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(f.value).then(ok, function () { f.select(); }); } else { f.select(); }
+  });
+  var box = document.getElementById('feedReport'), btn = document.getElementById('feedCheck');
+  if (!btn) return;
+  var itemUrl = @json(route('tenant.inventory.show', '__ID__'));
+  function el(t, txt, st) { var e = document.createElement(t); if (txt) e.textContent = txt; if (st) e.style.cssText = st; return e; }
+  function group(title, map, tone) {
+    var keys = Object.keys(map);
+    if (!keys.length) return null;
+    var wrap = el('div', null, 'margin-top:12px');
+    wrap.appendChild(el('div', title, 'font-weight:600;margin-bottom:4px'));
+    keys.forEach(function (k) {
+      var g = map[k], row = el('div', null, 'padding:6px 0;border-top:.5px solid var(--ia-border)');
+      row.appendChild(el('div', g.count + ' · ' + k, tone ? 'color:' + tone : ''));
+      var names = el('div', null, 'font-size:12px;color:var(--ia-text-muted);margin-top:2px');
+      g.items.forEach(function (it, i) {
+        var a = el('a', it.name); a.href = itemUrl.replace('__ID__', it.id); a.target = '_blank';
+        names.appendChild(a); if (i < g.items.length - 1) names.appendChild(document.createTextNode(', '));
+      });
+      if (g.count > g.items.length) names.appendChild(document.createTextNode(' and ' + (g.count - g.items.length) + ' more'));
+      row.appendChild(names); wrap.appendChild(row);
+    });
+    return wrap;
+  }
+  btn.addEventListener('click', function () {
+    btn.disabled = true; btn.textContent = 'Checking…';
+    fetch(@json(route('tenant.storefront.settings.feed_report')), { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
+      .then(function (r) { if (!r.ok) throw new Error(); return r.json(); })
+      .then(function (d) {
+        box.textContent = '';
+        box.appendChild(el('div', d.in_feed + ' of ' + d.total + ' online items are ready for Google.', 'font-weight:600'));
+        var ex = group('Left out of the feed', d.excluded, '#A32D2D'), wn = group('In the feed, but Google may flag', d.warnings, '#854F0B');
+        if (ex) box.appendChild(ex); if (wn) box.appendChild(wn);
+        if (!ex && !wn) box.appendChild(el('div', 'Nothing to fix.', 'margin-top:8px;color:var(--ia-text-muted)'));
+        var again = el('button', 'Check again'); again.type = 'button'; again.className = 'ia-btn ia-btn--ghost ia-btn--sm'; again.style.marginTop = '12px';
+        again.addEventListener('click', function () { location.reload(); }); box.appendChild(again);
+      })
+      .catch(function () { btn.disabled = false; btn.textContent = 'Check my products'; box.appendChild(el('div', 'Could not check just now. Try again.', 'margin-top:8px;color:#A32D2D')); });
+  });
+})();
+</script>
 <script src="{{ asset('js/tenant/ecommerce-availability.js') }}?v={{ filemtime(public_path('js/tenant/ecommerce-availability.js')) }}" defer></script>
 @endsection

@@ -33,23 +33,8 @@ class StorefrontController extends Controller
     private function visible()
     {
         $this->guardTier();
-        $q = TenantInventoryItem::query()
-            ->where('tenant_id', tenant()->id)
-            ->where('is_active', true)
-            ->where('show_online', true);
-
-        // MARKER-ECOM-SETTINGS: the shop may hide items that are out of stock and can't be oversold
-        if (\App\Services\Tenant\OrderService::wording(tenant())['hide_out']) {
-            // MARKER-ORDER-SHIPMENTS: supplier stock the shop may ship counts too
-            $supplier = \App\Services\Tenant\OrderStock::forTenant(tenant())->supplierUsable(\App\Services\Tenant\OrderStock::MODE_CART);
-            $q->where(function ($w) use ($supplier) {
-                $w->where('computed_stock_count', '>', 0)->orWhere('allow_oversell', true);
-                if ($supplier) {
-                    $w->orWhereExists(fn ($e) => $e->selectRaw('1')->from('tenant_inventory_item_vendors as v')
-                        ->whereColumn('v.inventory_item_id', 'tenant_inventory_items.id')->where('v.live_avail', '>', 0));
-                }
-            });
-        }
+        // MARKER-GOOGLE-FEED: one rule for what is for sale online, shared with the Google feed
+        $q = \App\Services\Tenant\OnlineItems::query(tenant());
 
         return $q;
     }

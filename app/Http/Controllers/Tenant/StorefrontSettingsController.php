@@ -68,6 +68,11 @@ class StorefrontSettingsController extends Controller
                 'browse_layout'       => (string) ($s['browse_layout'] ?? 'chips'),
                 'out_display'         => ($s['out_display'] ?? 'show') === 'hide' ? 'hide' : 'show',
                 'share_on'            => (bool) ($s['share_on'] ?? true), // MARKER-ITEM-SEO
+                // MARKER-GOOGLE-FEED
+                'feed_on'             => (bool) ($s['feed_on'] ?? false),
+                'feed_url'            => \App\Services\Feeds\GoogleFeed::url($tenant),
+                'feed_ship'           => ($oc['ship_enabled'] ? $rc['mode'] : 'off'),
+                'google_cats'         => \App\Models\Tenant\TenantInventoryCategory::where('tenant_id', $tenant->id)->orderBy('name')->get(['id', 'name', 'google_category'])->map(fn ($c) => ['id' => $c->id, 'name' => $c->name, 'g' => (string) $c->google_category])->all(),
                 // fulfillment
                 'pickup_enabled'      => $oc['pickup_enabled'],
                 'pickup_instructions' => $oc['pickup_instructions'],
@@ -170,7 +175,7 @@ class StorefrontSettingsController extends Controller
     {
         $this->guard();
         $section = (string) $request->input('section', '');
-        abort_unless(in_array($section, ['fulfillment', 'tax', 'payments', 'wording', 'general'], true), 422);
+        abort_unless(in_array($section, ['fulfillment', 'tax', 'payments', 'wording', 'general', 'google'], true), 422);
 
         $tenant   = tenant();
         $settings = $tenant->settings ?? [];
@@ -324,6 +329,23 @@ class StorefrontSettingsController extends Controller
                 $msg = 'Wording saved.';
                 break;
 
+            case 'google':
+                $data = $request->validate([
+                    'google_cat'   => ['nullable', 'array'],
+                    'google_cat.*' => ['nullable', 'string', 'max:300'],
+                ]);
+                $sf['feed_on'] = $request->boolean('feed_on');
+                if ($sf['feed_on'] && (empty($sf['feed_token']) || $request->boolean('regen'))) {
+                    $sf['feed_token'] = \Illuminate\Support\Str::random(40); // the long link is the key; a new one retires the old
+                }
+                foreach (\App\Models\Tenant\TenantInventoryCategory::where('tenant_id', $tenant->id)->get(['id']) as $c) {
+                    if (! array_key_exists($c->id, (array) ($data['google_cat'] ?? []))) continue;
+                    $v = trim((string) $data['google_cat'][$c->id]);
+                    \App\Models\Tenant\TenantInventoryCategory::where('id', $c->id)->where('tenant_id', $tenant->id)->update(['google_category' => $v !== '' ? $v : null]);
+                }
+                $msg = $request->boolean('regen') && $sf['feed_on'] ? 'Google settings saved. The feed link changed: paste the new one into Merchant Center.' : 'Google settings saved.';
+                break;
+
             case 'general':
                 $data = $request->validate([
                     'browse_layout' => ['nullable', 'in:chips,sidebar'],
@@ -342,6 +364,13 @@ class StorefrontSettingsController extends Controller
         $tenant->save();
 
         return back()->with('success', $msg)->with('ecom_tab', $tab);
+    }
+
+    /** GET /storefront/feed-report — what the Google feed holds and why anything is left out (MARKER-GOOGLE-FEED). */
+    public function feedReport()
+    {
+        $this->guard();
+        return response()->json(\App\Services\Feeds\GoogleFeed::report(tenant()));
     }
 
     /** POST /storefront/item/{id} — per-item publish toggle (from the item page). */

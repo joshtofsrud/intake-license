@@ -226,6 +226,8 @@
           Only used for items shown online. This is the headline and the sentence Google and link previews (text messages, Facebook, email) show for this item's page.
           Leave both blank to use the item's name and description. The item's first photo is the preview picture.
         </div>
+        <input type="text" name="google_category" class="ia-input" maxlength="300" style="margin-top:8px" placeholder="Google product category (blank = this item's category)" value="{{ old('google_category', $item->google_category) }}">
+        <label style="display:flex;gap:8px;align-items:center;margin-top:8px;font-size:13px"><input type="checkbox" name="feed_exclude" value="1" {{ old('feed_exclude', $item->feed_exclude) ? 'checked' : '' }}> Leave out of the Google feed</label>
         <div id="seo-prev" style="margin-top:8px;border:.5px solid var(--ia-border);border-radius:10px;padding:10px 12px;font-size:12.5px">
           <div style="color:var(--ia-text-muted);font-size:11px">What it looks like in search</div>
           <div id="seo-prev-t" style="font-weight:600;margin-top:3px"></div>

@@ -54,6 +54,7 @@ class TenantInventoryItem extends Model
         'catalog_ean',
         'catalog_mpn',
         'seo_title', 'seo_description', // MARKER-ITEM-SEO
+        'google_category', 'feed_exclude', // MARKER-GOOGLE-FEED
         'shop_brand', // the shop's own brand value
         'shop_weight_oz', 'shop_length_in', 'shop_width_in', 'shop_height_in', // MARKER-SHIPPING-RATES
         'catalog_title_seen',

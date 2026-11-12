@@ -227,6 +227,7 @@ $tenantRoutes = function () {
     Route::get('/sitemap.xml',       [\App\Http\Controllers\SeoController::class, 'sitemap'])->name('tenant.seo.sitemap');
     Route::get('/sitemap-pages.xml', [\App\Http\Controllers\SeoController::class, 'pages'])->name('tenant.seo.sitemap_pages');
     Route::get('/sitemap-products-{part}.xml', [\App\Http\Controllers\SeoController::class, 'products'])->where('part', '[0-9]+')->name('tenant.seo.sitemap_products');
+    Route::get('/feeds/google-{token}.xml', [TenantControllers\GoogleFeedController::class, 'feed'])->where('token', '[A-Za-z0-9]{20,64}')->middleware('throttle:60,1')->name('tenant.feeds.google'); // MARKER-GOOGLE-FEED
     Route::get('/confirm', [TenantControllers\PublicController::class, 'confirm'])->name('tenant.confirm');
     Route::get('/contact', [TenantControllers\PublicController::class, 'contact'])->name('tenant.contact');
 
@@ -524,6 +525,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::get('/storefront',        [TenantControllers\StorefrontSettingsController::class, 'show'])->name('storefront.settings');
                 Route::post('/storefront',       [TenantControllers\StorefrontSettingsController::class, 'update'])->name('storefront.settings.update');
                 Route::post('/storefront/bulk',  [TenantControllers\StorefrontSettingsController::class, 'bulk'])->name('storefront.settings.bulk');
+                Route::get('/storefront/feed-report', [TenantControllers\StorefrontSettingsController::class, 'feedReport'])->name('storefront.settings.feed_report')->middleware('throttle:20,1'); // MARKER-GOOGLE-FEED
                 Route::post('/storefront/tax-test', [TenantControllers\StorefrontSettingsController::class, 'testTax'])->name('storefront.settings.tax_test')->middleware('throttle:10,1'); // MARKER-DESTINATION-TAX
                 Route::post('/storefront/carrier-test', [TenantControllers\StorefrontSettingsController::class, 'testCarrier'])->name('storefront.settings.carrier_test')->middleware('throttle:10,1'); // MARKER-SHIPPING-RATES
                 Route::post('/storefront/item/{id}', [TenantControllers\StorefrontSettingsController::class, 'toggleItem'])->name('storefront.item.toggle');

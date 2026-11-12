@@ -31,6 +31,7 @@ class TenantInventoryCategory extends Model
         'slug',
         'sort_order',
         'tax_class_code',
+        'google_category', // MARKER-GOOGLE-FEED
         'source',
         'track_serials',
     ];
