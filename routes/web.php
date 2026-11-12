@@ -797,6 +797,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::get('/reports/customers',    [TenantControllers\ReportsController::class, 'customers'])->name('reports.customers');
             Route::get('/reports/services',     [TenantControllers\ReportsController::class, 'services'])->name('reports.services');
             Route::get('/reports/retail',       [TenantControllers\ReportsController::class, 'retail'])->name('reports.retail');
+            Route::get('/reports/online',       [TenantControllers\ReportsController::class, 'online'])->name('reports.online');
             Route::get('/reports/money',        [TenantControllers\ReportsController::class, 'money'])->name('reports.money');
             Route::get('/reports/staff',        [TenantControllers\ReportsController::class, 'staff'])->name('reports.staff');
             // MARKER-REPORT-BUILDER-CORE

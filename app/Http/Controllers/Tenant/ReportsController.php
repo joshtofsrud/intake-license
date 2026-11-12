@@ -125,6 +125,12 @@ class ReportsController extends Controller
         return $this->engineTab($request, 'retail', 'What sold, who sold it, what it earned, and what is left on the shelf.');
     }
 
+    // MARKER-ONLINE-REPORTS
+    public function online(Request $request): View
+    {
+        return $this->engineTab($request, 'online', 'The online store: what it sells, what shipping costs, what gets abandoned, and what is out of stock.');
+    }
+
     public function money(Request $request): View
     {
         return $this->engineTab($request, 'money', 'Money in: what you were paid, what was refunded, and the tax you collected.');
@@ -143,7 +149,7 @@ class ReportsController extends Controller
         $panels = new TabPanels($tenant, $engine, $q, $isManager, $locked);
         $built = match ($tab) {
             'money' => $panels->money(), 'staff' => $panels->staff(), 'services' => $panels->services(),
-            'operations' => $panels->operations(), 'customers' => $panels->customers(), default => $panels->retail(),
+            'operations' => $panels->operations(), 'customers' => $panels->customers(), 'online' => $panels->online(), default => $panels->retail(),
         };
 
         [$from, $to] = $engine->periods()->rangeFor(['range' => $q['range'], 'from' => $q['from'], 'to' => $q['to']]);

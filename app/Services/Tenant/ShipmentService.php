@@ -17,7 +17,7 @@ class ShipmentService
 
     public static function forTenant(Tenant $tenant): self { return new self($tenant); }
 
-    public function markShipped(TenantOrderShipment $sh, string $carrier, string $tracking, bool $notify): void
+    public function markShipped(TenantOrderShipment $sh, string $carrier, string $tracking, bool $notify, ?int $costCents = null): void
     {
         $this->allow($sh, 'ship');
         $carrier = array_key_exists($carrier, ShipmentFlow::carriers()) ? $carrier : 'other';
@@ -25,7 +25,7 @@ class ShipmentService
         $sh->forceFill([
             'status' => 'shipped', 'carrier' => $carrier, 'tracking_number' => trim($tracking) ?: null,
             'shipped_at' => $sh->shipped_at ?: now(),
-        ])->save();
+        ] + ($costCents !== null ? ['cost_cents' => max(0, $costCents)] : []))->save();   // MARKER-ONLINE-REPORTS: blank keeps what was entered
         $this->sync($sh);
         if ($notify) $this->email($sh, 'order_shipped', [
             'what_next' => $first ? 'It is on its way.' : 'We updated the tracking details for your shipment.',

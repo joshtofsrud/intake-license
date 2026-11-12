@@ -13,6 +13,8 @@ use Illuminate\Support\Facades\DB;
 class SalesSource extends Source
 {
     private const CAT = "CASE WHEN i.type = 'product' THEN COALESCE(it.category_id, 'uncat') WHEN i.type = 'service' THEN 'svc' ELSE 'other' END";
+    // MARKER-ONLINE-REPORTS: a sale is online when an online order points at it; a refund follows its original sale
+    private const CHANNEL = "CASE WHEN EXISTS (SELECT 1 FROM tenant_orders ox WHERE ox.sale_id = COALESCE(s.refund_of_sale_id, s.id)) THEN 'online' ELSE 'register' END";
     private const SIGN = '(CASE WHEN s.refund_of_sale_id IS NULL THEN 1 ELSE -1 END)';
     // MARKER-SIGNED-MATH: the money columns are UNSIGNED, and MySQL refuses any
     // subtraction that goes below zero (a discount over the line, a sale under
@@ -43,10 +45,10 @@ class SalesSource extends Source
                 'day'   => ['Day', 't'], 'week' => ['Week', 't'], 'month' => ['Month', 't'], 'hour' => ['Hour of day', 't'],
                 'loc'   => ['Location', 'c'], 'staff' => ['Staff (rang up by)', 'c', 'managers'], 'cat' => ['Category', 'c'],
                 'pay'   => ['Payment method', 'c'], 'ctype' => ['Customer type', 'c'], 'item' => ['Item', 'c'],
-                'mband' => ['Margin range', 'c'], 'pband' => ['Price band', 'c'],
+                'mband' => ['Margin range', 'c'], 'pband' => ['Price band', 'c'], 'channel' => ['Sold where', 'c'],
             ],
             'filters' => ['loc' => 'Location', 'staff' => 'Staff', 'cat' => 'Category', 'pay' => 'Payment method',
-                'ctype' => 'Customer type', 'mband' => 'Margin range', 'pband' => 'Price band'],
+                'ctype' => 'Customer type', 'mband' => 'Margin range', 'pband' => 'Price band', 'channel' => 'Sold where'],
         ];
     }
 
@@ -58,6 +60,7 @@ class SalesSource extends Source
             'cat'   => $this->activeCategories() + ['uncat' => 'Uncategorized', 'svc' => 'Services', 'other' => 'Other'],
             'pay'   => $this->payOptions(),
             'ctype' => ['known' => 'Known customer', 'walkin' => 'Walk-in'],
+            'channel' => ['online' => 'Online store', 'register' => 'Register'],
             'mband', 'pband' => $this->bandOptions($key),
             default => [],
         };
@@ -91,6 +94,7 @@ class SalesSource extends Source
             'cat'   => [self::CAT, 'key'],
             'pay'   => ["COALESCE(NULLIF(s.payment_method, ''), 'unknown')", 'key'],
             'ctype' => ["CASE WHEN s.customer_id IS NULL THEN 'walkin' ELSE 'known' END", 'key'],
+            'channel' => [self::CHANNEL, 'key'],
             'item'  => ["COALESCE(i.inventory_item_id, CONCAT('n:', i.name_snapshot))", 'key'],
             'mband' => [self::bandSql(self::MPCT, [30, 40, 50, 60]), 'key'],
             'pband' => [self::bandSql('i.unit_price_cents', [2500, 5000, 10000, 20000]), 'key'],
@@ -116,6 +120,7 @@ class SalesSource extends Source
             'ctype' => "CASE WHEN s.customer_id IS NULL THEN 'walkin' ELSE 'known' END",
             'mband' => self::bandSql(self::MPCT, [30, 40, 50, 60]),
             'pband' => self::bandSql('i.unit_price_cents', [2500, 5000, 10000, 20000]),
+            'channel' => self::CHANNEL,
         ];
         foreach ($f as $k => $spec) {
             if (isset($cols[$k])) {
@@ -193,6 +198,7 @@ class SalesSource extends Source
             'cat'   => [$raw, ['uncat' => 'Uncategorized', 'svc' => 'Services', 'other' => 'Other'][$raw] ?? ($this->names('cat')[$raw] ?? 'Removed category')],
             'pay'   => [$raw, self::payLabel($raw)],
             'ctype' => [$raw, $raw === 'walkin' ? 'Walk-in' : 'Known customer'],
+            'channel' => [$raw, $raw === 'online' ? 'Online store' : 'Register'],
             'item'  => [$raw, (string) ($r->lname ?? $raw)],
             'mband', 'pband' => [$raw, $this->bandOptions($d)[$raw] ?? $raw],
             default => [$raw, $raw],

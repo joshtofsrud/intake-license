@@ -162,12 +162,14 @@ class OrdersController extends Controller
             'tracking_number' => ['nullable', 'string', 'max:80'],
             'note'            => ['nullable', 'string', 'max:300'],
             'notify'          => ['nullable', 'boolean'],
+            'shipping_cost'   => ['nullable', 'numeric', 'min:0', 'max:100000'],
         ]);
         $svc = \App\Services\Tenant\ShipmentService::forTenant($tenant);
         $notify = $request->boolean('notify');
         switch ($d['op']) {
             case 'ship':
-                $svc->markShipped($sh, (string) ($d['carrier'] ?? 'other'), (string) ($d['tracking_number'] ?? ''), $notify);
+                $svc->markShipped($sh, (string) ($d['carrier'] ?? 'other'), (string) ($d['tracking_number'] ?? ''), $notify,
+                    isset($d['shipping_cost']) && $d['shipping_cost'] !== '' ? (int) round(((float) $d['shipping_cost']) * 100) : null);
                 $msg = 'Marked shipped' . ($notify && filled($order->contact_email) ? ' and the customer was emailed.' : '.'); break;
             case 'out_for_delivery':
                 $svc->markOutForDelivery($sh, $notify); $msg = 'Marked out for delivery.'; break;

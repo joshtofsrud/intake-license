@@ -1,7 +1,7 @@
 {{--
   Shared subnav partial for the Reports tabs.
   Usage:  @include('tenant.reports._tab_subnav', ['active' => 'services'])
-  Active: traffic | operations | customers | services | retail | money | staff
+  Active: traffic | operations | customers | services | retail | online | money | staff
   desktop tab row + native mobile report picker.
 --}}
 @php
@@ -11,6 +11,7 @@
     ['key' => 'customers',  'label' => 'Customers',  'url' => route('tenant.reports.customers')],
     ['key' => 'services',   'label' => 'Services',   'url' => route('tenant.reports.services')],
     ['key' => 'retail',     'label' => 'Retail',     'url' => route('tenant.reports.retail')],
+    ['key' => 'online',     'label' => 'Online',     'url' => route('tenant.reports.online')],
     ['key' => 'money',      'label' => 'Money',      'url' => route('tenant.reports.money')],
     ['key' => 'daily',      'label' => 'Daily ops',  'url' => route('tenant.reports.daily')],
     ['key' => 'staff',      'label' => 'Staff',      'url' => route('tenant.reports.staff')],
@@ -24,6 +25,7 @@
     'customers' => '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /> <circle cx="9" cy="7" r="4" /> <path d="M22 21v-2a4 4 0 0 0-3-3.87" /> <path d="M16 3.13a4 4 0 0 1 0 7.75" />',
     'services' => '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />',
     'retail' => '<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" /> <path d="M3 6h18" /> <path d="M16 10a4 4 0 0 1-8 0" />',
+    'online' => '<circle cx="8" cy="21" r="1" /> <circle cx="19" cy="21" r="1" /> <path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12" />',
     'money' => '<path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1" /> <path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4" />',
     'daily' => '<rect width="8" height="4" x="8" y="2" rx="1" ry="1" /> <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /> <path d="M12 11h4" /> <path d="M12 16h4" /> <path d="M8 11h.01" /> <path d="M8 16h.01" />',
     'staff' => '<path d="M16 10h2" /> <path d="M16 14h2" /> <path d="M6.17 15a3 3 0 0 1 5.66 0" /> <circle cx="9" cy="11" r="2" /> <rect x="2" y="5" width="20" height="14" rx="2" />',

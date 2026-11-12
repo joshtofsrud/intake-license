@@ -4,11 +4,13 @@ namespace App\Services\Tenant\ReportBuilder;
 
 use App\Models\Tenant;
 use App\Services\Tenant\ReportBuilder\Sources\AppointmentsSource;
+use App\Services\Tenant\ReportBuilder\Sources\CartsSource;
 use App\Services\Tenant\ReportBuilder\Sources\CustomersSource;
 use App\Services\Tenant\ReportBuilder\Sources\DistributorSource;
 use App\Services\Tenant\ReportBuilder\Sources\InventorySource;
 use App\Services\Tenant\ReportBuilder\Sources\ReceivedSource;
 use App\Services\Tenant\ReportBuilder\Sources\SalesSource;
+use App\Services\Tenant\ReportBuilder\Sources\ShipmentsSource;
 use App\Services\Tenant\ReportBuilder\Sources\Source;
 use App\Services\Tenant\ReportBuilder\Sources\StaffHoursSource;
 
@@ -65,6 +67,9 @@ class ReportCatalog
             $out['dist'] = new DistributorSource($tenant, $p);
         }
         $out['recv'] = new ReceivedSource($tenant, $p);
+        // MARKER-ONLINE-REPORTS
+        $out['ship'] = new ShipmentsSource($tenant, $p);
+        $out['carts'] = new CartsSource($tenant, $p);
         return $out;
     }
 
@@ -250,6 +255,11 @@ class ReportCatalog
             ['What\'s moving in my inventory', 'Your 25 fastest-moving items, with how long the stock will last.', 'trending-up', ['ds' => 'inv', 'measures' => ['turns', 'units', 'st', 'dleft'], 'dim' => 'item', 'limit' => 25]],
             ['Distributor stock by brand', 'What the distributors have left of what you carry, and how long it should last.', 'truck', ['ds' => 'dist', 'measures' => ['dstock', 'dpace', 'ddays'], 'dim' => 'brand']],
             ['Low cover by distributor', 'Items you carry that are about to run out, for each distributor.', 'alarm-clock', ['ds' => 'dist', 'measures' => ['dlow', 'dstock', 'ddays'], 'dim' => 'dist']],
+            ['Online sales by item', 'What sold through the online store, most revenue first, last 90 days.', 'trending-up', ['ds' => 'sales', 'measures' => ['rev', 'items', 'marginp'], 'dim' => 'item', 'range' => 'Last 90 days', 'filters' => [['f' => 'channel', 'op' => 'is', 'v' => 'online']]]],
+            ['Online against register', 'Revenue and tickets for the online store next to the register, month by month (a pivot).', 'grid-3x3', ['ds' => 'sales', 'measures' => ['rev'], 'dim' => 'channel', 'dim2' => 'month', 'range' => 'Last 12 months']],
+            ['Shipping charged against cost', 'What customers paid for shipping and what it cost you, by carrier.', 'truck', ['ds' => 'ship', 'measures' => ['ships', 'charged', 'cost', 'net', 'recover'], 'dim' => 'carrier', 'range' => 'Last 90 days']],
+            ['Dropship share', 'How much of what you ship comes from your shop and how much from suppliers.', 'boxes', ['ds' => 'ship', 'measures' => ['ships', 'units', 'supshare'], 'dim' => 'source', 'range' => 'Last 90 days']],
+            ['Abandoned carts by item', 'What shoppers put in a cart and walked away from.', 'archive', ['ds' => 'carts', 'measures' => ['aband', 'abandval', 'abandp'], 'dim' => 'item', 'range' => 'Last 90 days', 'limit' => 25]],
             ['Dead stock by vendor', 'What\'s tied up and unsold, and who sold it to you.', 'archive', ['ds' => 'inv', 'measures' => ['dead', 'cost', 'cover'], 'dim' => 'vend']],
         ];
     }

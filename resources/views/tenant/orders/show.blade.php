@@ -111,6 +111,7 @@
               <span style="font-size:12.5px">{{ \App\Services\Tenant\ShipmentFlow::carriers()[$sh->carrier] ?? '' }}
                 @if($turl)<a href="{{ $turl }}" target="_blank" rel="noopener">{{ $sh->tracking_number }}</a>@else{{ $sh->tracking_number }}@endif</span>
             @endif
+            @if($sh->cost_cents !== null)<span style="font-size:12px;color:var(--ia-text-muted)">cost you ${{ number_format($sh->cost_cents / 100, 2) }}</span>@endif
             @if($sh->shipped_at)<span style="font-size:12px;color:var(--ia-text-muted)">shipped {{ $sh->shipped_at->format('M j') }}</span>@endif
             @if($sh->delivered_at)<span style="font-size:12px;color:var(--ia-text-muted)">delivered {{ $sh->delivered_at->format('M j') }}</span>@endif
           </div>
@@ -125,6 +126,7 @@
               @endforeach
             </select>
             <input type="text" name="tracking_number" class="ia-input" style="flex:1;min-width:150px" placeholder="Tracking number" value="{{ $sh->tracking_number }}">
+            <input type="number" name="shipping_cost" class="ia-input" style="width:130px" step="0.01" min="0" placeholder="What it cost you" title="What this shipment cost you ($). Used in the Online report. Leave blank if you don't know yet." value="{{ $sh->cost_cents !== null ? number_format($sh->cost_cents / 100, 2, '.', '') : '' }}">
             @if($canMail)<label class="od-chk" style="padding:0"><input type="checkbox" name="notify" value="1" checked> Email the customer</label>@endif
             <button class="ia-btn ia-btn--primary ia-btn--sm">{{ $st === 'shipped' ? 'Save tracking' : 'Mark shipped' }}</button>
           </form>

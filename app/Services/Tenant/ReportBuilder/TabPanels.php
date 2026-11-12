@@ -248,6 +248,183 @@ class TabPanels
         return ['panels' => $out, 'legend' => $legend];
     }
 
+    // ---------------------------------------------------------------- Online store (MARKER-ONLINE-REPORTS)
+
+    private const ONLINE = [['f' => 'channel', 'op' => 'is', 'v' => 'online']];
+
+    public function online(): array
+    {
+        $e = $this->e;
+        $out = [];
+        $cmp = $this->q['compare'] !== 'off';
+
+        // Online sales
+        $c = $this->cfg('sales', ['rev', 'tickets', 'avg', 'refunds', 'marginp'], 'day', ['filters' => self::ONLINE]);
+        $t = $e->totals($c);
+        $all = $e->totals($this->cfg('sales', ['rev'], 'day'));
+        $allRev = $all['vals']['rev'] ?? 0.0;
+        $rev = $t['vals']['rev'] ?? 0.0;
+        $refunds = $t['vals']['refunds'] ?? null;
+        $out[] = $this->panel('o-sales', 'Online sales', 'paid online orders, refunds taken off, before tax and tips', $c, ['figs' => [
+            $this->figCmp('Revenue', $t, 'rev', '$'),
+            $this->figCmp('Orders', $t, 'tickets', 'n'),
+            $this->figCmp('Average order', $t, 'avg', '$'),
+            $this->fig('Share of all sales', $this->fmt($allRev > 0 ? $rev / $allRev * 100 : null, '%'), 'online against register and online together'),
+            $this->fig('Refunds', $this->fmt($refunds, '$'), $refunds ? 'already taken off revenue' : 'none in this range', $refunds ? 'warn' : ''),
+        ]]);
+
+        // Sales by channel
+        $c = $this->cfg('sales', ['tickets', 'avg', 'rev'], 'channel');
+        $rows = []; $total = null;
+        if (!$this->locked) {
+            $r = $e->rows($c);
+            foreach ($r['rows'] as $row) {
+                $v = $e->cellValue($c, 'rev', $row['vals']);
+                $cells = [e($row['l']), $this->fmt($e->cellValue($c, 'tickets', $row['vals']), 'n'), $this->fmt($e->cellValue($c, 'avg', $row['vals']), '$'),
+                    $this->fmt($v, '$'), self::share($allRev > 0 && $v !== null ? $v / $allRev * 100 : 0)];
+                if ($cmp) $cells[] = $this->delta($v, $e->cellValue($c, 'rev', $row['prev']));
+                $rows[] = $cells;
+            }
+            $total = ['Total', $this->fmt($r['totals']['sales:tickets'] ?? null, 'n'), $this->fmt($r['totals']['sales:avg'] ?? null, '$'), $this->fmt($r['totals']['sales:rev'] ?? null, '$'), ''];
+            if ($cmp) $total[] = '';
+        }
+        $out[] = $this->panel('o-channel', 'Sales by channel', 'online store next to the register', $c, [
+            'table' => $this->table(['Sold where', 'Tickets', 'Average ticket', 'Revenue', 'Share'] + ($cmp ? [5 => 'vs before'] : []), $rows, $total, 'channels', 'No sales in this range.'),
+        ]);
+
+        // Online sales by item
+        $c = $this->cfg('sales', ['items', 'rev', 'marginp'], 'item', ['limit' => 10, 'compare' => 'off', 'filters' => self::ONLINE]);
+        $out[] = $this->listPanel('o-items', 'Online sales by item', 'what the online store sells', $c, 'Item',
+            [['Units', 'items', 'n'], ['Revenue', 'rev', '$'], ['Margin %', 'marginp', '%']], 'online items', 'Nothing sold online in this range.', null, 'Top 10, most units first');
+
+        // Shipping charged against cost
+        $c = $this->cfg('ship', ['ships', 'charged', 'cost', 'net', 'recover', 'uncosted'], 'carrier');
+        $t = $e->totals($c);
+        $unc = (int) round($t['vals']['uncosted'] ?? 0);
+        $figs = [
+            $this->figCmp('Shipments', $t, 'ships', 'n'),
+            $this->figCmp('Charged to customers', $t, 'charged', '$'),
+            $this->fig('Your cost', $this->fmt($t['vals']['cost'] ?? null, '$'), 'only shipments with a cost entered'),
+            $this->fig('Charged minus cost', $this->fmt($t['vals']['net'] ?? null, '$'), 'on shipments with a cost entered',
+                ($t['vals']['net'] ?? 0) < 0 ? 'bad' : ''),
+            $this->fig('Cost recovered', $this->fmt($t['vals']['recover'] ?? null, '%'), 'of what shipping cost you'),
+        ];
+        $rows = []; $total = null;
+        if (!$this->locked) {
+            $r = $e->rows($c);
+            foreach ($r['rows'] as $row) {
+                $net = $e->cellValue($c, 'net', $row['vals']);
+                $rows[] = [e($row['l']), $this->fmt($e->cellValue($c, 'ships', $row['vals']), 'n'), $this->fmt($e->cellValue($c, 'charged', $row['vals']), '$'),
+                    $this->fmt($e->cellValue($c, 'cost', $row['vals']), '$'),
+                    $net !== null && $net < 0 ? self::pill($this->fmt($net, '$'), 'bad') : $this->fmt($net, '$'),
+                    $this->fmt($e->cellValue($c, 'recover', $row['vals']), '%')];
+            }
+            $total = ['Total', $this->fmt($r['totals']['ship:ships'] ?? null, 'n'), $this->fmt($r['totals']['ship:charged'] ?? null, '$'),
+                $this->fmt($r['totals']['ship:cost'] ?? null, '$'), $this->fmt($r['totals']['ship:net'] ?? null, '$'), $this->fmt($r['totals']['ship:recover'] ?? null, '%')];
+        }
+        $ts = (float) ($t['vals']['ships'] ?? 0);
+        $out[] = $this->panel('o-ship', 'Shipping charged against cost', 'what customers paid for shipping and what it cost you', $c, [
+            'figs' => $figs,
+            'table' => $this->table(['Carrier', 'Shipments', 'Charged', 'Your cost', 'Charged minus cost', 'Recovered'], $rows, $total, 'carriers', 'Nothing shipped in this range.'),
+            'after' => $unc > 0
+                ? number_format($unc) . ' of ' . number_format($ts) . ' shipments have no cost entered, so they are left out of cost and recovery. Enter what a shipment cost when you mark it shipped.'
+                : 'Cost comes from what you enter when you mark a shipment shipped.',
+        ]);
+
+        // Dropship share
+        $c = $this->cfg('ship', ['ships', 'units', 'supshare', 'supships', 'charged'], 'source');
+        $t = $e->totals($c);
+        $rows = []; $total = null;
+        if (!$this->locked) {
+            $r = $e->rows($c);
+            $tu = (float) ($r['totals']['ship:units'] ?? 0);
+            foreach ($r['rows'] as $row) {
+                $u = $e->cellValue($c, 'units', $row['vals']);
+                $rows[] = [e($row['l']), $this->fmt($e->cellValue($c, 'ships', $row['vals']), 'n'), $this->fmt($u, 'n'),
+                    self::share($tu > 0 && $u !== null ? $u / $tu * 100 : 0), $this->fmt($e->cellValue($c, 'charged', $row['vals']), '$')];
+            }
+            $total = ['Total', $this->fmt($r['totals']['ship:ships'] ?? null, 'n'), $this->fmt($tu, 'n'), '', $this->fmt($r['totals']['ship:charged'] ?? null, '$')];
+        }
+        $out[] = $this->panel('o-drop', 'Dropship share', 'how much ships from your shop and how much from suppliers', $c, [
+            'figs' => [
+                $this->figCmp('Dropship share of units', $t, 'supshare', '%'),
+                $this->figCmp('Supplier shipments', $t, 'supships', 'n'),
+                $this->figCmp('Units shipped', $t, 'units', 'n'),
+            ],
+            'table' => $this->table(['Shipped from', 'Shipments', 'Units', 'Share of units', 'Shipping charged'], $rows, $total, 'sources', 'Nothing shipped in this range.'),
+        ]);
+
+        // Abandoned carts
+        $c = $this->cfg('carts', ['started', 'paid', 'aband', 'abandp', 'abandval'], 'day');
+        $t = $e->totals($c);
+        $out[] = $this->panel('o-carts', 'Abandoned carts', 'carts with items in them, by the day they were started', $c, [
+            'figs' => [
+                $this->figCmp('Carts started', $t, 'started', 'n'),
+                $this->figCmp('Paid', $t, 'paid', 'n'),
+                $this->figCmp('Abandoned', $t, 'aband', 'n', null, '', true),
+                $this->figCmp('Abandonment rate', $t, 'abandp', '%', 'of carts that ended', '', true),
+                $this->figCmp('Value abandoned', $t, 'abandval', '$', null, '', true),
+            ],
+            'after' => 'A cart is abandoned once it has sat idle (or its payment hold ran out) and the shop closed it. Carts still open are left out of the rate.',
+        ]);
+
+        $c = $this->cfg('carts', ['aband', 'abandval', 'abandp'], 'item', ['limit' => 10, 'compare' => 'off']);
+        $out[] = $this->listPanel('o-lost', 'What gets left in carts', 'items in abandoned carts, most carts first', $c, 'Item',
+            [['Abandoned carts', 'aband', 'n'], ['Value', 'abandval', '$'], ['Abandonment rate', 'abandp', '%']], 'abandoned items', 'No abandoned carts in this range.', null, 'Top 10, most abandoned carts first');
+
+        // Stock-outs (a snapshot of today)
+        $out[] = $this->stockOuts();
+
+        $legend = [
+            ['Same numbers:', 'Online revenue is the same figure you get in Custom › Sales with Sold where set to Online store, so the two always match. Refunds are taken off.'],
+            ['Shipping cost:', 'is what you enter for each shipment. Shipments without one are counted and named, and left out of the comparison instead of being treated as free.'],
+            ['Dropship:', 'is a share of units shipped from a supplier rather than from your shelves, for paid orders by the day they were paid.'],
+            ['Stock:', 'Stock-outs shows today, whatever range is picked.'],
+        ];
+        return ['panels' => $out, 'legend' => $legend];
+    }
+
+    /** Online items with nothing on the shelf and no supplier that could ship them, most-wanted first. */
+    private function stockOuts(): array
+    {
+        $head = ['Item', 'On hand', 'Sold online (30 days)', 'Last sold online', 'Oversell'];
+        $rows = [];
+        if (!$this->locked) {
+            $tid = $this->tenant->id;
+            $items = \App\Models\Tenant\TenantInventoryItem::query()->where('tenant_id', $tid)->where('is_active', true)->where('show_online', true)
+                ->where('computed_stock_count', '<=', 0)->get(['id', 'name', 'computed_stock_count', 'allow_oversell']);
+            $ids = $items->pluck('id')->all();
+            $backed = [];
+            try {
+                $backed = $ids ? \App\Services\Tenant\OrderStock::forTenant($this->tenant)->supplierBacked($ids) : [];
+            } catch (\Throwable $e) {
+                report($e);   // a supplier lookup that fails must not take the whole tab down
+            }
+            $ids = array_values(array_filter($ids, fn ($i) => !isset($backed[$i])));
+            $sold = []; $last = [];
+            if ($ids) {
+                $since = \Carbon\Carbon::now('UTC')->subDays(30)->format('Y-m-d H:i:s');
+                $q = \Illuminate\Support\Facades\DB::table('tenant_order_items as oi')->join('tenant_orders as o', 'o.id', '=', 'oi.order_id')
+                    ->where('oi.tenant_id', $tid)->whereIn('oi.inventory_item_id', $ids)
+                    ->whereIn('o.status', ['paid', 'fulfilling', 'fulfilled', 'completed'])
+                    ->groupBy('oi.inventory_item_id')
+                    ->selectRaw('oi.inventory_item_id as id, SUM(CASE WHEN o.paid_at >= ? THEN oi.quantity ELSE 0 END) as q30, MAX(o.paid_at) as last', [$since]);
+                foreach ($q->get() as $r) { $sold[$r->id] = (float) $r->q30; $last[$r->id] = $r->last; }
+            }
+            $tz = $this->e->periods()->tz();
+            $list = $items->filter(fn ($i) => in_array($i->id, $ids, true))->sortByDesc(fn ($i) => $sold[$i->id] ?? 0)->values();
+            foreach ($list->take(25) as $i) {
+                $l = $last[$i->id] ?? null;
+                $rows[] = [e($i->name), self::pill((string) (int) $i->computed_stock_count, 'bad'), number_format($sold[$i->id] ?? 0),
+                    $l ? \Carbon\Carbon::parse($l, 'UTC')->setTimezone($tz)->format('M j, Y') : '—', $i->allow_oversell ? 'Allowed' : 'Blocked'];
+            }
+        }
+        return $this->panel('o-stock', 'Stock-outs', 'online items you cannot ship from anywhere today', null, [
+            'table' => $this->table($head, $rows, null, 'stock-outs', 'Nothing online is out of stock.'),
+            'after' => 'Items a supplier could ship are not listed. Oversell Allowed means the shop still takes the order; Blocked means shoppers are turned away.',
+        ], null, true);
+    }
+
     private function inventoryPanel(): array
     {
         $e = $this->e;
