@@ -81,6 +81,7 @@ class SiteChromeService
             'title'            => $meta['title'] ?? 'Shop',
             'meta_title'       => $meta['title'] ?? null,
             'meta_description' => $meta['description'] ?? null,
+            'og_image_url'     => $meta['image'] ?? null, // MARKER-ITEM-SEO: an item's own photo is its link preview
         ]);
 
         return view('public.page', array_merge($data, [
@@ -88,6 +89,8 @@ class SiteChromeService
             'sections' => $sections,
             'navItems' => $navItems,
             'catalog'  => collect(), // nav partial tolerates empty catalog
+            'ogType'   => $meta['og_type'] ?? null,
+            'ogExtra'  => $meta['og_extra'] ?? [],
         ]));
     }
 }

@@ -50,7 +50,7 @@
 
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px;margin-top:32px">
       @foreach($psItems as $item)
-        <a href="/shop/{{ $item->id }}" style="text-decoration:none;color:inherit;border:1.5px solid rgba(0,0,0,.1);border-radius:var(--p-r-lg,14px);background:rgba(255,255,255,.7);overflow:hidden;display:flex;flex-direction:column">
+        <a href="{{ $item->shopPath() }}" style="text-decoration:none;color:inherit;border:1.5px solid rgba(0,0,0,.1);border-radius:var(--p-r-lg,14px);background:rgba(255,255,255,.7);overflow:hidden;display:flex;flex-direction:column">
           <div style="aspect-ratio:1;background:#fff;display:grid;place-items:center;border-bottom:1px solid rgba(0,0,0,.05)">
             @if($u = $psImg($item))
               <img src="{{ $u }}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:contain;padding:14px">

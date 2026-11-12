@@ -1758,6 +1758,8 @@ class InventoryController extends Controller
             'shop_length_in'          => ['nullable', 'numeric', 'min:0', 'max:300'],
             'shop_width_in'           => ['nullable', 'numeric', 'min:0', 'max:300'],
             'shop_height_in'          => ['nullable', 'numeric', 'min:0', 'max:300'],
+            'seo_title'               => ['nullable', 'string', 'max:120'], // MARKER-ITEM-SEO
+            'seo_description'         => ['nullable', 'string', 'max:300'],
             'allow_oversell'          => ['nullable', 'boolean'],
             'is_active'               => ['nullable', 'boolean'],
         ]);
@@ -1816,6 +1818,9 @@ class InventoryController extends Controller
             'catalog_upc'            => filled($data['catalog_upc'] ?? null) ? trim($data['catalog_upc']) : null,
             'catalog_ean'            => filled($data['catalog_ean'] ?? null) ? trim($data['catalog_ean']) : null,
             'catalog_mpn'            => filled($data['catalog_mpn'] ?? null) ? trim($data['catalog_mpn']) : null,
+            // MARKER-ITEM-SEO: blank = the item's own name and description
+            'seo_title'              => filled($data['seo_title'] ?? null) ? trim($data['seo_title']) : null,
+            'seo_description'        => filled($data['seo_description'] ?? null) ? trim($data['seo_description']) : null,
         ]);
 
         $this->syncItemSources($request, $item);

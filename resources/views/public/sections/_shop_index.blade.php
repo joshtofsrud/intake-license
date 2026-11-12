@@ -102,7 +102,7 @@
     <div class="grid">
       @php $supBacked = \App\Services\Tenant\OrderStock::forTenant($tenant)->supplierBacked($items->pluck('id')->all()); @endphp
       @foreach($items as $item)
-        <a class="card" href="/shop/{{ $item->id }}">
+        <a class="card" href="{{ $item->shopPath() }}">
           <div class="ph">
             @if($u = $img($item))<img src="{{ $u }}" alt="" loading="lazy">@else<span>{{ $tname }}</span>@endif
           </div>

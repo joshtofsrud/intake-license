@@ -262,8 +262,8 @@ class Seo
             ->orderBy('id')
             ->offset(($part - 1) * self::PRODUCTS_PER_SITEMAP)
             ->limit(self::PRODUCTS_PER_SITEMAP)
-            ->get(['id', 'updated_at'])
-            ->map(fn ($i) => [$base . '/shop/' . $i->id, $i->updated_at?->toAtomString()])
+            ->get(['id', 'name', 'updated_at'])
+            ->map(fn ($i) => [$base . ItemSeo::path((string) $i->id, $i->name), $i->updated_at?->toAtomString()]) // MARKER-ITEM-SEO
             ->all();
     }
 
@@ -342,37 +342,36 @@ class Seo
         return $data;
     }
 
-    public static function product(Tenant $tenant, string $id): ?array
+    /** MARKER-ITEM-SEO: schema.org Product + breadcrumbs for one item page. */
+    public static function product(Tenant $tenant, string $param): ?array
     {
         if (! self::storefrontOn($tenant)) return null;
-        $item = self::productQuery($tenant)->with('distributorCatalog')->where('id', $id)->first();
+        $id = ItemSeo::idFromParam($param);
+        if (! $id) return null;
+        $item = self::productQuery($tenant)->with(['distributorCatalog', 'category:id,name'])->where('id', $id)->first();
         if (! $item) return null;
 
-        $base  = rtrim($tenant->publicUrl(), '/');
-        $price = $item->effectiveSellPriceCents();
-        $img   = collect($item->displayImages(1))->reject(fn ($i) => $i['hidden'] ?? false)->pluck('url')->first();
+        $base = rtrim($tenant->publicUrl(), '/');
+        $url  = $base . $item->shopPath();
+        $imgs = collect($item->displayImages(6))->reject(fn ($i) => $i['hidden'] ?? false)->pluck('url')
+            ->map(fn ($u) => self::absolute($u, $base))->filter()->values()->all();
+        $brand = $item->shop_brand ?: $item->distributorCatalog?->manufacturer;
+        // a supplier that can ship it counts as in stock, same as the page says
+        $inStock = $item->availableCount() > 0
+            || isset(\App\Services\Tenant\OrderStock::forTenant($tenant)->supplierBacked([$item->id])[$item->id]);
 
-        $data = [
-            '@context' => 'https://schema.org',
-            '@type'    => 'Product',
-            'name'     => $item->name,
-            'url'      => $base . '/shop/' . $item->id,
-        ];
-        if ($img = self::absolute($img, $base))                 $data['image'] = $img;
-        if ($brand = $item->distributorCatalog?->manufacturer)  $data['brand'] = ['@type' => 'Brand', 'name' => $brand];
-        if ($item->sku)                                          $data['sku']   = (string) $item->sku;
-        if ($price !== null) {
-            $data['offers'] = [
-                '@type'         => 'Offer',
-                'price'         => number_format($price / 100, 2, '.', ''),
-                'priceCurrency' => strtoupper((string) ($tenant->currency ?: 'USD')),
-                'availability'  => $item->availableCount() > 0
-                    ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
-                'url'           => $data['url'],
-            ];
-        }
+        $crumbs = [['Home', $base . '/'], ['Shop', $base . '/shop']];
+        if ($item->category?->name) $crumbs[] = [$item->category->name, $base . '/shop?category=' . $item->category_id];
+        $crumbs[] = [$item->name, $url];
 
-        return $data;
+        return ItemSeo::jsonld([
+            'name' => $item->name,
+            'description' => ItemSeo::description($item->seo_description, $item->description, $item->display_subtitle, $item->name, $brand, $tenant->name),
+            'images' => $imgs, 'brand' => $brand, 'sku' => $item->sku, 'mpn' => $item->catalog_mpn,
+            'upc' => $item->catalog_upc, 'ean' => $item->catalog_ean, 'color' => $item->color, 'size' => $item->size,
+            'price_cents' => $item->effectiveSellPriceCents(), 'currency' => $tenant->currency ?: 'USD',
+            'in_stock' => $inStock, 'url' => $url, 'shop' => $tenant->name, 'crumbs' => $crumbs,
+        ]);
     }
 
     // ----------------------------- share image

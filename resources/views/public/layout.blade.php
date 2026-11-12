@@ -26,13 +26,16 @@
   @if($ssDesc !== '')
     <meta name="description" content="{{ $ssDesc }}">
   @endif
-  <meta property="og:type" content="website">
+  <meta property="og:type" content="{{ $ogType ?? 'website' }}">
   <meta property="og:site_name" content="{{ $currentTenant->name }}">
   <meta property="og:title" content="{{ $ssTitle }}">
   @if($ssDesc !== '')
     <meta property="og:description" content="{{ $ssDesc }}">
   @endif
   <meta property="og:url" content="{{ $ssUrl }}">
+  @foreach(($ogExtra ?? []) as [$ogP, $ogV])
+    <meta property="{{ $ogP }}" content="{{ $ogV }}">
+  @endforeach
   <meta name="twitter:title" content="{{ $ssTitle }}">
   @if($ssDesc !== '')
     <meta name="twitter:description" content="{{ $ssDesc }}">

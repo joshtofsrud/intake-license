@@ -212,6 +212,27 @@
         </div>
       </div>
 
+      {{-- MARKER-ITEM-SEO --}}
+      @php
+        $seoBrand = $item->shop_brand ?: $item->distributorCatalog?->manufacturer;
+        $seoAutoTitle = \App\Support\ItemSeo::title(null, (string) $item->name, $seoBrand);
+        $seoAutoDesc  = \App\Support\ItemSeo::description(null, $item->description, $item->display_subtitle, (string) $item->name, $seoBrand, (string) $currentTenant->name);
+      @endphp
+      <div class="ia-form-group">
+        <label class="ia-form-label">Search &amp; sharing</label>
+        <input type="text" name="seo_title" id="seo-title" class="ia-input" maxlength="120" placeholder="{{ $seoAutoTitle }}" value="{{ old('seo_title', $item->seo_title) }}">
+        <textarea name="seo_description" id="seo-desc" class="ia-textarea" rows="2" maxlength="300" style="margin-top:8px" placeholder="{{ $seoAutoDesc }}">{{ old('seo_description', $item->seo_description) }}</textarea>
+        <div class="ia-form-hint">
+          Only used for items shown online. This is the headline and the sentence Google and link previews (text messages, Facebook, email) show for this item's page.
+          Leave both blank to use the item's name and description. The item's first photo is the preview picture.
+        </div>
+        <div id="seo-prev" style="margin-top:8px;border:.5px solid var(--ia-border);border-radius:10px;padding:10px 12px;font-size:12.5px">
+          <div style="color:var(--ia-text-muted);font-size:11px">What it looks like in search</div>
+          <div id="seo-prev-t" style="font-weight:600;margin-top:3px"></div>
+          <div id="seo-prev-d" style="color:var(--ia-text-muted);margin-top:2px"></div>
+        </div>
+      </div>
+
       <div class="ia-form-group">
         <label class="ia-form-label">
           <input type="checkbox" name="allow_oversell" value="1" {{ old('allow_oversell', $item->allow_oversell) ? 'checked' : '' }}>
@@ -244,6 +265,19 @@
 @endsection
 
 @push('scripts')
+<script>
+(function () {
+  var t = document.getElementById('seo-title'), d = document.getElementById('seo-desc');
+  if (!t || !d) return;
+  var shop = @json((string) $currentTenant->name);
+  function cut(s, n) { return s.length <= n ? s : s.slice(0, n - 1).replace(/\s+\S*$/, '') + '…'; }
+  function paint() {
+    document.getElementById('seo-prev-t').textContent = (t.value.trim() || t.placeholder) + ' — ' + shop;
+    document.getElementById('seo-prev-d').textContent = cut(d.value.trim() || d.placeholder, 160);
+  }
+  t.addEventListener('input', paint); d.addEventListener('input', paint); paint();
+})();
+</script>
 <script src="{{ asset('js/tenant/item-identify.js') }}?v=2"></script>
 <script>
 // see create.blade.php. A scanner's Enter moves on

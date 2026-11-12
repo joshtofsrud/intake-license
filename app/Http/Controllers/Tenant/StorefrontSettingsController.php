@@ -67,6 +67,7 @@ class StorefrontSettingsController extends Controller
                 'enabled'             => (bool) ($s['enabled'] ?? true),
                 'browse_layout'       => (string) ($s['browse_layout'] ?? 'chips'),
                 'out_display'         => ($s['out_display'] ?? 'show') === 'hide' ? 'hide' : 'show',
+                'share_on'            => (bool) ($s['share_on'] ?? true), // MARKER-ITEM-SEO
                 // fulfillment
                 'pickup_enabled'      => $oc['pickup_enabled'],
                 'pickup_instructions' => $oc['pickup_instructions'],
@@ -331,6 +332,7 @@ class StorefrontSettingsController extends Controller
                 $sf['enabled']       = $request->boolean('enabled');
                 $sf['browse_layout'] = $data['browse_layout'] ?? 'chips';
                 $sf['out_display']   = $data['out_display'] ?? 'show';
+                $sf['share_on']      = $request->boolean('share_on'); // MARKER-ITEM-SEO
                 $msg = 'Store settings saved.';
                 break;
         }

@@ -117,6 +117,44 @@
         }
       </script>
 
+      {{-- MARKER-ITEM-SEO: share this item. Links are tagged utm_source=share so GA4 can show what sharing brings in. --}}
+      @if($shareOn ?? true)
+      @php
+        $shUrl = rtrim($tenant->publicUrl(), '/') . $item->shopPath();
+        $shTxt = $item->name . ' — ' . $tname;
+        $ch = fn ($c) => \App\Support\ItemSeo::shareUrl($shUrl, $c);
+      @endphp
+      <div class="sp-share" style="margin-top:14px;position:relative;font-size:13px">
+        <button type="button" id="sp-share-btn" style="cursor:pointer;background:none;border:1.5px solid rgba(0,0,0,.14);border-radius:99px;padding:6px 14px;font:inherit;color:inherit">Share</button>
+        <span id="sp-share-note" role="status" style="margin-left:8px;opacity:.7"></span>
+        <div id="sp-share-menu" hidden style="display:none;margin-top:8px;gap:6px;flex-wrap:wrap">
+          <a class="sp-sh" href="sms:?&body={{ rawurlencode($shTxt . ' ' . $ch('text')) }}">Text</a>
+          <a class="sp-sh" href="mailto:?subject={{ rawurlencode($shTxt) }}&body={{ rawurlencode($ch('email')) }}">Email</a>
+          <a class="sp-sh" target="_blank" rel="noopener" href="https://www.facebook.com/sharer/sharer.php?u={{ rawurlencode($ch('facebook')) }}">Facebook</a>
+          <a class="sp-sh" target="_blank" rel="noopener" href="https://twitter.com/intent/tweet?url={{ rawurlencode($ch('x')) }}&text={{ rawurlencode($shTxt) }}">X</a>
+          <a class="sp-sh" target="_blank" rel="noopener" href="https://pinterest.com/pin/create/button/?url={{ rawurlencode($ch('pinterest')) }}&description={{ rawurlencode($shTxt) }}@if(!empty($images))&media={{ rawurlencode($images[0]) }}@endif">Pinterest</a>
+          <button type="button" class="sp-sh" id="sp-copy">Copy link</button>
+        </div>
+      </div>
+      <style>.sp-sh{display:inline-block;border:1.5px solid rgba(0,0,0,.14);border-radius:99px;padding:5px 12px;font:inherit;font-size:12.5px;color:inherit;text-decoration:none;background:none;cursor:pointer}.sp-sh:hover{border-color:rgba(0,0,0,.4)}</style>
+      <script>
+        (function () {
+          var url = @json($ch('share')), title = @json($shTxt), copyUrl = @json($ch('copy'));
+          var btn = document.getElementById('sp-share-btn'), menu = document.getElementById('sp-share-menu'), note = document.getElementById('sp-share-note');
+          function say(m) { note.textContent = m; setTimeout(function () { note.textContent = ''; }, 2500); }
+          btn.addEventListener('click', function () {
+            if (navigator.share) { navigator.share({ title: title, url: url }).catch(function () {}); return; }
+            menu.style.display = menu.style.display === 'flex' ? 'none' : 'flex';
+          });
+          document.getElementById('sp-copy').addEventListener('click', function () {
+            function done() { say('Link copied'); }
+            if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(copyUrl).then(done, function () { say(copyUrl); }); }
+            else { say(copyUrl); }
+          });
+        })();
+      </script>
+      @endif
+
       @if($item->description)<div class="desc">{{ $item->description }}</div>@endif
 
       @if(!empty($attrs))

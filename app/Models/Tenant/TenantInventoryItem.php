@@ -53,6 +53,7 @@ class TenantInventoryItem extends Model
         'catalog_upc',
         'catalog_ean',
         'catalog_mpn',
+        'seo_title', 'seo_description', // MARKER-ITEM-SEO
         'shop_brand', // the shop's own brand value
         'shop_weight_oz', 'shop_length_in', 'shop_width_in', 'shop_height_in', // MARKER-SHIPPING-RATES
         'catalog_title_seen',
@@ -191,6 +192,12 @@ class TenantInventoryItem extends Model
     }
 
     /** The thumbnail: first visible image, whoever it came from. */
+    /** MARKER-ITEM-SEO: this item's readable storefront address, e.g. /shop/shimano-chain-<id> */
+    public function shopPath(): string
+    {
+        return \App\Support\ItemSeo::path((string) $this->id, $this->name);
+    }
+
     public function primaryImageUrl(): ?string
     {
         foreach ($this->displayImages() as $img) {

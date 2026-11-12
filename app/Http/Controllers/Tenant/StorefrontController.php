@@ -105,6 +105,10 @@ class StorefrontController extends Controller
             'categories' => $categories,
             'q'          => $q,
             'activeCat'  => $cat,
+        ], [
+            // MARKER-ITEM-SEO
+            'title'       => ($cat && ($cn = optional($categories->firstWhere('id', $cat))->name) ? $cn . ' — ' : '') . 'Shop',
+            'description' => 'Shop online from ' . $tenant->name . '. ' . (trim((string) ($tenant->settings['storefront']['intro'] ?? '')) ?: 'Browse our products and order for pickup, delivery or shipping.'),
         ]);
     }
 
@@ -231,17 +235,26 @@ class StorefrontController extends Controller
                     ? '$' . number_format($i->effectiveSellPriceCents() / 100, 2) : null,
                 'img'   => $img,
                 'stock' => $i->availableCount() > 0, // held units are not for sale online either
-                'url'   => '/shop/' . $i->id,
+                'url'   => $i->shopPath(), // MARKER-ITEM-SEO
             ];
         })->values()]);
     }
 
-    public function show(string $id): View
+    public function show(string $id)
     {
+        // MARKER-ITEM-SEO: /shop/{words}-{id}. The id finds the item; if the words are old or
+        // missing, send the visitor (and search engines) to the right address for good.
+        $realId = \App\Support\ItemSeo::idFromParam($id) ?? $id;
         $item = $this->visible()
             ->with(['distributorCatalog', 'category:id,name'])
-            ->where('id', $id)
+            ->where('id', $realId)
             ->firstOrFail();
+
+        $canonicalParam = \App\Support\ItemSeo::param((string) $item->id, $item->name);
+        if ($id !== $canonicalParam) {
+            $qs = request()->getQueryString();
+            return redirect('/shop/' . $canonicalParam . ($qs ? '?' . $qs : ''), 301);
+        }
 
         $cat = $item->distributorCatalog;
 
@@ -270,8 +283,29 @@ class StorefrontController extends Controller
             'item'   => $item,
             'images' => $images,
             'attrs'  => $attrs,
-            'brand'  => $cat?->manufacturer,
-        ]);
+            'brand'  => $item->shop_brand ?: $cat?->manufacturer,
+            'shareOn' => (bool) (tenant()->settings['storefront']['share_on'] ?? true), // MARKER-ITEM-SEO
+        ], $this->seoMeta($item, $images, $item->shop_brand ?: $cat?->manufacturer));
+    }
+
+    /** MARKER-ITEM-SEO: the item page's title, description and link-preview card. */
+    private function seoMeta($item, array $images, ?string $brand): array
+    {
+        $tenant = tenant();
+        $price  = $item->effectiveSellPriceCents();
+        $extra  = [];
+        if ($price !== null) {
+            $extra[] = ['product:price:amount', number_format($price / 100, 2, '.', '')];
+            $extra[] = ['product:price:currency', strtoupper((string) ($tenant->currency ?: 'USD'))];
+        }
+        if ($brand) $extra[] = ['product:brand', $brand];
+
+        return [
+            'title'       => \App\Support\ItemSeo::title($item->seo_title, $item->name, $brand),
+            'description' => \App\Support\ItemSeo::description($item->seo_description, $item->description, $item->display_subtitle, $item->name, $brand, $tenant->name),
+            'image'       => $images[0] ?? null,
+            'og_type'     => 'product',
+            'og_extra'    => $extra,
+        ];
     }
 }
-
