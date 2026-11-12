@@ -196,7 +196,7 @@ class Launch
             elseif ($mark?->kind === 'skipped' && $level === 'opt') $status = 'skipped';
 
             $rows[] = [
-                'step' => $step, 'key' => $step->key, 'level' => $level, 'late' => $late,
+                'step' => $step, 'key' => $step->key, 'level' => $level, 'late' => $late, 'stale' => ! empty($res['stale']),
                 'status' => $status, 'raw' => $res['s'], 'line' => $res['line'], 'mark' => $mark,
                 'fix' => $step->isConfirm() ? null : LaunchChecks::fixUrl($step->check, $t),
                 'fix_label' => LaunchChecks::fixLabel($step->check),

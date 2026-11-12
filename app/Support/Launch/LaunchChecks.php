@@ -117,27 +117,64 @@ class LaunchChecks
         return $n . ' ' . ($n === 1 ? $one : ($many ?? $one . 's'));
     }
 
-    /** Online items with photo, price and weight facts, cached briefly: this walks every online item. */
-    private static function itemFacts(Tenant $t): array
+    /**
+     * Online items with photo, price and weight facts. Counting them means
+     * walking every online item, which is far too slow for a page load on a
+     * big shop, so it only ever happens in LaunchItemFactsJob. A page reads
+     * the saved count; null means it is still being counted (a job is queued).
+     */
+    private static function itemFacts(Tenant $t): ?array
     {
-        return Cache::remember('launch:items:' . $t->id, 300, function () use ($t) {
-            $out = ['online' => 0, 'no_photo' => 0, 'no_price' => 0, 'no_weight' => 0, 'feed_blocked' => 0];
-            \App\Services\Feeds\GoogleFeed::walk($t, function ($item, array $verdict) use (&$out) {
-                $out['online']++;
-                $reasons = (array) ($verdict['reasons'] ?? []);
-                if (in_array('No photo', $reasons, true)) $out['no_photo']++;
-                if (in_array('No price', $reasons, true)) $out['no_price']++;
-                if ($reasons) $out['feed_blocked']++;
-                $spec = \App\Services\Shipping\ItemShipSpec::for($item);
-                if ($spec['oz'] === null) $out['no_weight']++;
-            });
-            return $out;
-        });
+        $f = Cache::get(self::factsKey($t));
+        if (is_array($f)) return $f;
+        self::queueFacts($t);
+        return null;
     }
 
+    public static function factsKey(Tenant $t): string
+    {
+        return 'launch:items:' . $t->id;
+    }
+
+    public static function queueFacts(Tenant $t): void
+    {
+        try {
+            if (Cache::add('launch:items:queued:' . $t->id, 1, 900)) {
+                \App\Jobs\LaunchItemFactsJob::dispatch((string) $t->id);
+            }
+        } catch (\Throwable $e) {
+            report($e);
+        }
+    }
+
+    /** The slow walk. Called by the job only. */
+    public static function countFacts(Tenant $t): array
+    {
+        $out = ['online' => 0, 'no_photo' => 0, 'no_price' => 0, 'no_weight' => 0, 'feed_blocked' => 0, 'at' => now()->toIso8601String()];
+        \App\Services\Feeds\GoogleFeed::walk($t, function ($item, array $verdict) use (&$out) {
+            $out['online']++;
+            $reasons = (array) ($verdict['reasons'] ?? []);
+            if (in_array('No photo', $reasons, true)) $out['no_photo']++;
+            if (in_array('No price', $reasons, true)) $out['no_price']++;
+            if ($reasons) $out['feed_blocked']++;
+            if ((($verdict['attrs'] ?? [])['shipping_weight'] ?? null) === null && \App\Services\Shipping\ItemShipSpec::for($item)['oz'] === null) $out['no_weight']++;
+        });
+        Cache::put(self::factsKey($t), $out, now()->addHours(6));
+        Cache::forget('launch:items:queued:' . $t->id);
+        return $out;
+    }
+
+    /** "Check again": throw away the saved count and count again in the background. */
     public static function forget(Tenant $t): void
     {
-        Cache::forget('launch:items:' . $t->id);
+        Cache::forget(self::factsKey($t));
+        Cache::forget('launch:items:queued:' . $t->id);
+        self::queueFacts($t);
+    }
+
+    private static function counting(): array
+    {
+        return ['s' => 'warn', 'line' => 'Counting your online items. This updates within a few minutes.', 'stale' => true];
     }
 
     // ------------------------------------------------------------ e-commerce
@@ -167,6 +204,7 @@ class LaunchChecks
     private static function c_item_quality(Tenant $t): array
     {
         $f = self::itemFacts($t);
+        if ($f === null) return self::counting();
         if ($f['online'] === 0) return ['s' => 'na', 'line' => 'No items online yet'];
         $miss = [];
         if ($f['no_photo']) $miss[] = self::plural($f['no_photo'], 'item') . ' with no photo';
@@ -182,6 +220,7 @@ class LaunchChecks
         $mode = \App\Services\Shipping\ShippingRates::config($t)['mode'];
         if (! $cfg['ship_enabled'] || $mode === 'flat') return ['s' => 'na', 'line' => 'Not needed: shipping is not priced by weight'];
         $f = self::itemFacts($t);
+        if ($f === null) return self::counting();
         if ($f['no_weight'] === 0) return ['s' => 'ok', 'line' => 'Every online item has a weight'];
         $def = rtrim(rtrim(number_format(\App\Services\Shipping\ShippingRates::config($t)['default_oz'] / 16, 2), '0'), '.');
         return ['s' => 'warn', 'line' => self::plural($f['no_weight'], 'item') . ' with no weight, so ' . $def . ' lb is assumed'];
@@ -248,6 +287,7 @@ class LaunchChecks
     {
         if (! (bool) ((self::s($t))['feed_on'] ?? false)) return ['s' => 'bad', 'line' => 'The Google feed is off.'];
         $f = self::itemFacts($t);
+        if ($f === null) return self::counting();
         $ok = $f['online'] - $f['feed_blocked'];
         return $f['feed_blocked']
             ? ['s' => 'warn', 'line' => 'Feed on · ' . $ok . ' of ' . $f['online'] . ' items accepted']
