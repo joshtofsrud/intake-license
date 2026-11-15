@@ -1203,7 +1203,7 @@ body.ia-theme-b .appt-filter-handle { background: rgba(0,0,0,.18); }
 @endpush
 
 @push('scripts')
-<script src="{{ asset('js/tenant/live-search.js') }}?v={{ @filemtime(public_path('js/tenant/live-search.js')) }}"></script>
+@include('tenant._live-search-js')
 <script>
 // APPT-LIST-MOBILE-JS v1
 (function () {

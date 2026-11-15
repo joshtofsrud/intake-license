@@ -429,7 +429,7 @@
 </div>{{-- /#cust-live --}}
 
 @push('scripts')
-<script src="{{ asset('js/tenant/live-search.js') }}?v={{ @filemtime(public_path('js/tenant/live-search.js')) }}"></script>
+@include('tenant._live-search-js')
 <style>
   .cust-table-scroll{overflow-x:auto;overflow-y:visible}
   .cust-table-scroll .ia-table th{position:relative}

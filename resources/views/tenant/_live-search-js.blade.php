@@ -1,3 +1,5 @@
+{{-- Live search without a page reload (inlined so it can never 404 or be cached stale). --}}
+<script>
 /* Live search without a page reload.
    Typing in the box fetches the same GET URL, swaps only the result region and
    leaves the input node untouched, so focus and the phone keyboard stay put.
@@ -18,7 +20,7 @@
     }
     function run() {
       var mine = ++seq, u = url();
-      fetch(u, { headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'text/html' }, credentials: 'same-origin' })
+      fetch(u, { headers: { 'Accept': 'text/html' }, credentials: 'same-origin' })
         .then(function (r) { if (!r.ok) { throw new Error('http ' + r.status); } return r.text(); })
         .then(function (html) {
           if (mine !== seq) { return; }               // a newer keystroke already won
@@ -46,3 +48,4 @@
   }
   window.IntakeLiveSearch = { bind: bind };
 })();
+</script>

@@ -488,7 +488,7 @@
   </div>
 </div>
 
-<script src="{{ asset('js/tenant/live-search.js') }}?v={{ @filemtime(public_path('js/tenant/live-search.js')) }}"></script>
+@include('tenant._live-search-js')
 <script>
   (function () { var m = document.getElementById('ib-msgs'); if (m) m.scrollTop = m.scrollHeight; })();
   // search as you type without reloading, so the keyboard stays up.
