@@ -261,6 +261,10 @@ class DistributorCatalogImportService
         if (! empty($filters['brand'])) {
             $q->where('manufacturer', 'like', '%' . $filters['brand'] . '%');
         }
+        // MARKER-MOVING-FAST: exactly these catalog rows (a product shown in a Moving fast section)
+        if (! empty($filters['ids'])) {
+            $q->whereIn('id', array_map('strval', (array) $filters['ids']));
+        }
         $q->orderBy('id');   // required for paging
 
         if ($limit > 0) {

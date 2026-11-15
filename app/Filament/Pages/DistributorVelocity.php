@@ -65,6 +65,14 @@ class DistributorVelocity extends Page
     public const STOCK = ['in' => 'In stock', 'out' => 'Out of stock', 'all' => 'All'];
     public array $shop = [];
     public array $fetch = [];   // MARKER-VELOCITY-FETCH: code => hours (0 = off)
+    /** MARKER-MOVING-FAST: the Moving fast page section (App\Support\MovingFast). */
+    public array $mf = [];
+    public const MF_FIELDS = [
+        'few_left'  => ['"Few left" badge', 'days of stock left at the vendors, or fewer', 1, 60],
+        'fast_week' => ['"Selling fast" badge', 'units a week leaving the vendors, or more', 1, 1000],
+        'back_days' => ['"Back in stock" list', 'restocked at a vendor within this many days', 1, 60],
+        'new_days'  => ['"New at vendors" list', 'added to a vendor\'s catalog within this many days', 1, 120],
+    ];
 
     public function mount(): void
     {
@@ -72,6 +80,8 @@ class DistributorVelocity extends Page
         foreach (self::SHOP_SWITCHES as $k => $d) {
             $this->shop[$k] = (bool) ($saved[$k] ?? $d[2]);
         }
+        $mfs = \App\Support\MovingFast::settings();
+        $this->mf = ['on' => $mfs['on']] + array_map('strval', array_intersect_key($mfs, self::MF_FIELDS));
         $codes = $this->codes();
         $this->fetch = array_map('strval', \App\Support\VelocityFetch::all(array_values(array_unique(array_merge(['BTI', 'HLC', 'QBP', 'SHIMANO'], $codes)))));
         $on = $saved['vendors'] ?? $codes;
@@ -183,6 +193,16 @@ class DistributorVelocity extends Page
             $out[$k] = (bool) ($this->shop[$k] ?? false);
         }
         $out['vendors'] = array_keys(array_filter((array) ($this->shop['vendors'] ?? [])));
+        $mf = ['on' => (bool) ($this->mf['on'] ?? true)];
+        foreach (self::MF_FIELDS as $k => [$label, , $min, $max]) {
+            $v = (int) ($this->mf[$k] ?? 0);
+            if ($v < $min || $v > $max) {
+                Notification::make()->title($label . ' needs a number from ' . $min . ' to ' . $max)->danger()->send();
+                return;
+            }
+            $mf[$k] = $v;
+        }
+        $out['moving_fast'] = $mf;
         $ps = PlatformSettings::current();
         $ps->velocity_settings = array_merge((array) ($ps->velocity_settings ?? []), $out);
         $ps->save();

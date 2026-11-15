@@ -21,6 +21,8 @@ class PageBuilderController extends Controller
     private const ARRAY_FIELDS = [
         'features', 'steps', 'plans', 'items', 'testimonials',
         'groups',
+        // MARKER-MOVING-FAST: the Moving fast popup's choices
+        'mf_picked', 'mf_vendors', 'mf_cats', 'mf_brands',
         'shop_names', 'logos', 'competitors', 'rows', 'stats', 'images',
         // Hero buttons list (Phase 2 field)
         'buttons',
@@ -343,6 +345,9 @@ class PageBuilderController extends Controller
         'rental_categories' => ['eyebrow'=>'','heading'=>'Rent by category','body'=>'','category_ids'=>'[]','category_images'=>'{}','show_counts'=>'1','bg_color'=>'','columns'=>'auto','tile_style'=>'photo','bg_mode'=>'none','bg_gradient_from'=>'','bg_gradient_to'=>'','bg_gradient_angle'=>135,'text_color'=>'','text_color_body'=>'','accent_color'=>'','card_bg'=>'','card_border'=>'','anchor_id'=>'','custom_classes'=>'','hide_on_mobile'=>false,'hide_on_desktop'=>false],
         'rental_browse'     => ['eyebrow'=>'','heading'=>'Check availability','body'=>'','show_deposit'=>'0','bg_color'=>'','button_bg'=>'','button_text'=>'','bg_mode'=>'none','bg_gradient_from'=>'','bg_gradient_to'=>'','bg_gradient_angle'=>135,'text_color'=>'','text_color_body'=>'','accent_color'=>'','card_bg'=>'','card_border'=>'','anchor_id'=>'','custom_classes'=>'','hide_on_mobile'=>false,'hide_on_desktop'=>false],
         // online store product showcase
+        // MARKER-MOVING-FAST: items selling fastest at the shop's vendors (App\Support\MovingFast)
+        'market_movers' => ['eyebrow'=>'Moving now','heading'=>'What customers are buying','body'=>'The items flying off the shelves this month. In stock with us or ordered in for you in a few days.','btn_label'=>'Shop everything','btn_url'=>'/shop','bg_color'=>'',
+            'mf_list'=>'fast','mf_mode'=>'auto','mf_count'=>'8','mf_layout'=>'grid','mf_carry'=>'all','mf_vendors'=>[],'mf_cats'=>[],'mf_brands'=>[],'mf_min'=>'','mf_max'=>'','mf_picked'=>[],'mf_badges'=>'1','mf_prices'=>'1','mf_special'=>'show'],
         'products_showcase' => ['eyebrow'=>'','heading'=>'From the shop','body'=>'','category_id'=>'','max_items'=>8,'in_stock_only'=>'0','show_prices'=>'1','show_search'=>'0','search_placeholder'=>'','cta_label'=>'Browse the shop','cta_url'=>'/shop','bg_color'=>''],
         'classes_embed'  => ['heading'=>'Upcoming classes','show_filters'=>true,'weeks_ahead'=>2],
         'roadmap_grid'  => ['intro_text'=>'An honest look at where Intake is heading. Plans change as we learn from shops using the product.'],
@@ -1021,6 +1026,10 @@ class PageBuilderController extends Controller
                         ->orderBy('name')
                         ->get(['id', 'name']);
                 }
+                if ($section->section_type === 'market_movers') {
+                    $extras['mfAvailable'] = \App\Support\MovingFast::available($tenant);
+                    $extras['mfVendors'] = $extras['mfAvailable'] ? \App\Support\MovingFast::vendors($tenant) : [];
+                }
                 if ($section->section_type === 'rentals_showcase') {
                     $extras['rentalCategories'] = \App\Models\Tenant\TenantRentalCategory::where('tenant_id', $tenant->id)
                         ->whereNull('archived_at')
@@ -1324,6 +1333,9 @@ class PageBuilderController extends Controller
             if (!array_key_exists($type, self::DEFAULTS)) {
                 return response()->json(['error' => 'Unknown section type.'], 422);
             }
+            if ($type === 'market_movers' && ! \App\Support\MovingFast::available($tenant)) {
+                return response()->json(['error' => 'Moving fast needs the online store add-on with your store switched on.'], 422);
+            }
             $section = TenantPageSection::create([
                 'page_id' => $page->id, 'tenant_id' => $tenant->id,
                 // MARKER-SHOP-PORT4: shops start from neutral example copy (App\Support\ShopSectionDefaults)
@@ -1344,6 +1356,9 @@ class PageBuilderController extends Controller
             }
             if (! array_key_exists($clip['section_type'], self::DEFAULTS)) {
                 return response()->json(['success' => false, 'error' => 'That section type cannot be added here.'], 422);
+            }
+            if ($clip['section_type'] === 'market_movers' && ! \App\Support\MovingFast::available($tenant)) {
+                return response()->json(['success' => false, 'error' => 'Moving fast needs the online store add-on with your store switched on.'], 422);
             }
             $section = TenantPageSection::create([
                 'page_id'      => $page->id,

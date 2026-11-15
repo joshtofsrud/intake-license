@@ -57,6 +57,7 @@
     'rental_categories'      => 'Rental categories',
     'rental_browse'          => 'Rental availability',
     'products_showcase'      => 'Product showcase',
+    'market_movers'          => 'Moving fast', // MARKER-MOVING-FAST
     'faq_accordion'          => 'FAQ accordion',
     'testimonial_carousel'   => 'Testimonials',
     'logo_bar'               => 'Logo bar',
@@ -97,6 +98,7 @@
     'rental_categories' => '<rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/>',
     'rental_browse' => '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/>',
     'products_showcase' => '<path d="M4 7h16l-1.5 12.5a1 1 0 0 1-1 .9H6.5a1 1 0 0 1-1-.9L4 7zm4 0V6a4 4 0 0 1 8 0v1"/>',
+    'market_movers' => '<polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/>',
     'faq_accordion'  => '<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 1-1 1.5-2.5 2.5"/><line x1="12" y1="17" x2="12" y2="17.01"/>',
     'testimonial_carousel' => '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z"/>',
     'logo_bar'       => '<rect x="2" y="9" width="4" height="6" rx="1"/><rect x="10" y="9" width="4" height="6" rx="1"/><rect x="18" y="9" width="4" height="6" rx="1"/>',
@@ -136,6 +138,7 @@
     'rental_categories' => 'Category grid — pick and order',
     'rental_browse' => 'Live date-picker availability browse',
     'products_showcase' => 'Live products from your online store',
+    'market_movers' => 'What is selling fastest at your vendors, carried or not',
     'testimonial_carousel' => 'Customer quotes carousel',
     'logo_bar'      => 'Trust bar with partner logos',
     'comparison_table'=>'Feature vs competitor matrix',
@@ -154,12 +157,13 @@
     'Layout'     => ['nav','hero','footer'],
     // MARKER-SHOP-PORT4: features_accordion, feature_tiles and comparison_table were allowed but in no group, so the gallery never showed them
     'Content'    => ['text_image','feature_grid','features_accordion','feature_tiles','feature_groups','step_timeline','image_gallery','image_carousel','scroll_words','faq_accordion','stats_row','comparison_table'],
-    'Conversion' => ['services','cta_banner','booking_embed','contact_form','book_call','try_demo','roi','pricing_table','rentals_showcase','rental_spotlight','rental_categories','rental_browse','products_showcase'], // book_call
+    'Conversion' => ['services','cta_banner','booking_embed','contact_form','book_call','try_demo','roi','pricing_table','rentals_showcase','rental_spotlight','rental_categories','rental_browse','products_showcase','market_movers'], // book_call
     'Social'     => ['testimonial_carousel','logo_bar'],
     'Advanced'   => ['custom_html'],
   ];
 @endphp
 
+@php $mfAvailable = \App\Support\MovingFast::available(tenant()); /* MARKER-MOVING-FAST */ @endphp
 @extends($layoutName)
 
 @push('styles')
@@ -2423,6 +2427,9 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
               </svg>
             </span>
             <span class="pb2-section-name">{{ $typeLabels[$section->section_type] ?? $section->section_type }}</span>
+            @if($section->section_type === 'market_movers' && ! $mfAvailable)
+              <span class="pb2-section-hidden" title="Hidden on your site until the online store add-on is on">Hidden · needs add-on</span>
+            @endif
             {{-- which screens this section is hidden on --}}
             @php
               $pbHc  = (array) ($section->content ?? []);
@@ -2450,7 +2457,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
               ? ['hero','cta_banner','feature_grid','custom_html','text_image','image_gallery','image_carousel','stats_row','testimonial_carousel','faq_accordion','logo_bar','step_timeline','pricing_table'] // content sections; chrome/shop/nav excluded
               : ($isMarketing
               ? ['nav','hero','text_image','cta_banner','image_gallery','image_carousel','scroll_words','contact_form','feature_grid','step_timeline','faq_accordion','footer','pricing_table','testimonial_carousel','logo_bar','stats_row','comparison_table','industry_pack_showcase','book_call','try_demo','roi','feature_tiles','features_accordion','custom_html','feature_groups'] /* (marketing only) */
-              : ['nav','hero','text_image','cta_banner','image_gallery','image_carousel','scroll_words','contact_form','booking_embed','classes_embed','feature_grid','features_accordion','feature_tiles','feature_groups','step_timeline','faq_accordion','footer','testimonial_carousel','logo_bar','stats_row','comparison_table','pricing_table','rentals_showcase','rental_spotlight','rental_categories','rental_browse','products_showcase','custom_html']);
+              : ['nav','hero','text_image','cta_banner','image_gallery','image_carousel','scroll_words','contact_form','booking_embed','classes_embed','feature_grid','features_accordion','feature_tiles','feature_groups','step_timeline','faq_accordion','footer','testimonial_carousel','logo_bar','stats_row','comparison_table','pricing_table','rentals_showcase','rental_spotlight','rental_categories','rental_browse','products_showcase','market_movers','custom_html']);
           @endphp
 
           <div class="pb2-gallery">
@@ -2473,7 +2480,8 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
                 <div class="pb2-gallery-group-label">{{ $groupName }}</div>
                 <div class="pb2-gallery-grid">
                   @foreach($visibleTypes as $t)
-                    <button type="button" class="pb2-gallery-card" onclick="addSection('{{ $t }}')">
+                    @php $pbOff = $t === 'market_movers' && ! $mfAvailable; @endphp
+                    <button type="button" class="pb2-gallery-card {{ $pbOff ? 'pb2-gallery-card--off' : '' }}" @if($pbOff) onclick="window.IntakeToast && IntakeToast.error('Moving fast needs the online store add-on with your store switched on. See Settings › Add-ons.')" @else onclick="addSection('{{ $t }}')" @endif>
                       <span class="pb2-gallery-card-icon">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
                           {!! $typeIconPaths[$t] ?? '<rect x="3" y="3" width="18" height="18" rx="2"/>' !!}
@@ -2481,7 +2489,7 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
                       </span>
                       <span class="pb2-gallery-card-text">
                         <span class="pb2-gallery-card-name">{{ $typeLabels[$t] ?? $t }}</span>
-                        <span class="pb2-gallery-card-desc">{{ $typeDescriptions[$t] ?? '' }}</span>
+                        <span class="pb2-gallery-card-desc">{{ $typeDescriptions[$t] ?? '' }}@if($pbOff)<br><span style="color:#EF9F27">Needs the online store add-on</span>@endif</span>
                       </span>
                     </button>
                   @endforeach
@@ -2722,6 +2730,9 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
   })();
 </script>
 
+@if($mfAvailable && ! $isMarketing)
+  @include('tenant.pages._moving-fast-popup')
+@endif
 @endsection
 {{-- MARKER-BUILDER-ENDSECTION: the content section was never closed, so the whole builder was sent before
      the layout's <!DOCTYPE> and <head> and every browser drew it in quirks mode. --}}

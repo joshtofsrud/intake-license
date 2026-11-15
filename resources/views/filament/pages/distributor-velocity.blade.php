@@ -335,7 +335,7 @@
     </div>
 
   @else
-    <div class="vl-legend"><b>What is live.</b> The Reports switches, days left, next arrival, the history rule and the distributor list already apply to the shop's report builder. Everything else here is saved now for the shop-side build, so shops see nothing from it yet. Shops will only ever see distributor stock — never another shop's data.</div>
+    <div class="vl-legend"><b>What is live.</b> The Reports switches, days left, next arrival, the history rule and the distributor list already apply to the shop's report builder. The Moving fast settings apply to that section now. Everything else here is saved now for the shop-side build, so shops see nothing from it yet. Shops will only ever see distributor stock — never another shop's data.</div>
     <div class="vl-set">
       @foreach (\App\Filament\Pages\DistributorVelocity::SHOP_SWITCHES as $k => $d)
         @continue(! empty($d[3]))
@@ -354,6 +354,14 @@
             <label style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox" wire:model="shop.vendors.{{ $code }}" @disabled(! $this->canEdit())> {{ $code }}</label>
           @endforeach
         </div></div>
+      {{-- MARKER-MOVING-FAST --}}
+      <div class="row" style="border-bottom:0;padding-bottom:0"><div><b>Moving fast section</b><span>A page-builder section for shops with the online store add-on: what is selling fastest at their vendors, carried or not. It uses the distributor list and the history rule above. Shops see their own price and these badges, never vendor names or numbers.</span></div></div>
+      <div class="row"><div><b>Offer the Moving fast section</b><span>Off hides it from the builder and from every shop's site.</span></div>
+        <label class="vl-sw"><input type="checkbox" wire:model="mf.on" @disabled(! $this->canEdit())><i></i></label></div>
+      @foreach (\App\Filament\Pages\DistributorVelocity::MF_FIELDS as $k => $d)
+        <div class="row"><div><b>{{ $d[0] }}</b><span>{{ ucfirst($d[1]) }}.</span></div>
+          <input type="number" min="{{ $d[2] }}" max="{{ $d[3] }}" wire:model="mf.{{ $k }}" @disabled(! $this->canEdit()) style="width:90px;padding:6px 8px;border-radius:8px;border:1px solid rgba(127,127,127,.35);background:transparent;color:inherit;text-align:right"></div>
+      @endforeach
     </div>
     <div style="display:flex;gap:8px;align-items:center">
       <button type="button" class="vl-btn p" wire:click="saveShop" @disabled(! $this->canEdit())>Save settings</button>

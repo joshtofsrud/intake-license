@@ -1298,6 +1298,10 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::get('/whats-coming', [TenantControllers\WhatsNewController::class, 'roadmap'])->name('whats_new.roadmap');
 
             Route::get('/pages',                [TenantControllers\PageBuilderController::class, 'index'])->name('pages.index');
+            // MARKER-MOVING-FAST: the builder popup for the Moving fast section
+            Route::get('/pages/moving-fast/items',  [TenantControllers\MovingFastController::class, 'items'])->name('pages.moving-fast.items');
+            Route::get('/pages/moving-fast/detail', [TenantControllers\MovingFastController::class, 'detail'])->name('pages.moving-fast.detail');
+            Route::post('/pages/moving-fast/add',   [TenantControllers\MovingFastController::class, 'add'])->middleware('throttle:60,1')->name('pages.moving-fast.add');
             Route::get('/pages/{id}',           [TenantControllers\PageBuilderController::class, 'edit'])->name('pages.edit');
             Route::post('/pages/welcome',        [TenantControllers\PageBuilderController::class, 'saveWelcome'])->name('pages.welcome');
             Route::get('/pages/welcome/preview', [TenantControllers\PageBuilderController::class, 'previewWelcome'])->name('pages.welcome.preview');

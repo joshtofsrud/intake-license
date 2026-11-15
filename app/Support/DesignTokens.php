@@ -42,6 +42,7 @@ class DesignTokens
         'logo_bar'           => 'surface',
         'step_timeline'      => 'surface',
         'products_showcase'  => 'surface',
+        'market_movers'      => 'surface', // MARKER-MOVING-FAST
         'rentals_showcase'   => 'surface',
         'classes_embed'      => 'surface',
     ];
