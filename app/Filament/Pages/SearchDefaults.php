@@ -229,7 +229,7 @@ class SearchDefaults extends Page
             $zero = (clone $q)->where('results_count', 0)->count();
             $common = (clone $q)->where('results_count', 0)
                 ->selectRaw('LOWER(query) AS k, COUNT(DISTINCT tenant_id) AS shops, COUNT(*) AS n')
-                ->groupByRaw('LOWER(query)')->orderByDesc('shops')->orderByDesc('n')->limit(20)->get();
+                ->groupBy('k')->orderByDesc('shops')->orderByDesc('n')->limit(20)->get();
             return [
                 'shops'   => (clone $q)->distinct()->count('tenant_id'),
                 'n'       => $n,

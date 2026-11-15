@@ -390,7 +390,7 @@ class ShopSearch
         return Cache::remember('shop-search-popular:' . $this->tenant->id, 600, function () use ($n) {
             return DB::table('tenant_search_queries')->where('tenant_id', $this->tenant->id)
                 ->where('created_at', '>=', now()->subDays(30))->where('results_count', '>', 0)
-                ->selectRaw('LOWER(query) AS q, COUNT(*) AS n')->groupByRaw('LOWER(query)')
+                ->selectRaw('LOWER(query) AS q, COUNT(*) AS n')->groupBy('q')
                 ->orderByDesc('n')->limit($n)->pluck('q')->all();
         });
     }

@@ -84,14 +84,14 @@ class SearchReport
     {
         $rows = (clone $this->queries())
             ->selectRaw('LOWER(query) AS k, COUNT(*) AS n, AVG(results_count) AS r')
-            ->groupByRaw('LOWER(query)')->orderByDesc('n')->limit($limit)->get();
+            ->groupBy('k')->orderByDesc('n')->limit($limit)->get();
         if ($rows->isEmpty()) return [];
         $keys = $rows->pluck('k')->all();
 
         $per = function ($q) use ($keys) {
             return $q->whereIn(DB::raw('LOWER(q.query)'), $keys)
                 ->selectRaw('LOWER(q.query) AS k, COUNT(DISTINCT e.query_id) AS n')
-                ->groupByRaw('LOWER(q.query)')->pluck('n', 'k')->all();
+                ->groupBy('k')->pluck('n', 'k')->all();
         };
         $click = $per($this->events('click'));
         $add   = $per($this->events('add'));
@@ -99,7 +99,7 @@ class SearchReport
         $rev   = $this->bought()
             ->join('tenant_order_items as oi', function ($j) { $j->on('oi.order_id', '=', 'e.order_id')->on('oi.inventory_item_id', '=', 'e.item_id'); })
             ->whereIn(DB::raw('LOWER(q.query)'), $keys)
-            ->selectRaw('LOWER(q.query) AS k, SUM(oi.line_total_cents) AS c')->groupByRaw('LOWER(q.query)')->pluck('c', 'k')->all();
+            ->selectRaw('LOWER(q.query) AS k, SUM(oi.line_total_cents) AS c')->groupBy('k')->pluck('c', 'k')->all();
 
         $rules = TenantSearchRule::where('tenant_id', $this->tenant->id)->where('enabled', true)
             ->whereIn(DB::raw('LOWER(from_term)'), $keys)->get(['type', 'from_term']);
@@ -123,7 +123,7 @@ class SearchReport
         $dismissed = DB::table('tenant_search_dismissals')->where('tenant_id', $this->tenant->id)->pluck('query')->map(fn ($q) => mb_strtolower($q))->all();
         $rows = (clone $this->queries())->where('results_count', 0)
             ->selectRaw('LOWER(query) AS k, COUNT(*) AS n, MAX(created_at) AS last')
-            ->groupByRaw('LOWER(query)')->orderByDesc('n')->limit($limit + count($dismissed))->get()
+            ->groupBy('k')->orderByDesc('n')->limit($limit + count($dismissed))->get()
             ->reject(fn ($r) => in_array($r->k, $dismissed, true))->take($limit)->values();
 
         return $rows->map(fn ($r) => ['q' => $r->k, 'n' => (int) $r->n, 'last' => \Illuminate\Support\Carbon::parse($r->last)] + $this->fix($r->k))->all();
@@ -133,7 +133,7 @@ class SearchReport
     {
         $dismissed = DB::table('tenant_search_dismissals')->where('tenant_id', $this->tenant->id)->pluck('query')->map(fn ($q) => mb_strtolower($q))->all();
         return (clone $this->queries())->where('results_count', 0)
-            ->selectRaw('LOWER(query) AS k')->groupByRaw('LOWER(query)')->pluck('k')
+            ->selectRaw('LOWER(query) AS k')->groupBy('k')->pluck('k')
             ->reject(fn ($k) => in_array($k, $dismissed, true))->count();
     }
 

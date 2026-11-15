@@ -80,7 +80,7 @@ class ShopBrowse
     private function counts(?string $skip, string $expr): array
     {
         return $this->filtered($skip)->toBase()->reorder()
-            ->selectRaw($expr . ' AS k, COUNT(*) AS n')->groupByRaw($expr)
+            ->selectRaw($expr . ' AS k, COUNT(*) AS n')->groupBy('k') // grouped by the alias: strict MySQL (only_full_group_by) rejects repeating an expression with a subquery in it
             ->pluck('n', 'k')->all();
     }
 

@@ -118,7 +118,7 @@ class SearchReportController extends Controller
     {
         try {
             return ShopSearch::for(tenant())->base(false)->toBase()->reorder()
-                ->selectRaw(ShopSearch::BRAND_SQL . ' AS b')->groupByRaw(ShopSearch::BRAND_SQL)->orderBy('b')
+                ->selectRaw(ShopSearch::BRAND_SQL . ' AS b')->groupBy('b')->orderBy('b')
                 ->pluck('b')->filter()->values()->all();
         } catch (\Throwable $e) {
             return [];
