@@ -276,7 +276,7 @@
       @if($showMessage)
         <div class="p-cf-form-group">
           <label class="p-cf-label">{{ $labelMessage }} *</label>
-          <textarea name="message" class="p-cf-input" rows="{{ $messageRows }}" required placeholder="{{ $placeholderMessage }}">{{ old('message') }}</textarea>
+          <textarea name="message" class="p-cf-input" rows="{{ $messageRows }}" required placeholder="{{ $placeholderMessage }}">{{ old('message', request()->filled('ask') ? 'Do you have "' . mb_substr((string) request()->query('ask'), 0, 120) . '"? I searched the shop and could not find it.' : '') }}</textarea>
         </div>
       @else
         {{-- Hidden minimal placeholder so the backend's "required" validation
@@ -299,3 +299,9 @@
 
   </div>
 </section>
+{{-- MARKER-SHOP-SEARCH-V2: "Ask us" from a search with no results lands on the message, filled in --}}
+@if(request()->filled('ask'))
+@once
+<script>document.addEventListener('DOMContentLoaded', function () { var t = document.querySelector('textarea[name="message"]'); if (t) { t.scrollIntoView({ block: 'center' }); } });</script>
+@endonce
+@endif

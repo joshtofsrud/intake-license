@@ -11,7 +11,16 @@ class TenantSearchRule extends Model
     use HasUuids;
 
     protected $table = 'tenant_search_rules';
-    protected $fillable = ['tenant_id', 'type', 'from_term', 'to_value', 'label', 'hits', 'created_by'];
+    // MARKER-SHOP-SEARCH-V2: types synonym | redirect | stop | pin | boost | hide; item_id for the last three
+    protected $fillable = ['tenant_id', 'type', 'from_term', 'to_value', 'item_id', 'label', 'enabled', 'hits', 'created_by'];
+    protected $casts = ['enabled' => 'boolean', 'hits' => 'integer'];
+
+    public const TYPES = ['synonym' => 'Synonym', 'redirect' => 'Redirect', 'stop' => 'Stop word', 'pin' => 'Pin', 'boost' => 'Boost', 'hide' => 'Hide'];
+
+    public function item()
+    {
+        return $this->belongsTo(TenantInventoryItem::class, 'item_id');
+    }
 
     /**
      * Seeded synonym defaults (word => canonical). Domain vocabulary for
@@ -45,6 +54,7 @@ class TenantSearchRule extends Model
     {
         $rule = static::where('tenant_id', $tenantId)
             ->where('type', 'redirect')
+            ->where('enabled', true)
             ->whereRaw('LOWER(from_term) = ?', [mb_strtolower(trim($query))])
             ->first();
         if ($rule) $rule->increment('hits');

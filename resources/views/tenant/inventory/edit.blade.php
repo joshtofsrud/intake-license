@@ -158,6 +158,17 @@
         </div>
       </div>
 
+      {{-- MARKER-SHOP-SEARCH-V2: a "was" price makes the item show as on sale online --}}
+      <div class="ia-input-grid-2">
+        <div class="ia-form-group">
+          <label class="ia-form-label">Was price ($) <span style="font-weight:400;color:var(--ia-text-muted)">optional</span></label>
+          <input type="number" step="0.01" min="0" name="compare_at_dollars" class="ia-input" value="{{ old('compare_at_dollars', $item->compare_at_cents !== null ? number_format($item->compare_at_cents / 100, 2, '.', '') : '') }}">
+        </div>
+        <div class="ia-form-group" style="align-self:end">
+          <div style="font-size:12px;color:var(--ia-text-muted);line-height:1.45;padding-bottom:10px">Online, a was price above the sell price shows crossed out with a Sale badge, and the item appears under "On sale". Leave it empty when the item is not on sale.</div>
+        </div>
+      </div>
+
       <div class="ia-input-grid-2">
         <div class="ia-form-group">
           <label class="ia-form-label">Reorder when stock hits</label>

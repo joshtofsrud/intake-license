@@ -23,10 +23,10 @@ class TenantSearchQuery extends Model
      * recent query is a prefix of the new one (user still typing — "mar" →
      * "marin"), update that row instead of inserting a new one.
      */
-    public static function log(string $tenantId, ?string $sessionId, string $query, int $results): void
+    public static function log(string $tenantId, ?string $sessionId, string $query, int $results): ?string
     {
         $query = mb_substr(trim($query), 0, 190);
-        if (mb_strlen($query) < 3) return;
+        if (mb_strlen($query) < 3) return null;
 
         if ($sessionId) {
             $recent = static::where('tenant_id', $tenantId)
@@ -40,17 +40,17 @@ class TenantSearchQuery extends Model
                 str_starts_with(mb_strtolower($recent->query), mb_strtolower($query))
             )) {
                 $recent->update(['query' => $query, 'results_count' => $results, 'created_at' => now()]);
-                return;
+                return (string) $recent->id; // MARKER-SHOP-SEARCH-V2: clicks and adds point back at this row
             }
         }
 
-        static::create([
+        return (string) static::create([
             'tenant_id'     => $tenantId,
             'session_id'    => $sessionId,
             'query'         => $query,
             'results_count' => $results,
             'created_at'    => now(),
-        ]);
+        ])->id;
     }
 }
 

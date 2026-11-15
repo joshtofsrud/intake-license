@@ -42,6 +42,8 @@ class PlatformSettings extends Model
         'velocity_settings',
         // MARKER-DISTRIBUTION-WAREHOUSES: feature switch, default for shops, stale-count limit
         'distribution_settings',
+        // MARKER-SHOP-SEARCH-V2: which plan gets which search feature
+        'search_settings',
     ];
 
     // without this the json column reads back as a
@@ -51,6 +53,7 @@ class PlatformSettings extends Model
         'dashboard_customize_enabled' => 'boolean',
         'velocity_settings' => 'array',
         'distribution_settings' => 'array',
+        'search_settings' => 'array',
     ];
 
     /** Laravel's framework default when nothing is configured. */

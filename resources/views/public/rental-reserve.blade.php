@@ -12,22 +12,29 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 @include('partials.mobile-input-zoom')
 <title>Reserve {{ $model->name }} — {{ $tname }}</title>
+@include('public._theme-fonts')
 <style>
-  :root { --acc: {{ $accent }}; }
+  /* MARKER-SHOP-THEME: the rentals pages use the site's own look, like every other public page */
+  :root {
+{!! \App\Support\DesignTokens::cssVars(\App\Support\DesignTokens::resolve($currentTenant ?? tenant())) !!}
+    --p-muted: color-mix(in srgb, var(--p-text) 62%, transparent);
+  }
+  :root { --acc: var(--p-accent); }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif; color: #161616; background: #fafafa; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+  body { font-family: var(--p-font-body); color: var(--p-text); background: var(--p-bg); line-height: 1.6; -webkit-font-smoothing: antialiased; }
+  h1, h2, h3 { font-family: var(--p-font-heading); font-weight: var(--p-heading-weight, 650); text-transform: var(--p-heading-transform, none); }
   a { color: inherit; text-decoration: none; }
   .wrap { max-width: 560px; margin: 0 auto; padding: 28px 20px 80px; }
   .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 26px; }
   .top a.home { font-weight: 700; font-size: 16px; }
   h1 { font-size: 22px; font-weight: 650; letter-spacing: -.02em; }
-  .card { background: #fff; border: 1.5px solid rgba(0,0,0,.09); border-radius: 14px; padding: 20px 22px; margin-top: 16px; }
+  .card { background: color-mix(in srgb, var(--p-text) 3%, var(--p-bg)); border: 1.5px solid color-mix(in srgb, var(--p-text) 9%, transparent); border-radius: 14px; padding: 20px 22px; margin-top: 16px; }
   .kv { display: flex; justify-content: space-between; font-size: 14px; padding: 4px 0; }
   .kv span:first-child { opacity: .55; }
-  .kv.total { font-weight: 700; border-top: 1.5px solid rgba(0,0,0,.08); margin-top: 6px; padding-top: 10px; }
+  .kv.total { font-weight: 700; border-top: 1.5px solid color-mix(in srgb, var(--p-text) 8%, transparent); margin-top: 6px; padding-top: 10px; }
   label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; opacity: .5; display: block; margin: 12px 0 5px; font-weight: 600; }
-  input { font: inherit; font-size: 14px; padding: 10px 12px; border: 1.5px solid rgba(0,0,0,.12); border-radius: 9px; width: 100%; background: #fff; }
-  .btn { font: inherit; font-size: 15px; font-weight: 650; padding: 13px 0; border: none; border-radius: 10px; background: var(--acc); color: #111; cursor: pointer; width: 100%; margin-top: 18px; }
+  input { font: inherit; font-size: 14px; padding: 10px 12px; border: 1.5px solid color-mix(in srgb, var(--p-text) 12%, transparent); border-radius: 9px; width: 100%; background: color-mix(in srgb, var(--p-text) 3%, var(--p-bg)); }
+  .btn { font: inherit; font-size: 15px; font-weight: 650; padding: 13px 0; border: none; border-radius: 10px; background: var(--acc); color: var(--p-text); cursor: pointer; width: 100%; margin-top: 18px; }
   .btn:disabled { opacity: .5; cursor: default; }
   .err { background: #fef2f2; border: 1px solid #ef4444; color: #7f1d1d; border-radius: 9px; padding: 10px 14px; font-size: 13px; margin-top: 14px; display: none; }
   .hint { font-size: 12px; opacity: .45; margin-top: 10px; text-align: center; }

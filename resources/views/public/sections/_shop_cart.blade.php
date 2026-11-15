@@ -2,6 +2,7 @@
      through public.layout via SiteChromeService between the tenant own
      nav + footer sections. Original standalone blade retired. --}}
 @include('public._launch-ribbon', ['lrModule' => 'ecom'])
+@include('public.sections._shop-theme')
 @php
   $accent = $tenant->accent_color ?? '#BEF264';
   $tname  = $tenant->name ?? 'Shop';
@@ -16,24 +17,24 @@
 @endphp
 <style>
 
-  :root { --acc: {{ $accent }}; }
+  /* MARKER-SHOP-THEME: --acc now comes from the site look (_shop-theme) */
 
   .spg-cart .wrap { max-width: 760px; margin: 0 auto; padding: 28px 20px 80px; }
   .spg-cart .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 26px; }
   .spg-cart .top a.home { font-weight: 700; font-size: 16px; }
   .spg-cart h1 { font-size: 24px; font-weight: 650; letter-spacing: -.02em; margin-bottom: 20px; }
-  .spg-cart .flash { background: rgba(52,168,83,.09); color: #1d7a3a; border-radius: 10px; padding: 11px 16px; font-size: 13.5px; font-weight: 600; margin-bottom: 16px; }
-  .spg-cart .card { background: #fff; border: 1.5px solid rgba(0,0,0,.09); border-radius: 16px; overflow: hidden; }
-  .spg-cart .line { display: flex; gap: 14px; padding: 16px; border-bottom: 1px solid rgba(0,0,0,.06); align-items: center; }
+  .spg-cart .flash { background: rgba(52,168,83,.09); color: var(--s-ok); border-radius: 10px; padding: 11px 16px; font-size: 13.5px; font-weight: 600; margin-bottom: 16px; }
+  .spg-cart .card { background: var(--s-card); border: 1.5px solid color-mix(in srgb, var(--p-text) 9%, transparent); border-radius: var(--s-r); overflow: hidden; }
+  .spg-cart .line { display: flex; gap: 14px; padding: 16px; border-bottom: 1px solid color-mix(in srgb, var(--p-text) 6%, transparent); align-items: center; }
   .spg-cart .line:last-child { border-bottom: 0; }
-  .spg-cart .line img, .line .ph { width: 62px; height: 62px; object-fit: contain; background: #fff; border: 1px solid rgba(0,0,0,.07); border-radius: 10px; flex: none; }
+  .spg-cart .line img, .line .ph { width: 62px; height: 62px; object-fit: contain; background: var(--s-photo); border: 1px solid color-mix(in srgb, var(--p-text) 7%, transparent); border-radius: 10px; flex: none; }
   .spg-cart .line .ph { display: grid; place-items: center; font-size: 9px; opacity: .35; }
   .spg-cart .line .b { min-width: 0; flex: 1; }
   .spg-cart .line .n { font-size: 14px; font-weight: 650; line-height: 1.3; }
   .spg-cart .line .v { font-size: 12px; opacity: .55; margin-top: 2px; }
   .spg-cart .line .unit { font-size: 12px; opacity: .55; margin-top: 4px; }
-  .spg-cart .qty { display: flex; align-items: center; gap: 0; border: 1.5px solid rgba(0,0,0,.12); border-radius: 9px; overflow: hidden; flex: none; }
-  .spg-cart .qty button { font: inherit; font-size: 15px; width: 30px; height: 32px; border: 0; background: #fff; cursor: pointer; }
+  .spg-cart .qty { display: flex; align-items: center; gap: 0; border: 1.5px solid color-mix(in srgb, var(--p-text) 12%, transparent); border-radius: 9px; overflow: hidden; flex: none; }
+  .spg-cart .qty button { font: inherit; font-size: 15px; width: 30px; height: 32px; border: 0; background: var(--s-card); cursor: pointer; }
   .spg-cart .qty span { min-width: 30px; text-align: center; font-size: 13.5px; font-weight: 650; }
   .spg-cart .line .tot { font-size: 14.5px; font-weight: 750; width: 76px; text-align: right; flex: none; }
   .spg-cart .line .rm button { font: inherit; background: none; border: 0; font-size: 17px; opacity: .35; cursor: pointer; padding: 4px; }
@@ -41,18 +42,18 @@
   .spg-cart .sum { display: flex; justify-content: space-between; align-items: baseline; padding: 18px 4px 6px; font-size: 15px; }
   .spg-cart .sum b { font-size: 19px; }
   .spg-cart .sum-note { font-size: 12px; opacity: .5; text-align: right; }
-  .spg-cart .cta { display: block; width: 100%; text-align: center; font: inherit; font-size: 15px; font-weight: 700; padding: 15px 0; border: 0; border-radius: 12px; background: var(--acc); margin-top: 16px; cursor: not-allowed; opacity: .55; }
+  .spg-cart .cta { display: block; width: 100%; text-align: center; font: inherit; font-size: 15px; font-weight: 700; padding: 15px 0; border: 0; border-radius: var(--s-btn-r); background: var(--acc); margin-top: 16px; cursor: not-allowed; opacity: .55; color: var(--s-acc-text);}
   .spg-cart .cta-note { font-size: 12px; opacity: .5; text-align: center; margin-top: 8px; }
   .spg-cart .line.bad { background: rgba(192,57,43,.05); }
-  .spg-cart .line .why { font-size: 12.5px; font-weight: 600; color: #b3261e; margin-top: 6px; line-height: 1.45; }
+  .spg-cart .line .why { font-size: 12.5px; font-weight: 600; color: var(--s-bad); margin-top: 6px; line-height: 1.45; }
   .spg-cart .line .src { font-size: 12.5px; opacity: .7; margin-top: 6px; line-height: 1.45; }
-  .spg-cart .line .so { font-size: 12.5px; font-weight: 600; color: #8a5a00; margin-top: 6px; line-height: 1.45; }
-  .spg-cart .stopbox { background: rgba(192,57,43,.07); border: 1.5px solid rgba(192,57,43,.28); color: #8f1d14; border-radius: 12px; padding: 12px 16px; font-size: 13.5px; line-height: 1.5; margin-bottom: 16px; }
+  .spg-cart .line .so { font-size: 12.5px; font-weight: 600; color: var(--s-warn); margin-top: 6px; line-height: 1.45; }
+  .spg-cart .stopbox { background: rgba(192,57,43,.07); border: 1.5px solid rgba(192,57,43,.28); color: var(--s-bad); border-radius: 12px; padding: 12px 16px; font-size: 13.5px; line-height: 1.5; margin-bottom: 16px; }
   .spg-cart .stopbox b { display: block; margin-bottom: 2px; }
   .spg-cart .cta.off { cursor: not-allowed; opacity: .45; }
   .spg-cart .empty { text-align: center; padding: 60px 20px; }
   .spg-cart .empty p { opacity: .55; margin-bottom: 18px; }
-  .spg-cart .empty a { display: inline-block; font-weight: 700; font-size: 14px; padding: 12px 26px; border-radius: 11px; background: var(--acc); }
+  .spg-cart .empty a { display: inline-block; font-weight: 700; font-size: 14px; padding: 12px 26px; border-radius: var(--s-btn-r); background: var(--acc); color: var(--s-acc-text);}
 
 </style>
 <div class="spg-cart">

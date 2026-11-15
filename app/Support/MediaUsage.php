@@ -31,6 +31,9 @@ class MediaUsage
         ['tenant_rental_models',      ['image_url', 'photo_url', 'photos'], 'Rental model',  'name'],
         ['tenant_rental_units',       ['photo_url', 'photos'],            'Rental unit',     'name'],
         ['tenant_campaigns',          ['body_html', 'blocks'],            'Email campaign',  'name'],
+        // MARKER-SHOP-SEARCH-V2: search promotions and category tiles
+        ['tenant_search_promotions',  ['image_url'],                      'Search promotion', 'title'],
+        ['tenant_inventory_categories', ['image_url'],                    'Category picture', 'name'],
     ];
 
     /** Plain-language places this image is used. Empty means safe to delete. */

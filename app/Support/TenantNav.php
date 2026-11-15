@@ -319,6 +319,14 @@ class TenantNav
           'group'  => 'website',
           'gate'   => 'online_store_enabled',
         ],
+        // MARKER-SHOP-SEARCH-V2: the shop's search settings live with the website too
+        [
+          'route'  => 'tenant.reports.search',
+          'label'  => 'Search',
+          'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="6" cy="6" r="4.3" stroke="currentColor" stroke-width="1.2"/><path d="M9.3 9.3L12.5 12.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
+          'group'  => 'website',
+          'gate'   => 'online_store_enabled',
+        ],
         [
           'route'  => 'tenant.booking_modes.index',
           'label'  => 'Booking Mode',
@@ -353,7 +361,7 @@ class TenantNav
           'tenant.work-order-fields.index', 'tenant.booking-editor.index',
           // website, then marketing, then messages
           'tenant.pages.index', 'tenant.templates.index', 'tenant.media.index',
-          'tenant.orders.index', 'tenant.storefront.settings', 'tenant.booking_modes.index',
+          'tenant.orders.index', 'tenant.storefront.settings', 'tenant.reports.search', 'tenant.booking_modes.index',
           'tenant.campaigns.index', 'tenant.discounts.index', 'tenant.recovery.index',
           'tenant.waitlist.index',
           'tenant.inbox.index', 'tenant.notifications', 'tenant.communication.index',

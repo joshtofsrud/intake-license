@@ -102,7 +102,7 @@
   {{ $S }} .p-nav-link { border-radius: {{ $nhR['link'] }}; padding: 7px 14px; color: var(--pf-link); }
   {{ $S }} .p-nav-link.active::after { left: 14px; right: 14px; bottom: 3px; background: var(--pf-link); }
   {{ $S }} .p-nav-link.active::before { background: var(--pf-link); }
-  {{ $S }} .p-nav-logo, {{ $S }} .p-nav-account, {{ $S }} .p-nav-search-btn { color: var(--pf-link); }
+  {{ $S }} .p-nav-logo, {{ $S }} .p-nav-account, {{ $S }} .p-nav-search-btn, {{ $S }} .p-ss-btn { color: var(--pf-link) !important; }
   {{ $S }} .p-hamburger span { background: var(--pf-link); }
   {{ $S }} .p-nav-cta { border-radius: {{ $nhR['pill'] }}; }
   {{ $S }} .p-nav-cta--outline, {{ $S }} .p-nav-cta--ghost { color: var(--pf-link); border-color: var(--pf-link); }
@@ -113,7 +113,7 @@
 /* link weight and brightness (both styles) */
 {{ $S }} .p-nav-link, {{ $S }} .p-nav-account { font-weight: {{ $nhD['link_weight'] }}; }
 @if($nhD['link_bright'] === 'bright')
-{{ $S }} .p-nav-link, {{ $S }} .p-nav-account, {{ $S }} .p-nav-search-btn { opacity: .95; }
+{{ $S }} .p-nav-link, {{ $S }} .p-nav-account, {{ $S }} .p-nav-search-btn, {{ $S }} .p-ss-btn { opacity: .95; }
 @endif
 
 /* header button colors (both styles; same in the bar and the phone menu) */

@@ -1182,6 +1182,7 @@ class InventoryController extends Controller
             'size'                  => ['nullable', 'string', 'max:60'],
             'shop_cost_dollars'     => ['nullable', 'numeric', 'min:0'],
             'shop_sell_price_dollars' => ['nullable', 'numeric', 'min:0'],
+            'compare_at_dollars'      => ['nullable', 'numeric', 'min:0'], // MARKER-SHOP-SEARCH-V2
             'shop_case_quantity'    => ['nullable', 'integer', 'min:1'],
             'shop_reorder_threshold' => ['nullable', 'integer', 'min:0'],
             'shop_reorder_quantity' => ['nullable', 'integer', 'min:1'],
@@ -1245,6 +1246,7 @@ class InventoryController extends Controller
             'size'                   => $data['size'] ?? null,
             'shop_cost_cents'        => isset($data['shop_cost_dollars']) ? (int) round($data['shop_cost_dollars'] * 100) : null,
             'shop_sell_price_cents'  => isset($data['shop_sell_price_dollars']) ? (int) round($data['shop_sell_price_dollars'] * 100) : null,
+            'compare_at_cents'       => isset($data['compare_at_dollars']) && $data['compare_at_dollars'] !== '' ? (int) round($data['compare_at_dollars'] * 100) : null,
             'shop_case_quantity'     => $data['shop_case_quantity'] ?? null,
             'shop_reorder_threshold' => $data['shop_reorder_threshold'] ?? null,
             'shop_reorder_quantity'  => $data['shop_reorder_quantity'] ?? null,
@@ -1749,6 +1751,7 @@ class InventoryController extends Controller
             'size'                  => ['nullable', 'string', 'max:60'],
             'shop_cost_dollars'       => ['nullable', 'numeric', 'min:0'],
             'shop_sell_price_dollars' => ['nullable', 'numeric', 'min:0'],
+            'compare_at_dollars'      => ['nullable', 'numeric', 'min:0'], // MARKER-SHOP-SEARCH-V2
             'shop_case_quantity'      => ['nullable', 'integer', 'min:1'],
             'shop_reorder_threshold'  => ['nullable', 'integer', 'min:0'],
             'shop_reorder_quantity'   => ['nullable', 'integer', 'min:1'],
@@ -1803,6 +1806,7 @@ class InventoryController extends Controller
             'size'                   => $data['size'] ?? null,
             'shop_cost_cents'        => isset($data['shop_cost_dollars']) ? (int) round($data['shop_cost_dollars'] * 100) : null,
             'shop_sell_price_cents'  => isset($data['shop_sell_price_dollars']) ? (int) round($data['shop_sell_price_dollars'] * 100) : null,
+            'compare_at_cents'       => isset($data['compare_at_dollars']) && $data['compare_at_dollars'] !== '' ? (int) round($data['compare_at_dollars'] * 100) : null,
             'shop_case_quantity'     => $data['shop_case_quantity'] ?? null,
             'shop_reorder_threshold' => $data['shop_reorder_threshold'] ?? null,
             'shop_reorder_quantity'  => $data['shop_reorder_quantity'] ?? null,

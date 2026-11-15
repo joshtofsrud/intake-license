@@ -42,13 +42,15 @@ class CartController extends Controller
         ]);
     }
 
-    public function add(Request $request): RedirectResponse
+    public function add(Request $request)
     {
         $this->guard();
         $data = $request->validate([
             'item_id'  => ['required', 'string'],
             'quantity' => ['nullable', 'integer', 'min:1', 'max:99'],
+            'sq'       => ['nullable', 'string', 'max:40'], // MARKER-SHOP-SEARCH-V2: the search a result card was in
         ]);
+        $json = $request->wantsJson(); // MARKER-SHOP-SEARCH-V2: Add to cart from results and quick view stays on the page
 
         $item = TenantInventoryItem::query()
             ->where('tenant_id', tenant()->id)
@@ -67,11 +69,16 @@ class CartController extends Controller
             $msg = $r['reason'] === \App\Services\Tenant\OrderStock::REASON_SHORT && $already > 0
                 ? "We only have {$r['have']} of {$item->name} and you already have {$already} in your cart."
                 : \App\Services\Tenant\OrderStock::message($item->name, $r);
+            if ($json) return response()->json(['ok' => false, 'message' => $msg], 422);
             return back()->with('shop_error', $msg);
         }
 
-        $svc->addItem($item, (int) ($data['quantity'] ?? 1));
+        $cart = $svc->addItem($item, (int) ($data['quantity'] ?? 1));
+        \App\Support\ShopSearch\SearchTracking::added(tenant(), $request, (string) $item->id, $cart, $data['sq'] ?? null);
 
+        if ($json) {
+            return response()->json(['ok' => true, 'message' => $item->name . ' is in your cart.', 'count' => $svc->itemCount()]);
+        }
         return redirect('/cart')->with('added', $item->name);
     }
 

@@ -56,6 +56,7 @@ class TenantInventoryItem extends Model
         'seo_title', 'seo_description', // MARKER-ITEM-SEO
         'google_category', 'feed_exclude', // MARKER-GOOGLE-FEED
         'shop_brand', // the shop's own brand value
+        'compare_at_cents', // MARKER-SHOP-SEARCH-V2: "was" price, shown crossed out with a Sale badge online
         'shop_weight_oz', 'shop_length_in', 'shop_width_in', 'shop_height_in', // MARKER-SHIPPING-RATES
         'catalog_title_seen',
         'catalog_details_seen',
@@ -86,6 +87,7 @@ class TenantInventoryItem extends Model
         'show_online' => 'boolean',
         'catalog_cost_cents' => 'integer',
         'catalog_msrp_cents' => 'integer',
+        'compare_at_cents' => 'integer',
         'catalog_map_cents' => 'integer',
         'catalog_case_quantity' => 'integer',
         'catalog_synced_at' => 'datetime',

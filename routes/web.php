@@ -258,6 +258,10 @@ $tenantRoutes = function () {
     // Online Retail Wave 2: read-only storefront
     Route::get('/shop',                  [TenantControllers\StorefrontController::class, 'index'])->name('tenant.shop.index');
     Route::get('/shop/search.json',      [TenantControllers\StorefrontController::class, 'searchJson'])->name('tenant.shop.search');
+    // MARKER-SHOP-SEARCH-V2: clicks from search, promotion clicks, quick view
+    Route::get('/shop/search/click',      [TenantControllers\StorefrontController::class, 'searchClick'])->middleware('throttle:120,1')->name('tenant.shop.search.click');
+    Route::get('/shop/search/promo/{id}', [TenantControllers\StorefrontController::class, 'promoClick'])->whereUuid('id')->name('tenant.shop.search.promo');
+    Route::get('/shop/quick/{id}',        [TenantControllers\StorefrontController::class, 'quick'])->whereUuid('id')->name('tenant.shop.quick');
     Route::get('/shop/{id}',             [TenantControllers\StorefrontController::class, 'show'])->name('tenant.shop.show');
     // Online Retail Wave 3: cart
     Route::get('/cart',                  [TenantControllers\CartController::class, 'show'])->name('tenant.cart.show');
@@ -845,6 +849,16 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::get('/reports/daily/recon',           [TenantControllers\DailyOpsController::class, 'reconciliation'])->name('reports.daily.recon');
             Route::post('/reports/daily/recon/refresh',  [TenantControllers\DailyOpsController::class, 'reconciliationRefresh'])->name('reports.daily.recon.refresh');
             Route::get('/reports/daily/export/xero',     [TenantControllers\DailyOpsController::class, 'exportXero'])->name('reports.daily.export.xero');
+            // MARKER-SHOP-SEARCH-V2: Reports › Search (also Website › Search in the menu)
+            Route::get('/reports/search',                          [TenantControllers\SearchReportController::class, 'index'])->name('reports.search');
+            Route::get('/reports/search/items',                    [TenantControllers\SearchReportController::class, 'items'])->name('reports.search.items');
+            Route::post('/reports/search/rules',                   [TenantControllers\SearchReportController::class, 'ruleSave'])->name('reports.search.rule');
+            Route::post('/reports/search/rules/{id}/delete',       [TenantControllers\SearchReportController::class, 'ruleDelete'])->whereUuid('id')->name('reports.search.rule.delete');
+            Route::post('/reports/search/defaults',                [TenantControllers\SearchReportController::class, 'defaultsSave'])->name('reports.search.defaults');
+            Route::post('/reports/search/dismiss',                 [TenantControllers\SearchReportController::class, 'dismiss'])->name('reports.search.dismiss');
+            Route::post('/reports/search/promotions',              [TenantControllers\SearchReportController::class, 'promoSave'])->name('reports.search.promo');
+            Route::post('/reports/search/promotions/{id}/delete',  [TenantControllers\SearchReportController::class, 'promoDelete'])->whereUuid('id')->name('reports.search.promo.delete');
+            Route::post('/reports/search/display',                 [TenantControllers\SearchReportController::class, 'displaySave'])->name('reports.search.display');
             Route::post('/reports/search-rules',            [TenantControllers\SearchRulesController::class, 'store'])->name('reports.search-rules.store');
             Route::post('/reports/search-rules/{ruleId}/delete', [TenantControllers\SearchRulesController::class, 'destroy'])->name('reports.search-rules.delete');
             Route::post('/calendar/dropoff/reschedule', [TenantControllers\CalendarController::class, 'dropOffReschedule'])->name('calendar.dropoff.reschedule');

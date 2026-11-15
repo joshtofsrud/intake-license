@@ -149,6 +149,7 @@ class AdminPanelProvider extends PanelProvider
                 // has no route and 404s, nav or no nav. Any NEW Filament page
                 // must be added here.
                 \App\Filament\Pages\MarketingTraffic::class,
+                \App\Filament\Pages\SearchDefaults::class, // explicit list, no auto-discovery: without this the page 404s
                 \App\Filament\Pages\Raise::class, // panel lists pages explicitly, no auto-discovery
                 \App\Filament\Pages\InvestorRecord::class,
                 \App\Filament\Pages\RaiseSetup::class,

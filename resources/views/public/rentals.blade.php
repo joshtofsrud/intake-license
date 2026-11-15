@@ -12,31 +12,38 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 @include('partials.mobile-input-zoom')
 <title>Rentals — {{ $tname }}</title>
+@include('public._theme-fonts')
 <style>
-  :root { --acc: {{ $accent }}; }
+  /* MARKER-SHOP-THEME: the rentals pages use the site's own look, like every other public page */
+  :root {
+{!! \App\Support\DesignTokens::cssVars(\App\Support\DesignTokens::resolve($currentTenant ?? tenant())) !!}
+    --p-muted: color-mix(in srgb, var(--p-text) 62%, transparent);
+  }
+  :root { --acc: var(--p-accent); }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif; color: #161616; background: #fafafa; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+  body { font-family: var(--p-font-body); color: var(--p-text); background: var(--p-bg); line-height: 1.6; -webkit-font-smoothing: antialiased; }
+  h1, h2, h3 { font-family: var(--p-font-heading); font-weight: var(--p-heading-weight, 650); text-transform: var(--p-heading-transform, none); }
   a { color: inherit; text-decoration: none; }
   .wrap { max-width: 980px; margin: 0 auto; padding: 28px 20px 80px; }
   .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
   .top a.home { font-weight: 700; font-size: 16px; }
   h1 { font-size: 26px; font-weight: 650; letter-spacing: -.02em; }
   .sub { font-size: 14px; opacity: .55; margin-top: 4px; }
-  .picker { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; background: #fff; border: 1.5px solid rgba(0,0,0,.09); border-radius: 14px; padding: 18px 20px; margin: 22px 0 30px; }
+  .picker { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; background: #fff; border: 1.5px solid color-mix(in srgb, var(--p-text) 9%, transparent); border-radius: 14px; padding: 18px 20px; margin: 22px 0 30px; }
   .picker label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; opacity: .5; display: block; margin-bottom: 5px; font-weight: 600; }
-  .picker input { font: inherit; font-size: 14px; padding: 9px 12px; border: 1.5px solid rgba(0,0,0,.12); border-radius: 9px; background: #fff; }
-  .picker button { font: inherit; font-size: 14px; font-weight: 650; padding: 10px 22px; border: none; border-radius: 9px; background: var(--acc); color: #111; cursor: pointer; }
+  .picker input { font: inherit; font-size: 14px; padding: 9px 12px; border: 1.5px solid color-mix(in srgb, var(--p-text) 12%, transparent); border-radius: 9px; background: #fff; }
+  .picker button { font: inherit; font-size: 14px; font-weight: 650; padding: 10px 22px; border: none; border-radius: 9px; background: var(--acc); color: var(--p-text); cursor: pointer; }
   .err { background: #fef3c7; border: 1px solid #f59e0b; color: #78350f; border-radius: 9px; padding: 10px 14px; font-size: 13px; margin-bottom: 18px; }
   .cat { margin-bottom: 30px; }
   .cat h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .07em; opacity: .45; margin-bottom: 12px; font-weight: 650; }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
-  .card { background: #fff; border: 1.5px solid rgba(0,0,0,.09); border-radius: 14px; padding: 18px 20px; display: flex; flex-direction: column; }
+  .card { background: color-mix(in srgb, var(--p-text) 3%, var(--p-bg)); border: 1.5px solid color-mix(in srgb, var(--p-text) 9%, transparent); border-radius: 14px; padding: 18px 20px; display: flex; flex-direction: column; }
   .card .name { font-size: 16px; font-weight: 650; line-height: 1.3; }
   .card .subt { font-size: 12.5px; opacity: .55; margin-top: 2px; }
   .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 11px; }
-  .chip { font-size: 12px; background: rgba(0,0,0,.05); border-radius: 6px; padding: 3px 9px; }
+  .chip { font-size: 12px; background: color-mix(in srgb, var(--p-text) 5%, transparent); border-radius: 6px; padding: 3px 9px; }
   .meta { font-size: 12px; opacity: .55; margin-top: 10px; }
-  .card .cta { margin-top: 14px; text-align: center; font-size: 13.5px; font-weight: 650; padding: 9px 0; border-radius: 9px; background: var(--acc); color: #111; }
+  .card .cta { margin-top: 14px; text-align: center; font-size: 13.5px; font-weight: 650; padding: 9px 0; border-radius: 9px; background: var(--acc); color: var(--p-text); }
   .empty { text-align: center; padding: 60px 20px; opacity: .55; font-size: 15px; }
 </style>
   @include('public._ga4')

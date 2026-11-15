@@ -391,9 +391,27 @@ class TabPanels
         $rows = [];
         if (!$this->locked) {
             $tid = $this->tenant->id;
-            $items = \App\Models\Tenant\TenantInventoryItem::query()->where('tenant_id', $tid)->where('is_active', true)->where('show_online', true)
-                ->where('computed_stock_count', '<=', 0)->get(['id', 'name', 'computed_stock_count', 'allow_oversell']);
-            $ids = $items->pluck('id')->all();
+            $DB = \Illuminate\Support\Facades\DB::class;
+            $since = \Carbon\Carbon::now('UTC')->subDays(30)->format('Y-m-d H:i:s');
+            $out = fn () => \App\Models\Tenant\TenantInventoryItem::query()->where('tenant_id', $tid)->where('is_active', true)->where('show_online', true)
+                ->where('computed_stock_count', '<=', 0);
+
+            // Only the most-wanted candidates are ever loaded: a shop with a big catalog online can have tens of
+            // thousands of items at zero, and loading them all runs the page out of memory.
+            $sold = []; $last = []; $ids = [];
+            $q = $DB::table('tenant_order_items as oi')->join('tenant_orders as o', 'o.id', '=', 'oi.order_id')
+                ->join('tenant_inventory_items as i', 'i.id', '=', 'oi.inventory_item_id')
+                ->where('oi.tenant_id', $tid)->where('i.tenant_id', $tid)->where('i.is_active', true)->where('i.show_online', true)
+                ->where('i.computed_stock_count', '<=', 0)->whereNull('i.deleted_at')
+                ->whereIn('o.status', ['paid', 'fulfilling', 'fulfilled', 'completed'])
+                ->groupBy('oi.inventory_item_id')
+                ->selectRaw('oi.inventory_item_id as id, SUM(CASE WHEN o.paid_at >= ? THEN oi.quantity ELSE 0 END) as q30, MAX(o.paid_at) as last', [$since])
+                ->orderByDesc('q30')->orderByDesc('last')->limit(150);
+            foreach ($q->get() as $r) { $sold[$r->id] = (float) $r->q30; $last[$r->id] = $r->last; $ids[] = $r->id; }
+            // never-sold items fill the list after the ones that sell
+            $fill = $out()->when($ids, fn ($x) => $x->whereNotIn('id', $ids))->orderBy('name')->limit(60)->pluck('id')->all();
+            $ids = array_merge($ids, $fill);
+
             $backed = [];
             try {
                 $backed = $ids ? \App\Services\Tenant\OrderStock::forTenant($this->tenant)->supplierBacked($ids) : [];
@@ -401,21 +419,14 @@ class TabPanels
                 report($e);   // a supplier lookup that fails must not take the whole tab down
             }
             $ids = array_values(array_filter($ids, fn ($i) => !isset($backed[$i])));
-            $sold = []; $last = [];
-            if ($ids) {
-                $since = \Carbon\Carbon::now('UTC')->subDays(30)->format('Y-m-d H:i:s');
-                $q = \Illuminate\Support\Facades\DB::table('tenant_order_items as oi')->join('tenant_orders as o', 'o.id', '=', 'oi.order_id')
-                    ->where('oi.tenant_id', $tid)->whereIn('oi.inventory_item_id', $ids)
-                    ->whereIn('o.status', ['paid', 'fulfilling', 'fulfilled', 'completed'])
-                    ->groupBy('oi.inventory_item_id')
-                    ->selectRaw('oi.inventory_item_id as id, SUM(CASE WHEN o.paid_at >= ? THEN oi.quantity ELSE 0 END) as q30, MAX(o.paid_at) as last', [$since]);
-                foreach ($q->get() as $r) { $sold[$r->id] = (float) $r->q30; $last[$r->id] = $r->last; }
-            }
+            $ids = array_slice($ids, 0, 25);
+            $items = $ids ? \App\Models\Tenant\TenantInventoryItem::query()->whereIn('id', $ids)->get(['id', 'name', 'computed_stock_count', 'allow_oversell'])->keyBy('id') : collect();
             $tz = $this->e->periods()->tz();
-            $list = $items->filter(fn ($i) => in_array($i->id, $ids, true))->sortByDesc(fn ($i) => $sold[$i->id] ?? 0)->values();
-            foreach ($list->take(25) as $i) {
-                $l = $last[$i->id] ?? null;
-                $rows[] = [e($i->name), self::pill((string) (int) $i->computed_stock_count, 'bad'), number_format($sold[$i->id] ?? 0),
+            foreach ($ids as $id) {
+                $i = $items[$id] ?? null;
+                if (!$i) continue;
+                $l = $last[$id] ?? null;
+                $rows[] = [e($i->name), self::pill((string) (int) $i->computed_stock_count, 'bad'), number_format($sold[$id] ?? 0),
                     $l ? \Carbon\Carbon::parse($l, 'UTC')->setTimezone($tz)->format('M j, Y') : '—', $i->allow_oversell ? 'Allowed' : 'Blocked'];
             }
         }

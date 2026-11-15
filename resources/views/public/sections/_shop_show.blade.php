@@ -2,6 +2,7 @@
      through public.layout via SiteChromeService between the tenant own
      nav + footer sections. Original standalone blade retired. --}}
 @include('public._launch-ribbon', ['lrModule' => 'ecom'])
+@include('public.sections._shop-theme')
 @php
   // layout's mobile-nav loop clobbers $item in scope;
   // rebind from the alias before anything reads it.
@@ -18,7 +19,7 @@
 @endphp
 <style>
 
-  :root { --acc: {{ $accent }}; }
+  /* MARKER-SHOP-THEME: --acc now comes from the site look (_shop-theme) */
 
   .spg-show .wrap { max-width: 1020px; margin: 0 auto; padding: 28px 20px 80px; }
   .spg-show .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
@@ -26,31 +27,31 @@
   .spg-show .crumb { font-size: 13px; opacity: .55; margin-bottom: 18px; }
   .spg-show .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 34px; align-items: start; }
   @media (max-width: 760px) { .cols { grid-template-columns: 1fr; } }
-  .spg-show .gal { background: #fff; border: 1.5px solid rgba(0,0,0,.09); border-radius: 16px; overflow: hidden; }
+  .spg-show .gal { background: var(--s-photo); border: 1.5px solid color-mix(in srgb, var(--p-text) 9%, transparent); border-radius: var(--s-r); overflow: hidden; }
   .spg-show .gal .main { aspect-ratio: 1; display: grid; place-items: center; }
   .spg-show .gal .main img { width: 100%; height: 100%; object-fit: contain; padding: 24px; }
   .spg-show .gal .main span { opacity: .3; font-size: 13px; }
-  .spg-show .thumbs { display: flex; gap: 8px; padding: 12px; border-top: 1px solid rgba(0,0,0,.06); }
-  .spg-show .thumbs img { width: 54px; height: 54px; object-fit: contain; background: #fff; border: 1.5px solid rgba(0,0,0,.1); border-radius: 9px; cursor: pointer; padding: 5px; }
-  .spg-show .thumbs img.on { border-color: #161616; }
+  .spg-show .thumbs { display: flex; gap: 8px; padding: 12px; border-top: 1px solid color-mix(in srgb, var(--p-text) 6%, transparent); }
+  .spg-show .thumbs img { width: 54px; height: 54px; object-fit: contain; background: var(--s-photo); border: 1.5px solid color-mix(in srgb, var(--p-text) 10%, transparent); border-radius: 9px; cursor: pointer; padding: 5px; }
+  .spg-show .thumbs img.on { border-color: var(--s-ink); }
   .spg-show .brand { font-size: 11px; text-transform: uppercase; letter-spacing: .09em; opacity: .5; font-weight: 700; }
   .spg-show h1 { font-size: 23px; font-weight: 700; letter-spacing: -.015em; line-height: 1.3; margin: 4px 0 6px; }
   .spg-show .subt { font-size: 14px; opacity: .6; }
   .spg-show .price { font-size: 26px; font-weight: 800; margin: 18px 0 4px; }
   .spg-show .avail { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 650; margin: 8px 0 20px; }
   .spg-show .avail .dot { width: 8px; height: 8px; border-radius: 50%; }
-  .spg-show .avail.in .dot { background: #1d9a4b; } .avail.in { color: #1d7a3a; }
-  .spg-show .avail.order .dot { background: #888; } .avail.order { color: #555; }
-  .spg-show .qtybox { display: flex; align-items: stretch; border: 1.5px solid rgba(0,0,0,.14); border-radius: 11px; overflow: hidden; background: #fff; flex: none; }
-  .spg-show .qtybox button { font: inherit; font-size: 17px; width: 40px; border: 0; background: #fff; cursor: pointer; }
+  .spg-show .avail.in .dot { background: var(--s-ok); } .avail.in { color: var(--s-ok); }
+  .spg-show .avail.order .dot { background: var(--p-muted); } .avail.order { color: var(--p-muted); }
+  .spg-show .qtybox { display: flex; align-items: stretch; border: 1.5px solid color-mix(in srgb, var(--p-text) 14%, transparent); border-radius: 11px; overflow: hidden; background: var(--s-card); flex: none; }
+  .spg-show .qtybox button { font: inherit; font-size: 17px; width: 40px; border: 0; background: var(--s-card); cursor: pointer; }
   .spg-show .qtybox input { width: 46px; text-align: center; font: inherit; font-size: 15px; font-weight: 700; border: 0; -moz-appearance: textfield; }
   .spg-show .qtybox input::-webkit-outer-spin-button, .qtybox input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-  .spg-show .cta { display: block; width: 100%; text-align: center; font: inherit; font-size: 15px; font-weight: 700; padding: 14px 0; border: 0; border-radius: 11px; background: var(--acc); cursor: not-allowed; opacity: .55; }
+  .spg-show .cta { display: block; width: 100%; text-align: center; font: inherit; font-size: 15px; font-weight: 700; padding: 14px 0; border: 0; border-radius: var(--s-btn-r); background: var(--acc); cursor: not-allowed; opacity: .55; color: var(--s-acc-text);}
   .spg-show .cta-note { font-size: 12px; opacity: .5; text-align: center; margin-top: 8px; }
   .spg-show .desc { font-size: 14px; opacity: .8; margin-top: 22px; line-height: 1.65; }
-  .spg-show .specs { margin-top: 26px; background: #fff; border: 1.5px solid rgba(0,0,0,.09); border-radius: 14px; padding: 6px 20px; }
+  .spg-show .specs { margin-top: 26px; background: var(--s-card); border: 1.5px solid color-mix(in srgb, var(--p-text) 9%, transparent); border-radius: var(--s-r); padding: 6px 20px; }
   .spg-show .specs h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; opacity: .45; font-weight: 700; padding: 14px 0 4px; }
-  .spg-show .specs .row { display: flex; gap: 18px; padding: 9px 0; border-top: 1px solid rgba(0,0,0,.05); font-size: 13.5px; }
+  .spg-show .specs .row { display: flex; gap: 18px; padding: 9px 0; border-top: 1px solid color-mix(in srgb, var(--p-text) 5%, transparent); font-size: 13.5px; }
   .spg-show .specs .row:first-of-type { border-top: 0; }
   .spg-show .specs .k { flex: none; width: 42%; opacity: .55; }
   .spg-show .idline { font-size: 12px; opacity: .45; margin-top: 18px; font-family: ui-monospace, monospace; }
@@ -84,7 +85,9 @@
       <h1>{{ $item->name }}</h1>
       @if($item->display_subtitle)<div class="subt">{{ $item->display_subtitle }}</div>@endif
 
-      <div class="price">{{ $money($item->effectiveSellPriceCents()) }}</div>
+      {{-- MARKER-SHOP-SEARCH-V2: a was price above the price shows crossed out --}}
+      @php $wasC = ($item->compare_at_cents && $item->effectiveSellPriceCents() !== null && $item->compare_at_cents > $item->effectiveSellPriceCents()) ? $item->compare_at_cents : null; @endphp
+      <div class="price">{{ $money($item->effectiveSellPriceCents()) }}@if($wasC) <s style="font-size:17px;font-weight:500;color:var(--p-muted);margin-left:6px">{{ $money($wasC) }}</s> <span style="font-size:12px;font-weight:700;background:#e5484d;color:#fff;border-radius:99px;padding:3px 9px;vertical-align:middle;margin-left:4px">Sale</span>@endif</div>
       <div class="avail {{ $inStock ? 'in' : 'order' }}">
         <span class="dot"></span>
         {{ $inStock ? $words['stock_label'] : ($canBuy ? $words['special_label'] : $words['out_label']) }}
@@ -93,7 +96,7 @@
         <div class="cta-note" style="text-align:left;margin:-4px 0 12px">{{ $words['special_notice'] }}</div>
       @endif
       @if(session('shop_error'))
-        <div role="alert" style="background:rgba(192,57,43,.07);border:1.5px solid rgba(192,57,43,.28);color:#8f1d14;border-radius:12px;padding:10px 14px;font-size:13.5px;margin-bottom:12px">{{ session('shop_error') }}</div>
+        <div role="alert" style="background:rgba(192,57,43,.07);border:1.5px solid rgba(192,57,43,.28);color:var(--s-bad);border-radius:12px;padding:10px 14px;font-size:13.5px;margin-bottom:12px">{{ session('shop_error') }}</div>
       @endif
 
       {{-- qty + add-to-cart --}}
@@ -126,7 +129,7 @@
         $ch = fn ($c) => \App\Support\ItemSeo::shareUrl($shUrl, $c);
       @endphp
       <div class="sp-share" style="margin-top:14px;position:relative;font-size:13px">
-        <button type="button" id="sp-share-btn" style="cursor:pointer;background:none;border:1.5px solid rgba(0,0,0,.14);border-radius:99px;padding:6px 14px;font:inherit;color:inherit">Share</button>
+        <button type="button" id="sp-share-btn" style="cursor:pointer;background:none;border:1.5px solid color-mix(in srgb, var(--p-text) 14%, transparent);border-radius:99px;padding:6px 14px;font:inherit;color:inherit">Share</button>
         <span id="sp-share-note" role="status" style="margin-left:8px;opacity:.7"></span>
         <div id="sp-share-menu" hidden style="display:none;margin-top:8px;gap:6px;flex-wrap:wrap">
           <a class="sp-sh" href="sms:?&body={{ rawurlencode($shTxt . ' ' . $ch('text')) }}">Text</a>
@@ -137,7 +140,7 @@
           <button type="button" class="sp-sh" id="sp-copy">Copy link</button>
         </div>
       </div>
-      <style>.sp-sh{display:inline-block;border:1.5px solid rgba(0,0,0,.14);border-radius:99px;padding:5px 12px;font:inherit;font-size:12.5px;color:inherit;text-decoration:none;background:none;cursor:pointer}.sp-sh:hover{border-color:rgba(0,0,0,.4)}</style>
+      <style>.sp-sh{display:inline-block;border:1.5px solid color-mix(in srgb, var(--p-text) 14%, transparent);border-radius:99px;padding:5px 12px;font:inherit;font-size:12.5px;color:inherit;text-decoration:none;background:none;cursor:pointer}.sp-sh:hover{border-color:color-mix(in srgb, var(--p-text) 40%, transparent)}</style>
       <script>
         (function () {
           var url = @json($ch('share')), title = @json($shTxt), copyUrl = @json($ch('copy'));

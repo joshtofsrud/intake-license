@@ -34,6 +34,7 @@ class TenantInventoryCategory extends Model
         'google_category', // MARKER-GOOGLE-FEED
         'source',
         'track_serials',
+        'image_url', // MARKER-SHOP-SEARCH-V2: the category's tile in search
     ];
 
     protected $casts = [
