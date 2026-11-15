@@ -120,17 +120,29 @@ class ShopBrowse
         $cats = $this->search->categories();
         if (isset($on['category'])) {
             $raw = $this->counts('cat', 'tenant_inventory_items.category_id');
-            // a parent category counts what is under it too, since picking it shows those
-            $rows = [];
+            // a parent category counts what is under it too, since picking it shows those.
+            // Rows come out as a tree: top-level categories by count, each followed by its own
+            // children indented beneath it (depth), never mixed in at the same level.
+            $kids = [];
+            foreach ($cats as $id => $c) $kids[$c['parent'] && isset($cats[$c['parent']]) ? $c['parent'] : ''][] = (string) $id;
+            $count = [];
             foreach ($cats as $id => $c) {
                 $n = 0;
                 foreach ($this->search->withChildren([$id]) as $sub) $n += (int) ($raw[$sub] ?? 0);
-                if (! $n) continue;
-                $rows[] = ['id' => (string) $id, 'name' => $c['name'], 'parent' => $c['parent'] ? ($cats[$c['parent']]['name'] ?? null) : null, 'n' => $n];
+                $count[(string) $id] = $n;
             }
-            usort($rows, fn ($a, $b) => $b['n'] <=> $a['n'] ?: strcmp($a['name'], $b['name']));
-            // a picked category that now has nothing still shows, so it can be unpicked
-            foreach ($f['cat'] as $id) if (isset($cats[$id]) && ! collect($rows)->firstWhere('id', $id)) $rows[] = ['id' => $id, 'name' => $cats[$id]['name'], 'parent' => null, 'n' => 0];
+            $picked = array_flip($f['cat']);
+            $rows = [];
+            $emit = function (string $parent, int $depth, ?int $group) use (&$emit, &$rows, $kids, $cats, $count, $picked) {
+                $list = array_values(array_filter($kids[$parent] ?? [], fn ($id) => $count[$id] > 0 || array_intersect_key($picked, array_flip($this->search->withChildren([$id])))));
+                usort($list, fn ($a, $b) => $count[$b] <=> $count[$a] ?: strcmp($cats[$a]['name'], $cats[$b]['name']));
+                foreach ($list as $i => $id) {
+                    $g = $group ?? $i; // which top-level group the row belongs to, for "Show all"
+                    $rows[] = ['id' => $id, 'name' => $cats[$id]['name'], 'parent' => null, 'depth' => $depth, 'group' => $g, 'n' => $count[$id]];
+                    $emit($id, $depth + 1, $g);
+                }
+            };
+            $emit('', 0, null);
             foreach ($rows as &$r) $r['img'] = $this->display['photos'] ? $this->search->categoryImage($r['id']) : null;
             unset($r);
             $facets['category'] = $rows;

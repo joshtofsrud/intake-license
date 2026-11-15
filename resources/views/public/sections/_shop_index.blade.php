@@ -83,6 +83,8 @@
   .spg-index .fac label .ci img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .spg-index .fac label small { display: block; font-size: 11px; color: var(--p-muted); }
   .spg-index .fac .zero { opacity: .45; }
+  .spg-index .fac label.sub { padding-left: calc(var(--d) * 22px); font-size: 13px; }
+  .spg-index .fac label.sub input { width: 14px; height: 14px; }
   .spg-index .fac .more { font: inherit; font-size: 12.5px; text-decoration: underline; color: var(--p-muted); background: none; border: 0; padding: 4px 0; cursor: pointer; }
   .spg-index .fac .pr { display: flex; gap: 8px; align-items: center; }
   .spg-index .fac .pr input { width: 100%; min-width: 0; font: inherit; font-size: 13.5px; padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--p-text) 14%, transparent); border-radius: 8px; background: var(--s-field); }
@@ -278,15 +280,20 @@
             @if(! empty($facets['category']))
               <div class="g" data-more>
                 <h5>Category</h5>
-                @foreach($facets['category'] as $i => $c)
-                  <label class="{{ $c['n'] ? '' : 'zero' }}" @if($i >= 8 && ! in_array($c['id'], $f['cat'], true)) hidden data-extra @endif>
+                @php
+                  // groups that hold a picked category always show, so it can be unpicked
+                  $catOpen = collect($facets['category'])->whereIn('id', $f['cat'])->pluck('group')->flip()->all();
+                  $catTops = collect($facets['category'])->where('depth', 0)->count();
+                @endphp
+                @foreach($facets['category'] as $c)
+                  <label class="{{ $c['n'] ? '' : 'zero' }} {{ $c['depth'] ? 'sub' : '' }}" style="--d: {{ (int) $c['depth'] }}" @if($c['group'] >= 8 && ! isset($catOpen[$c['group']])) hidden data-extra @endif>
                     <input type="checkbox" name="cat[]" value="{{ $c['id'] }}" @checked(in_array($c['id'], $f['cat'], true))>
-                    @if($display['photos'])<span class="ci">@if($c['img'])<img src="{{ $c['img'] }}" alt="" loading="lazy">@endif</span>@endif
-                    <span>{{ $c['name'] }}@if($c['parent'])<small>{{ $c['parent'] }}</small>@endif</span>
+                    @if($display['photos'] && ! $c['depth'])<span class="ci">@if($c['img'])<img src="{{ $c['img'] }}" alt="" loading="lazy">@endif</span>@endif
+                    <span>{{ $c['name'] }}</span>
                     <span class="n">{{ $c['n'] }}</span>
                   </label>
                 @endforeach
-                @if(count($facets['category']) > 8)<button type="button" class="more">Show all {{ count($facets['category']) }}</button>@endif
+                @if($catTops > 8)<button type="button" class="more">Show all {{ $catTops }}</button>@endif
               </div>
             @endif
             @if(! empty($facets['brand']))
