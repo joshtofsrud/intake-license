@@ -94,7 +94,8 @@
   .spg-index .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(205px, 1fr)); gap: 16px; }
   .spg-index .card { position: relative; display: flex; flex-direction: column; background: var(--s-card); border: 1px solid color-mix(in srgb, var(--p-text) 9%, transparent); border-radius: var(--s-r); overflow: hidden; transition: border-color .12s, box-shadow .12s; }
   .spg-index .card:hover { border-color: color-mix(in srgb, var(--p-text) 24%, transparent); box-shadow: 0 8px 26px color-mix(in srgb, var(--p-text) 8%, transparent); }
-  .spg-index .card .im { position: relative; display: block; aspect-ratio: 1; background: var(--s-photo); }
+  .spg-index .card .im { position: relative; display: block; aspect-ratio: var(--p-tile-ratio, 1); background: var(--s-photo); }
+  @media (min-width: 901px) { .spg-index.p-look .grid:not(.list) { grid-template-columns: repeat(var(--p-shop-cols, 4), minmax(0, 1fr)); } } /* MARKER-WEB-TEMPLATES */
   .spg-index .card .im img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; padding: 14px; transition: opacity .2s; }
   .spg-index .card .im img.b { opacity: 0; }
   .spg-index .card:hover .im img.b { opacity: 1; }
@@ -197,7 +198,7 @@
   }
 </style>
 
-<div class="spg-index">
+<div class="spg-index {{ \App\Support\SiteLook::for(tenant()) ? 'p-look' : '' }}">
   <div class="wrap">
     <div class="crumbs">
       <div><a href="/shop">Shop</a>@if($isSearch) › Search @elseif($catName) › {{ $catName }}@endif</div>

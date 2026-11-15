@@ -34,8 +34,8 @@
   $useVeil    = $hasImage && ($parallaxOn || $blurPx > 0);
 
   // Colors
-  $textColor     = ($c['text_color']      ?? '') ?: '#ffffff';
-  $textColorBody = ($c['text_color_body'] ?? '') ?: 'rgba(255,255,255,0.7)';
+  $textColor     = ($c['text_color']      ?? '') ?: \App\Support\SiteLook::c('text', '#ffffff');
+  $textColorBody = ($c['text_color_body'] ?? '') ?: \App\Support\SiteLook::c('muted', 'rgba(255,255,255,0.7)');
   $accentColor   = ($c['accent_color']    ?? '') ?: null;
 
   // Buttons
@@ -149,7 +149,7 @@
   color: {{ $textColor }};
 }
 .{{ $instId }} .p-cta-accent {
-  color: {{ $accentColor ?? '#BEF264' }};
+  color: {{ $accentColor ?? \App\Support\SiteLook::c('accent', '#BEF264') }};
   font-style: {{ ($c['accent_italic'] ?? true) ? 'italic' : 'normal' }};
   font-weight: 500;
 }
@@ -181,7 +181,7 @@
   border: 1px solid transparent;
   transition: all 0.15s;
 }
-.{{ $instId }} .p-cta-btn--primary { background: {{ $accentColor ?? '#BEF264' }}; color: #0a1a00; }
+.{{ $instId }} .p-cta-btn--primary { background: {{ $accentColor ?? \App\Support\SiteLook::c('accent', '#BEF264') }}; color: {{ $accentColor ? '#0a1a00' : \App\Support\SiteLook::c('accent_text', '#0a1a00') }}; }
 .{{ $instId }} .p-cta-btn--primary:hover { filter: brightness(1.05); }
 .{{ $instId }} .p-cta-btn--outline { background: transparent; color: {{ $textColor }}; border-color: {{ $textColor }}; opacity: .85; }
 .{{ $instId }} .p-cta-btn--outline:hover { opacity: 1; }

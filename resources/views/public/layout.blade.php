@@ -7,7 +7,7 @@
   <meta name="csrf-token" content="{{ csrf_token() }}">
   {{-- analytics + funnel tracking. MARKER-TRAFFIC-NO-STAFF: never from the
        page builder's preview (same rule the intake.works pages already follow) --}}
-  @if(empty($builderPreview))
+  @if(empty($builderPreview) && ! \App\Support\SiteLook::previewing())
   @include('public._funnel_tracker')
   @endif
 
@@ -60,7 +60,7 @@
     $headingFont = $dt['font_heading'];
     $bodyFont    = $dt['font_body'];
     $fontFamilies = array_unique([$headingFont, $bodyFont]);
-    $fontQuery = implode('&family=', array_map(fn($f) => str_replace(' ', '+', $f) . ':wght@400;500;600;700', $fontFamilies));
+    $fontQuery = implode('&family=', array_map(fn($f) => \App\Support\SiteLook::fontParam($f), $fontFamilies)); // MARKER-WEB-TEMPLATES: only weights each font has
   @endphp
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>{{-- the font FILES come from gstatic; without this the browser pays a second DNS+TLS handshake --}}
@@ -402,6 +402,8 @@
            untouched, so nothing a tenant chose in the builder changes. --}}
       @php
         $sc = $section->content ?? [];
+        // MARKER-WEB-TEMPLATES: a section that follows the template takes the template's design
+        $sc = \App\Support\SiteLook::applyDesign($section->section_type, \App\Support\SiteLook::tidy($section->section_type, $sc, $dt['_look'] ?? null), $dt['_look'] ?? null);
         $sc['bg_color'] = \App\Support\DesignTokens::sectionBg(
             $sc['bg_color'] ?? null, $section->section_type, $dt
         );
@@ -487,6 +489,18 @@ function closeMobileNav() { document.getElementById('p-mobile-nav').classList.re
 </script>
 
 @include('public._section-design', ['sdPart' => 'foot'])
+{{-- MARKER-WEB-TEMPLATES: previewing unsaved template changes from Website › Templates. Links keep
+     the preview on, and a small label says this isn't what visitors see yet. --}}
+@if(\App\Support\SiteLook::previewing())
+<div style="position:fixed;left:12px;bottom:12px;z-index:2147483600;font:600 12px/1 -apple-system,system-ui,sans-serif;background:rgba(0,0,0,.78);color:#fff;padding:7px 11px;border-radius:99px;pointer-events:none">Preview · not live yet</div>
+<script>
+document.addEventListener('click', function (e) {
+  var a = e.target.closest('a[href]'); if (!a) return;
+  try { var u = new URL(a.href, location.href); if (u.origin !== location.origin) return;
+    u.searchParams.set('look_preview', '1'); a.href = u.toString(); } catch (x) {}
+}, true);
+</script>
+@endif
 
 @stack('scripts')
 </body>

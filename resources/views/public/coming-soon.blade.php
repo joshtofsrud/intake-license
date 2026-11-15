@@ -12,7 +12,7 @@
     body{font-family:-apple-system,BlinkMacSystemFont,'Inter',sans-serif;background:#0f0f0f;color:#f0f0f0;min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center;padding:32px}
     h1{font-size:clamp(28px,5vw,52px);font-weight:700;letter-spacing:-.02em;margin-bottom:12px}
     p{font-size:17px;opacity:.5;max-width:420px;margin:0 auto 28px;line-height:1.6}
-    a{display:inline-flex;align-items:center;padding:12px 28px;background:{{ $currentTenant->accent_color ?? '#BEF264' }};color:#0a0a0a;border-radius:8px;font-size:15px;font-weight:600;text-decoration:none}
+    a{display:inline-flex;align-items:center;padding:12px 28px;background:{{ $currentTenant->accent_color ?? '#BEF264' }};color:{{ \App\Support\ColorHelper::accentTextColor($currentTenant->accent_color ?? '#BEF264') }};border-radius:8px;font-size:15px;font-weight:600;text-decoration:none}
   </style>
 </head>
 <body>

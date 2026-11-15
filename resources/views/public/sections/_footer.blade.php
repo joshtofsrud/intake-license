@@ -20,9 +20,9 @@
   $borderTop = $c['border_top'] ?? 'none';
 
   // Colors
-  $textColor  = ($c['text_color']  ?? '') ?: '#ffffff';
-  $linkColor  = ($c['link_color']  ?? '') ?: 'rgba(255,255,255,0.65)';
-  $mutedColor = ($c['muted_color'] ?? '') ?: 'rgba(255,255,255,0.4)';
+  $textColor  = ($c['text_color']  ?? '') ?: \App\Support\SiteLook::c('text', '#ffffff');
+  $linkColor  = ($c['link_color']  ?? '') ?: \App\Support\SiteLook::c('muted', 'rgba(255,255,255,0.65)');
+  $mutedColor = ($c['muted_color'] ?? '') ?: \App\Support\SiteLook::c('muted', 'rgba(255,255,255,0.4)');
 
   // Brand
   $showLogo = (bool)($c['show_logo'] ?? true);
@@ -104,6 +104,8 @@
   // define CTA accent vars BEFORE the <style> that uses them
   $ctaAccent  = ($tenant->accent_color ?? '') ?: '#3FD16B';
   $ctaBtnText = \App\Support\ColorHelper::accentTextColor($ctaAccent);
+  // MARKER-WEB-TEMPLATES: the band takes the template's accent and its text colour
+  if (\App\Support\SiteLook::for($tenant ?? null)) { $ctaAccent = 'var(--p-accent)'; $ctaBtnText = 'var(--p-accent-text)'; }
 
   // Social platform icons (simple SVG, single file)
   $iconFor = function($platform) {
@@ -385,6 +387,7 @@
     $ctaNote    = trim($c['cta_note'] ?? '');
     $ctaAccent  = ($tenant->accent_color ?? '') ?: '#3FD16B';
     $ctaBtnText = \App\Support\ColorHelper::accentTextColor($ctaAccent);
+    if (\App\Support\SiteLook::for($tenant ?? null)) { $ctaAccent = 'var(--p-accent)'; $ctaBtnText = 'var(--p-accent-text)'; }
     $ctaHeadingHtml = e($ctaHeading);
     if ($ctaHl !== '' && mb_stripos($ctaHeading, $ctaHl) !== false) {
         $ctaHeadingHtml = str_ireplace(e($ctaHl), '<span class="p-ftr-cta-hl">'.e($ctaHl).'</span>', e($ctaHeading));

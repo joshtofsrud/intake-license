@@ -35,9 +35,9 @@
   $gradT   = $c['bg_gradient_to']   ?? '#fafafa';
 
   // Colors
-  $textColor     = ($c['text_color']      ?? '') ?: '#0a0a0a';
-  $textColorBody = ($c['text_color_body'] ?? '') ?: 'rgba(0,0,0,0.65)';
-  $accentColor   = ($c['accent_color']    ?? '') ?: '#BEF264';
+  $textColor     = ($c['text_color']      ?? '') ?: \App\Support\SiteLook::c('text', '#0a0a0a');
+  $textColorBody = ($c['text_color_body'] ?? '') ?: \App\Support\SiteLook::c('muted', 'rgba(0,0,0,0.65)');
+  $accentColor   = ($c['accent_color']    ?? '') ?: \App\Support\SiteLook::c('accent', '#BEF264');
 
   // Heading with accent
   $headingHtml = e($c['heading'] ?? '');

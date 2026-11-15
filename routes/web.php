@@ -1315,10 +1315,10 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::post('/pages/{id}/history/{revisionId}/restore',  [TenantControllers\PageRevisionController::class, 'restore'])->name('pages.history.restore');
 
             // site template gallery
+            // MARKER-WEB-TEMPLATES
             Route::get('/website/templates',               [TenantControllers\SiteTemplateController::class, 'index'])->name('templates.index');
-            Route::post('/website/templates/revert',       [TenantControllers\SiteTemplateController::class, 'revert'])->name('templates.revert');
-            Route::post('/website/templates/customize',    [TenantControllers\SiteTemplateController::class, 'customize'])->name('templates.customize');
-            Route::post('/website/templates/{key}/apply',  [TenantControllers\SiteTemplateController::class, 'apply'])->where('key', '[a-z]+')->name('templates.apply');
+            Route::post('/website/templates/preview',      [TenantControllers\SiteTemplateController::class, 'preview'])->name('templates.preview');
+            Route::post('/website/templates/apply',        [TenantControllers\SiteTemplateController::class, 'apply'])->name('templates.apply');
 
             // Communication Center (unified comms surface)
             Route::get('/communication',        [TenantControllers\CommunicationController::class, 'index'])->name('communication.index');

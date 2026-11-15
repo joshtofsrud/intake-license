@@ -150,6 +150,7 @@ class AdminPanelProvider extends PanelProvider
                 // must be added here.
                 \App\Filament\Pages\MarketingTraffic::class,
                 \App\Filament\Pages\SearchDefaults::class, // explicit list, no auto-discovery: without this the page 404s
+                \App\Filament\Pages\SiteTemplates::class, // MARKER-WEB-TEMPLATES (explicit list: unregistered pages 404)
                 \App\Filament\Pages\Raise::class, // panel lists pages explicitly, no auto-discovery
                 \App\Filament\Pages\InvestorRecord::class,
                 \App\Filament\Pages\RaiseSetup::class,

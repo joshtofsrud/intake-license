@@ -15,7 +15,7 @@
   @endphp
   <meta http-equiv="refresh" content="{{ $refreshTo[0] }};url={{ $refreshTo[1] }}">
   <title>Self check-in — {{ $currentTenant->name }}</title>
-  <link href="https://fonts.googleapis.com/css2?family={{ str_replace(' ', '+', $currentTenant->font_heading ?? 'Inter') }}:wght@400;500;600;700&family={{ str_replace(' ', '+', $currentTenant->font_body ?? 'Inter') }}:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family={{ \App\Support\SiteLook::fontParam($currentTenant->font_heading ?? 'Inter') }}&family={{ \App\Support\SiteLook::fontParam($currentTenant->font_body ?? 'Inter') }}&display=swap" rel="stylesheet">
   <style>
     :root {
 {!! \App\Support\DesignTokens::cssVars(\App\Support\DesignTokens::resolve($currentTenant)) !!}

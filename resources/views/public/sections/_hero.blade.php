@@ -55,7 +55,8 @@
   $useVeil    = $hasImage && ($parallaxOn || $blurPx > 0);
 
   // Colors
-  $textColor     = $c['text_color']      ?? '#ffffff';
+  // MARKER-WEB-TEMPLATES: white suits a photo; words on the page colour use the site's text colour
+  $textColor     = ($c['text_color'] ?? '') ?: ($hasImage ? '#ffffff' : \App\Support\SiteLook::c('text', '#ffffff'));
   // Use ?? (null-coalesce) not ?: (truthy-or). Older
   // hero rows seeded before G19 don't have these keys, so ?: blows up on
   // "undefined array key". ?? checks for existence first.
@@ -113,6 +114,10 @@
 
   // Stable per-section instance class so styles scope cleanly
   $instId = 'p-hero-' . ($section->id ?? uniqid());
+
+  // MARKER-WEB-TEMPLATES: "Photo and text" puts the hero photo beside the words
+  $heroPhoto = trim((string) ($c['hero_photo'] ?? ''));
+  $heroSplit = ($c['hero_layout'] ?? '') === 'split' && $heroPhoto !== '';
 @endphp
 
 <style>
@@ -215,12 +220,12 @@
 }
 .{{ $instId }} .p-hero-accent {
   /* color only; weight inherits from headline */
-  color: {{ $accentColor ?? '#BEF264' }};
+  color: {{ $accentColor ?? \App\Support\SiteLook::c('accent', '#BEF264') }};
 }
 .{{ $instId }} .p-hero-sub {
   font-size: {{ $subheadingSize }};
   line-height: 1.55;
-  color: {{ $textColorBody ?? 'rgba(255,255,255,0.7)' }};
+  color: {{ $textColorBody ?? ($hasImage ? 'rgba(255,255,255,0.7)' : \App\Support\SiteLook::c('muted', 'rgba(255,255,255,0.7)')) }};
   margin: 0 0 28px;
   max-width: 540px;
   @if($hAlign === 'center')
@@ -251,8 +256,8 @@
   border: 1px solid transparent;
 }
 .{{ $instId }} .p-hero-btn--primary {
-  background: {{ $accentColor ?? '#BEF264' }};
-  color: #0a1a00;
+  background: {{ $accentColor ?? \App\Support\SiteLook::c('accent', '#BEF264') }};
+  color: {{ $accentColor ? '#0a1a00' : \App\Support\SiteLook::c('accent_text', '#0a1a00') }};
 }
 .{{ $instId }} .p-hero-btn--primary:hover { filter: brightness(1.05); }
 .{{ $instId }} .p-hero-btn--outline {
@@ -287,9 +292,15 @@
 .{{ $instId }} .p-hero-footnote {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px;
-  color: {{ $textColorBody ?? 'rgba(255,255,255,0.5)' }};
+  color: {{ $textColorBody ?? ($hasImage ? 'rgba(255,255,255,0.5)' : \App\Support\SiteLook::c('muted', 'rgba(255,255,255,0.5)')) }};
   margin-top: 24px;
 }
+@if($heroSplit)
+.{{ $instId }} .p-hero-split { position: relative; z-index: 1; width: 100%; max-width: var(--p-page-max, 1200px); margin: 0 auto; padding: 0 clamp(20px, 5vw, 48px); display: grid; grid-template-columns: 1.05fr 1fr; gap: clamp(24px, 4vw, 56px); align-items: center; }
+.{{ $instId }} .p-hero-split .p-hero-content { padding: 0; max-width: none; margin: 0; }
+.{{ $instId }} .p-hero-photo { aspect-ratio: 4 / 3.4; border-radius: calc(var(--p-card-r, 12px) * 1.6); background-size: cover; background-position: center; }
+@media (max-width: 768px) { .{{ $instId }} .p-hero-split { grid-template-columns: 1fr; } }
+@endif
 @if($hideMobile)
 @media (max-width: 768px) { .{{ $instId }} { display: none; } }
 @endif
@@ -323,6 +334,7 @@
     $hfxB = max(0, min(20,  (int) ($c['scroll_blur'] ?? 0)));
     $hfxOn = $hfxP || $hfxF || $hfxB;
   @endphp
+  @if($heroSplit)<div class="p-hero-split">@endif
   <div class="p-hero-content" @if($hfxOn) data-hfx="{{ $hfxP }},{{ $hfxF }},{{ $hfxB }}" @endif>
     @if(!empty($c['eyebrow']))
       <div class="p-hero-eyebrow">{{ $c['eyebrow'] }}</div>
@@ -355,6 +367,10 @@
       <div class="p-hero-footnote">{{ $c['note'] }}</div>
     @endif
   </div>
+  @if($heroSplit)
+    <div class="p-hero-photo" style="background-image:url('{{ $heroPhoto }}')" role="img" aria-label=""></div>
+  </div>
+  @endif
 </section>
 @if($hfxOn)
 <script>

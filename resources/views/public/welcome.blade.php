@@ -29,7 +29,7 @@
     h1{font-size:clamp(26px,5vw,40px);font-weight:700;letter-spacing:-.02em;line-height:1.15}
     p{font-size:16px;color:rgba(255,255,255,.55);margin:12px auto 0;line-height:1.65}
     .cta{display:inline-block;margin-top:26px;padding:12px 26px;border-radius:9px;
-         background:{{ $accent }};color:#0a0a0a;font-size:15px;font-weight:700;text-decoration:none}
+         background:{{ $accent }};color:{{ \App\Support\ColorHelper::accentTextColor($accent) }};font-size:15px;font-weight:700;text-decoration:none}
     .meta{margin-top:26px;font-size:13px;color:rgba(255,255,255,.35);line-height:1.7}
     .meta a{color:inherit}
   </style>

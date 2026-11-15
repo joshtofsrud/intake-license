@@ -25,11 +25,11 @@
   $gradT   = $c['bg_gradient_to']   ?? '#0f1828';
 
   // Colors
-  $textColor     = ($c['text_color']      ?? '') ?: '#ffffff';
-  $textColorBody = ($c['text_color_body'] ?? '') ?: 'rgba(255,255,255,0.7)';
-  $accentColor   = ($c['accent_color']    ?? '') ?: '#BEF264';
-  $cardBg        = ($c['card_bg']         ?? '') ?: '#111a2b';
-  $cardBorder    = ($c['card_border']     ?? '') ?: 'rgba(255,255,255,0.08)';
+  $textColor     = ($c['text_color']      ?? '') ?: \App\Support\SiteLook::c('text', '#ffffff');
+  $textColorBody = ($c['text_color_body'] ?? '') ?: \App\Support\SiteLook::c('muted', 'rgba(255,255,255,0.7)');
+  $accentColor   = ($c['accent_color']    ?? '') ?: \App\Support\SiteLook::c('accent', '#BEF264');
+  $cardBg        = ($c['card_bg']         ?? '') ?: \App\Support\SiteLook::card('bg', '#111a2b'); // MARKER-WEB-TEMPLATES
+  $cardBorder    = ($c['card_border']     ?? '') ?: \App\Support\SiteLook::card('border', 'rgba(255,255,255,0.08)');
 
   // Heading with accent phrase
   $headingHtml = e($c['heading'] ?? '');
@@ -149,6 +149,7 @@
 
 /* Cards (shared between layouts) */
 .{{ $instId }} .p-fg-card {
+  box-shadow: {{ \App\Support\SiteLook::card('shadow', 'none') }};
   @if($cardStyle === 'card')
   background: {{ $cardBg }};
   border: 1px solid {{ $cardBorder }};

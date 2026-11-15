@@ -1,463 +1,287 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = 'Templates'; @endphp
 
-{{-- website template gallery. --}}
+{{-- MARKER-WEB-TEMPLATES: Website › Templates. Templates come from master admin; the shop picks
+     one, light or dark, and changes any piece. The preview frame is the shop's real site
+     drawn with the unsaved choices (only this signed-in session sees it). --}}
 
 @section('content')
+<div class="ia-page-head"><div class="ia-page-head-left"><h1 class="ia-page-title">Templates</h1>
+  <div class="ia-page-subtitle">How your public site looks. Pick a template, preview it on your real pages, then change any piece.</div></div></div>
 
-<div class="ia-page-head">
-  <div class="ia-page-head-left">
-    <h1 class="ia-page-title">Website Templates</h1>
-    <p class="ia-page-subtitle">Five pre-styled, bike-shop-tuned designs. Pick one — your pages and content flow straight in.</p>
+<details class="tp-legend"><summary>What a template changes, and what it doesn't</summary><div class="lg-body">
+  <div><b>Changes:</b> colours, fonts, the menu bar, the top of your pages, cards, shop photos, buttons and the footer, everywhere on your public site: pages, shop, search, booking and customer account pages.</div>
+  <div><b>Doesn't change:</b> your pages, their words and photos, your products, or your logo. A colour or layout you set on one section in the page builder keeps winning over the template.</div>
+  <div><b>Nothing is live until you press Apply to site.</b> The preview here is only shown to you.</div>
+</div></details>
+
+@if($templates->isEmpty())
+  <div class="tp-empty">No templates are available on your plan yet.</div>
+@else
+<div class="tp-wrap">
+  <div class="tp-side">
+    <div class="tp-h">Template</div>
+    <div class="tp-list" id="tpList"></div>
+
+    <div class="tp-h">Light or dark</div>
+    <div class="tp-mode"><span class="tp-seg" id="tpMode"><button type="button" data-m="dark">Dark</button><button type="button" data-m="light">Light</button></span>
+      <div class="d" id="tpModeNote"></div></div>
+
+    <div class="tp-h">Change a piece <span class="tp-pill g" id="tpChg" hidden></span></div>
+    <div class="tp-grp" id="tpGroups"></div>
+
+    <div class="tp-save"><span class="st" id="tpSt">No unsaved changes</span>
+      <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" id="tpDiscard" disabled>Discard</button>
+      <button type="button" class="ia-btn ia-btn--primary ia-btn--sm" id="tpApply" disabled>Apply to site</button></div>
   </div>
-  <div class="ia-page-actions">
-    @if($hasPrev)
-      <form method="POST" action="{{ route('tenant.templates.revert') }}" onsubmit="return confirm('Revert to your previous design ({{ $prevName }})? This is a single-level undo.')">
-        @csrf
-        <button type="submit" class="ia-btn ia-btn--ghost">↩ Back to previous</button>
-      </form>
-    @endif
-    <a href="{{ route('tenant.pages.index') }}" class="ia-btn ia-btn--secondary">Open builder</a>
+
+  <div class="tp-pv">
+    <div class="tp-pvbar"><span class="tp-seg" id="tpPage"><button type="button" data-p="home" class="on">Homepage</button><button type="button" data-p="shop">Shop</button><button type="button" data-p="search">Search</button></span>
+      <span class="tp-seg" id="tpDev"><button type="button" data-d="desk" class="on">Desktop</button><button type="button" data-d="phone">Phone</button></span>
+      <span class="sp"></span><span class="lb" id="tpPvLabel"></span></div>
+    <div class="tp-frame" id="tpFrame"><div class="tp-loading" id="tpLoading">Updating preview…</div><iframe id="tpIframe" title="Preview of your site" src="about:blank"></iframe></div>
+    <div class="tp-note">Your real pages and products. Links inside the preview keep showing your unsaved changes.</div>
   </div>
 </div>
 
-@if(session('flash'))
-  <div class="ia-card" style="padding:12px 16px;margin-bottom:16px;border-left:3px solid var(--ia-accent,#BEF264);font-size:13px">{{ session('flash') }}</div>
+<form method="POST" action="{{ route('tenant.templates.apply') }}" id="tpForm" hidden>@csrf</form>
 @endif
-@if(session('flash_error'))
-  <div class="ia-card" style="padding:12px 16px;margin-bottom:16px;border-left:3px solid #E0573E;font-size:13px">{{ session('flash_error') }}</div>
-@endif
+@endsection
 
-<div class="ia-note" style="margin-bottom:22px;display:flex;gap:8px;align-items:flex-start;font-size:12.5px;opacity:.75">
-  <span>ⓘ</span><span>Switching templates restyles your existing pages — it never deletes content. Each look ships with matching mobile layouts.</span>
-</div>
-
-{{-- live customizer. The preview is the SAME _thumb
-     partial the cards use, so what you tune here is what a template promises.
-     It repaints by setting --t-* on the preview root; nothing is saved until
-     Save is pressed. --}}
-@php
-  $czTokens   = \App\Support\DesignTokens::resolve($currentTenant);
-  $czTemplate = $currentTenant->site_template
-      ? (\App\Support\SiteTemplate::tokens($currentTenant->site_template) ?? [])
-      : [];
-  $czLayout = $currentTenant->site_template
-      ? (\App\Support\SiteTemplate::find($currentTenant->site_template)['layout'] ?? [])
-      : ($templates[array_key_first($templates)]['layout'] ?? []);
-  $czFonts = ['Inter','Poppins','DM Sans','Nunito','Lato','Raleway','Montserrat','Playfair Display','Merriweather'];
-@endphp
-
-{{-- without this a validation failure was completely silent --}}
-@if($errors->any())
-  <div class="ia-flash ia-flash--error" style="margin-bottom:14px">
-    Couldn't save your changes: {{ $errors->first() }}
-  </div>
-@endif
-@if(session('flash'))
-  <div class="ia-flash ia-flash--success" style="margin-bottom:14px">{{ session('flash') }}</div>
-@endif
-@if(session('flash_error'))
-  <div class="ia-flash ia-flash--error" style="margin-bottom:14px">{{ session('flash_error') }}</div>
-@endif
-
-<div class="cz-wrap">
-  <div class="cz-stage">
-    <div class="cz-stage-bar">
-      <span class="cz-stage-title">Live preview</span>
-      <span class="cz-dirty" id="cz-dirty">Unsaved changes</span>
-    </div>
-    <div class="cz-canvas">
-      @include('tenant.templates._thumb', ['tokens' => $czTokens, 'layout' => $czLayout])
-    </div>
-  </div>
-
-  <form method="POST" action="{{ route('tenant.templates.customize') }}" class="cz-panel" id="cz-form">
-    @csrf
-    <div class="cz-panel-head"><span class="cz-panel-title">Customize</span>
-      @if($currentTenant->site_template)
-        <span class="cz-base">based on {{ \App\Support\SiteTemplate::name($currentTenant->site_template) }}</span>
-      @endif
-    </div>
-
-    <div class="cz-scroll">
-      @php
-        $czGroups = [
-          'Color'   => [['accent','Accent','color'],['text','Text','color'],['bg','Page background','color'],['surface','Cards & panels','color'],['muted','Secondary text','color']],
-          'Hero'    => [['hero_bg','Hero background','color'],['hero_text','Hero text','color']],
-          'Type'    => [['font_heading','Heading font','font'],['font_body','Body font','font'],['heading_weight','Heading weight','range'],['heading_transform','Heading case','case']],
-          'Buttons' => [['button_style','Button style','style'],['button_radius','Button corners','range']],
-        ];
-      @endphp
-
-      @foreach($czGroups as $czGroupName => $czFields)
-        <details class="cz-group" {{ $loop->first ? 'open' : '' }}>
-          <summary>{{ $czGroupName }}<span class="cz-gdot"></span></summary>
-          <div class="cz-body">
-            @foreach($czFields as [$czKey, $czLabel, $czType])
-              @php
-                $czVal = $czTokens[$czKey] ?? '';
-                /* with no template applied there is no
-                   template default, and reset had nothing to reset TO. The
-                   pipeline fallback is the honest answer. */
-                $czDef = $czTemplate[$czKey] ?? (\App\Support\DesignTokens::FALLBACKS[$czKey] ?? null);
-              @endphp
-              <div class="cz-row" data-k="{{ $czKey }}" data-default="{{ $czDef }}">
-                <label class="cz-lbl">{{ $czLabel }}
-                  <button type="button" class="cz-reset" title="Back to the template default">reset</button>
-                </label>
-                <div class="cz-ctl">
-                  @if($czType === 'color')
-                    <input type="text" class="cz-hex" value="{{ $czVal }}" data-role="hex" autocomplete="off">
-                    <input type="color" class="cz-sw" value="{{ \App\Support\DesignTokens::toHex($czVal, \App\Support\DesignTokens::toHex($czTokens['bg'] ?? '#ffffff')) }}" data-role="pick">
-                  @elseif($czType === 'font')
-                    <select class="cz-select" data-role="val">
-                      @foreach($czFonts as $czFont)
-                        <option value="{{ $czFont }}" @selected($czVal === $czFont)>{{ $czFont }}</option>
-                      @endforeach
-                    </select>
-                  @elseif($czType === 'range')
-                    @php $czMin = $czKey === 'heading_weight' ? 300 : 0; $czMax = $czKey === 'heading_weight' ? 900 : 24; $czStep = $czKey === 'heading_weight' ? 100 : 1; @endphp
-                    <input type="range" class="cz-range" min="{{ $czMin }}" max="{{ $czMax }}" step="{{ $czStep }}" value="{{ (int) $czVal }}" data-role="val">
-                    <span class="cz-num">{{ (int) $czVal }}</span>
-                  @elseif($czType === 'case')
-                    <select class="cz-select" data-role="val">
-                      <option value="none" @selected($czVal === 'none')>Normal</option>
-                      <option value="uppercase" @selected($czVal === 'uppercase')>UPPERCASE</option>
-                    </select>
-                  @else
-                    <select class="cz-select" data-role="val">
-                      <option value="solid" @selected($czVal === 'solid')>Solid</option>
-                      <option value="outline" @selected($czVal === 'outline')>Outline</option>
-                      <option value="ghost" @selected($czVal === 'ghost')>Ghost</option>
-                    </select>
-                  @endif
-                </div>
-                <input type="hidden" name="{{ $czKey }}" value="{{ $czVal }}" data-role="field">
-              </div>
-            @endforeach
-          </div>
-        </details>
-      @endforeach
-    </div>
-
-    <div class="cz-foot">
-      <button type="button" class="ia-btn ia-btn--ghost" id="cz-reset-all">Reset all</button>
-      <button type="submit" class="ia-btn ia-btn--primary">Save</button>
-    </div>
-  </form>
-</div>
-
-<div class="tpl-section-head">Start from a template</div>
-
-<div class="tpl-grid">
-  @foreach($templates as $key => $tpl)
-    @php $isCurrent = $key === $current; @endphp
-    <div class="tpl-card">
-      <div class="tpl-preview" onclick="tplPreview('{{ $key }}')">
-        <div class="tpl-preview-inner">
-          @include('tenant.templates._thumb', ['tokens' => $tpl['tokens'], 'layout' => $tpl['layout']])
-        </div>
-        @if($isCurrent)<div class="tpl-badge">● Current</div>@endif
-      </div>
-      <div class="tpl-card-body">
-        <div class="tpl-card-title">{{ $tpl['name'] }}</div>
-        <div class="tpl-card-desc">{{ $tpl['desc'] }}</div>
-        <div class="tpl-card-tags">
-          @foreach($tpl['tags'] as $tag)<span class="tpl-tag">{{ $tag }}</span>@endforeach
-        </div>
-        <div class="tpl-card-actions">
-          <button class="ia-btn ia-btn--secondary ia-btn--sm" style="flex:1" onclick="tplPreview('{{ $key }}')">Preview</button>
-          @if($isCurrent)
-            <a class="ia-btn ia-btn--secondary ia-btn--sm" style="flex:1;text-align:center" href="{{ route('tenant.pages.index') }}">Edit site</a>
-          @else
-            <button class="ia-btn ia-btn--primary ia-btn--sm" style="flex:1" onclick="tplConfirm('{{ $key }}','{{ $tpl['name'] }}')">Use this</button>
-          @endif
-        </div>
-      </div>
-    </div>
-  @endforeach
-</div>
-
-{{-- PREVIEW MODAL --}}
-<div class="tpl-modal" id="tpl-preview-modal" onclick="if(event.target===this)tplClose('tpl-preview-modal')">
-  <div class="tpl-modal-panel tpl-modal-panel--wide">
-    <div class="tpl-modal-head">
-      <div><strong id="tpl-preview-name"></strong> <span style="opacity:.5;font-size:12px">— preview</span></div>
-      <button class="tpl-modal-x" onclick="tplClose('tpl-preview-modal')">×</button>
-    </div>
-    <div class="tpl-modal-body" id="tpl-preview-body"></div>
-    <div class="tpl-modal-foot" id="tpl-preview-foot"></div>
-  </div>
-</div>
-
-{{-- CONFIRM MODAL --}}
-<div class="tpl-modal" id="tpl-confirm-modal" onclick="if(event.target===this)tplClose('tpl-confirm-modal')">
-  <div class="tpl-modal-panel">
-    <div class="tpl-modal-head">
-      <strong>Apply this template?</strong>
-      <button class="tpl-modal-x" onclick="tplClose('tpl-confirm-modal')">×</button>
-    </div>
-    <form method="POST" id="tpl-confirm-form" action="">
-      @csrf
-      <div class="tpl-modal-body" style="padding:18px 20px;font-size:13.5px;line-height:1.6">
-        Switching to <strong id="tpl-confirm-name"></strong> restyles your <strong>published</strong> public site right away — colors, fonts and button styling. By default your pages and content stay exactly as they are.
-        <label class="tpl-seed-opt">
-          <input type="checkbox" name="seed_layout" value="1">
-          <span><strong>Also rebuild my homepage with this template’s layout.</strong> Replaces your current homepage sections with this template’s structure. Other pages and customer data are untouched.</span>
-        </label>
-      </div>
-      <div class="tpl-modal-foot">
-        <button type="button" class="ia-btn ia-btn--ghost" onclick="tplClose('tpl-confirm-modal')">Cancel</button>
-        <button type="submit" class="ia-btn ia-btn--primary">Apply template</button>
-      </div>
-    </form>
-  </div>
-</div>
-
-@php
-  $previews = [];
-  foreach ($templates as $k => $tpl) {
-      $previews[$k] = ['name' => $tpl['name'], 'html' => view('tenant.templates._thumb', ['tokens' => $tpl['tokens'], 'layout' => $tpl['layout']])->render()];
-  }
-@endphp
-<script>
-  window.__tplPreviews = @json($previews);
-  window.__tplApplyBase = "{{ url('/admin/website/templates') }}";
-
-  function tplPreview(key) {
-    var p = window.__tplPreviews[key]; if (!p) return;
-    document.getElementById('tpl-preview-name').textContent = p.name;
-    document.getElementById('tpl-preview-body').innerHTML = '<div class="tpl-preview-inner tpl-preview-inner--lg">' + p.html + '</div>';
-    var foot = document.getElementById('tpl-preview-foot');
-    if (key === @json($current)) {
-      foot.innerHTML = '<span style="opacity:.5;font-size:12px;align-self:center">This is your current template</span>';
-    } else {
-      foot.innerHTML = '<button class="ia-btn ia-btn--primary" onclick="tplClose(\'tpl-preview-modal\');tplConfirm(\'' + key + '\',\'' + p.name.replace(/'/g, "\\'") + '\')">Use this</button>';
-    }
-    document.getElementById('tpl-preview-modal').classList.add('open');
-  }
-  function tplConfirm(key, name) {
-    document.getElementById('tpl-confirm-name').textContent = name;
-    document.getElementById('tpl-confirm-form').action = window.__tplApplyBase + '/' + key + '/apply';
-    document.getElementById('tpl-confirm-modal').classList.add('open');
-  }
-  function tplClose(id) { document.getElementById(id).classList.remove('open'); }
-  document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape') { tplClose('tpl-preview-modal'); tplClose('tpl-confirm-modal'); }
-  });
-</script>
-
+@push('styles')
 <style>
-  .tpl-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(290px,1fr)); gap:18px; }
-  .tpl-card { border-radius:12px; overflow:hidden; box-shadow:inset 0 0 0 .5px var(--ia-border); background:var(--ia-surface,#fff); transition:box-shadow .15s; }
-  .tpl-card:hover { box-shadow:0 6px 24px rgba(0,0,0,.12), inset 0 0 0 .5px var(--ia-border); }
-  .tpl-preview { position:relative; aspect-ratio:16/11; overflow:hidden; cursor:pointer; border-bottom:.5px solid var(--ia-border); background:#fff; }
-  .tpl-preview-inner { transform:scale(.5); transform-origin:top left; width:200%; height:200%; pointer-events:none; }
-  .tpl-preview-inner--lg { transform:scale(.8); width:125%; height:auto; }
-  .tpl-badge { position:absolute; top:10px; right:10px; background:rgba(0,0,0,.72); color:#fff; font-size:10px; font-weight:700; padding:3px 8px; border-radius:99px; }
-  .tpl-card-body { padding:14px 16px 16px; }
-  .tpl-card-title { font-size:15px; font-weight:700; }
-  .tpl-card-desc { font-size:12.5px; opacity:.6; margin-top:4px; line-height:1.5; }
-  .tpl-card-tags { display:flex; flex-wrap:wrap; gap:6px; margin-top:11px; }
-  .tpl-tag { font-size:10.5px; padding:2px 8px; border-radius:99px; box-shadow:inset 0 0 0 .5px var(--ia-border); opacity:.7; }
-  .tpl-card-actions { display:flex; gap:8px; margin-top:14px; }
-
-  /* mini-site render (consumed by _thumb) */
-  .fs { width:560px; font-size:11px; line-height:1.4; }
-  .fs-nav { display:flex; align-items:center; gap:14px; padding:12px 18px; font-size:11px; }
-  .fs-logo { font-size:14px; margin-right:auto; }
-  .fs-btn { padding:6px 12px; font-size:10px; font-weight:700; }
-  .fs-hero { padding:34px 18px 30px; }
-  .fs-eyebrow { font-size:10px; letter-spacing:.14em; text-transform:uppercase; font-weight:700; margin-bottom:8px; }
-  .fs-hero h1 { font-size:30px; line-height:1.05; margin:0 0 8px; }
-  .fs-hero p { font-size:12px; max-width:320px; margin:0 0 14px; }
-  .fs-sec { padding:20px 18px 26px; }
-  .fs-sec-h { font-size:18px; margin-bottom:12px; }
-  .fs-cards { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
-  .fs-cards > div { aspect-ratio:4/3; border-radius:8px; }
-
-  /* blueprint block shapes */
-  .fs-hero--split { display:flex; gap:18px; align-items:center; }
-  .fs-hero--split .fs-hero-copy { flex:1; }
-  .fs-hero-img { flex:1; align-self:stretch; min-height:120px; border-radius:10px; }
-  .fs-hero--centered { text-align:center; }
-  .fs-hero--centered p { margin-left:auto; margin-right:auto; }
-  .fs-hero--compact { padding-top:24px; padding-bottom:22px; }
-  .fs-hero--compact h1 { font-size:24px; }
-  .fs-cta { padding:26px 18px; text-align:center; }
-  .fs-cta .fs-sec-h { margin-bottom:12px; }
-  .fs-ti { display:flex; gap:16px; align-items:center; padding:20px 18px; }
-  .fs-ti-copy { flex:1; }
-  .fs-ti-img { flex:1; align-self:stretch; min-height:90px; border-radius:10px; }
-  .fs-gallery { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; padding:16px 18px; }
-  .fs-gallery > div { aspect-ratio:1; border-radius:8px; }
-  .fs-quote { margin:16px 18px; padding:18px; border-radius:10px; text-align:center; font-size:13px; font-style:italic; }
-  .fs-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; padding:18px; }
-  .fs-stat { text-align:center; }
-  .fs-stat-n { font-size:22px; line-height:1.1; }
-  .fs-stat-l { font-size:10px; }
-  .fs-steps { display:flex; gap:18px; }
-  .fs-step { flex:1; display:flex; align-items:center; gap:8px; }
-  .fs-step span { width:22px; height:22px; border-radius:99px; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; flex:none; }
-  .fs-step i { height:4px; flex:1; border-radius:2px; }
-  .fs-list { display:flex; flex-direction:column; }
-  .fs-list-row { display:flex; align-items:center; gap:10px; padding:9px 0; }
-  .fs-list-row span { width:18px; height:18px; border-radius:5px; flex:none; }
-  .fs-list-row b { height:9px; border-radius:3px; flex:1; max-width:60%; }
-  .fs-faq { display:flex; flex-direction:column; }
-  .fs-faq-row { padding:11px 0; }
-  .fs-faq-row span { display:block; height:9px; width:70%; border-radius:3px; }
-  .fs-contact { display:flex; flex-direction:column; gap:8px; max-width:280px; }
-  .fs-input { height:26px; border-radius:6px; }
-  .fs-footer { padding:16px 18px; font-size:11px; }
-
-  /* modals */
-  .tpl-modal { display:none; position:fixed; inset:0; z-index:9500; background:rgba(0,0,0,.55); align-items:center; justify-content:center; padding:24px; }
-  .tpl-modal.open { display:flex; }
-  .tpl-modal-panel { width:440px; max-width:100%; background:var(--ia-surface,#fff); border-radius:14px; box-shadow:0 20px 60px rgba(0,0,0,.4), inset 0 0 0 .5px var(--ia-border); overflow:hidden; }
-  .tpl-modal-panel--wide { width:720px; }
-  .tpl-modal-head { display:flex; justify-content:space-between; align-items:center; padding:14px 18px; border-bottom:.5px solid var(--ia-border); font-size:14px; }
-  .tpl-modal-x { background:none; border:none; font-size:22px; line-height:1; cursor:pointer; color:inherit; opacity:.5; }
-  .tpl-modal-x:hover { opacity:1; }
-  .tpl-modal-body { max-height:62vh; overflow:auto; }
-  .tpl-modal-panel--wide .tpl-modal-body { padding:18px; background:#0000000a; }
-  .tpl-modal-foot { display:flex; justify-content:flex-end; gap:10px; padding:14px 18px; border-top:.5px solid var(--ia-border); }
-  .tpl-seed-opt { display:flex; gap:9px; align-items:flex-start; margin-top:14px; padding:12px; border-radius:9px; box-shadow:inset 0 0 0 .5px var(--ia-border); cursor:pointer; font-size:12px; line-height:1.5; }
-  .tpl-seed-opt input { margin-top:2px; flex:none; }
-  .tpl-seed-opt span { opacity:.85; }
-
-.cz-wrap{display:grid;grid-template-columns:1fr 330px;gap:18px;align-items:start;margin-bottom:30px}
-@media(max-width:1000px){.cz-wrap{grid-template-columns:1fr}}
-.cz-stage{background:var(--ia-surface);border-radius:var(--ia-r-lg);box-shadow:inset 0 0 0 .5px var(--ia-border);overflow:hidden}
-.cz-stage-bar{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:.5px solid var(--ia-border)}
-.cz-stage-title{font-size:12px;opacity:.55}
-.cz-dirty{margin-left:auto;font-size:11.5px;color:var(--ia-accent);opacity:0;transition:opacity .12s}
-.cz-dirty.on{opacity:1}
-.cz-canvas{padding:18px;background:rgba(0,0,0,.28);display:flex;justify-content:center;overflow:hidden}
-.cz-canvas .fs{width:100%;max-width:600px}
-.cz-panel{background:var(--ia-surface);border-radius:var(--ia-r-lg);box-shadow:inset 0 0 0 .5px var(--ia-border);overflow:hidden;display:flex;flex-direction:column}
-.cz-panel-head{display:flex;align-items:center;gap:8px;padding:13px 16px;border-bottom:.5px solid var(--ia-border)}
-.cz-panel-title{font-size:13px;font-weight:500;text-transform:uppercase;letter-spacing:.06em}
-.cz-base{margin-left:auto;font-size:11px;opacity:.5}
-.cz-scroll{max-height:60vh;overflow-y:auto}
-.cz-group{border-bottom:.5px solid var(--ia-border)}
-.cz-group summary{padding:11px 16px;font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;opacity:.55;cursor:pointer;list-style:none;display:flex;align-items:center;gap:7px}
-.cz-group summary::-webkit-details-marker{display:none}
-.cz-group summary::before{content:'\25B8';font-size:9px;opacity:.6}
-.cz-group[open] summary::before{content:'\25BE'}
-.cz-gdot{margin-left:auto;width:6px;height:6px;border-radius:50%;background:var(--ia-accent);opacity:0}
-.cz-group.is-edited .cz-gdot{opacity:1}
-.cz-body{padding:4px 16px 14px}
-.cz-row{display:flex;align-items:center;gap:10px;padding:7px 0;min-height:36px}
-.cz-lbl{font-size:12.5px;flex:1;min-width:0;display:flex;align-items:center;gap:6px}
-.cz-reset{border:0;background:none;color:var(--ia-accent);font:inherit;font-size:10.5px;cursor:pointer;opacity:0;padding:0;text-decoration:underline}
-.cz-row.is-edited .cz-reset{opacity:.85}
-.cz-ctl{flex:0 0 auto;display:flex;align-items:center;gap:8px}
-.cz-hex{width:80px;font-family:ui-monospace,monospace;font-size:11.5px;padding:5px 7px;border-radius:6px;border:.5px solid var(--ia-border);background:var(--ia-input-bg);color:var(--ia-text)}
-.cz-sw{width:30px;height:26px;padding:0;border:.5px solid var(--ia-border-strong);border-radius:6px;background:none;cursor:pointer}
-.cz-select{font-size:12px;padding:5px 8px;border-radius:6px;border:.5px solid var(--ia-border);background:var(--ia-input-bg);color:var(--ia-text);font-family:inherit}
-.cz-range{width:100px;accent-color:var(--ia-accent)}
-.cz-num{font-family:ui-monospace,monospace;font-size:11.5px;opacity:.6;width:30px;text-align:right}
-.cz-foot{display:flex;gap:8px;justify-content:flex-end;padding:13px 16px;border-top:.5px solid var(--ia-border)}
-.tpl-section-head{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;opacity:.45;margin:0 0 12px}
+.tp-legend{border:.5px solid var(--ia-border);border-radius:10px;padding:12px 16px;background:var(--ia-surface);margin-bottom:22px}
+.tp-legend summary{cursor:pointer;font-size:12.5px;font-weight:500;color:var(--ia-text-muted)}
+.tp-legend .lg-body{margin-top:10px;display:flex;flex-direction:column;gap:8px;font-size:12.5px;line-height:1.6;color:var(--ia-text-muted)}
+.tp-legend b{color:var(--ia-text);font-weight:500}
+.tp-empty{padding:30px 0;color:var(--ia-text-muted);font-size:13.5px}
+.tp-wrap{display:grid;grid-template-columns:350px minmax(0,1fr);gap:28px;align-items:start}
+.tp-h{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ia-text-muted);font-weight:600;margin:0 0 8px;display:flex;align-items:center;gap:8px}
+.tp-list{border-top:.5px solid var(--ia-border);margin-bottom:22px}
+.tp-row{display:grid;grid-template-columns:18px 1fr;gap:10px;padding:12px 4px;border-bottom:.5px solid var(--ia-border);cursor:pointer}
+.tp-row:hover{background:var(--ia-hover)}.tp-row.on{background:var(--ia-surface-2)}
+.tp-row .rd{width:16px;height:16px;border-radius:50%;border:1.5px solid var(--ia-border-strong);margin-top:2px;display:grid;place-items:center}
+.tp-row.on .rd{border-color:var(--ia-accent)}.tp-row.on .rd:after{content:'';width:8px;height:8px;border-radius:50%;background:var(--ia-accent)}
+.tp-row .nm{font-size:14px;font-weight:500;display:flex;align-items:center;gap:8px}
+.tp-row .ds{font-size:12px;color:var(--ia-text-muted);line-height:1.5;margin-top:2px}
+.tp-row .sws{display:flex;gap:8px;margin-top:8px}
+.tp-row .sw{display:flex;height:14px;border-radius:4px;overflow:hidden;width:120px;border:.5px solid var(--ia-border)}.tp-row .sw i{flex:1}
+.tp-pill{font-size:10px;font-weight:600;padding:1px 7px;border-radius:99px;background:var(--ia-accent);color:var(--ia-accent-text)}
+.tp-pill.g{background:var(--ia-surface-3);color:var(--ia-text-muted)}
+.tp-seg{display:inline-flex;border:.5px solid var(--ia-border-strong);border-radius:8px;overflow:hidden}
+.tp-seg button{background:transparent;border:0;padding:5px 11px;font-size:12px;color:var(--ia-text-muted)}
+.tp-seg button+button{border-left:.5px solid var(--ia-border)}
+.tp-seg button.on{background:var(--ia-surface-3);color:var(--ia-text);font-weight:500}
+.tp-mode{display:flex;flex-direction:column;gap:6px;margin:0 0 22px}.tp-mode .d{font-size:12px;color:var(--ia-text-muted);line-height:1.5}
+.tp-grp{border-top:.5px solid var(--ia-border)}
+.tp-g{border-bottom:.5px solid var(--ia-border)}
+.tp-g>button{width:100%;display:flex;align-items:center;gap:8px;background:none;border:0;padding:12px 2px;color:var(--ia-text);font-size:13.5px;font-weight:500;text-align:left}
+.tp-g>button .v{margin-left:auto;font-size:12px;color:var(--ia-text-muted);font-weight:400}
+.tp-g>button .ch{width:14px;color:var(--ia-text-muted);transition:transform .15s}
+.tp-g.open>button .ch{transform:rotate(90deg)}
+.tp-g .dot{width:6px;height:6px;border-radius:50%;background:var(--ia-accent);display:none}.tp-g.chg .dot{display:inline-block}
+.tp-g .bd{display:none;padding:2px 2px 16px}.tp-g.open .bd{display:block}
+.tp-reset{font-size:11.5px;color:var(--ia-text-muted);background:none;border:0;text-decoration:underline;padding:0;margin-top:10px}
+.tp-tiles{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.tp-tile{background:none;border:.5px solid var(--ia-border-strong);border-radius:8px;padding:7px;text-align:left;color:var(--ia-text-muted);font-size:11.5px}
+.tp-tile svg{display:block;width:100%;height:auto;margin-bottom:5px;border-radius:4px}
+.tp-tile.on{border-color:var(--ia-accent);color:var(--ia-text);box-shadow:0 0 0 1px var(--ia-accent)}
+.tp-col{display:flex;align-items:center;gap:10px;padding:5px 0;font-size:12.5px}
+.tp-col input[type=color]{width:30px;height:24px;border:.5px solid var(--ia-border-strong);border-radius:6px;padding:0;background:none;cursor:pointer}
+.tp-col input[type=color]::-webkit-color-swatch-wrapper{padding:2px}.tp-col input[type=color]::-webkit-color-swatch{border:0;border-radius:4px}
+.tp-col .hx,.tp-f .hx{margin-left:auto;font-family:var(--ia-font-mono,monospace);font-size:11.5px;color:var(--ia-text-muted)}
+.tp-col .k{flex:1}.tp-col .k small{display:block;font-size:11px;color:var(--ia-text-muted)}
+.tp-read{margin-top:12px;padding-top:10px;border-top:.5px dashed var(--ia-border)}
+.tp-read .r{display:flex;align-items:center;gap:8px;font-size:12px;padding:3px 0}
+.tp-read .sc{margin-left:auto;font-variant-numeric:tabular-nums;color:var(--ia-text-muted)}
+.tp-read .ok,.tp-read .bad{font-size:10px;font-weight:700;padding:1px 6px;border-radius:99px}
+.tp-read .ok{background:rgba(122,168,42,.18);color:#9bc65a}.tp-read .bad{background:rgba(226,87,76,.18);color:#f08a80}
+.tp-read .fix{font-size:11px;background:none;border:.5px solid var(--ia-border-strong);border-radius:6px;color:var(--ia-text);padding:1px 7px}
+.tp-f{display:flex;flex-direction:column;gap:10px}
+.tp-f label{font-size:12px;color:var(--ia-text-muted);display:flex;justify-content:space-between;align-items:center;gap:10px}
+.tp-f .ia-select{width:170px}.tp-f input[type=range]{width:150px;accent-color:var(--ia-accent)}
+.tp-note2{font-size:12px;color:var(--ia-text-muted);line-height:1.5;margin-top:8px}
+.tp-save{position:sticky;bottom:0;background:var(--ia-bg);border-top:.5px solid var(--ia-border);padding:12px 0;margin-top:6px;display:flex;gap:8px;align-items:center;z-index:5}
+.tp-save .st{font-size:12px;color:var(--ia-text-muted);flex:1}.tp-save .st.dirty{color:#e8b25a}
+.tp-pv{position:sticky;top:16px}
+.tp-pvbar{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.tp-pvbar .lb{font-size:12px;color:var(--ia-text-muted)}.tp-pvbar .sp{flex:1}
+.tp-frame{position:relative;border:.5px solid var(--ia-border-strong);border-radius:12px;overflow:hidden;background:#000;margin:0 auto;transition:width .2s;height:calc(100vh - 150px);min-height:560px}
+.tp-frame.phone{width:390px}
+.tp-frame iframe{width:100%;height:100%;border:0;display:block;background:#fff}
+.tp-loading{position:absolute;left:50%;top:12px;transform:translateX(-50%);z-index:2;font-size:12px;background:rgba(0,0,0,.75);color:#fff;padding:5px 12px;border-radius:99px;display:none}
+.tp-loading.on{display:block}
+.tp-note{font-size:11.5px;color:var(--ia-text-muted);margin-top:8px;line-height:1.5}
+.ia-btn:disabled{opacity:.4;cursor:default}
+@media(max-width:1100px){.tp-wrap{grid-template-columns:1fr}.tp-pv{position:static}}
 </style>
+@endpush
 
-{{-- this block used to sit past the end of the content
-     section, where Blade discards it in an extending view, so the
-     customizer had no JS at all. --}}
+@push('scripts')
+@if($templates->isNotEmpty())
 <script>
 (function () {
-  var form = document.getElementById('cz-form');
-  var prev = document.querySelector('.cz-canvas [data-fs-preview]');
-  if (!form || !prev) { return; }
+  var $ = function (id) { return document.getElementById(id); };
+  var TPL = {};
+  {!! json_encode($templates, JSON_HEX_TAG | JSON_HEX_AMP) !!}.forEach(function (t) { TPL[t.key] = t; });
+  var LIVE = {!! json_encode($live, JSON_HEX_TAG | JSON_HEX_AMP) !!};
+  var ROLES = {!! json_encode(\App\Support\SiteLook::ROLES, JSON_HEX_TAG) !!};
+  var PAIRS = {!! json_encode(\App\Support\SiteLook::PAIRS, JSON_HEX_TAG) !!};
+  var PIECES = {!! json_encode(\App\Support\SiteLook::PIECES, JSON_HEX_TAG | JSON_FORCE_OBJECT) !!};
+  var FONTS = {!! json_encode(\App\Support\SiteLook::FONTS, JSON_HEX_TAG) !!};
+  var ON_TEMPLATE = {{ $onTemplate ? 'true' : 'false' }};
+  var URLS = { home: '/', shop: '/shop', search: '/shop?q=' + encodeURIComponent({!! json_encode($searchTerm, JSON_HEX_TAG) !!}) };
+  var PREVIEW = {!! json_encode(route('tenant.templates.preview')) !!};
+  var CSRF = document.querySelector('meta[name=csrf-token]').content;
 
-  var dirty = document.getElementById('cz-dirty');
+  function copy(o) { return JSON.parse(JSON.stringify(o)); }
+  function obj(x) { return (!x || Array.isArray(x)) ? {} : x; }
+  function norm(d) { d.c = obj(d.c); d.c.dark = obj(d.c.dark); d.c.light = obj(d.c.light); d.p = obj(d.p); return d; }
+  var live = norm(copy(LIVE)), draft = norm(copy(LIVE));
+  var page = 'home', openG = 'colours';
 
-  // token key -> the CSS variable the preview paints from
-  var VAR = {
-    accent: '--t-accent', text: '--t-text', bg: '--t-bg', surface: '--t-surface',
-    muted: '--t-muted', hero_bg: '--t-hero-bg', hero_text: '--t-hero-text',
-    heading_weight: '--t-h-weight', heading_transform: '--t-h-case',
-    button_radius: '--t-btn-r'
-  };
+  var cur = function () { return TPL[draft.tpl]; };
+  var col = function (k, m) { m = m || draft.mode; return draft.c[m][k] || cur().modes[m][k]; };
+  var pc = function (k) { return draft.p[k] !== undefined ? draft.p[k] : cur().pieces[k]; };
+  var dirty = function () { return !ON_TEMPLATE || JSON.stringify(draft) !== JSON.stringify(live); };
 
-  function contrast(hex) {
-    var c = (hex || '').replace('#', '');
-    if (c.length !== 6) { return '#111111'; }
-    var r = parseInt(c.substr(0, 2), 16), g = parseInt(c.substr(2, 2), 16), b = parseInt(c.substr(4, 2), 16);
-    return (0.299 * r + 0.587 * g + 0.114 * b) > 150 ? '#111111' : '#ffffff';
+  // ------------------------------------------------ readability
+  function lum(h) { h = h.replace('#', ''); var v = [0, 2, 4].map(function (i) { return parseInt(h.substr(i, 2), 16) / 255; }).map(function (c) { return c <= .03928 ? c / 12.92 : Math.pow((c + .055) / 1.055, 2.4); }); return .2126 * v[0] + .7152 * v[1] + .0722 * v[2]; }
+  function ratio(a, b) { var x = lum(a), y = lum(b); return (Math.max(x, y) + .05) / (Math.min(x, y) + .05); }
+  function nudge(fg, bg, need) {
+    var toW = lum(bg) < .2, h = fg.replace('#', ''), rgb = [0, 2, 4].map(function (i) { return parseInt(h.substr(i, 2), 16); });
+    var hex = function () { return '#' + rgb.map(function (v) { return Math.max(0, Math.min(255, v)).toString(16).padStart(2, '0'); }).join(''); };
+    for (var s = 0; s < 60 && ratio(hex(), bg) < need; s++) rgb = rgb.map(function (v) { return Math.round(toW ? v + (255 - v) * .08 : v * .92); });
+    return hex();
+  }
+  function bad(m) { return PAIRS.filter(function (p) { return ratio(col(p[0], m), col(p[1], m)) < p[3]; }); }
+  function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+
+  // ------------------------------------------------ template list + light/dark
+  function sw(t, m) { var c = TPL[t].modes[m]; return ['bg', 's1', 'tx', 'mu', 'ac'].map(function (k) { return '<i style="background:' + c[k] + '"></i>'; }).join(''); }
+  function renderList() {
+    $('tpList').innerHTML = Object.keys(TPL).map(function (k) { var t = TPL[k];
+      return '<div class="tp-row ' + (draft.tpl === k ? 'on' : '') + '" data-t="' + k + '"><span class="rd"></span><div><div class="nm">' + esc(t.name) + (ON_TEMPLATE && live.tpl === k ? '<span class="tp-pill">On your site</span>' : '') + '</div><div class="ds">' + esc(t.description || '') + '</div><div class="sws"><span class="sw" title="Dark">' + sw(k, 'dark') + '</span><span class="sw" title="Light">' + sw(k, 'light') + '</span></div></div></div>';
+    }).join('');
+    document.querySelectorAll('.tp-row').forEach(function (r) { r.onclick = function () {
+      if (r.dataset.t === draft.tpl) return;
+      var had = Object.keys(draft.p).length + Object.keys(draft.c.dark).length + Object.keys(draft.c.light).length;
+      var go = function () { draft.tpl = r.dataset.t; draft.c = { dark: {}, light: {} }; draft.p = {}; all(); };
+      if (!had) return go();
+      IntakeConfirm.show({ title: 'Switch to ' + TPL[r.dataset.t].name + '?', message: 'The pieces you changed belong to ' + cur().name + '. Switching starts ' + TPL[r.dataset.t].name + ' fresh, without them.', confirmText: 'Switch' }).then(function (ok) { if (ok) go(); });
+    }; });
+  }
+  function renderMode() {
+    document.querySelectorAll('#tpMode button').forEach(function (b) { b.classList.toggle('on', b.dataset.m === draft.mode); });
+    $('tpModeNote').textContent = draft.mode === 'dark' ? 'Every visitor sees the dark version.' : 'Every visitor sees the light version.';
   }
 
-  function paint(key, value) {
-    if (key === 'font_heading') { prev.style.setProperty('--t-f-head', "'" + value + "', sans-serif"); return; }
-    if (key === 'font_body')    { prev.style.setProperty('--t-f-body', "'" + value + "', sans-serif"); return; }
-    if (key === 'button_style') { return; } // needs a re-render; saved, not previewed
-    if (key === 'button_radius'){ prev.style.setProperty(VAR[key], value + 'px'); return; }
-    if (!VAR[key]) { return; }
-    prev.style.setProperty(VAR[key], value);
-    if (key === 'accent') { prev.style.setProperty('--t-accent-text', contrast(value)); }
+  // ------------------------------------------------ pieces
+  function thumb(g, v) {
+    var B = '#2a2a2a', L = '#5a5a5a', A = 'var(--ia-accent)', s = '<rect width="120" height="56" fill="#161616"/>';
+    if (g === 'nav') s += (v === 'float' ? '<rect x="8" y="6" width="104" height="11" rx="3" fill="' + B + '" stroke="' + L + '" stroke-width=".6"/><rect x="13" y="10" width="20" height="3" fill="' + L + '"/><rect x="92" y="9" width="15" height="5" rx="1.5" fill="' + A + '"/>' : v === 'solid' ? '<rect width="120" height="15" fill="' + B + '"/><rect x="6" y="6" width="20" height="3" fill="' + L + '"/><rect x="98" y="5" width="15" height="5" rx="1.5" fill="' + A + '"/>' : v === 'center' ? '<rect x="45" y="5" width="30" height="4" fill="' + L + '"/><rect x="30" y="13" width="60" height="2" fill="' + B + '"/><rect y="19" width="120" height=".6" fill="' + L + '"/>' : '<rect width="120" height="56" fill="#3a3530"/><rect x="6" y="6" width="20" height="3" fill="#ddd"/><rect x="98" y="5" width="15" height="5" rx="1.5" fill="' + A + '"/>') + '<rect x="10" y="30" width="50" height="5" fill="' + L + '"/><rect x="10" y="39" width="34" height="3" fill="' + B + '"/>';
+    if (g === 'hero') s += v === 'photo' ? '<rect width="120" height="56" fill="#3a3530"/><rect x="10" y="30" width="50" height="6" fill="#eee"/><rect x="10" y="40" width="18" height="6" rx="2" fill="' + A + '"/>' : v === 'split' ? '<rect x="8" y="18" width="44" height="6" fill="' + L + '"/><rect x="8" y="28" width="30" height="3" fill="' + B + '"/><rect x="8" y="36" width="16" height="6" rx="2" fill="' + A + '"/><rect x="62" y="8" width="50" height="40" rx="5" fill="#3a3530"/>' : '<rect x="30" y="16" width="60" height="7" fill="' + L + '"/><rect x="40" y="28" width="40" height="3" fill="' + B + '"/><rect x="51" y="36" width="18" height="6" rx="2" fill="' + A + '"/>';
+    if (g === 'cards') for (var i = 0; i < 3; i++) { var x = 6 + i * 38;
+      s += v === 'bordered' ? '<rect x="' + x + '" y="10" width="32" height="36" rx="3" fill="none" stroke="' + L + '" stroke-width=".8"/>' : v === 'flat' ? '<rect x="' + x + '" y="10" width="32" height="36" rx="3" fill="' + B + '"/>' : v === 'raised' ? '<rect x="' + (x + 1) + '" y="12" width="32" height="36" rx="5" fill="#000" opacity=".6"/><rect x="' + x + '" y="10" width="32" height="36" rx="5" fill="#2e2e2e"/>' : '<rect x="' + x + '" y="10" width="32" height="36" rx="3" fill="' + B + '"/><rect x="' + x + '" y="10" width="32" height="16" rx="3" fill="#3a3530"/>';
+      s += '<rect x="' + (x + 5) + '" y="' + (v === 'image' ? 31 : 18) + '" width="18" height="3" fill="#999"/><rect x="' + (x + 5) + '" y="' + (v === 'image' ? 37 : 25) + '" width="12" height="2.5" fill="' + A + '"/>'; }
+    if (g === 'footer') s += v === 'simple' ? '<rect y="40" width="120" height=".6" fill="' + L + '"/><rect x="8" y="46" width="18" height="3" fill="' + L + '"/><rect x="90" y="46" width="22" height="3" fill="' + B + '"/>' : v === 'columns' ? '<rect y="18" width="120" height=".6" fill="' + L + '"/>' + [8, 38, 68, 92].map(function (x) { return '<rect x="' + x + '" y="25" width="16" height="3" fill="' + L + '"/><rect x="' + x + '" y="32" width="12" height="2" fill="' + B + '"/><rect x="' + x + '" y="37" width="14" height="2" fill="' + B + '"/>'; }).join('') : '<rect y="14" width="120" height="30" fill="' + A + '"/><rect x="10" y="25" width="44" height="6" fill="#161616"/><rect x="86" y="24" width="24" height="8" rx="2" fill="#161616"/><rect x="8" y="48" width="18" height="3" fill="' + L + '"/>';
+    return '<svg viewBox="0 0 120 56">' + s + '</svg>';
   }
-
-  function mark(row) {
-    var field = row.querySelector('[data-role="field"]');
-    var def   = row.getAttribute('data-default');
-    var edited = def !== null && def !== '' && String(field.value) !== String(def);
-    row.classList.toggle('is-edited', edited);
-
-    var group = row.closest('.cz-group');
-    if (group) {
-      group.classList.toggle('is-edited', !!group.querySelector('.cz-row.is-edited'));
+  var label = function (g) { var o = PIECES[g][2]; return o ? (o[pc(g)] || pc(g)) : pc(g); };
+  var GROUPS = [
+    ['colours', 'Colours', function () { return draft.mode === 'dark' ? 'Dark' : 'Light'; }, []],
+    ['fonts', 'Fonts', function () { return pc('fh') + (pc('fh') !== pc('fb') ? ' + ' + pc('fb') : ''); }, ['fh', 'fb', 'hw', 'hc']],
+    ['nav', 'Menu bar', function () { return label('nav'); }, ['nav']],
+    ['hero', 'Top of the page', function () { return label('hero'); }, ['hero']],
+    ['cards', 'Cards', function () { return label('cards'); }, ['cards']],
+    ['shop', 'Shop photos', function () { return (pc('tiles') === 'white' ? 'White' : 'Surface') + ' · ' + (pc('ratio') === '1/1' ? 'square' : 'tall') + ' · ' + pc('cols') + ' a row'; }, ['tiles', 'ratio', 'cols']],
+    ['shape', 'Corners and buttons', function () { return pc('r') + 'px · ' + (pc('btn') === 'solid' ? 'solid' : 'outline'); }, ['r', 'btn']],
+    ['footer', 'Footer', function () { return label('footer'); }, ['footer']]
+  ];
+  function changed(g) { if (g[0] === 'colours') return Object.keys(draft.c[draft.mode]).length > 0; return g[3].some(function (k) { return draft.p[k] !== undefined; }); }
+  function seg(k, opts) { return '<span class="tp-seg">' + opts.map(function (o) { return '<button type="button" data-pv="' + k + '|' + o[0] + '" class="' + (String(pc(k)) === String(o[0]) ? 'on' : '') + '">' + o[1] + '</button>'; }).join('') + '</span>'; }
+  function body(g) {
+    if (g === 'colours') return Object.keys(ROLES).map(function (k) { return '<label class="tp-col"><input type="color" value="' + col(k) + '" data-c="' + k + '"><span class="k">' + ROLES[k][0] + '<small>' + ROLES[k][1] + '</small></span><span class="hx">' + col(k) + '</span></label>'; }).join('') +
+      '<div class="tp-read"><div class="tp-h" style="margin-bottom:4px">Can people read it?</div>' + PAIRS.map(function (p) { var r = ratio(col(p[0]), col(p[1])), ok = r >= p[3];
+        return '<div class="r"><span class="' + (ok ? 'ok' : 'bad') + '">' + (ok ? 'Reads well' : 'Hard to read') + '</span>' + p[2] + '<span class="sc">' + r.toFixed(1) + ':1</span>' + (ok ? '' : '<button type="button" class="fix" data-fix="' + p[0] + '|' + p[1] + '|' + p[3] + '">Fix</button>') + '</div>'; }).join('') + '</div>';
+    if (g === 'fonts') return '<div class="tp-f"><label>Headings<select class="ia-select" data-p="fh">' + FONTS.map(function (f) { return '<option ' + (pc('fh') === f ? 'selected' : '') + '>' + f + '</option>'; }).join('') + '</select></label>' +
+      '<label>Everything else<select class="ia-select" data-p="fb">' + FONTS.map(function (f) { return '<option ' + (pc('fb') === f ? 'selected' : '') + '>' + f + '</option>'; }).join('') + '</select></label>' +
+      '<label>Heading weight' + seg('hw', [[400, 'Light'], [500, 'Regular'], [650, 'Bold'], [800, 'Heavy']]) + '</label><label>Heading letters' + seg('hc', [['none', 'As typed'], ['upper', 'ALL CAPS']]) + '</label></div>';
+    if (['nav', 'hero', 'cards', 'footer'].indexOf(g) >= 0) {
+      var o = PIECES[g][2];
+      return '<div class="tp-tiles">' + Object.keys(o).map(function (v) { return '<button type="button" class="tp-tile ' + (pc(g) === v ? 'on' : '') + '" data-pv="' + g + '|' + v + '">' + thumb(g, v) + o[v] + (cur().pieces[g] === v ? ' <span style="opacity:.6">· template</span>' : '') + '</button>'; }).join('') + '</div>' +
+        (g !== 'cards' ? '<div class="tp-note2">Applies to every ' + (g === 'nav' ? 'menu bar' : g === 'hero' ? 'top section' : 'footer') + ' that follows the template. One you changed in the page builder keeps its own layout.</div>' : '<div class="tp-note2">Cards that have their own colours set in the page builder keep them.</div>');
     }
-    if (dirty) { dirty.classList.add('on'); }
+    if (g === 'shop') return '<div class="tp-f"><label>Behind product photos' + seg('tiles', [['white', 'White'], ['surface', 'Surface colour']]) + '</label><div class="tp-note2" style="margin-top:-4px">White suits catalog photos shot on white, which most are.</div>' +
+      '<label>Photo shape' + seg('ratio', [['1/1', 'Square'], ['4/5', 'Tall']]) + '</label><label>Products in a row' + seg('cols', [[3, '3'], [4, '4'], [5, '5']]) + '</label></div>';
+    if (g === 'shape') return '<div class="tp-f"><label>Corners <span style="display:flex;gap:8px;align-items:center"><input type="range" min="0" max="24" value="' + pc('r') + '" data-range="r"><span class="hx" style="width:34px;text-align:right">' + pc('r') + 'px</span></span></label>' +
+      '<label>Main buttons' + seg('btn', [['solid', 'Solid'], ['outline', 'Outline']]) + '</label></div>';
+    return '';
   }
-
-  function setRow(row, value, silent) {
-    var key   = row.getAttribute('data-k');
-    var field = row.querySelector('[data-role="field"]');
-    field.value = value;
-
-    var hex = row.querySelector('[data-role="hex"]');
-    var pick = row.querySelector('[data-role="pick"]');
-    var val = row.querySelector('[data-role="val"]');
-    var num = row.querySelector('.cz-num');
-
-    if (hex) { hex.value = value; }
-    if (pick && /^#[0-9a-fA-F]{6}$/.test(value)) { pick.value = value; }
-    if (val) { val.value = value; }
-    if (num) { num.textContent = value; }
-
-    paint(key, value);
-    if (!silent) { mark(row); }
+  function renderGroups() {
+    $('tpGroups').innerHTML = GROUPS.map(function (g) { return '<div class="tp-g ' + (openG === g[0] ? 'open' : '') + ' ' + (changed(g) ? 'chg' : '') + '" data-g="' + g[0] + '"><button type="button"><svg class="ch" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 3l5 5-5 5"/></svg>' + g[1] + '<span class="dot" title="Changed from the template"></span><span class="v">' + esc(g[2]()) + '</span></button><div class="bd">' + (openG === g[0] ? body(g[0]) + (changed(g) ? '<button type="button" class="tp-reset" data-reset="' + g[0] + '">Back to ' + esc(cur().name) + '\'s ' + g[1].toLowerCase() + '</button>' : '') : '') + '</div></div>'; }).join('');
+    var n = GROUPS.filter(changed).length; $('tpChg').hidden = !n; $('tpChg').textContent = n + ' changed';
+    document.querySelectorAll('.tp-g>button').forEach(function (b) { b.onclick = function () { var g = b.parentNode.dataset.g; openG = openG === g ? '' : g; renderGroups(); }; });
+    document.querySelectorAll('[data-pv]').forEach(function (b) { b.onclick = function () { var kv = b.dataset.pv.split('|'), v = ['hw', 'cols', 'r'].indexOf(kv[0]) >= 0 ? +kv[1] : kv[1]; setP(kv[0], v); }; });
+    document.querySelectorAll('select[data-p]').forEach(function (s) { s.onchange = function () { setP(s.dataset.p, s.value); }; });
+    document.querySelectorAll('[data-range]').forEach(function (s) {
+      s.oninput = function () { s.nextElementSibling.textContent = s.value + 'px'; };
+      s.onchange = function () { setP(s.dataset.range, +s.value); };
+    });
+    document.querySelectorAll('input[data-c]').forEach(function (i) {
+      i.oninput = function () { i.parentNode.querySelector('.hx').textContent = i.value; };
+      i.onchange = function () { setC(i.dataset.c, i.value.toLowerCase()); };
+    });
+    document.querySelectorAll('[data-fix]').forEach(function (b) { b.onclick = function () { var x = b.dataset.fix.split('|'); setC(x[0], nudge(col(x[0]), col(x[1]), +x[2] + .2)); if (window.IntakeToast) IntakeToast.success('Adjusted ' + ROLES[x[0]][0].toLowerCase() + ' so it reads well'); }; });
+    document.querySelectorAll('[data-reset]').forEach(function (b) { b.onclick = function () { var g = GROUPS.filter(function (x) { return x[0] === b.dataset.reset; })[0]; if (g[0] === 'colours') draft.c[draft.mode] = {}; else g[3].forEach(function (k) { delete draft.p[k]; }); all(); }; });
   }
+  function setP(k, v) { if (String(cur().pieces[k]) === String(v)) delete draft.p[k]; else draft.p[k] = v; all(); }
+  function setC(k, v) { if (cur().modes[draft.mode][k] === v) delete draft.c[draft.mode][k]; else draft.c[draft.mode][k] = v; all(); }
 
-  document.querySelectorAll('.cz-row').forEach(function (row) {
-    var hex  = row.querySelector('[data-role="hex"]');
-    var pick = row.querySelector('[data-role="pick"]');
-    var val  = row.querySelector('[data-role="val"]');
+  // ------------------------------------------------ preview: the real site with the unsaved choices
+  var pvTimer = null, pvSeq = 0;
+  function renderPreview() {
+    $('tpPvLabel').textContent = cur().name + ' · ' + draft.mode + (dirty() ? ' · not applied yet' : '');
+    clearTimeout(pvTimer); $('tpLoading').classList.add('on');
+    pvTimer = setTimeout(function () {
+      var seq = ++pvSeq;
+      fetch(PREVIEW, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' }, body: JSON.stringify(draft) })
+        .then(function (r) { if (!r.ok) throw new Error('preview'); return r.json(); }).then(function () {
+          if (seq !== pvSeq) return;
+          var u = URLS[page]; $('tpIframe').src = u + (u.indexOf('?') >= 0 ? '&' : '?') + 'look_preview=1&_=' + Date.now();
+        }).catch(function () { $('tpLoading').classList.remove('on'); if (window.IntakeToast) IntakeToast.error('The preview could not update. Try again in a moment.'); });
+    }, 350);
+  }
+  $('tpIframe').addEventListener('load', function () { if ($('tpIframe').getAttribute('src') !== 'about:blank') $('tpLoading').classList.remove('on'); });
 
-    if (hex)  { hex.addEventListener('input', function () {
-      if (/^#[0-9a-fA-F]{6}$/.test(hex.value)) { setRow(row, hex.value); }
-    }); }
-    if (pick) { pick.addEventListener('input', function () { setRow(row, pick.value); }); }
-    if (val)  { val.addEventListener('input', function () { setRow(row, val.value); }); }
+  // ------------------------------------------------ save
+  function renderSave() {
+    var d = dirty();
+    $('tpSt').textContent = d ? (ON_TEMPLATE ? 'Unsaved changes. Your site still shows ' + TPL[live.tpl].name + '.' : 'Not applied yet. Your site still shows its current look.') : 'No unsaved changes';
+    $('tpSt').classList.toggle('dirty', d); $('tpDiscard').disabled = !d || !ON_TEMPLATE; $('tpApply').disabled = !d;
+  }
+  $('tpDiscard').onclick = function () { draft = norm(copy(live)); all(); };
+  $('tpApply').onclick = function () {
+    var probs = bad(draft.mode).map(function (p) { return p[2].toLowerCase(); });
+    IntakeConfirm.show({ title: 'Apply ' + cur().name + ' to your site?', message: 'Customers see it straight away on every public page: your pages, shop, search, booking and account pages. Your pages’ words, photos and products stay as they are.' + (probs.length ? ' Hard to read: ' + probs.join(', ') + '. You can apply anyway, or press Fix first.' : ''), confirmText: 'Apply to site' })
+      .then(function (ok) {
+        if (!ok) return;
+        var f = $('tpForm'), add = function (n, v) { var i = document.createElement('input'); i.type = 'hidden'; i.name = n; i.value = v; f.appendChild(i); };
+        add('tpl', draft.tpl); add('mode', draft.mode);
+        ['dark', 'light'].forEach(function (m) { Object.keys(draft.c[m]).forEach(function (k) { add('c[' + m + '][' + k + ']', draft.c[m][k]); }); });
+        Object.keys(draft.p).forEach(function (k) { add('p[' + k + ']', draft.p[k]); });
+        window.__tpSubmitting = true; f.submit();
+      });
+  };
+  window.addEventListener('beforeunload', function (e) { if (dirty() && ON_TEMPLATE && !window.__tpSubmitting) { e.preventDefault(); e.returnValue = ''; } });
 
-    row.querySelector('.cz-reset').addEventListener('click', function () {
-      var def = row.getAttribute('data-default');
-      if (def) { setRow(row, def); }
-    });
+  document.querySelectorAll('#tpMode button').forEach(function (b) { b.onclick = function () { draft.mode = b.dataset.m; all(); }; });
+  document.querySelectorAll('#tpPage button').forEach(function (b) { b.onclick = function () { page = b.dataset.p; document.querySelectorAll('#tpPage button').forEach(function (x) { x.classList.toggle('on', x === b); }); renderPreview(); }; });
+  document.querySelectorAll('#tpDev button').forEach(function (b) { b.onclick = function () { document.querySelectorAll('#tpDev button').forEach(function (x) { x.classList.toggle('on', x === b); }); $('tpFrame').classList.toggle('phone', b.dataset.d === 'phone'); }; });
 
-    mark(row);
-  });
-
-  if (dirty) { dirty.classList.remove('on'); }
-
-  document.getElementById('cz-reset-all').addEventListener('click', function () {
-    document.querySelectorAll('.cz-row').forEach(function (row) {
-      var def = row.getAttribute('data-default');
-      if (def) { setRow(row, def); }
-    });
-  });
+  function all() { renderList(); renderMode(); renderGroups(); renderSave(); renderPreview(); }
+  all();
 })();
 </script>
-
-@endsection
+@endif
+@endpush

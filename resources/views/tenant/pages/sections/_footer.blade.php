@@ -44,6 +44,7 @@
 @endphp
 
 <input type="checkbox" data-field="is_visible" value="1" {{ $section->is_visible ? 'checked' : '' }} style="display:none">
+@include('tenant.pages.sections._design-follow')
 
 {{--=================== CONTENT ===================--}}
 <div class="pb2-tab-panel" data-tab="content">

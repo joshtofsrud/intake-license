@@ -41,8 +41,8 @@
   $gradT   = $c['bg_gradient_to']   ?? '#fafafa';
 
   // Colors
-  $textColor     = ($c['text_color']      ?? '') ?: '#0a0a0a';
-  $textColorBody = ($c['text_color_body'] ?? '') ?: 'rgba(0,0,0,0.6)';
+  $textColor     = ($c['text_color']      ?? '') ?: \App\Support\SiteLook::c('text', '#0a0a0a');
+  $textColorBody = ($c['text_color_body'] ?? '') ?: \App\Support\SiteLook::c('muted', 'rgba(0,0,0,0.6)');
   $accentColor   = ($c['accent_color']    ?? '') ?: null;
 
   // Heading with accent
@@ -100,7 +100,7 @@
   line-height: 1.15;
   color: {{ $textColor }};
 }
-.{{ $instId }} .p-stats-accent { color: {{ $accentColor ?? '#BEF264' }}; }
+.{{ $instId }} .p-stats-accent { color: {{ $accentColor ?? \App\Support\SiteLook::c('accent', '#BEF264') }}; }
 .{{ $instId }} .p-stats-sub {
   font-size: 16px;
   line-height: 1.55;

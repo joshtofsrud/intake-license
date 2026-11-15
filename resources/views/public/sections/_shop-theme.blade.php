@@ -9,11 +9,11 @@
   .spg-index, .spg-show, .spg-cart, .spg-checkout, .spg-confirm, .spg-search {
     --acc: var(--p-accent, #BEF264);
     --s-acc-text: var(--p-accent-text, #0a0a0a);
-    --s-card: color-mix(in srgb, var(--p-text, #111) 3%, var(--p-bg, #fff));
-    --s-field: color-mix(in srgb, var(--p-text, #111) 4%, var(--p-bg, #fff));
+    --s-card: var(--p-shop-card, color-mix(in srgb, var(--p-text, #111) 3%, var(--p-bg, #fff)));
+    --s-field: var(--p-field-bg, color-mix(in srgb, var(--p-text, #111) 4%, var(--p-bg, #fff)));
     --s-ink: var(--p-text, #111);
     --s-on-ink: var(--p-bg, #fff);
-    --s-photo: #fff;
+    --s-photo: var(--p-tile-bg, #fff); /* MARKER-WEB-TEMPLATES: the template's Behind product photos */
     --s-ok: color-mix(in srgb, #1d7a3a 72%, var(--p-text, #111));
     --s-bad: color-mix(in srgb, #b3261e 78%, var(--p-text, #111));
     --s-warn: color-mix(in srgb, #8a5a00 70%, var(--p-text, #111));
@@ -22,7 +22,7 @@
     --s-btn-r: var(--p-btn-r, 11px);
     /* secondary text from the text colour itself, so it reads on a light or a dark
        site even when a shop changed its colours without a template */
-    --p-muted: color-mix(in srgb, var(--p-text, #111) 62%, transparent);
+    --p-muted: var(--p-muted-real, color-mix(in srgb, var(--p-text, #111) 62%, transparent));
     color: var(--p-text, #111);
   }
   .spg-index h1, .spg-show h1, .spg-cart h1, .spg-checkout h1, .spg-confirm h1, .spg-search h1,

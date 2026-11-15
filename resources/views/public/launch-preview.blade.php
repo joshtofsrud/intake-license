@@ -16,7 +16,7 @@
     body{font-family:-apple-system,BlinkMacSystemFont,'Inter',sans-serif;background:#0f0f0f;color:#f0f0f0;min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px}
     h1{font-size:clamp(28px,5vw,48px);font-weight:700;letter-spacing:-.02em;margin-bottom:12px}
     p{font-size:17px;opacity:.55;max-width:440px;margin:0 auto 28px;line-height:1.6}
-    a{display:inline-flex;align-items:center;padding:12px 26px;background:{{ $lpT->accent_color ?? '#BEF264' }};color:#0a0a0a;border-radius:8px;font-size:15px;font-weight:600;text-decoration:none}
+    a{display:inline-flex;align-items:center;padding:12px 26px;background:{{ $lpT->accent_color ?? '#BEF264' }};color:{{ \App\Support\ColorHelper::accentTextColor($lpT->accent_color ?? '#BEF264') }};border-radius:8px;font-size:15px;font-weight:600;text-decoration:none}
   </style>
 </head>
 <body>

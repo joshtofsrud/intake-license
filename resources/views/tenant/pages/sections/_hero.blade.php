@@ -37,6 +37,7 @@
 {{-- Hidden is_visible toggle so the v1-compatible save payload still works.
      The G16 inspector header eye icon toggles this. --}}
 <input type="checkbox" data-field="is_visible" value="1" {{ $section->is_visible ? 'checked' : '' }} style="display:none">
+@include('tenant.pages.sections._design-follow')
 
 {{--==================================================================
     CONTENT TAB

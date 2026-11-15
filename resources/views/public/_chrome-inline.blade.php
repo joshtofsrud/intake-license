@@ -10,6 +10,10 @@
 @php
   $ciTenant = $currentTenant ?? $tenant ?? tenant();
   $ci = \App\Services\Tenant\SiteChromeService::parts($ciTenant);
+  // MARKER-WEB-TEMPLATES: the menu bar and footer follow the template here too
+  $ciLook = \App\Support\SiteLook::for($ciTenant);
+  $ciNavC = $ci['nav'] ? \App\Support\SiteLook::applyDesign('nav', $ci['nav']->content ?? [], $ciLook) : [];
+  $ciFootC = $ci['footer'] ? \App\Support\SiteLook::applyDesign('footer', $ci['footer']->content ?? [], $ciLook) : [];
 @endphp
 
 @if(($chromePos ?? 'top') === 'top' && $ci['nav'])
@@ -28,7 +32,7 @@
   {{-- MARKER-SHOP-FLOAT-NAV: display:contents so the sticky nav sticks to the page, not to this wrapper --}}
   <div class="p-chrome-scope" style="display:contents">
   @include('public.sections._nav', [
-      'c' => $ci['nav']->content ?? [], 'section' => $ci['nav'],
+      'c' => $ciNavC, 'section' => $ci['nav'],
       'navItems' => $ci['navItems'], 'tenant' => $ciTenant, 'catalog' => collect(),
   ])
   </div>
@@ -37,7 +41,7 @@
 @if(($chromePos ?? 'top') === 'bottom' && $ci['footer'])
   <div class="p-chrome-scope">
   @include('public.sections._footer', [
-      'c' => (($hideBookingCta ?? false) ? array_merge($ci['footer']->content ?? [], ['cta_band' => false]) : ($ci['footer']->content ?? [])), 'section' => $ci['footer'],
+      'c' => (($hideBookingCta ?? false) ? array_merge($ciFootC, ['cta_band' => false]) : $ciFootC), 'section' => $ci['footer'],
       'navItems' => $ci['navItems'], 'tenant' => $ciTenant, 'catalog' => collect(),
   ])
   </div>

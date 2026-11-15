@@ -55,14 +55,11 @@ class DesignTokens
             return $out;
         }
 
-        // 3) the active template's own token set
-        if ($tenant->site_template) {
-            // tokens() returns null for a key that no longer exists.
-            foreach ((SiteTemplate::tokens($tenant->site_template) ?? []) as $k => $v) {
-                if ($v !== null && $v !== '') {
-                    $out[$k] = $v;
-                }
-            }
+        // MARKER-WEB-TEMPLATES: a shop on a master-admin template takes its whole look from it
+        // (with its own changes on top, resolved in SiteLook). The older path below is for shops
+        // that never picked one.
+        if ($look = SiteLook::for($tenant)) {
+            return array_merge($out, SiteLook::tokens($look), ['_look' => $look]);
         }
 
         // 2) per-tenant overrides. '_prev' is the template revert snapshot,
@@ -122,7 +119,9 @@ class DesignTokens
             '--p-card-r: '        . (int) $t['card_radius'] . 'px',
         ];
 
-        return implode("\n", array_map(fn ($l) => $indent . $l . ';', $lines));
+        $css = implode("\n", array_map(fn ($l) => $indent . $l . ';', $lines));
+        if (! empty($t['_look'])) $css .= "\n" . SiteLook::extraVars($t['_look'], $indent);
+        return $css;
     }
 
     /**

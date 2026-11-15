@@ -23,8 +23,8 @@
   $gradT   = $c['bg_gradient_to']   ?? '#fafafa';
 
   // Colors
-  $textColor     = ($c['text_color']      ?? '') ?: '#0a0a0a';
-  $textColorBody = ($c['text_color_body'] ?? '') ?: 'rgba(0,0,0,0.6)';
+  $textColor     = ($c['text_color']      ?? '') ?: \App\Support\SiteLook::c('text', '#0a0a0a');
+  $textColorBody = ($c['text_color_body'] ?? '') ?: \App\Support\SiteLook::c('muted', 'rgba(0,0,0,0.6)');
   $accentColor   = ($c['accent_color']    ?? '') ?: null;
   $cardBg        = ($c['card_bg']         ?? '') ?: null;
   $cardBorder    = ($c['card_border']     ?? '') ?: null;
@@ -63,8 +63,8 @@
   $instId = 'p-svc-' . ($section->id ?? uniqid());
 
   // Card style mapping
-  $cardBgVal     = $cardBg     ?? '#ffffff';
-  $cardBorderVal = $cardBorder ?? 'rgba(0,0,0,0.1)';
+  $cardBgVal     = $cardBg     ?? \App\Support\SiteLook::card('bg', '#ffffff'); // MARKER-WEB-TEMPLATES
+  $cardBorderVal = $cardBorder ?? \App\Support\SiteLook::card('border', 'rgba(0,0,0,0.1)');
 @endphp
 
 <style>
@@ -102,7 +102,7 @@
   line-height: 1.15;
   color: {{ $textColor }};
 }
-.{{ $instId }} .p-svc-accent { color: {{ $accentColor ?? '#BEF264' }}; }
+.{{ $instId }} .p-svc-accent { color: {{ $accentColor ?? \App\Support\SiteLook::c('accent', '#BEF264') }}; }
 .{{ $instId }} .p-svc-sub {
   font-size: 16px;
   line-height: 1.6;
@@ -137,12 +137,13 @@
 
 .{{ $instId }} .p-svc-card {
   padding: 22px;
-  border-radius: 10px;
+  border-radius: {{ \App\Support\SiteLook::card('radius', '10px') }};
   transition: all 0.18s;
   color: {{ $textColor }};
   @if($cardStyle === 'card')
   background: {{ $cardBgVal }};
   border: 1px solid {{ $cardBorderVal }};
+  box-shadow: {{ \App\Support\SiteLook::card('shadow', 'none') }};
   @elseif($cardStyle === 'list')
   border-bottom: 1px solid {{ $cardBorderVal }};
   border-radius: 0;
@@ -154,7 +155,7 @@
 @if($cardStyle === 'card' && $cardHover === 'lift')
 .{{ $instId }} .p-svc-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.06); }
 @elseif($cardStyle === 'card' && $cardHover === 'accent-border')
-.{{ $instId }} .p-svc-card:hover { border-color: {{ $accentColor ?? '#BEF264' }}; }
+.{{ $instId }} .p-svc-card:hover { border-color: {{ $accentColor ?? \App\Support\SiteLook::c('accent', '#BEF264') }}; }
 @endif
 
 .{{ $instId }} .p-svc-item-name {

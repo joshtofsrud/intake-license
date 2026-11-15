@@ -32,8 +32,8 @@
   $gradT   = $c['bg_gradient_to']   ?? '#fafafa';
 
   // Colors
-  $textColor     = ($c['text_color']      ?? '') ?: '#0a0a0a';
-  $textColorBody = ($c['text_color_body'] ?? '') ?: 'rgba(0,0,0,0.65)';
+  $textColor     = ($c['text_color']      ?? '') ?: \App\Support\SiteLook::c('text', '#0a0a0a');
+  $textColorBody = ($c['text_color_body'] ?? '') ?: \App\Support\SiteLook::c('muted', 'rgba(0,0,0,0.65)');
   $accentColor   = ($c['accent_color']    ?? '') ?: null;
 
   // Buttons
@@ -124,7 +124,7 @@
   color: {{ $textColor }};
 }
 .{{ $instId }} .p-ti-accent {
-  color: {{ $accentColor ?? '#BEF264' }};
+  color: {{ $accentColor ?? \App\Support\SiteLook::c('accent', '#BEF264') }};
   font-style: {{ ($c['accent_italic'] ?? true) ? 'italic' : 'normal' }};
   font-weight: 500;
 }
@@ -152,7 +152,7 @@
   border: 1px solid transparent;
   transition: all 0.15s;
 }
-.{{ $instId }} .p-ti-btn--primary { background: {{ $accentColor ?? '#0a0a0a' }}; color: {{ $accentColor ? '#0a1a00' : '#ffffff' }}; }
+.{{ $instId }} .p-ti-btn--primary { background: {{ $accentColor ?? \App\Support\SiteLook::c('accent', '#0a0a0a') }}; color: {{ $accentColor ? '#0a1a00' : \App\Support\SiteLook::c('accent_text', '#ffffff') }}; }
 .{{ $instId }} .p-ti-btn--primary:hover { filter: brightness(1.05); }
 .{{ $instId }} .p-ti-btn--outline { background: transparent; color: {{ $textColor }}; border-color: {{ $textColor }}; opacity: .8; }
 .{{ $instId }} .p-ti-btn--outline:hover { opacity: 1; }

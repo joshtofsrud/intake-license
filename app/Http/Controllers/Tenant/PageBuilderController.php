@@ -1274,6 +1274,9 @@ class PageBuilderController extends Controller
                     $content[$fld] = is_array($decoded) ? $decoded : [];
                 }
             }
+            // MARKER-WEB-TEMPLATES: changing the menu bar / hero / footer layout pins it, even in preview
+            $draftSec = TenantPageSection::where('page_id', $page->id)->where('id', $sid)->first();
+            if ($draftSec) $content = \App\Support\SiteLook::pin($draftSec->section_type, (array) ($draftSec->content ?? []), $content);
             \App\Support\BuilderDraft::put((string) $page->id, $sid, $content);
             // the menu list rides along so the preview shows it unsaved.
             if ($request->filled('nav_rows')) {
@@ -1384,6 +1387,8 @@ class PageBuilderController extends Controller
                 $content['cta_label'] = ''; $content['cta_url'] = '';
             }
 
+            // MARKER-WEB-TEMPLATES: a shop that changes this section's layout keeps its own from then on
+            $content = \App\Support\SiteLook::pin($section->section_type, (array) ($section->content ?? []), $content);
             $section->update([
                 'content'   => array_merge($section->content ?? [], $content),
                 'bg_color'  => $request->input('bg_color'),

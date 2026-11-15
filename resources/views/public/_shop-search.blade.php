@@ -50,7 +50,7 @@
   .p-ss-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
   .p-ss-l .p-ss-tiles { grid-template-columns: 1fr 1fr; }
   .p-ss-tile { display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; font-weight: 600; border-radius: 10px; padding: 4px; }
-  .p-ss-tile .p { aspect-ratio: 4/3; border-radius: 8px; overflow: hidden; background: #fff; border: 1px solid color-mix(in srgb, var(--p-text, #111) 8%, transparent); display: grid; place-items: center; }
+  .p-ss-tile .p { aspect-ratio: 4/3; border-radius: 8px; overflow: hidden; background: var(--p-tile-bg, #fff); border: 1px solid color-mix(in srgb, var(--p-text, #111) 8%, transparent); display: grid; place-items: center; }
   .p-ss-tile .p img { width: 100%; height: 100%; object-fit: cover; }
   .p-ss-tile .p i { font-style: normal; font-size: 20px; font-weight: 700; color: #bbb; }
   .p-ss-tile small { color: var(--p-muted, #777); font-weight: 500; }
@@ -61,7 +61,7 @@
   .p-ss-promo .go { margin-left: auto; font-size: 12.5px; font-weight: 700; white-space: nowrap; padding-right: 6px; }
   .p-ss-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
   .p-ss-prod { display: flex; flex-direction: column; gap: 5px; border-radius: 10px; padding: 6px; }
-  .p-ss-prod .im { position: relative; aspect-ratio: 1; background: #fff; border-radius: 8px; border: 1px solid color-mix(in srgb, var(--p-text, #111) 8%, transparent); overflow: hidden; }
+  .p-ss-prod .im { position: relative; aspect-ratio: var(--p-tile-ratio, 1); background: var(--p-tile-bg, #fff); border-radius: 8px; border: 1px solid color-mix(in srgb, var(--p-text, #111) 8%, transparent); overflow: hidden; }
   .p-ss-prod .im img { width: 100%; height: 100%; object-fit: contain; padding: 8px; }
   .p-ss-prod .im em { position: absolute; top: 6px; left: 6px; font-style: normal; font-size: 10px; font-weight: 700; background: #e5484d; color: #fff; border-radius: 99px; padding: 2px 7px; }
   .p-ss-prod .t { font-size: 13px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }

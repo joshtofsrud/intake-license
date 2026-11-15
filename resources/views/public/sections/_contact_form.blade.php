@@ -18,8 +18,8 @@
   $gradT   = $c['bg_gradient_to']   ?? '#fafafa';
 
   // Colors
-  $textColor     = ($c['text_color']      ?? '') ?: '#0a0a0a';
-  $textColorBody = ($c['text_color_body'] ?? '') ?: 'rgba(0,0,0,0.65)';
+  $textColor     = ($c['text_color']      ?? '') ?: \App\Support\SiteLook::c('text', '#0a0a0a');
+  $textColorBody = ($c['text_color_body'] ?? '') ?: \App\Support\SiteLook::c('muted', 'rgba(0,0,0,0.65)');
   $accentColor   = ($c['accent_color']    ?? '') ?: null;
 
   // Fields
@@ -98,7 +98,7 @@
   line-height: 1.15;
   color: {{ $textColor }};
 }
-.{{ $instId }} .p-cf-accent { color: {{ $accentColor ?? '#BEF264' }}; }
+.{{ $instId }} .p-cf-accent { color: {{ $accentColor ?? \App\Support\SiteLook::c('accent', '#BEF264') }}; }
 .{{ $instId }} .p-cf-sub {
   font-size: 16px;
   line-height: 1.55;
@@ -151,23 +151,23 @@
   transition: all 0.15s;
   outline: none;
   @if($inputStyle === 'default')
-  background: white;
-  border: 1px solid rgba(0,0,0,0.15);
+  background: {{ \App\Support\SiteLook::c('surface', 'white') }};
+  border: 1px solid {{ \App\Support\SiteLook::c('border', 'rgba(0,0,0,0.15)') }};
   @elseif($inputStyle === 'minimal')
   background: transparent;
   border: none;
-  border-bottom: 1px solid rgba(0,0,0,0.2);
+  border-bottom: 1px solid {{ \App\Support\SiteLook::c('border', 'rgba(0,0,0,0.2)') }};
   border-radius: 0;
   padding-left: 0; padding-right: 0;
   @elseif($inputStyle === 'filled')
-  background: rgba(0,0,0,0.04);
+  background: {{ \App\Support\SiteLook::c('surface', 'rgba(0,0,0,0.04)') }};
   border: 1px solid transparent;
   @endif
 }
 .{{ $instId }} .p-cf-input:focus {
-  border-color: {{ $accentColor ?? '#BEF264' }};
+  border-color: {{ $accentColor ?? \App\Support\SiteLook::c('accent', '#BEF264') }};
   @if($inputStyle === 'minimal')
-  border-bottom-color: {{ $accentColor ?? '#BEF264' }};
+  border-bottom-color: {{ $accentColor ?? \App\Support\SiteLook::c('accent', '#BEF264') }};
   @endif
 }
 .{{ $instId }} textarea.p-cf-input { resize: vertical; min-height: 100px; }
@@ -183,8 +183,8 @@
   font-weight: 500;
   cursor: pointer;
   border: 0;
-  background: {{ $accentColor ?? '#0a0a0a' }};
-  color: {{ $accentColor ? '#0a1a00' : '#ffffff' }};
+  background: {{ $accentColor ?? \App\Support\SiteLook::c('accent', '#0a0a0a') }};
+  color: {{ $accentColor ? '#0a1a00' : \App\Support\SiteLook::c('accent_text', '#ffffff') }};
   transition: filter 0.15s;
 }
 .{{ $instId }} .p-cf-submit:hover { filter: brightness(1.05); }

@@ -35,7 +35,7 @@
 .{{ $instId }} .p-ts-heading { font-size: clamp(24px, 3.5vw, 40px); font-weight: var(--p-heading-weight, 500); text-transform: var(--p-heading-transform, none); line-height: 1.15; letter-spacing: -.02em; margin: 0; }
 .{{ $instId }} .p-ts-sub { font-size: 16px; line-height: 1.6; opacity: .7; max-width: 60ch; margin: 14px auto 0; }
 .{{ $instId }} .p-ts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
-.{{ $instId }} .p-ts-card { margin: 0; padding: 28px; border-radius: var(--p-card-r, 14px); background: color-mix(in srgb, currentColor 4%, transparent); border: 1px solid color-mix(in srgb, currentColor 10%, transparent); transition: border-color .15s; display: flex; flex-direction: column; }
+.{{ $instId }} .p-ts-card { margin: 0; padding: 28px; border-radius: var(--p-card-r, 14px); background: {{ \App\Support\SiteLook::card('bg', 'color-mix(in srgb, currentColor 4%, transparent)') }}; border: 1px solid {{ \App\Support\SiteLook::card('border', 'color-mix(in srgb, currentColor 10%, transparent)') }}; box-shadow: {{ \App\Support\SiteLook::card('shadow', 'none') }}; transition: border-color .15s; display: flex; flex-direction: column; }
 .{{ $instId }} .p-ts-card:hover { border-color: color-mix(in srgb, var(--p-accent, currentColor) 45%, transparent); }
 .{{ $instId }} .p-ts-mark { color: var(--p-accent, currentColor); font-size: 30px; line-height: 1; margin-bottom: 14px; font-family: Georgia, serif; }
 .{{ $instId }} .p-ts-quote { font-size: 15px; line-height: 1.65; margin: 0 0 22px; flex: 1; }

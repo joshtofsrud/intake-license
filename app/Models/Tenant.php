@@ -22,7 +22,7 @@ class Tenant extends Model
         'logo_url', 'logo_light_url', 'favicon_url', 'accent_color', 'text_color', 'bg_color',
         'logo_size_admin', 'logo_size_booking',
         'font_heading', 'font_body', 'tagline',
-        'site_template', 'design_tokens',
+        'site_template', 'design_tokens', 'site_mode', 'site_custom', // MARKER-WEB-TEMPLATES
         'email_from_name', 'email_from_address', 'email_reply_to',
         'email_spend_cap_cents',
         'email_free_monthly',
@@ -70,6 +70,7 @@ class Tenant extends Model
         'sms_enabled'         => 'boolean',
         'settings'            => 'array',
         'design_tokens'       => 'array',
+        'site_custom'         => 'array',
         'onboarded_at'        => 'datetime',
         'booking_window_days' => 'integer',
         'min_notice_hours'    => 'integer',

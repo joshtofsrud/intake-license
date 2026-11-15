@@ -47,8 +47,8 @@
   $stText    = ($c['text_color'] ?? '') ?: 'inherit';
   $stBody    = ($c['text_color_body'] ?? '') ?: 'inherit';
   $stAccent  = ($c['accent_color'] ?? '') ?: 'inherit';
-  $stCardBg  = ($c['card_bg'] ?? '') ?: 'rgba(255,255,255,.6)';
-  $stCardBd  = ($c['card_border'] ?? '') ?: 'rgba(0,0,0,.1)';
+  $stCardBg  = ($c['card_bg'] ?? '') ?: \App\Support\SiteLook::card('bg', 'rgba(255,255,255,.6)'); // MARKER-WEB-TEMPLATES
+  $stCardBd  = ($c['card_border'] ?? '') ?: \App\Support\SiteLook::card('border', 'rgba(0,0,0,.1)');
   $anchorId  = trim($c['anchor_id'] ?? '') ?: 'rental-categories';
   $custClass = trim($c['custom_classes'] ?? '');
   $instId    = 'p-rcat-' . ($section->id ?? uniqid());

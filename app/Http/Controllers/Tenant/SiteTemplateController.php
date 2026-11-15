@@ -3,133 +3,127 @@
 namespace App\Http\Controllers\Tenant;
 
 use App\Http\Controllers\Controller;
-use App\Services\Tenant\SiteTemplateService;
-use App\Support\SiteTemplate;
+use App\Models\WebTemplate;
+use App\Support\ShopSearch\SearchConfig;
+use App\Support\SiteLook;
 use Illuminate\Http\Request;
 
+/**
+ * MARKER-WEB-TEMPLATES: Website › Templates. The shop picks a template (made in master admin),
+ * light or dark, and changes any piece. Nothing reaches the public site until Apply; the
+ * preview beside the controls is the shop's real site rendered with the unsaved choices.
+ */
 class SiteTemplateController extends Controller
 {
-    public function __construct(
-        protected SiteTemplateService $templates,
-    ) {}
-
     public function index(Request $request)
     {
         $tenant = tenant();
-        $prev   = $tenant->design_tokens['_prev'] ?? null;
+        $tier = SearchConfig::tier($tenant);
+        $templates = WebTemplate::published()
+            ->filter(fn ($t) => $t->availableTo($tier) || $t->key === $tenant->site_template)
+            ->map(fn ($t) => $t->live())->values();
+
+        $current = $tenant->site_template && $templates->firstWhere('key', $tenant->site_template) ? $tenant->site_template : null;
+        $custom = (array) ($tenant->site_custom ?? []);
+        $live = [
+            'tpl'  => $current ?? ($templates->first()['key'] ?? null),
+            'mode' => in_array($tenant->site_mode, ['dark', 'light'], true) ? $tenant->site_mode : 'dark',
+            'c'    => ['dark' => (array) ($custom['c']['dark'] ?? []), 'light' => (array) ($custom['c']['light'] ?? [])],
+            'p'    => (array) ($custom['p'] ?? []),
+        ];
+        // a colour or font changed in Settings › Branding since the last Apply shows as a change here too
+        if ($current && ($look = SiteLook::for($tenant))) {
+            $tpl = $templates->firstWhere('key', $current);
+            foreach (SiteLook::ROLES as $r => $_) {
+                $have = $look['roles'][$look['mode']][$r];
+                if ($have !== strtolower((string) ($tpl['modes'][$look['mode']][$r] ?? ''))) $live['c'][$look['mode']][$r] = $have;
+            }
+            foreach (['fh', 'fb'] as $k) {
+                if ($look['pieces'][$k] !== ($tpl['pieces'][$k] ?? null)) $live['p'][$k] = $look['pieces'][$k];
+            }
+        }
+
+        $term = \Illuminate\Support\Facades\DB::table('tenant_search_queries')->where('tenant_id', $tenant->id)->where('results_count', '>', 0)
+            ->selectRaw('LOWER(query) AS k, COUNT(*) AS n')->groupBy('k')->orderByDesc('n')->value('k');
 
         return view('tenant.templates.index', [
-            'templates' => SiteTemplate::all(),
-            'current'   => $tenant->site_template ?? 'custom',
-            'hasPrev'   => is_array($prev),
-            'prevName'  => is_array($prev)
-                ? SiteTemplate::name($prev['site_template'] ?? 'custom')
-                : null,
+            'templates'  => $templates,
+            'live'       => $live,
+            'onTemplate' => (bool) $current,
+            'searchTerm' => $term ?: 'a',
         ]);
     }
 
-    public function apply(Request $request, string $key)
+    /** Hold the unsaved choices for this signed-in session so the preview frame can show them. */
+    public function preview(Request $request)
     {
-        if (!$this->templates->apply(tenant(), $key)) {
-            return back()->with('flash_error', 'That template no longer exists.');
-        }
-
-        $name = SiteTemplate::name($key);
-        $msg  = $name . ' applied. Your site has been restyled — page content is unchanged.';
-
-        // rebuilding the homepage replaces every section, so
-        // take a labelled restore point first. This is what makes the rebuild
-        // a safe action instead of a one-way door.
-        if ($request->boolean('seed_layout')) {
-            $home = \App\Models\Tenant\TenantPage::where('tenant_id', tenant()->id)
-                ->where('is_home', true)->first();
-            if ($home) {
-                app(\App\Services\Tenant\PageRevisionService::class)
-                    ->snapshot($home, 'Before applying ' . $name . ' layout', true);
-            }
-        }
-
-        // opt-in: also rebuild the home page from the blueprint.
-        if ($request->boolean('seed_layout') && $this->templates->seedLayout(tenant(), $key)) {
-            $msg = $name . ' applied. Your homepage was rebuilt with this template’s layout and restyled to match. Other pages are untouched.';
-        }
-
-        return redirect()->route('tenant.templates.index')->with('flash', $msg);
+        $d = $this->clean($request);
+        if (! $d) return response()->json(['ok' => false], 422);
+        session([SiteLook::PREVIEW_KEY => ['tenant' => (string) tenant()->id] + $d]);
+        return response()->json(['ok' => true]);
     }
 
-    public function revert(Request $request)
-    {
-        if (!$this->templates->revert(tenant())) {
-            return back()->with('flash_error', 'Nothing to revert to.');
-        }
-
-        return redirect()
-            ->route('tenant.templates.index')
-            ->with('flash', 'Reverted to your previous design.');
-    }
-
-    /**
-     * save per-tenant token overrides.
-     *
-     * Only values that differ from the active template's own token are stored,
-     * so "reset to template default" is simply the absence of a key and a
-     * later template change still moves anything untouched. The five columns
-     * stay the source of truth for their tokens (booking, the customer portal
-     * and transactional email all read them), so those are written through to
-     * the columns rather than into design_tokens.
-     */
-    public function customize(Request $request)
+    public function apply(Request $request)
     {
         $tenant = tenant();
+        $d = $this->clean($request);
+        if (! $d) return back()->with('flash_error', 'That template is no longer available.');
 
-        // colors may be hex OR rgba (the seeded fallbacks).
-        $data = $request->validate([
-            'accent'            => ['nullable', 'string', 'regex:/^(#[0-9a-fA-F]{6}|rgba?\([\d.,\s]+\))$/'],
-            'text'              => ['nullable', 'string', 'regex:/^(#[0-9a-fA-F]{6}|rgba?\([\d.,\s]+\))$/'],
-            'bg'                => ['nullable', 'string', 'regex:/^(#[0-9a-fA-F]{6}|rgba?\([\d.,\s]+\))$/'],
-            'surface'           => ['nullable', 'string', 'regex:/^(#[0-9a-fA-F]{6}|rgba?\([\d.,\s]+\))$/'],
-            'muted'             => ['nullable', 'string', 'regex:/^(#[0-9a-fA-F]{6}|rgba?\([\d.,\s]+\))$/'],
-            'hero_bg'           => ['nullable', 'string', 'regex:/^(#[0-9a-fA-F]{6}|rgba?\([\d.,\s]+\))$/'],
-            'hero_text'         => ['nullable', 'string', 'regex:/^(#[0-9a-fA-F]{6}|rgba?\([\d.,\s]+\))$/'],
-            'font_heading'      => ['nullable', 'string', 'max:40'],
-            'font_body'         => ['nullable', 'string', 'max:40'],
-            'heading_weight'    => ['nullable', 'integer', 'min:300', 'max:900'],
-            'heading_transform' => ['nullable', 'in:none,uppercase'],
-            'button_style'      => ['nullable', 'in:solid,outline,ghost'],
-            'button_radius'     => ['nullable', 'integer', 'min:0', 'max:24'],
-        ]);
+        $tpl = WebTemplate::cached($d['tpl']);
+        $live = $tpl->live();
 
-        $template = $tenant->site_template
-            ? (\App\Support\SiteTemplate::tokens($tenant->site_template) ?? [])
-            : [];
-
-        // Preserve the template-revert snapshot; it is not a token.
-        $stored = (array) ($tenant->design_tokens ?? []);
-        $next   = array_key_exists('_prev', $stored) ? ['_prev' => $stored['_prev']] : [];
-
-        $columns = ['accent' => 'accent_color', 'text' => 'text_color', 'bg' => 'bg_color',
-                    'font_heading' => 'font_heading', 'font_body' => 'font_body'];
-
-        foreach ($data as $key => $value) {
-            if ($value === null || $value === '') {
-                continue; // absent = use the template default
-            }
-
-            if (isset($columns[$key])) {
-                $tenant->{$columns[$key]} = $value;
-                continue;
-            }
-
-            $default = $template[$key] ?? null;
-            if ($default === null || (string) $default !== (string) $value) {
-                $next[$key] = $value;
+        // keep only what differs from the template, so a later template update still moves
+        // everything the shop never changed
+        $c = [];
+        foreach (['dark', 'light'] as $m) {
+            foreach ($d['c'][$m] as $r => $v) {
+                if ($v !== strtolower((string) ($live['modes'][$m][$r] ?? ''))) $c[$m][$r] = $v;
             }
         }
+        $p = [];
+        foreach ($d['p'] as $k => $v) {
+            if ((string) $v !== (string) ($live['pieces'][$k] ?? '')) $p[$k] = $v;
+        }
 
-        $tenant->design_tokens = $next;
-        $tenant->save();
+        // booking, the customer portal and email read these five columns
+        $look = SiteLook::build($live, $d['mode'], ['c' => $c, 'p' => $p]);
+        $col = SiteLook::colours($look);
+        $cols = ['accent_color' => $col['ac'], 'text_color' => $col['tx'], 'bg_color' => $col['bg'],
+                 'font_heading' => $look['pieces']['fh'], 'font_body' => $look['pieces']['fb']];
 
-        return redirect()->route('tenant.templates.index')
-            ->with('flash', 'Your look has been saved and is live on your site.');
+        $tenant->forceFill($cols + [
+            'site_template' => $d['tpl'],
+            'site_mode'     => $d['mode'],
+            'site_custom'   => ['c' => $c ?: new \stdClass(), 'p' => $p ?: new \stdClass(), 'written' => $cols],
+        ])->save();
+        SiteLook::forget();
+        session()->forget(SiteLook::PREVIEW_KEY);
+
+        return redirect()->route('tenant.templates.index')->with('flash', $tpl->name . ' is live on your site.');
+    }
+
+    /** The posted choices, checked against what this shop may use. */
+    private function clean(Request $request): ?array
+    {
+        $tenant = tenant();
+        $key = (string) $request->input('tpl');
+        $tpl = $key !== '' ? WebTemplate::cached($key) : null;
+        if (! $tpl) return null;
+        if (! $tpl->availableTo(SearchConfig::tier($tenant)) && $tenant->site_template !== $key) return null;
+
+        $mode = $request->input('mode') === 'light' ? 'light' : 'dark';
+        $c = ['dark' => [], 'light' => []];
+        foreach (['dark', 'light'] as $m) {
+            foreach ((array) $request->input("c.$m", []) as $r => $v) {
+                if (isset(SiteLook::ROLES[$r]) && ($h = SiteLook::hex($v))) $c[$m][$r] = $h;
+            }
+        }
+        $p = [];
+        foreach ((array) $request->input('p', []) as $k => $v) {
+            if (isset(SiteLook::PIECES[$k])) $p[$k] = $v;
+        }
+        $p = array_intersect_key(SiteLook::cleanPieces(array_merge($tpl->live()['pieces'], $p)), $p);
+
+        return ['tpl' => $key, 'mode' => $mode, 'c' => $c, 'p' => $p];
     }
 }

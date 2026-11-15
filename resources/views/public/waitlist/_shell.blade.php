@@ -2,7 +2,7 @@
   $headingFont = $currentTenant->font_heading ?? 'Inter';
   $bodyFont    = $currentTenant->font_body    ?? 'Inter';
   $fontFamilies = array_unique([$headingFont, $bodyFont]);
-  $fontQuery = implode('&family=', array_map(fn($f) => str_replace(' ', '+', $f) . ':wght@400;500;600;700', $fontFamilies));
+  $fontQuery = implode('&family=', array_map(fn($f) => \App\Support\SiteLook::fontParam($f), $fontFamilies));
   $accent = $currentTenant->accent_color ?? '#BEF264';
   $accentText = \App\Support\ColorHelper::accentTextColor($accent);
 @endphp
