@@ -241,6 +241,7 @@
   <strong>{{ number_format($total) }}</strong> {{ Str::plural('customer', $total) }}
 </p>
 
+<div id="cust-live">
 {{-- ========== MOBILE LIST HEADER (count + current sort) ========== --}}
 <div class="cust-mobile-only cust-list-header">
   <span>{{ number_format($total) }} {{ Str::plural('customer', $total) }} · {{ $currentSortLabel }}</span>
@@ -425,8 +426,10 @@
     <div class="cust-page-count">Showing {{ number_format($shownFrom) }}&ndash;{{ number_format($shownTo) }} of {{ number_format($total) }}</div>
   @endif
 @endif
+</div>{{-- /#cust-live --}}
 
 @push('scripts')
+<script src="{{ asset('js/tenant/live-search.js') }}?v={{ @filemtime(public_path('js/tenant/live-search.js')) }}"></script>
 <style>
   .cust-table-scroll{overflow-x:auto;overflow-y:visible}
   .cust-table-scroll .ia-table th{position:relative}
@@ -472,12 +475,9 @@
   // ── Live search (mobile only) ────────────────────────────────────────────
   var searchInput = document.getElementById('cust-search-mobile');
   var form = document.getElementById('cust-mobile-form');
-  if (searchInput && form) {
-    var t = null;
-    searchInput.addEventListener('input', function () {
-      clearTimeout(t);
-      t = setTimeout(function () { form.submit(); }, 350);
-    });
+  var live = document.getElementById('cust-live');
+  if (searchInput && form && live && window.IntakeLiveSearch) {
+    IntakeLiveSearch.bind({ form: form, input: searchInput, region: live });
   }
 })();
 </script>

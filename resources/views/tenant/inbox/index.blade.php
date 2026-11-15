@@ -304,7 +304,7 @@
 
 
 <div class="ib-wrap">
-  <div class="ib-list">
+  <div class="ib-list" id="ib-list">
     <form class="ib-search" method="GET" action="{{ route('tenant.inbox.index') }}" id="ib-search-form">
       <span class="ib-search-ico">&#9906;</span>
       <input type="search" name="q" value="{{ $q ?? '' }}" autocomplete="off"
@@ -488,20 +488,16 @@
   </div>
 </div>
 
+<script src="{{ asset('js/tenant/live-search.js') }}?v={{ @filemtime(public_path('js/tenant/live-search.js')) }}"></script>
 <script>
   (function () { var m = document.getElementById('ib-msgs'); if (m) m.scrollTop = m.scrollHeight; })();
-  // submit as you type, but not on every keystroke.
+  // search as you type without reloading, so the keyboard stays up.
   (function () {
     var f = document.getElementById('ib-search-form');
     var i = document.getElementById('ib-search-input');
-    if (!f || !i) { return; }
-    var t = null;
-    i.addEventListener('input', function () {
-      clearTimeout(t);
-      t = setTimeout(function () { f.submit(); }, 350);
-    });
-    // Keep the caret where it was after the reload.
-    if (i.value) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); }
+    var l = document.getElementById('ib-list');
+    if (!f || !i || !l || !window.IntakeLiveSearch) { return; }
+    IntakeLiveSearch.bind({ form: f, input: i, region: l, keepForm: true });
   })();
 </script>
 

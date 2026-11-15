@@ -387,6 +387,7 @@ td.ia-inline-cell { cursor: default; }
 {{-- on phones they're at the top instead --}}
 <div class="appt-desktop-only"><x-tenant.schedule-tabs active="appointments" /></div>
 
+<div id="appt-live">
 {{-- Mobile result header --}}
 <div class="appt-mobile-only appt-list-header">
   <span>{{ number_format($total) }} {{ Str::plural('appointment', $total) }} · {{ $currentSortLabel }}</span>
@@ -563,6 +564,7 @@ td.ia-inline-cell { cursor: default; }
     </div>
   @endif
 @endif
+</div>{{-- /#appt-live --}}
 
 @include('tenant.appointments._create_modal')
 
@@ -1201,6 +1203,7 @@ body.ia-theme-b .appt-filter-handle { background: rgba(0,0,0,.18); }
 @endpush
 
 @push('scripts')
+<script src="{{ asset('js/tenant/live-search.js') }}?v={{ @filemtime(public_path('js/tenant/live-search.js')) }}"></script>
 <script>
 // APPT-LIST-MOBILE-JS v1
 (function () {
@@ -1285,12 +1288,9 @@ body.ia-theme-b .appt-filter-handle { background: rgba(0,0,0,.18); }
   // Live search submit on the mobile bar
   var searchInput = document.getElementById('appt-search-mobile');
   var form = document.getElementById('appt-mobile-form');
-  if (searchInput && form) {
-    var t = null;
-    searchInput.addEventListener('input', function () {
-      clearTimeout(t);
-      t = setTimeout(function () { form.submit(); }, 350);
-    });
+  var live = document.getElementById('appt-live');
+  if (searchInput && form && live && window.IntakeLiveSearch) {
+    IntakeLiveSearch.bind({ form: form, input: searchInput, region: live });
   }
 })();
 </script>

@@ -89,10 +89,14 @@
   var t, lastReq = 0;
 
   function isOpen(){ return modal.style.display !== 'none'; }
-  function open(){ modal.style.display = 'flex'; setTimeout(function(){ input.focus(); }, 30); }
+  function open(){ modal.style.display = 'flex'; input.focus(); setTimeout(function(){ input.focus(); }, 30); }
   function close(){ modal.style.display = 'none'; input.value=''; results.innerHTML='<div class="ar-hint">Type at least 2 characters.</div>'; }
 
-  document.querySelectorAll('[data-ar-search]').forEach(function(b){ b.addEventListener('click', open); });
+  // delegated: buttons rendered after this script (e.g. the Studio search bar) still open it
+  document.addEventListener('click', function(e){
+    var b = e.target.closest ? e.target.closest('[data-ar-search]') : null;
+    if (b) { e.preventDefault(); open(); }
+  });
   document.addEventListener('keydown', function(e){
     if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); isOpen() ? close() : open(); }
     if (e.key === 'Escape' && isOpen()) close();
