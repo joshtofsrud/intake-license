@@ -2722,6 +2722,10 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
   })();
 </script>
 
+@endsection
+{{-- MARKER-BUILDER-ENDSECTION: the content section was never closed, so the whole builder was sent before
+     the layout's <!DOCTYPE> and <head> and every browser drew it in quirks mode. --}}
+
 @push('scripts')
 <script>
 // page builder v2 chrome
