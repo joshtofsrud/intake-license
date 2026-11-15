@@ -684,3 +684,9 @@ body:not(.ia-theme-c) .un-kpi b.warn{color:color-mix(in srgb,var(--sd-t4) 50%,#0
 }
 
 .rf [hidden],.sd [hidden]{display:none!important}
+
+/* MARKER-PORTAL-RENTALS: "Customer note" toggle under condition-check notes */
+.rf-cu-more label.rf-cnote{display:flex;flex-direction:row;align-items:center;gap:6px;grid-column:1;grid-row:2;margin-top:-4px;font-size:12px;color:var(--ia-text);cursor:pointer}
+.rf-cnote input{margin:0}
+.rf-cnote small{color:var(--ia-text-dim)}
+.rf-cnote-tag{font-size:10.5px;color:var(--ia-text-dim);border:1px solid var(--ia-border);border-radius:4px;padding:0 5px;margin-left:4px;white-space:nowrap}

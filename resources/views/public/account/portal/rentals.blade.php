@@ -7,58 +7,30 @@
 @section('content')
 @include('public.account.portal._nav', ['active' => 'rentals'])
 
+{{-- MARKER-PORTAL-RENTALS: every rental opens its own page --}}
 @if($active->isNotEmpty())
-  <div class="ac-section-title">Active</div>
-  @foreach($active as $r)
-    @php $overdue = $r->due_at && $r->due_at->isPast(); @endphp
-    <div class="ac-card" style="padding:20px;margin-bottom:14px">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
-        <div>
-          <div style="font-weight:700;font-size:16px">{{ $r->lines->first()?->name_snapshot ?? 'Rental' }}@if($r->lines->count() > 1) <span style="opacity:.5;font-weight:500">+ {{ $r->lines->count() - 1 }} more</span>@endif</div>
-          <div class="ac-list-meta" style="margin-top:3px">{{ $r->rental_number }} &middot; out since {{ tlocal_datetime($r->checked_out_at ?? $r->starts_at, 'D, M j · g:i A') }}</div>
-        </div>
-        <span class="ac-pill {{ $overdue ? 'ac-pill--refunded' : 'ac-pill--due' }}">{{ $overdue ? 'Overdue' : 'Due ' . tlocal($r->due_at, 'D, M j') }}</span>
-      </div>
-      <div style="display:flex;gap:18px;margin-top:14px;font-size:13px;flex-wrap:wrap">
-        <div><div class="ac-chip-k">Due back</div><div style="font-weight:600">{{ tlocal_datetime($r->due_at, 'D, M j · g:i A') }}</div></div>
-        <div><div class="ac-chip-k">Waiver</div><div style="font-weight:600">{{ $r->agreement_signed_at ? 'Signed ✓' : 'Not signed' }}</div></div>
-        {{-- self-serve keep-it-longer --}}
-        @php $ext = ($extendable ?? [])[$r->id] ?? null; @endphp
-        @if($ext)
-          <div style="margin-top:10px">
-            @if(isset($ext['open']))
-              <a href="{{ route('tenant.rentals.extension.show', $ext['open']->token) }}" class="ac-btn ac-btn--primary" style="text-decoration:none;display:block;text-align:center">
-                Extend to {{ tlocal_datetime($ext['open']->extend_to, 'g:i A') }} — {{ format_money($ext['open']->total_cents) }}{{ $ext['open']->discount_pct > 0 ? ' (' . $ext['open']->discount_pct . '% off)' : '' }}
-              </a>
-            @else
-              <form method="POST" action="{{ route('tenant.customer.portal.rentals.extend', $r->id) }}" style="display:inline">
-                @csrf
-                <button class="ac-btn ac-btn--primary">Keep it longer — extend to {{ tlocal_datetime($ext['elig']['extend_to'], 'g:i A') }} for {{ format_money($ext['elig']['total_cents']) }}</button>
-              </form>
-            @endif
-          </div>
-        @endif
-        @if($r->deposit_hold_cents)
-          <div><div class="ac-chip-k">Deposit hold</div><div style="font-weight:600">${{ number_format($r->deposit_hold_cents / 100, 2) }}</div></div>
-        @endif
-        <div><div class="ac-chip-k">Total</div><div style="font-weight:600">${{ number_format($r->total_cents / 100, 2) }}</div></div>
-      </div>
-      <div style="margin-top:16px">
-        <a href="{{ route('tenant.customer.portal.messages') }}" class="ac-btn ac-btn--ghost" style="padding:10px;font-size:13.5px;text-decoration:none">Ask about this rental</a>
-      </div>
-    </div>
-  @endforeach
+  <div class="ac-section-title">Out now</div>
+  <div class="ac-list">
+    @foreach($active as $r)
+      @php $overdue = $r->due_at && $r->due_at->isPast(); $canExtend = isset(($extendable ?? [])[$r->id]); @endphp
+      <a class="ac-list-row" href="{{ route('tenant.customer.portal.rental', $r->id) }}{{ $canExtend ? '#extend' : '' }}">
+        <div><div class="ac-list-name">{{ $r->lines->first()?->name_snapshot ?? 'Rental' }}@if($r->lines->count() > 1) <span style="opacity:.5;font-weight:400">+ {{ $r->lines->count() - 1 }} more</span>@endif</div>
+          <div class="ac-list-meta">{{ $r->rental_number }} &middot; due back {{ tlocal_datetime($r->due_at, 'D, M j · g:i A') }}@if($canExtend) &middot; you can extend @endif</div></div>
+        <div class="ac-list-right"><span class="ac-pill {{ $overdue ? 'ac-pill--refunded' : 'ac-pill--due' }}">{{ $overdue ? 'Overdue' : 'Out' }}</span><span class="ac-go">&rsaquo;</span></div>
+      </a>
+    @endforeach
+  </div>
 @endif
 
 @if($reserved->isNotEmpty())
   <div class="ac-section-title">Reserved</div>
   <div class="ac-list">
     @foreach($reserved as $r)
-      <div class="ac-list-row">
-        <div><div class="ac-list-name">{{ $r->lines->first()?->name_snapshot ?? 'Rental' }}</div>
+      <a class="ac-list-row" href="{{ route('tenant.customer.portal.rental', $r->id) }}">
+        <div><div class="ac-list-name">{{ $r->lines->first()?->name_snapshot ?? 'Rental' }}@if($r->lines->count() > 1) <span style="opacity:.5;font-weight:400">+ {{ $r->lines->count() - 1 }} more</span>@endif</div>
           <div class="ac-list-meta">starts {{ tlocal_datetime($r->starts_at, 'D, M j · g:i A') }} &middot; back {{ tlocal_datetime($r->due_at, 'D, M j · g:i A') }}</div></div>
-        <div class="ac-list-right"><span class="ac-pill ac-pill--pending">Reserved</span></div>
-      </div>
+        <div class="ac-list-right"><span class="ac-pill ac-pill--pending">Reserved</span><span class="ac-go">&rsaquo;</span></div>
+      </a>
     @endforeach
   </div>
 @endif
@@ -66,14 +38,20 @@
 <div class="ac-section-title">Past rentals</div>
 <div class="ac-list">
   @forelse($past as $r)
-    <div class="ac-list-row">
+    <a class="ac-list-row" href="{{ route('tenant.customer.portal.rental', $r->id) }}">
       <div><div class="ac-list-name">{{ $r->lines->first()?->name_snapshot ?? 'Rental' }}</div>
-        <div class="ac-list-meta">{{ tlocal_date($r->starts_at) }}@if($r->returned_at) &ndash; {{ tlocal_date($r->returned_at) }}@endif</div></div>
-      <div class="ac-list-right"><div style="font-weight:700">${{ number_format($r->total_cents / 100, 2) }}</div>
+        <div class="ac-list-meta">{{ tlocal_date($r->starts_at) }}@if($r->returned_at) &ndash; {{ tlocal_date($r->returned_at) }}@endif &middot; {{ $r->rental_number }}</div></div>
+      <div class="ac-list-right"><div style="font-weight:700">{{ format_money($r->total_cents) }}</div>
         <span class="ac-pill ac-pill--{{ $r->status === 'returned' ? 'returned' : 'cancelled' }}">{{ ucfirst($r->status) }}</span></div>
-    </div>
+    </a>
   @empty
     <div class="ac-empty">No rentals yet</div>
   @endforelse
 </div>
+@if($past->hasPages())
+  <div class="ac-pager">
+    <span>@if($past->previousPageUrl())<a href="{{ $past->previousPageUrl() }}">&larr; Newer</a>@endif</span>
+    <span>@if($past->nextPageUrl())<a href="{{ $past->nextPageUrl() }}">Older &rarr;</a>@endif</span>
+  </div>
+@endif
 @endsection

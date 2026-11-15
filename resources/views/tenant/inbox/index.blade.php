@@ -445,6 +445,7 @@
               $aboutUrl = null;
               if ($about && ($about['type'] ?? '') === 'appointment' && \Illuminate\Support\Facades\Route::has('tenant.appointments.show')) { $aboutUrl = route('tenant.appointments.show', $about['id']); }
               if ($about && ($about['type'] ?? '') === 'sale' && \Illuminate\Support\Facades\Route::has('tenant.register.sales.page')) { $aboutUrl = route('tenant.register.sales.page', $about['id']); }
+              if ($about && ($about['type'] ?? '') === 'rental' && \Illuminate\Support\Facades\Route::has('tenant.rentals.bookings.show')) { $aboutUrl = route('tenant.rentals.bookings.show', $about['id']); }
             @endphp
             @if($about)
               <div class="ib-msg-about">About: @if($aboutUrl)<a href="{{ $aboutUrl }}">{{ $about['label'] ?? 'record' }}</a>@else{{ $about['label'] ?? 'record' }}@endif</div>

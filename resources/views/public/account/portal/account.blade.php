@@ -25,7 +25,7 @@
 @endif
 
 <div class="ac-section-title">Profile</div>
-<div class="ac-card" style="padding:20px;margin-bottom:22px">
+<div class="ac-form-block">{{-- MARKER-PORTAL-RENTALS: open section, not a boxed card --}}
   <form method="POST" action="{{ route('tenant.customer.portal.profile') }}">
     @csrf
     <div class="ac-row">
@@ -44,7 +44,7 @@
 </div>
 
 <div class="ac-section-title">Notifications</div>
-<div class="ac-card" style="padding:20px">
+<div class="ac-form-block">{{-- MARKER-PORTAL-RENTALS: open section, not a boxed card --}}
   <form method="POST" action="{{ route('tenant.customer.portal.notifications') }}">
     @csrf
     <div class="ac-check-row" style="margin-bottom:14px">

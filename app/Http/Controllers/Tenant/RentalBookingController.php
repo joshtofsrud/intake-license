@@ -602,6 +602,7 @@ class RentalBookingController extends Controller
             'notes'     => ['nullable', 'string', 'max:2000'],
             'photos'    => ['nullable', 'array', 'max:4'],
             'photos.*'  => ['image', 'max:5120'],
+            'notes_customer_visible' => ['nullable', 'boolean'], // MARKER-PORTAL-RENTALS
         ]);
 
         $rental = TenantRental::where('tenant_id', $tenant->id)->where('id', $id)
@@ -646,6 +647,8 @@ class RentalBookingController extends Controller
             'results'              => $results,
             'flagged'              => in_array('flag', $results, true),
             'notes'                => $request->input('notes'),
+            // only meaningful with a note; ticked = shown in the customer's portal
+            'notes_customer_visible' => $request->boolean('notes_customer_visible') && trim((string) $request->input('notes')) !== '',
             'photos'               => $photoPaths ?: null,
             'performed_by_user_id' => auth('tenant')->id(),
             'performed_at'         => now(),

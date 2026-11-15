@@ -15,12 +15,16 @@ use App\Models\Tenant\TenantAppointment;
 use App\Models\Tenant\TenantAppointmentAsset;
 use App\Models\Tenant\TenantCustomer;
 use App\Models\Tenant\TenantMessage;
+use App\Models\Tenant\TenantRental;
+use App\Models\Tenant\TenantRentalConditionTemplate;
+use App\Models\Tenant\TenantRentalExtensionOffer;
 use App\Models\Tenant\TenantSale;
 use App\Models\Tenant\TenantSpecialOrder;
 use App\Models\Tenant\TenantThread;
 use App\Services\DocumentBuilder;
 use App\Services\InvoiceBuilderService;
 use App\Services\PrintIdentityService;
+use App\Services\RentalExtensionOfferService;
 use App\Services\Tenant\InboxService;
 use App\Support\AppointmentStatus;
 use App\Support\DocumentOptions;
@@ -213,6 +217,77 @@ class CustomerPortalDetailController extends Controller
         $this->postAbout($inbox, $customer, $request->input('body'), 'sale', $sale->id, $label);
 
         return redirect()->route('tenant.customer.portal.sale', $sale->id)
+            ->with('success', 'Message sent — we\'ll reply here and in Messages.')
+            ->withFragment('conversation');
+    }
+
+    // -------------------------------------------------------------- rental
+    // MARKER-PORTAL-RENTALS
+    public function rental(string $id)
+    {
+        if (! $customer = $this->customer()) {
+            return redirect()->route('tenant.customer.login');
+        }
+        $tenant = tenant();
+        $rental = TenantRental::query()
+            ->where('tenant_id', $tenant->id)->where('customer_id', $customer->id)
+            ->where('id', $id)
+            ->with(['lines.unit.model', 'lines.addon', 'location', 'conditionChecks'])
+            ->firstOrFail();
+
+        // checklist labels per unit, from the template the check was run against
+        $labels = [];
+        foreach ($rental->lines->where('kind', 'unit') as $line) {
+            $u = $line->unit;
+            if (! $u) { continue; }
+            $tplId = $u->effectiveConditionTemplateId();
+            $tpl = $tplId ? TenantRentalConditionTemplate::where('tenant_id', $tenant->id)->find($tplId) : null;
+            $map = ['visual' => 'Visual check'];
+            foreach ((array) ($tpl->items ?? []) as $i => $item) {
+                $map[$item['key'] ?? ('item_' . $i)] = $item['label'] ?? ($item['key'] ?? 'Item');
+            }
+            $labels[$u->id] = $map;
+        }
+
+        $checks = $rental->conditionChecks->sortBy('performed_at')->groupBy('unit_id');
+        $payments = $rental->payments()->orderBy('tenant_sale_payments.recorded_at')->get();
+        $receipts = $this->salesFor($customer)->where('rental_id', $rental->id)->orderBy('created_at')->get();
+
+        // same keep-it-longer offer as the Rentals list
+        $extend = null;
+        if ($tenant->rental_extensions_enabled && $rental->status === 'out') {
+            $open = TenantRentalExtensionOffer::where('rental_id', $rental->id)
+                ->where('status', 'sent')
+                ->where(fn ($q) => $q->whereNull('expires_at')->orWhere('expires_at', '>', now()))
+                ->orderByDesc('sent_at')->first();
+            if ($open) {
+                $extend = ['open' => $open];
+            } else {
+                $reason = null;
+                $e = app(RentalExtensionOfferService::class)->eligibility($tenant, $rental, $reason, 0);
+                if ($e) { $extend = ['elig' => $e]; }
+            }
+        }
+
+        $conversation = $this->conversationAbout($customer, 'rental', $rental->id);
+
+        return view('public.account.portal.rental', compact(
+            'customer', 'rental', 'labels', 'checks', 'payments', 'receipts', 'extend', 'conversation'
+        ));
+    }
+
+    public function rentalMessage(Request $request, InboxService $inbox, string $id)
+    {
+        if (! $customer = $this->customer()) {
+            return redirect()->route('tenant.customer.login');
+        }
+        $rental = TenantRental::where('tenant_id', tenant()->id)
+            ->where('customer_id', $customer->id)->where('id', $id)->firstOrFail();
+        $request->validate(['body' => ['required', 'string', 'max:1200']]);
+
+        $this->postAbout($inbox, $customer, $request->input('body'), 'rental', $rental->id, trim('Rental ' . ($rental->rental_number ?? '')));
+
+        return redirect()->route('tenant.customer.portal.rental', $rental->id)
             ->with('success', 'Message sent — we\'ll reply here and in Messages.')
             ->withFragment('conversation');
     }

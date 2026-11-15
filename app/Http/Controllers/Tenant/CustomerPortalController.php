@@ -75,9 +75,21 @@ class CustomerPortalController extends Controller
                 ->orderByDesc('created_at')->first()
             : null;
 
+        // MARKER-PORTAL-RENTALS: what they still owe on work orders, for the
+        // balance tile. Cancelled jobs never count.
+        $owing = $customer->appointments()
+            ->whereNotIn('status', ['cancelled', 'refunded'])
+            ->whereColumn('total_cents', '>', 'paid_cents')
+            ->orderByDesc('appointment_date')
+            ->get(['id', 'total_cents', 'paid_cents']);
+        $openBalance = (int) $owing->sum(fn ($a) => (int) $a->total_cents - (int) $a->paid_cents);
+        $balanceUrl  = $owing->count() === 1
+            ? route('tenant.customer.portal.work_order', $owing->first()->id)
+            : route('tenant.customer.portal.bookings');
+
         return view('public.account.portal.home', compact(
             'customer', 'nextAppointment', 'activeRental', 'upcomingRental',
-            'lastOrder', 'lastSale', 'lastMessage'
+            'lastOrder', 'lastSale', 'lastMessage', 'openBalance', 'balanceUrl'
         ));
     }
 
@@ -172,7 +184,9 @@ class CustomerPortalController extends Controller
         $active   = (clone $base)->where('status', 'out')->orderBy('due_at')->get();
         $reserved = (clone $base)->where('status', 'reserved')->orderBy('starts_at')->get();
         $past     = (clone $base)->whereIn('status', ['returned', 'cancelled'])
-            ->orderByDesc('returned_at')->orderByDesc('starts_at')->limit(15)->get();
+            ->orderByDesc('returned_at')->orderByDesc('starts_at')
+            // MARKER-PORTAL-RENTALS: all past rentals, paged
+            ->simplePaginate(15, ['*'], 'past')->withQueryString();
 
         // per active rental: can the customer
         // extend right now? Full price (discount 0). Reuse an open offer.

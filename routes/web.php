@@ -341,6 +341,9 @@ $tenantRoutes = function () {
     Route::get('/account/purchases/{id}',          [TenantControllers\CustomerPortalDetailController::class, 'sale'])->name('tenant.customer.portal.sale');
     Route::get('/account/purchases/{id}/print',    [TenantControllers\CustomerPortalDetailController::class, 'salePrint'])->name('tenant.customer.portal.sale.print');
     Route::post('/account/purchases/{id}/message', [TenantControllers\CustomerPortalDetailController::class, 'saleMessage'])->name('tenant.customer.portal.sale.message')->middleware('throttle:12,1');
+    // MARKER-PORTAL-RENTALS
+    Route::get('/account/rentals/{id}',          [TenantControllers\CustomerPortalDetailController::class, 'rental'])->name('tenant.customer.portal.rental');
+    Route::post('/account/rentals/{id}/message', [TenantControllers\CustomerPortalDetailController::class, 'rentalMessage'])->name('tenant.customer.portal.rental.message')->middleware('throttle:12,1');
 
     // Customer-facing class booking. 404 unless the shop has classes on (MARKER-CLASSES-P0).
     Route::middleware([\App\Http\Middleware\RequireClassesActive::class . ':public'])->group(function () {

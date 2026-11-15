@@ -19,12 +19,14 @@ class TenantRentalConditionCheck extends Model
     protected $fillable = [
         'rental_id', 'unit_id', 'phase', 'results', 'flagged',
         'notes', 'photos', 'performed_by_user_id', 'performed_at',
+        'notes_customer_visible', // MARKER-PORTAL-RENTALS
     ];
 
     protected $casts = [
         'results'      => 'array',
         'photos'       => 'array',
         'flagged'      => 'boolean',
+        'notes_customer_visible' => 'boolean',
         'performed_at' => 'datetime',
     ];
 

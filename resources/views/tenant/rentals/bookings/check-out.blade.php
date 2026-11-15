@@ -186,7 +186,7 @@
               @endif
             </div>
             @if($check)
-              <p class="rf-cu-done">Out-check recorded {{ tlocal_datetime($check->performed_at, 'M j, g:i A') }}{{ $check->notes ? ' — ' . $check->notes : '' }}{{ $nPhotos ? ' · ' . $nPhotos . ' photo' . ($nPhotos === 1 ? '' : 's') : '' }}</p>
+              <p class="rf-cu-done">Out-check recorded {{ tlocal_datetime($check->performed_at, 'M j, g:i A') }}{{ $check->notes ? ' — ' . $check->notes : '' }}@if($check->notes) <span class="rf-cnote-tag">{{ $check->notes_customer_visible ? 'customer can see this note' : 'staff-only note' }}</span>@endif{{ $nPhotos ? ' · ' . $nPhotos . ' photo' . ($nPhotos === 1 ? '' : 's') : '' }}</p>
             @else
               <form method="POST" action="{{ route('tenant.rentals.bookings.condition.store', $rental->id) }}" enctype="multipart/form-data" class="co-cond-form">
                 @csrf
@@ -208,6 +208,8 @@
                 @endforelse
                 <div class="rf-cu-more">
                   <label><span class="rf-lbl">Notes — existing scuffs, marks</span><textarea name="notes" rows="2" maxlength="2000" class="ia-input"></textarea></label>
+                  {{-- MARKER-PORTAL-RENTALS: own label, so clicking the words ticks the box --}}
+                  <label class="rf-cnote"><input type="checkbox" name="notes_customer_visible" value="1"> Customer note <small>— shown on their rental page in the customer portal. Unticked notes stay staff-only.</small></label>
                   <label><span class="rf-lbl">Photos (up to 4)</span>
                     <span class="rf-drop-ph"><span data-ph-t>+ Add photos</span><input type="file" name="photos[]" accept="image/*" multiple hidden></span>
                   </label>

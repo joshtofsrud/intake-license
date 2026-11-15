@@ -28,6 +28,7 @@
           $aboutUrl = null;
           if ($about && ($about['type'] ?? '') === 'appointment') { $aboutUrl = route('tenant.customer.portal.work_order', $about['id']); }
           if ($about && ($about['type'] ?? '') === 'sale') { $aboutUrl = route('tenant.customer.portal.sale', $about['id']); }
+          if ($about && ($about['type'] ?? '') === 'rental') { $aboutUrl = route('tenant.customer.portal.rental', $about['id']); }
         @endphp
         <div class="ac-msg {{ $m->direction === 'in' ? 'me' : 'shop' }}">@if($aboutUrl)<a class="ac-about" href="{{ $aboutUrl }}">Re: {{ $about['label'] ?? 'View' }}</a><br>@endif{{ $m->body }}
           <div class="ac-msg-t"><span class="ac-chan">{{ strtoupper($m->channel ?? 'web') }}</span>{{ tlocal_datetime($m->created_at, 'M j, g:i A') }}</div></div>

@@ -133,7 +133,7 @@
   @endif
 </div>
 @if($base['note'])
-  <div class="ac-list"><div class="ac-note">{{ $base['note'] }}</div></div>
+  <div class="ac-list"><div class="ac-note"><div class="ac-note-txt">{{ $base['note'] }}</div></div></div>
 @endif
 
 @if($payments->isNotEmpty())
@@ -170,7 +170,7 @@
   <div class="ac-section-title">Notes from {{ tenant()->name }}</div>
   <div class="ac-list">
     @foreach($notes as $n)
-      <div class="ac-note">{{ $n->note_content }}
+      <div class="ac-note"><div class="ac-note-txt">{{ $n->note_content }}</div>
         <div class="ac-note-m">{{ $n->created_at ? tlocal_datetime($n->created_at, 'M j, Y g:i A') : '' }}@if($n->user?->name) &middot; {{ \Illuminate\Support\Str::before(trim($n->user->name) . ' ', ' ') }}@endif</div>
       </div>
     @endforeach

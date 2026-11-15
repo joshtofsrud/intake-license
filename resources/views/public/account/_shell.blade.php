@@ -14,7 +14,9 @@
   <style>
     :root {
 {!! \App\Support\DesignTokens::cssVars(\App\Support\DesignTokens::resolve($currentTenant)) !!}
-      --p-r: 8px; --p-r-lg: 12px; --p-max: 680px;
+      /* MARKER-PORTAL-RENTALS: follow the shop's own button / card radius settings
+         (were hard-coded 8px / 12px, overriding them) */
+      --p-r: var(--p-btn-r, 8px); --p-r-lg: var(--p-card-r, 12px); --p-max: 680px;
     }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: var(--p-font-body); background: var(--p-bg); color: var(--p-text); font-size: 15px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
@@ -45,9 +47,10 @@
     .ac-link { color: var(--p-accent); font-weight: 500; }
     .ac-link:hover { text-decoration: underline; }
     .ac-flash { padding: 12px 16px; border-radius: var(--p-r); font-size: 14px; margin-bottom: 20px; }
-    .ac-flash--success { background: #EAF3DE; color: #3B6D11; }
-    .ac-flash--error { background: #FCEBEB; color: #A32D2D; }
-    .ac-error { font-size: 13px; color: #A32D2D; margin-top: 5px; }
+    /* tinted against the shop's own colours so they read on dark sites too */
+    .ac-flash--success { background: color-mix(in srgb, #3f8f2a 15%, var(--p-bg)); color: color-mix(in srgb, #3f8f2a 75%, var(--p-text)); }
+    .ac-flash--error { background: color-mix(in srgb, #c2362b 15%, var(--p-bg)); color: color-mix(in srgb, #c2362b 75%, var(--p-text)); }
+    .ac-error { font-size: 13px; color: color-mix(in srgb, #c2362b 80%, var(--p-text)); margin-top: 5px; }
     .ac-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .ac-check-row { display: flex; align-items: center; gap: 8px; font-size: 14px; }
     .ac-intake-footer { text-align: center; padding: 20px 16px; font-size: 12px; opacity: .35; margin-top: 20px; }
