@@ -14,11 +14,12 @@
       $adDate = \Carbon\Carbon::parse($appt->appointment_date)->format('D, M j');
       $adTime = $appt->appointment_time ? \Carbon\Carbon::parse($appt->appointment_time)->format('g:i A') : null;
     @endphp
-    <div class="ac-list-row">
-      <div><div class="ac-list-name">{{ $appt->label ?? 'Appointment' }}</div>
-        <div class="ac-list-meta">{{ $adDate }}@if($adTime) &middot; {{ $adTime }}@endif</div></div>
-      <div class="ac-list-right"><span class="ac-pill ac-pill--{{ $appt->status }}">{{ ucfirst(str_replace('_', ' ', $appt->status)) }}</span></div>
-    </div>
+    {{-- MARKER-PORTAL-DETAIL: rows open the work order --}}
+    <a class="ac-list-row" href="{{ route('tenant.customer.portal.work_order', $appt->id) }}">
+      <div><div class="ac-list-name">{{ $appt->portalTitle() }}</div>
+        <div class="ac-list-meta">{{ $adDate }}@if($adTime) &middot; {{ $adTime }}@endif @if($appt->ra_number) &middot; {{ $appt->ra_number }}@endif</div></div>
+      <div class="ac-list-right"><span class="ac-pill ac-pill--{{ $appt->status }}">{{ ucfirst(str_replace('_', ' ', $appt->status)) }}</span><span class="ac-go">&rsaquo;</span></div>
+    </a>
   @empty
     <div class="ac-empty">No upcoming appointments</div>
   @endforelse
@@ -48,15 +49,21 @@
           ? ucfirst($appt->status) : 'Past';
       $pdPill = in_array($appt->status, ['completed', 'cancelled'], true) ? $appt->status : 'completed';
     @endphp
-    <div class="ac-list-row">
-      <div><div class="ac-list-name">{{ $appt->label ?? 'Appointment' }}</div>
-        <div class="ac-list-meta">{{ $pdDate }}@if($pdTime) &middot; {{ $pdTime }}@endif</div></div>
-      <div class="ac-list-right"><span class="ac-pill ac-pill--{{ $pdPill }}">{{ $pdLabel }}</span></div>
-    </div>
+    <a class="ac-list-row" href="{{ route('tenant.customer.portal.work_order', $appt->id) }}">
+      <div><div class="ac-list-name">{{ $appt->portalTitle() }}</div>
+        <div class="ac-list-meta">{{ $pdDate }}@if($pdTime) &middot; {{ $pdTime }}@endif @if($appt->ra_number) &middot; {{ $appt->ra_number }}@endif</div></div>
+      <div class="ac-list-right"><span class="ac-pill ac-pill--{{ $pdPill }}">{{ $pdLabel }}</span><span class="ac-go">&rsaquo;</span></div>
+    </a>
   @empty
     <div class="ac-empty">No past appointments</div>
   @endforelse
 </div>
+@if($pastAppointments->hasPages())
+  <div class="ac-pager">
+    <span>@if($pastAppointments->previousPageUrl())<a href="{{ $pastAppointments->previousPageUrl() }}">&larr; Newer</a>@endif</span>
+    <span>@if($pastAppointments->nextPageUrl())<a href="{{ $pastAppointments->nextPageUrl() }}">Older &rarr;</a>@endif</span>
+  </div>
+@endif
 
 @if($pastClasses->isNotEmpty())
   <div class="ac-section-title">Past classes</div>

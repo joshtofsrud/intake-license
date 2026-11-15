@@ -22,7 +22,14 @@
         <div class="ac-msg txn">{{ $m->body }}
           <div class="ac-msg-t">{{ tlocal_datetime($m->created_at, 'M j, g:i A') }}</div></div>
       @else
-        <div class="ac-msg {{ $m->direction === 'in' ? 'me' : 'shop' }}">{{ $m->body }}
+        @php
+          // MARKER-PORTAL-DETAIL: a message sent from a work order or receipt says so
+          $about = $m->meta['about'] ?? null;
+          $aboutUrl = null;
+          if ($about && ($about['type'] ?? '') === 'appointment') { $aboutUrl = route('tenant.customer.portal.work_order', $about['id']); }
+          if ($about && ($about['type'] ?? '') === 'sale') { $aboutUrl = route('tenant.customer.portal.sale', $about['id']); }
+        @endphp
+        <div class="ac-msg {{ $m->direction === 'in' ? 'me' : 'shop' }}">@if($aboutUrl)<a class="ac-about" href="{{ $aboutUrl }}">Re: {{ $about['label'] ?? 'View' }}</a><br>@endif{{ $m->body }}
           <div class="ac-msg-t"><span class="ac-chan">{{ strtoupper($m->channel ?? 'web') }}</span>{{ tlocal_datetime($m->created_at, 'M j, g:i A') }}</div></div>
       @endif
     @empty

@@ -134,6 +134,18 @@ class TenantAppointment extends Model
     }
     public function isPaid(): bool         { return $this->payment_status === 'paid'; }
 
+    // MARKER-PORTAL-DETAIL: what the customer portal calls this booking. The
+    // portal used to read a `label` attribute that does not exist, so every
+    // booking showed as "Appointment".
+    public function portalTitle(): string
+    {
+        $names = $this->items->pluck('item_name_snapshot')->filter()->values();
+        if ($names->isEmpty()) {
+            return 'Appointment';
+        }
+        return $names->first() . ($names->count() > 1 ? ' + ' . ($names->count() - 1) . ' more' : '');
+    }
+
     public function customerVisibleMinutes(): int
     {
         $total = 0;

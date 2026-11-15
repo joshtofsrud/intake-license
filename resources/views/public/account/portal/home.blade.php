@@ -23,10 +23,12 @@
   @endphp
   <div class="ac-hero">
     <div class="ac-hero-k">Next up</div>
-    <div class="ac-hero-t">{{ $nextAppointment->label ?? 'Appointment' }}</div>
+    <div class="ac-hero-t">{{ $nextAppointment->portalTitle() }}</div>
     <div class="ac-hero-m">{{ $naDate }}@if($naTime) &middot; {{ $naTime }}@endif</div>
     <div class="ac-hero-actions">
-      <a href="{{ route('tenant.customer.portal.messages') }}">Message the shop</a>
+      {{-- MARKER-PORTAL-DETAIL --}}
+      <a href="{{ route('tenant.customer.portal.work_order', $nextAppointment->id) }}">View details</a>
+      <a href="{{ route('tenant.customer.portal.work_order', $nextAppointment->id) }}#conversation">Message about this</a>
       <a href="{{ route('tenant.customer.portal.bookings') }}">All bookings</a>
     </div>
   </div>
@@ -70,19 +72,19 @@
 <div class="ac-section-title">Recent activity</div>
 <div class="ac-list">
   @if($lastOrder)
-    <div class="ac-list-row">
+    <a class="ac-list-row" href="{{ route('tenant.order.confirmation', $lastOrder->token) }}">
       <div><div class="ac-list-name">Order {{ $lastOrder->order_number }}</div>
-        <div class="ac-list-meta">{{ tlocal_date($lastOrder->created_at) }} &middot; {{ $lastOrder->fulfillment_type === 'local_delivery' ? 'delivery' : 'pickup' }}</div></div>
+        <div class="ac-list-meta">{{ tlocal_date($lastOrder->created_at) }} &middot; {{ $lastOrder->fulfillment_type === 'ship' ? 'shipping' : ($lastOrder->fulfillment_type === 'local_delivery' ? 'delivery' : 'pickup') }}</div></div>
       <div class="ac-list-right"><div style="font-weight:700">${{ number_format($lastOrder->total_cents / 100, 2) }}</div>
         <div style="font-size:11px;opacity:.55;text-transform:capitalize">{{ str_replace('_', ' ', $lastOrder->status) }}</div></div>
-    </div>
+    </a>
   @endif
   @if($lastSale)
-    <div class="ac-list-row">
+    <a class="ac-list-row" href="{{ route('tenant.customer.portal.sale', $lastSale->id) }}">
       <div><div class="ac-list-name">In-store purchase {{ $lastSale->sale_number ? '#' . $lastSale->sale_number : '' }}</div>
         <div class="ac-list-meta">{{ \Carbon\Carbon::parse($lastSale->sale_date)->format('M j, Y') }}</div></div>
       <div class="ac-list-right"><div style="font-weight:700">${{ number_format($lastSale->total_cents / 100, 2) }}</div></div>
-    </div>
+    </a>
   @endif
   @if(!$lastOrder && !$lastSale)
     <div class="ac-empty">Nothing here yet.</div>

@@ -27,7 +27,7 @@ a.ac-list-row:hover{background:var(--p-surface)}
 .ac-hero-k{font-size:11px;text-transform:uppercase;letter-spacing:.07em;opacity:.65;margin-bottom:4px}
 .ac-hero-t{font-size:19px;font-weight:700}
 .ac-hero-m{font-size:13.5px;opacity:.8;margin-top:2px}
-.ac-hero-actions{display:flex;gap:8px;margin-top:14px}
+.ac-hero-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
 .ac-hero-actions a{font-size:12.5px;font-weight:600;padding:7px 13px;border-radius:20px;background:rgba(0,0,0,.14)}
 .ac-banner{display:flex;justify-content:space-between;align-items:center;gap:12px;border-radius:var(--p-r-lg);padding:13px 16px;margin-bottom:12px;font-size:13.5px;border:1px solid}
 .ac-banner--due{background:#FAEEDA;border-color:rgba(99,56,6,.25);color:#633806}
@@ -52,5 +52,44 @@ a.ac-list-row:hover{background:var(--p-surface)}
 .ac-chan{display:inline-block;font-size:9px;font-weight:700;letter-spacing:.07em;padding:1px 5px;border-radius:4px;background:rgba(0,0,0,.1);margin-right:5px;vertical-align:1px}
 .ac-compose{display:flex;gap:8px;padding:12px;border-top:1px solid var(--p-border)}
 .ac-compose textarea{flex:1;padding:10px 13px;border:1.5px solid var(--p-border);border-radius:14px;font-family:inherit;font-size:14px;background:transparent;color:inherit;resize:none}
+/* MARKER-PORTAL-DETAIL: work order + purchase detail pages */
+a.ac-list-row .ac-go{opacity:.3;font-size:16px;margin-left:8px}
+.ac-back{display:inline-block;font-size:13px;opacity:.55;margin-bottom:12px}
+.ac-back:hover{opacity:.9}
+.ac-dhead{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;margin-bottom:16px}
+.ac-dtitle{font-size:21px;font-weight:700;font-family:var(--p-font-heading);line-height:1.25}
+.ac-dsub{font-size:13px;opacity:.5;margin-top:3px}
+.ac-dact{display:flex;gap:6px;flex-shrink:0}
+.ac-dact a{font-size:12.5px;font-weight:600;padding:6px 12px;border-radius:20px;border:1.5px solid var(--p-border);white-space:nowrap}
+.ac-dact a:hover{border-color:var(--p-text)}
+.ac-steps{display:flex;margin:4px 0 18px;border:1px solid var(--p-border);border-radius:var(--p-r-lg);overflow:hidden}
+.ac-step{flex:1;padding:10px 8px;text-align:center;font-size:12px;border-right:1px solid var(--p-border);opacity:.4}
+.ac-step:last-child{border-right:none}
+.ac-step.done{opacity:.75}
+.ac-step.now{opacity:1;background:var(--p-accent);color:var(--p-accent-text);font-weight:700}
+.ac-step small{display:block;font-size:10.5px;font-weight:400;opacity:.8;margin-top:1px}
+.ac-kv{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:13.5px;margin-bottom:20px}
+.ac-kv dt{opacity:.5}
+.ac-kv dd{margin:0}
+.ac-grp{padding:9px 15px;font-size:12px;font-weight:700;background:var(--p-surface);border-bottom:1px solid var(--p-border)}
+.ac-grp span{font-weight:400;opacity:.55;margin-left:6px}
+.ac-ans{padding:9px 15px;border-bottom:1px solid var(--p-border);font-size:12.5px}
+.ac-ans b{font-weight:600;opacity:.6;margin-right:6px}
+.ac-line{display:flex;justify-content:space-between;gap:12px;padding:9px 15px;border-bottom:1px solid var(--p-border);font-size:13.5px}
+.ac-line:last-child{border-bottom:none}
+.ac-line-m{font-size:11.5px;opacity:.5;margin-top:1px}
+.ac-line-r{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.ac-tot{padding:6px 15px;display:flex;justify-content:space-between;font-size:13.5px;font-variant-numeric:tabular-nums}
+.ac-tot:first-child{padding-top:11px}
+.ac-tot:last-child{padding-bottom:11px}
+.ac-tot--grand{font-weight:700;font-size:15px;border-top:1px solid var(--p-border);margin-top:4px;padding-top:9px}
+.ac-tot--due{font-weight:700;color:#A32D2D}
+.ac-note{padding:11px 15px;border-bottom:1px solid var(--p-border);font-size:13.5px;white-space:pre-wrap}
+.ac-note:last-child{border-bottom:none}
+.ac-note-m{font-size:11px;opacity:.45;margin-top:3px;white-space:normal}
+.ac-about{display:inline-block;font-size:10.5px;font-weight:600;padding:1px 7px;border-radius:10px;background:rgba(0,0,0,.12);margin-bottom:4px;color:inherit}
+.ac-legend{font-size:12px;opacity:.45;margin:-6px 0 20px}
+.ac-pager{display:flex;justify-content:space-between;margin:-10px 0 20px;font-size:13px}
+.ac-pager a{font-weight:600}
 .ac-compose button{border:0;background:var(--p-accent);color:var(--p-accent-text);border-radius:50%;width:42px;height:42px;font-size:16px;font-weight:700;flex:0 0 auto;align-self:flex-end}
 </style>

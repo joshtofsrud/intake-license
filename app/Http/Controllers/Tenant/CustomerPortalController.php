@@ -43,6 +43,7 @@ class CustomerPortalController extends Controller
         $nextAppointment = $customer->appointments()
             ->whereIn('status', ['pending', 'confirmed', 'in_progress'])
             ->whereDate('appointment_date', '>=', $this->today())
+            ->with('items') // MARKER-PORTAL-DETAIL: service names for the label
             ->orderBy('appointment_date')->orderBy('appointment_time')
             ->first();
 
@@ -92,6 +93,7 @@ class CustomerPortalController extends Controller
         $upcomingAppointments = $customer->appointments()
             ->whereIn('status', ['pending', 'confirmed', 'in_progress'])
             ->whereDate('appointment_date', '>=', $today)
+            ->with('items') // MARKER-PORTAL-DETAIL
             ->orderBy('appointment_date')->orderBy('appointment_time')
             ->limit(25)->get();
 
@@ -102,8 +104,10 @@ class CustomerPortalController extends Controller
                 $q->whereIn('status', ['completed', 'cancelled'])
                   ->orWhereDate('appointment_date', '<', $today);
             })
+            ->with('items')
             ->orderByDesc('appointment_date')->orderByDesc('appointment_time')
-            ->limit(25)->get();
+            // MARKER-PORTAL-DETAIL: page through all of it, not just the last 25
+            ->simplePaginate(25, ['*'], 'history')->withQueryString();
 
         $upcomingClasses = collect();
         $pastClasses     = collect();
@@ -140,13 +144,15 @@ class CustomerPortalController extends Controller
             ->where('tenant_id', $tenant->id)->where('customer_id', $customer->id)
             ->whereNotNull('order_number')
             ->with('items')
-            ->orderByDesc('created_at')->limit(20)->get();
+            ->orderByDesc('created_at')
+            // MARKER-PORTAL-DETAIL: every order, paged
+            ->simplePaginate(20, ['*'], 'orders_page')->withQueryString();
 
         $sales = TenantSale::query()
             ->where('tenant_id', $tenant->id)->where('customer_id', $customer->id)
             ->where('status', 'completed')->where('was_quote', false)
             ->orderByDesc('sale_date')->orderByDesc('created_at')
-            ->limit(25)->get();
+            ->simplePaginate(25, ['*'], 'sales_page')->withQueryString();
 
         return view('public.account.portal.orders', compact('customer', 'onlineOrders', 'sales'));
     }

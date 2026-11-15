@@ -20,19 +20,32 @@
     <div class="ac-empty">No online orders yet</div>
   @endforelse
 </div>
+@if($onlineOrders->hasPages())
+  <div class="ac-pager">
+    <span>@if($onlineOrders->previousPageUrl())<a href="{{ $onlineOrders->previousPageUrl() }}">&larr; Newer</a>@endif</span>
+    <span>@if($onlineOrders->nextPageUrl())<a href="{{ $onlineOrders->nextPageUrl() }}">Older &rarr;</a>@endif</span>
+  </div>
+@endif
 
 {{-- in-store purchase history off tenant_sales --}}
 <div class="ac-section-title">In-store purchases</div>
 <div class="ac-list">
   @forelse($sales as $s)
-    <div class="ac-list-row">
-      <div><div class="ac-list-name">Receipt {{ $s->sale_number ? '#' . $s->sale_number : '' }}</div>
+    {{-- MARKER-PORTAL-DETAIL: rows open the receipt --}}
+    <a class="ac-list-row" href="{{ route('tenant.customer.portal.sale', $s->id) }}">
+      <div><div class="ac-list-name">{{ $s->refund_of_sale_id ? 'Refund' : 'Receipt' }} {{ $s->sale_number ? '#' . $s->sale_number : '' }}@if($s->appointment_id) <span style="font-weight:400;opacity:.5">&middot; service</span>@endif</div>
         <div class="ac-list-meta">{{ \Carbon\Carbon::parse($s->sale_date)->format('M j, Y') }}@if($s->payment_method) &middot; {{ str_replace('_', ' ', $s->payment_method) }}@endif</div></div>
       <div class="ac-list-right"><div style="font-weight:700">${{ number_format($s->total_cents / 100, 2) }}</div>
         @if($s->payment_status && $s->payment_status !== 'paid')<div style="font-size:11px;opacity:.55;text-transform:capitalize">{{ str_replace('_', ' ', $s->payment_status) }}</div>@endif</div>
-    </div>
+    </a>
   @empty
     <div class="ac-empty">No in-store purchases yet</div>
   @endforelse
 </div>
+@if($sales->hasPages())
+  <div class="ac-pager">
+    <span>@if($sales->previousPageUrl())<a href="{{ $sales->previousPageUrl() }}">&larr; Newer</a>@endif</span>
+    <span>@if($sales->nextPageUrl())<a href="{{ $sales->nextPageUrl() }}">Older &rarr;</a>@endif</span>
+  </div>
+@endif
 @endsection

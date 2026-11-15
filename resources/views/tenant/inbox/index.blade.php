@@ -51,6 +51,8 @@
   .ib-msg-del button { background:none; border:0; color:inherit; cursor:pointer;
                        font-size:14px; line-height:1; padding:0; }
   /* Mid-grey reads on both the light and dark bubble backgrounds. */
+  .ib-msg-about { font-size:11px; font-weight:600; opacity:.75; margin-bottom:3px; }
+  .ib-msg-about a { text-decoration:underline; color:inherit; }
   .ib-chan { display:inline-block; font-size:9.5px; font-weight:700; letter-spacing:.08em;
              padding:1px 5px; border-radius:4px; margin-right:6px;
              background:rgba(127,127,127,.22); vertical-align:1px; }
@@ -437,6 +439,16 @@
               @csrf
               <button type="submit" title="Delete message">&times;</button>
             </form>
+            @php
+              // MARKER-PORTAL-DETAIL: customer wrote from a work order or receipt in their portal
+              $about = $m->meta['about'] ?? null;
+              $aboutUrl = null;
+              if ($about && ($about['type'] ?? '') === 'appointment' && \Illuminate\Support\Facades\Route::has('tenant.appointments.show')) { $aboutUrl = route('tenant.appointments.show', $about['id']); }
+              if ($about && ($about['type'] ?? '') === 'sale' && \Illuminate\Support\Facades\Route::has('tenant.register.sales.page')) { $aboutUrl = route('tenant.register.sales.page', $about['id']); }
+            @endphp
+            @if($about)
+              <div class="ib-msg-about">About: @if($aboutUrl)<a href="{{ $aboutUrl }}">{{ $about['label'] ?? 'record' }}</a>@else{{ $about['label'] ?? 'record' }}@endif</div>
+            @endif
             <div class="ib-msg-body">@if($cls === 'note')<strong>Internal note · </strong>@endif{{ $m->body }}</div>
             <div class="ib-msg-time">@if($cls === 'in' || $cls === 'out')<span class="ib-chan">{{ strtoupper($m->channel) }}</span>@endif @if(($m->meta['demo_suppressed'] ?? false))<span class="ib-chan" title="This is a demo, so no email or text actually went out.">Not really sent — demo</span>@endif{{ tlocal_datetime($m->created_at, 'M j, g:i A') }}</div>
           </div>

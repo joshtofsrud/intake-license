@@ -334,6 +334,13 @@ $tenantRoutes = function () {
     Route::post('/account/profile',       [TenantControllers\CustomerPortalController::class, 'accountUpdate'])->name('tenant.customer.portal.profile');
     Route::get('/account/settings',       [TenantControllers\CustomerPortalController::class, 'account'])->name('tenant.customer.portal.account');
     Route::post('/account/notifications', [TenantControllers\CustomerPortalController::class, 'notificationsUpdate'])->name('tenant.customer.portal.notifications');
+    // MARKER-PORTAL-DETAIL: open a work order or a purchase, print it, message about it
+    Route::get('/account/bookings/{id}',          [TenantControllers\CustomerPortalDetailController::class, 'workOrder'])->name('tenant.customer.portal.work_order');
+    Route::get('/account/bookings/{id}/print',    [TenantControllers\CustomerPortalDetailController::class, 'workOrderPrint'])->name('tenant.customer.portal.work_order.print');
+    Route::post('/account/bookings/{id}/message', [TenantControllers\CustomerPortalDetailController::class, 'workOrderMessage'])->name('tenant.customer.portal.work_order.message')->middleware('throttle:12,1');
+    Route::get('/account/purchases/{id}',          [TenantControllers\CustomerPortalDetailController::class, 'sale'])->name('tenant.customer.portal.sale');
+    Route::get('/account/purchases/{id}/print',    [TenantControllers\CustomerPortalDetailController::class, 'salePrint'])->name('tenant.customer.portal.sale.print');
+    Route::post('/account/purchases/{id}/message', [TenantControllers\CustomerPortalDetailController::class, 'saleMessage'])->name('tenant.customer.portal.sale.message')->middleware('throttle:12,1');
 
     // Customer-facing class booking. 404 unless the shop has classes on (MARKER-CLASSES-P0).
     Route::middleware([\App\Http\Middleware\RequireClassesActive::class . ':public'])->group(function () {
