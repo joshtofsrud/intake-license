@@ -4,11 +4,11 @@
   $accent = $tenant->accent_color ?? '#BEF264';
 @endphp
 <style>
-  :root { --acc: {{ $accent }}; }
+  :root { --acc: var(--p-accent, {{ $accent }}); }
   .spg-gcconf .wrap { max-width: 560px; margin: 0 auto; padding: 28px 20px 80px; }
-  .spg-gcconf .panel { background: #fff; border: 1.5px solid rgba(0,0,0,.09); border-radius: 16px; padding: 26px; margin-top: 24px; }
+  .spg-gcconf .panel { background: var(--p-card-bg, color-mix(in srgb, var(--p-text, #111) 3%, var(--p-bg, #fff))); border: 1.5px solid color-mix(in srgb, var(--p-text, #111) 11%, transparent); border-radius: 16px; padding: 26px; margin-top: 24px; }
   .spg-gcconf h1 { font-size: 24px; font-weight: 650; letter-spacing: -.02em; }
-  .spg-gcconf .row { display: flex; justify-content: space-between; font-size: 13.5px; padding: 6px 0; border-bottom: 1px solid rgba(0,0,0,.05); }
+  .spg-gcconf .row { display: flex; justify-content: space-between; font-size: 13.5px; padding: 6px 0; border-bottom: 1px solid color-mix(in srgb, var(--p-text, #111) 6%, transparent); }
   .spg-gcconf .row:last-child { border-bottom: 0; }
 </style>
 <div class="spg-gcconf">

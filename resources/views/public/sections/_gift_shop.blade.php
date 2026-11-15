@@ -2,41 +2,44 @@
      approved mockup. Same scoped-style pattern as _shop_checkout. --}}
 @php
   $accent = $tenant->accent_color ?? '#BEF264';
+  // MARKER-WEB-TEMPLATES: colours follow the site so the page reads on dark sites too
+  $accentText = \App\Support\ColorHelper::accentTextColor($accent);
 @endphp
 <script src="https://js.stripe.com/v3/"></script>
 <style>
-  :root { --acc: {{ $accent }}; }
+  :root { --acc: var(--p-accent, {{ $accent }}); }
+  .spg-gift { --g-card: var(--p-card-bg, color-mix(in srgb, var(--p-text, #111) 3%, var(--p-bg, #fff))); --g-line: color-mix(in srgb, var(--p-text, #111) 11%, transparent); --g-ink: var(--p-text, #111); --g-on-ink: var(--p-bg, #fff); }
   .spg-gift .wrap { max-width: 1080px; margin: 0 auto; padding: 28px 20px 80px; }
   .spg-gift h1 { font-size: 26px; font-weight: 650; letter-spacing: -.02em; }
   .spg-gift .sub { font-size: 14px; opacity: .55; margin-top: 4px; }
   .spg-gift .cols { display: grid; grid-template-columns: 1fr 340px; gap: 26px; align-items: start; margin-top: 24px; }
   @media (max-width: 820px) { .spg-gift .cols { grid-template-columns: 1fr; } }
-  .spg-gift .panel { background: #fff; border: 1.5px solid rgba(0,0,0,.09); border-radius: 16px; padding: 20px; margin-bottom: 16px; }
+  .spg-gift .panel { background: var(--g-card); border: 1.5px solid var(--g-line); border-radius: 16px; padding: 20px; margin-bottom: 16px; }
   .spg-gift .panel h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .07em; opacity: .5; font-weight: 700; margin-bottom: 14px; }
   .spg-gift .ful { display: flex; gap: 10px; margin-bottom: 4px; }
-  .spg-gift .ful label { flex: 1; border: 1.5px solid rgba(0,0,0,.13); border-radius: 12px; padding: 13px 15px; cursor: pointer; font-size: 13.5px; }
-  .spg-gift .ful label.on { border-color: #161616; background: rgba(0,0,0,.025); }
+  .spg-gift .ful label { flex: 1; border: 1.5px solid var(--g-line); border-radius: 12px; padding: 13px 15px; cursor: pointer; font-size: 13.5px; }
+  .spg-gift .ful label.on { border-color: var(--g-ink); background: color-mix(in srgb, var(--g-ink) 4%, transparent); }
   .spg-gift .ful b { display: block; font-size: 14px; }
   .spg-gift .ful .fee { font-size: 12px; opacity: .55; }
   .spg-gift .ful input { display: none; }
   .spg-gift .amounts { display: flex; gap: 8px; flex-wrap: wrap; }
-  .spg-gift .amt { font-size: 14px; font-weight: 650; padding: 11px 20px; border-radius: 12px; border: 1.5px solid rgba(0,0,0,.13); background: #fff; cursor: pointer; font-family: inherit; }
-  .spg-gift .amt.on { border-color: #161616; background: #161616; color: #fff; }
-  .spg-gift input[type=text], .spg-gift input[type=email], .spg-gift input[type=date], .spg-gift select, .spg-gift textarea { width: 100%; font: inherit; font-size: 14px; padding: 11px 13px; border: 1.5px solid rgba(0,0,0,.13); border-radius: 10px; background: #fff; margin-bottom: 10px; }
+  .spg-gift .amt { font-size: 14px; font-weight: 650; padding: 11px 20px; border-radius: 12px; border: 1.5px solid var(--g-line); background: var(--g-card); color: var(--g-ink); cursor: pointer; font-family: inherit; }
+  .spg-gift .amt.on { border-color: var(--g-ink); background: var(--g-ink); color: var(--g-on-ink); }
+  .spg-gift input[type=text], .spg-gift input[type=email], .spg-gift input[type=date], .spg-gift select, .spg-gift textarea { width: 100%; font: inherit; font-size: 14px; padding: 11px 13px; border: 1.5px solid var(--g-line); border-radius: 10px; background: var(--p-field-bg, var(--g-card)); color: var(--g-ink); margin-bottom: 10px; }
   .spg-gift textarea { resize: vertical; min-height: 70px; }
   .spg-gift .lbl { display: block; font-size: 12.5px; font-weight: 650; margin-bottom: 5px; }
   .spg-gift .hint { font-size: 12px; opacity: .5; margin: -4px 0 10px; }
   .spg-gift .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .spg-gift .char { font-size: 11.5px; opacity: .45; text-align: right; margin: -6px 0 8px; }
-  .spg-gift .gcv { border-radius: 16px; padding: 22px 24px; background: #161616; color: #fff; position: relative; overflow: hidden; margin-bottom: 16px; }
+  .spg-gift .gcv { border-radius: 16px; padding: 22px 24px; background: #161616; color: #fff; border: 1.5px solid var(--g-line); position: relative; overflow: hidden; margin-bottom: 16px; }
   .spg-gift .gcv::after { content: ''; position: absolute; right: -40px; top: -40px; width: 160px; height: 160px; border-radius: 50%; background: var(--acc); opacity: .16; }
   .spg-gift .gcv .shop { font-size: 12px; text-transform: uppercase; letter-spacing: .1em; opacity: .55; font-weight: 700; }
   .spg-gift .gcv .bigamt { font-size: 34px; font-weight: 800; margin-top: 10px; letter-spacing: -.02em; }
   .spg-gift .gcv .cardlbl { font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; opacity: .4; margin-top: 14px; }
   .spg-gift .gcv .code { font-family: ui-monospace, monospace; font-size: 14px; letter-spacing: .14em; margin-top: 6px; opacity: .85; }
   .spg-gift .sum-line { display: flex; justify-content: space-between; font-size: 13.5px; padding: 5px 0; }
-  .spg-gift .sum-line.total { font-size: 16px; font-weight: 800; border-top: 1.5px solid rgba(0,0,0,.09); margin-top: 8px; padding-top: 12px; }
-  .spg-gift .pay { display: block; width: 100%; text-align: center; font: inherit; font-size: 15px; font-weight: 700; padding: 15px 0; border: 0; border-radius: 12px; background: var(--acc); cursor: pointer; margin-top: 16px; }
+  .spg-gift .sum-line.total { font-size: 16px; font-weight: 800; border-top: 1.5px solid var(--g-line); margin-top: 8px; padding-top: 12px; }
+  .spg-gift .pay { display: block; width: 100%; text-align: center; font: inherit; font-size: 15px; font-weight: 700; padding: 15px 0; border: 0; border-radius: 12px; background: var(--acc); color: var(--p-accent-text, {{ $accentText }}); cursor: pointer; margin-top: 16px; }
   .spg-gift .pay:disabled { opacity: .5; cursor: wait; }
   .spg-gift .err { color: #b3261e; font-size: 13px; margin-top: 10px; display: none; }
   .spg-gift #gp-pay-panel { display: none; }

@@ -14,6 +14,7 @@
     --s-ink: var(--p-text, #111);
     --s-on-ink: var(--p-bg, #fff);
     --s-photo: var(--p-tile-bg, #fff); /* MARKER-WEB-TEMPLATES: the template's Behind product photos */
+    --s-photo-ink: var(--p-tile-ink, #6b7280);
     --s-ok: color-mix(in srgb, #1d7a3a 72%, var(--p-text, #111));
     --s-bad: color-mix(in srgb, #b3261e 78%, var(--p-text, #111));
     --s-warn: color-mix(in srgb, #8a5a00 70%, var(--p-text, #111));

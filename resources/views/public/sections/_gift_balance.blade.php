@@ -2,16 +2,17 @@
      Rate-limited at the route; result shows balance + masked code ONLY. --}}
 @php
   $accent = $tenant->accent_color ?? '#BEF264';
+  $accentText = \App\Support\ColorHelper::accentTextColor($accent);
 @endphp
 <style>
-  :root { --acc: {{ $accent }}; }
+  :root { --acc: var(--p-accent, {{ $accent }}); }
   .spg-gcbal .wrap { max-width: 560px; margin: 0 auto; padding: 28px 20px 80px; }
   .spg-gcbal h1 { font-size: 26px; font-weight: 650; letter-spacing: -.02em; }
   .spg-gcbal .sub { font-size: 14px; opacity: .55; margin-top: 4px; }
-  .spg-gcbal .panel { background: #fff; border: 1.5px solid rgba(0,0,0,.09); border-radius: 16px; padding: 20px; margin-top: 24px; }
+  .spg-gcbal .panel { background: var(--p-card-bg, color-mix(in srgb, var(--p-text, #111) 3%, var(--p-bg, #fff))); border: 1.5px solid color-mix(in srgb, var(--p-text, #111) 11%, transparent); border-radius: 16px; padding: 20px; margin-top: 24px; }
   .spg-gcbal .lbl { display: block; font-size: 12.5px; font-weight: 650; margin-bottom: 5px; }
-  .spg-gcbal input { width: 100%; font: inherit; font-size: 14px; padding: 11px 13px; border: 1.5px solid rgba(0,0,0,.13); border-radius: 10px; background: #fff; margin-bottom: 10px; font-family: ui-monospace, monospace; letter-spacing: .1em; }
-  .spg-gcbal .pay { display: block; width: 100%; text-align: center; font: inherit; font-size: 15px; font-weight: 700; padding: 15px 0; border: 0; border-radius: 12px; background: var(--acc); cursor: pointer; margin-top: 6px; }
+  .spg-gcbal input { width: 100%; font: inherit; font-size: 14px; padding: 11px 13px; border: 1.5px solid color-mix(in srgb, var(--p-text, #111) 11%, transparent); border-radius: 10px; background: var(--p-field-bg, var(--p-card-bg, color-mix(in srgb, var(--p-text, #111) 3%, var(--p-bg, #fff)))); color: var(--p-text, #111); margin-bottom: 10px; font-family: ui-monospace, monospace; letter-spacing: .1em; }
+  .spg-gcbal .pay { display: block; width: 100%; text-align: center; font: inherit; font-size: 15px; font-weight: 700; padding: 15px 0; border: 0; border-radius: 12px; background: var(--acc); color: var(--p-accent-text, {{ $accentText }}); cursor: pointer; margin-top: 6px; }
   .spg-gcbal .result { text-align: center; padding: 28px 20px; }
   .spg-gcbal .result .rlbl { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; opacity: .5; font-weight: 700; }
   .spg-gcbal .result .amt { font-size: 44px; font-weight: 800; letter-spacing: -.03em; margin-top: 8px; }

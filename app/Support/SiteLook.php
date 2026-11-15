@@ -212,6 +212,8 @@ class SiteLook
             '--p-card-border: ' . $cardBd,
             '--p-card-shadow: ' . $cardSh,
             '--p-tile-bg: ' . ($p['tiles'] === 'white' ? '#ffffff' : $c['s1']),
+            // placeholder text on a photo tile ("No image yet", the shop name) must read on the tile itself
+            '--p-tile-ink: ' . ($p['tiles'] === 'white' ? '#6b7280' : $c['mu']),
             '--p-tile-ratio: ' . $p['ratio'],
             '--p-shop-cols: ' . $p['cols'],
             '--p-field-bg: ' . $c['s1'],

@@ -19,7 +19,7 @@
   .spg-confirm .wrap { max-width: 620px; margin: 0 auto; padding: 34px 20px 80px; }
   .spg-confirm .home { font-weight: 700; font-size: 16px; display: inline-block; margin-bottom: 28px; }
   .spg-confirm .hero { text-align: center; margin-bottom: 26px; }
-  .spg-confirm .ic { width: 58px; height: 58px; border-radius: 50%; background: var(--acc); display: grid; place-items: center; font-size: 25px; margin: 0 auto 14px; }
+  .spg-confirm .ic { width: 58px; height: 58px; border-radius: 50%; background: var(--acc); color: var(--s-acc-text, #0a0a0a); display: grid; place-items: center; font-size: 25px; margin: 0 auto 14px; }
   .spg-confirm h1 { font-size: 23px; font-weight: 750; letter-spacing: -.015em; }
   .spg-confirm .sub { font-size: 14px; opacity: .6; margin-top: 5px; }
   .spg-confirm .card { background: var(--s-card); border: 1.5px solid color-mix(in srgb, var(--p-text) 9%, transparent); border-radius: var(--s-r); padding: 6px 20px; margin-bottom: 14px; }

@@ -22,7 +22,8 @@
   .spg-checkout .panel { background: var(--s-card); border: 1.5px solid color-mix(in srgb, var(--p-text) 9%, transparent); border-radius: var(--s-r); padding: 20px; margin-bottom: 16px; }
   .spg-checkout .panel h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .07em; opacity: .5; font-weight: 700; margin-bottom: 14px; }
   .spg-checkout .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  .spg-checkout input[type=text], input[type=email], input[type=tel], textarea { width: 100%; font: inherit; font-size: 14px; padding: 11px 13px; border: 1.5px solid color-mix(in srgb, var(--p-text) 13%, transparent); border-radius: 10px; background: var(--s-card); margin-bottom: 10px; }
+  .spg-checkout input[type=text], .spg-checkout input[type=email], .spg-checkout input[type=tel], .spg-checkout textarea, .spg-checkout select { width: 100%; font: inherit; font-size: 14px; padding: 11px 13px; border: 1.5px solid color-mix(in srgb, var(--p-text) 13%, transparent); border-radius: 10px; background: var(--s-card); color: var(--p-text); margin-bottom: 10px; }
+  .spg-checkout ::placeholder { color: var(--p-muted, currentColor); opacity: .8; }
   .spg-checkout textarea { resize: vertical; min-height: 60px; }
   .spg-checkout .ful { display: flex; gap: 10px; margin-bottom: 12px; }
   .spg-checkout .ful label { flex: 1; border: 1.5px solid color-mix(in srgb, var(--p-text) 13%, transparent); border-radius: 12px; padding: 13px 15px; cursor: pointer; font-size: 13.5px; }
