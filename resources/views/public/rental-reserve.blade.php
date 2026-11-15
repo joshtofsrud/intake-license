@@ -10,6 +10,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+{!! \App\Support\SiteLook::schemeScript($currentTenant ?? tenant()) !!}
 @include('partials.mobile-input-zoom')
 <title>Reserve {{ $model->name }} — {{ $tname }}</title>
 @include('public._theme-fonts')

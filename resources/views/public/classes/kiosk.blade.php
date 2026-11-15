@@ -4,6 +4,7 @@
   {{-- MARKER-CLASSES-P10: self check-in on a studio tablet --}}
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  {!! \App\Support\SiteLook::schemeScript($currentTenant ?? null) !!}
   <meta name="robots" content="noindex">
   @php
     $refreshTo = match ($screen) {

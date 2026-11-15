@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  {!! \App\Support\SiteLook::schemeScript($currentTenant ?? null) !!}
   @include('partials.mobile-input-zoom')
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>{{ $pageTitle ?? 'My Account' }} — {{ $currentTenant->name }}</title>

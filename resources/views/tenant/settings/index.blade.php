@@ -888,6 +888,16 @@
 
     <div class="ia-card" style="margin-bottom:20px">
       <div class="ia-card-head"><span class="ia-card-title">Colors</span></div>
+      {{-- MARKER-WEB-TEMPLATES: on a template site these columns are the template's colours too --}}
+      @if($currentTenant->site_template && \App\Models\WebTemplate::cached($currentTenant->site_template))
+        <div style="font-size:12px;color:var(--ia-text-muted);line-height:1.5;margin:-4px 0 14px">
+          @if($currentTenant->site_mode === 'auto')
+            Your site matches each visitor's device. These are its <b>dark</b> colours, also used on booking and in emails. The light colours are in <a href="{{ route('tenant.templates.index') }}">Website › Templates</a>.
+          @else
+            Your site uses a template. Changing these changes your site's {{ $currentTenant->site_mode === 'light' ? 'light' : 'dark' }} colours too; the rest of its look is in <a href="{{ route('tenant.templates.index') }}">Website › Templates</a>.
+          @endif
+        </div>
+      @endif
       @foreach([
         ['accent_color', 'Accent color', $currentTenant->accent_color ?? '#BEF264', 'Used for buttons, links, and active states'],
         ['text_color',   'Text color',   $currentTenant->text_color   ?? '#111111', 'Main body text on your booking form'],

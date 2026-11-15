@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  {!! \App\Support\SiteLook::schemeScript($currentTenant ?? null) !!}
   @include('partials.mobile-input-zoom')
   <meta name="csrf-token" content="{{ csrf_token() }}">
   {{-- analytics + funnel tracking. MARKER-TRAFFIC-NO-STAFF: never from the
@@ -497,7 +498,9 @@ function closeMobileNav() { document.getElementById('p-mobile-nav').classList.re
 document.addEventListener('click', function (e) {
   var a = e.target.closest('a[href]'); if (!a) return;
   try { var u = new URL(a.href, location.href); if (u.origin !== location.origin) return;
-    u.searchParams.set('look_preview', '1'); a.href = u.toString(); } catch (x) {}
+    u.searchParams.set('look_preview', '1');
+    var sc = new URLSearchParams(location.search).get('look_scheme'); if (sc) u.searchParams.set('look_scheme', sc);
+    a.href = u.toString(); } catch (x) {}
 }, true);
 </script>
 @endif

@@ -27,16 +27,18 @@ class SiteTemplateController extends Controller
         $custom = (array) ($tenant->site_custom ?? []);
         $live = [
             'tpl'  => $current ?? ($templates->first()['key'] ?? null),
-            'mode' => in_array($tenant->site_mode, ['dark', 'light'], true) ? $tenant->site_mode : 'dark',
+            'mode' => in_array($tenant->site_mode, SiteLook::MODES, true) ? $tenant->site_mode : 'dark',
             'c'    => ['dark' => (array) ($custom['c']['dark'] ?? []), 'light' => (array) ($custom['c']['light'] ?? [])],
             'p'    => (array) ($custom['p'] ?? []),
         ];
         // a colour or font changed in Settings › Branding since the last Apply shows as a change here too
         if ($current && ($look = SiteLook::for($tenant))) {
             $tpl = $templates->firstWhere('key', $current);
+            // the Branding columns hold the dark colours when the site matches the visitor's device
+            $m = ($look['setting'] ?? '') === 'auto' ? 'dark' : $look['mode'];
             foreach (SiteLook::ROLES as $r => $_) {
-                $have = $look['roles'][$look['mode']][$r];
-                if ($have !== strtolower((string) ($tpl['modes'][$look['mode']][$r] ?? ''))) $live['c'][$look['mode']][$r] = $have;
+                $have = $look['roles'][$m][$r];
+                if ($have !== strtolower((string) ($tpl['modes'][$m][$r] ?? ''))) $live['c'][$m][$r] = $have;
             }
             foreach (['fh', 'fb'] as $k) {
                 if ($look['pieces'][$k] !== ($tpl['pieces'][$k] ?? null)) $live['p'][$k] = $look['pieces'][$k];
@@ -85,8 +87,9 @@ class SiteTemplateController extends Controller
             if ((string) $v !== (string) ($live['pieces'][$k] ?? '')) $p[$k] = $v;
         }
 
-        // booking, the customer portal and email read these five columns
-        $look = SiteLook::build($live, $d['mode'], ['c' => $c, 'p' => $p]);
+        // booking and email read these five columns; a site that matches
+        // the visitor's device gives them its dark colours (email can't follow a device)
+        $look = SiteLook::build($live, $d['mode'] === 'auto' ? 'dark' : $d['mode'], ['c' => $c, 'p' => $p]);
         $col = SiteLook::colours($look);
         $cols = ['accent_color' => $col['ac'], 'text_color' => $col['tx'], 'bg_color' => $col['bg'],
                  'font_heading' => $look['pieces']['fh'], 'font_body' => $look['pieces']['fb']];
@@ -111,7 +114,7 @@ class SiteTemplateController extends Controller
         if (! $tpl) return null;
         if (! $tpl->availableTo(SearchConfig::tier($tenant)) && $tenant->site_template !== $key) return null;
 
-        $mode = $request->input('mode') === 'light' ? 'light' : 'dark';
+        $mode = in_array($request->input('mode'), SiteLook::MODES, true) ? $request->input('mode') : 'dark';
         $c = ['dark' => [], 'light' => []];
         foreach (['dark', 'light'] as $m) {
             foreach ((array) $request->input("c.$m", []) as $r => $v) {

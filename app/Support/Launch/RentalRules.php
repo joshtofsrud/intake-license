@@ -71,7 +71,7 @@ class RentalRules
     }
 
     /** null when the time is fine, or the reason it is not, in words a renter reads. */
-    public static function refuse(array $h, Carbon $local, string $what): ?string
+    public static function refuse(array $h, \Carbon\CarbonInterface $local, string $what): ?string
     {
         if (! array_filter($h['days'], fn ($d) => $d['open'])) return null; // no hours saved: not limited
         if (in_array($local->toDateString(), $h['closed'], true)) {

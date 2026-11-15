@@ -105,20 +105,75 @@ class SiteLook
         $tpl = $tplKey ? WebTemplate::cached($tplKey) : null;
         if (! $tpl) return self::$memo[$key] = null;
 
-        $mode   = $preview['mode'] ?? (in_array($tenant->site_mode, ['dark', 'light'], true) ? $tenant->site_mode : 'dark');
+        $setting = $preview['mode'] ?? (in_array($tenant->site_mode, self::MODES, true) ? $tenant->site_mode : 'dark');
+        // Match visitor's device: the whole page is drawn in the visitor's scheme, so every
+        // colour decision (menu text, logo, hero) is made for the colours actually shown
+        $mode = $setting === 'auto' ? self::scheme($preview !== null) : $setting;
         $custom = $preview ? ['c' => $preview['c'] ?? [], 'p' => $preview['p'] ?? []] : (array) ($tenant->site_custom ?? []);
-        $look = self::build($tpl->live(), $mode, $custom, $preview ? null : $tenant);
+        $look = self::build($tpl->live(), $mode, $custom, $preview ? null : $tenant, $setting === 'auto' ? 'dark' : null);
+        $look['setting'] = $setting;
         if ($preview) return $look;
+        if ($setting === 'auto') self::$autoServed = true;
         return self::$memo[$key] = $look;
     }
 
     public static function forget(): void { self::$memo = []; }
 
+    /** dark | light | auto (Match visitor's device). */
+    public const MODES = ['dark', 'light', 'auto'];
+
+    /** The cookie the page's own script keeps in step with the device. */
+    public const SCHEME_COOKIE = 'site_scheme';
+
+    /** Set when this response was drawn for a Match visitor's device site (see SiteSchemeHints). */
+    public static bool $autoServed = false;
+
+    /**
+     * The visitor's colour scheme: the preview's choice in Website › Templates, else the
+     * browser's hint (Chrome sends it), else the cookie the page script sets, else dark.
+     */
+    public static function scheme(bool $preview = false): string
+    {
+        try {
+            $r = request();
+            if ($preview) return $r->query('look_scheme') === 'light' ? 'light' : 'dark';
+            $h = strtolower(trim((string) $r->header('Sec-CH-Prefers-Color-Scheme'), '" '));
+            if ($h === 'light' || $h === 'dark') return $h;
+            return $r->cookie(self::SCHEME_COOKIE) === 'light' ? 'light' : 'dark';
+        } catch (\Throwable $e) {
+            return 'dark';
+        }
+    }
+
+    /**
+     * For Match visitor's device: a tiny script for the top of the page. It remembers the
+     * device's scheme in a cookie and, when the page was drawn in the other one (a first visit
+     * from a browser that sends no hint), reloads once. It also follows the device switching
+     * between light and dark while the page is open.
+     */
+    public static function schemeScript(?Tenant $tenant = null): string
+    {
+        $tenant = $tenant ?? (function_exists('tenant') ? tenant() : null);
+        $look = $tenant ? self::for($tenant) : null;
+        if (! $look || ($look['setting'] ?? '') !== 'auto' || self::previewing()) return '';
+        $drawn = $look['mode'];
+        return '<meta name="color-scheme" content="' . $drawn . '">'
+            . '<script>(function(){if(window.__siteScheme)return;window.__siteScheme=1;try{'
+            . 'var q=window.matchMedia("(prefers-color-scheme: light)"),drawn="' . $drawn . '",'
+            . 'set=function(m){document.cookie="' . self::SCHEME_COOKIE . '="+m+";path=/;max-age=31536000;samesite=lax";},'
+            . 'now=function(){return q.matches?"light":"dark";},m=now();set(m);'
+            . 'if(m!==drawn){if(!sessionStorage.getItem("siteSchemeReload")){sessionStorage.setItem("siteSchemeReload","1");location.reload();}}'
+            . 'else{sessionStorage.removeItem("siteSchemeReload");}'
+            . 'var on=function(){var n=now();set(n);if(n!==drawn){sessionStorage.removeItem("siteSchemeReload");location.reload();}};'
+            . 'q.addEventListener?q.addEventListener("change",on):q.addListener(on);'
+            . '}catch(e){}})();</script>';
+    }
+
     /**
      * $data = a template's published (or draft) fields: modes, pieces, sections.
      * Returns ['key','name','mode','roles' => [dark=>[..], light=>[..]], 'pieces', 'sections', 'custom'].
      */
-    public static function build(array $data, string $mode, array $custom = [], ?Tenant $tenant = null): array
+    public static function build(array $data, string $mode, array $custom = [], ?Tenant $tenant = null, ?string $columnsMode = null): array
     {
         $roles = [];
         foreach (['dark', 'light'] as $m) {
@@ -140,10 +195,12 @@ class SiteLook
         if ($tenant) {
             $w = (array) (((array) ($tenant->site_custom ?? []))['written'] ?? []);
             if ($w) {
+                // the five columns hold the dark colours on a Match visitor's device site
+                $cm = $columnsMode ?? $mode;
                 $diff = fn ($col) => ($tenant->{$col} ?? null) && strtolower((string) $tenant->{$col}) !== strtolower((string) ($w[$col] ?? ''));
-                if ($diff('accent_color') && self::hex($tenant->accent_color)) $roles[$mode]['ac'] = strtolower($tenant->accent_color);
-                if ($diff('text_color') && self::hex($tenant->text_color))     $roles[$mode]['tx'] = strtolower($tenant->text_color);
-                if ($diff('bg_color') && self::hex($tenant->bg_color))         $roles[$mode]['bg'] = strtolower($tenant->bg_color);
+                if ($diff('accent_color') && self::hex($tenant->accent_color)) $roles[$cm]['ac'] = strtolower($tenant->accent_color);
+                if ($diff('text_color') && self::hex($tenant->text_color))     $roles[$cm]['tx'] = strtolower($tenant->text_color);
+                if ($diff('bg_color') && self::hex($tenant->bg_color))         $roles[$cm]['bg'] = strtolower($tenant->bg_color);
                 if ($diff('font_heading')) $pieces['fh'] = $tenant->font_heading;
                 if ($diff('font_body'))    $pieces['fb'] = $tenant->font_body;
             }

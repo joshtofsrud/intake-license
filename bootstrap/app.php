@@ -45,6 +45,12 @@ return Application::configure(basePath: dirname(__DIR__))
         // MARKER-SEC-UPLOADS: every uploaded SVG is cleaned before a controller stores it.
         $middleware->append(\App\Http\Middleware\SanitizeUploads::class);
 
+        // MARKER-WEB-TEMPLATES: Match visitor's device. The page's own script writes the
+        // visitor's light/dark scheme to this cookie, so it is read as plain text; it holds
+        // only "light" or "dark". The headers ask Chrome to send the scheme up front.
+        $middleware->encryptCookies(except: [\App\Support\SiteLook::SCHEME_COOKIE]);
+        $middleware->append(\App\Http\Middleware\SiteSchemeHints::class);
+
         // DemoBanner used to be appended here, but global
         // middleware runs BEFORE route middleware, so ResolveTenant had not run
         // and tenant() was always null. It lives in the tenant route group now.

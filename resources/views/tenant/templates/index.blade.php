@@ -24,8 +24,9 @@
     <div class="tp-list" id="tpList"></div>
 
     <div class="tp-h">Light or dark</div>
-    <div class="tp-mode"><span class="tp-seg" id="tpMode"><button type="button" data-m="dark">Dark</button><button type="button" data-m="light">Light</button></span>
-      <div class="d" id="tpModeNote"></div></div>
+    <div class="tp-mode"><span class="tp-seg" id="tpMode"><button type="button" data-m="dark">Dark</button><button type="button" data-m="light">Light</button><button type="button" data-m="auto">Match visitor's device</button></span>
+      <div class="d" id="tpModeNote"></div>
+      <div class="tp-see" id="tpSeeRow" hidden><span>Editing and previewing</span><span class="tp-seg" id="tpSee"><button type="button" data-s="dark">Dark</button><button type="button" data-s="light">Light</button></span></div></div>
 
     <div class="tp-h">Change a piece <span class="tp-pill g" id="tpChg" hidden></span></div>
     <div class="tp-grp" id="tpGroups"></div>
@@ -72,7 +73,9 @@
 .tp-seg button{background:transparent;border:0;padding:5px 11px;font-size:12px;color:var(--ia-text-muted)}
 .tp-seg button+button{border-left:.5px solid var(--ia-border)}
 .tp-seg button.on{background:var(--ia-surface-3);color:var(--ia-text);font-weight:500}
-.tp-mode{display:flex;flex-direction:column;gap:6px;margin:0 0 22px}.tp-mode .d{font-size:12px;color:var(--ia-text-muted);line-height:1.5}
+.tp-mode{display:flex;flex-direction:column;gap:6px;margin:0 0 22px}
+.tp-see{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px;color:var(--ia-text-muted);padding-top:4px}
+.tp-other{font-size:12px;color:var(--ia-text-muted);line-height:1.5;margin-top:8px}.tp-other b{color:var(--ia-danger, #e5484d);font-weight:500}.tp-mode .d{font-size:12px;color:var(--ia-text-muted);line-height:1.5}
 .tp-grp{border-top:.5px solid var(--ia-border)}
 .tp-g{border-bottom:.5px solid var(--ia-border)}
 .tp-g>button{width:100%;display:flex;align-items:center;gap:8px;background:none;border:0;padding:12px 2px;color:var(--ia-text);font-size:13.5px;font-weight:500;text-align:left}
@@ -139,9 +142,14 @@
   function norm(d) { d.c = obj(d.c); d.c.dark = obj(d.c.dark); d.c.light = obj(d.c.light); d.p = obj(d.p); return d; }
   var live = norm(copy(LIVE)), draft = norm(copy(LIVE));
   var page = 'home', openG = 'colours';
+  // which version is being edited and previewed; on Match visitor's device both are shown to someone
+  var see = (window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+  var em = function () { return draft.mode === 'auto' ? see : draft.mode; };
+  var other = function () { return em() === 'dark' ? 'light' : 'dark'; };
+  var modeName = function (m) { return m === 'auto' ? 'Match visitor\'s device' : m === 'dark' ? 'Dark' : 'Light'; };
 
   var cur = function () { return TPL[draft.tpl]; };
-  var col = function (k, m) { m = m || draft.mode; return draft.c[m][k] || cur().modes[m][k]; };
+  var col = function (k, m) { m = m || em(); return draft.c[m][k] || cur().modes[m][k]; };
   var pc = function (k) { return draft.p[k] !== undefined ? draft.p[k] : cur().pieces[k]; };
   var dirty = function () { return !ON_TEMPLATE || JSON.stringify(draft) !== JSON.stringify(live); };
 
@@ -173,7 +181,10 @@
   }
   function renderMode() {
     document.querySelectorAll('#tpMode button').forEach(function (b) { b.classList.toggle('on', b.dataset.m === draft.mode); });
-    $('tpModeNote').textContent = draft.mode === 'dark' ? 'Every visitor sees the dark version.' : 'Every visitor sees the light version.';
+    $('tpModeNote').textContent = draft.mode === 'dark' ? 'Every visitor sees the dark version.' : draft.mode === 'light' ? 'Every visitor sees the light version.'
+      : 'Visitors whose phone or computer is set to dark see the dark version; everyone else sees the light one. Booking and emails use the dark colours.';
+    $('tpSeeRow').hidden = draft.mode !== 'auto';
+    document.querySelectorAll('#tpSee button').forEach(function (b) { b.classList.toggle('on', b.dataset.s === see); });
   }
 
   // ------------------------------------------------ pieces
@@ -189,7 +200,7 @@
   }
   var label = function (g) { var o = PIECES[g][2]; return o ? (o[pc(g)] || pc(g)) : pc(g); };
   var GROUPS = [
-    ['colours', 'Colours', function () { return draft.mode === 'dark' ? 'Dark' : 'Light'; }, []],
+    ['colours', 'Colours', function () { return draft.mode === 'auto' ? 'Dark and light · ' + (see === 'dark' ? 'editing dark' : 'editing light') : modeName(draft.mode); }, []],
     ['fonts', 'Fonts', function () { return pc('fh') + (pc('fh') !== pc('fb') ? ' + ' + pc('fb') : ''); }, ['fh', 'fb', 'hw', 'hc']],
     ['nav', 'Menu bar', function () { return label('nav'); }, ['nav']],
     ['hero', 'Top of the page', function () { return label('hero'); }, ['hero']],
@@ -198,12 +209,13 @@
     ['shape', 'Corners and buttons', function () { return pc('r') + 'px · ' + (pc('btn') === 'solid' ? 'solid' : 'outline'); }, ['r', 'btn']],
     ['footer', 'Footer', function () { return label('footer'); }, ['footer']]
   ];
-  function changed(g) { if (g[0] === 'colours') return Object.keys(draft.c[draft.mode]).length > 0; return g[3].some(function (k) { return draft.p[k] !== undefined; }); }
+  function changed(g) { if (g[0] === 'colours') return draft.mode === 'auto' ? Object.keys(draft.c.dark).length + Object.keys(draft.c.light).length > 0 : Object.keys(draft.c[draft.mode]).length > 0; return g[3].some(function (k) { return draft.p[k] !== undefined; }); }
   function seg(k, opts) { return '<span class="tp-seg">' + opts.map(function (o) { return '<button type="button" data-pv="' + k + '|' + o[0] + '" class="' + (String(pc(k)) === String(o[0]) ? 'on' : '') + '">' + o[1] + '</button>'; }).join('') + '</span>'; }
   function body(g) {
     if (g === 'colours') return Object.keys(ROLES).map(function (k) { return '<label class="tp-col"><input type="color" value="' + col(k) + '" data-c="' + k + '"><span class="k">' + ROLES[k][0] + '<small>' + ROLES[k][1] + '</small></span><span class="hx">' + col(k) + '</span></label>'; }).join('') +
       '<div class="tp-read"><div class="tp-h" style="margin-bottom:4px">Can people read it?</div>' + PAIRS.map(function (p) { var r = ratio(col(p[0]), col(p[1])), ok = r >= p[3];
-        return '<div class="r"><span class="' + (ok ? 'ok' : 'bad') + '">' + (ok ? 'Reads well' : 'Hard to read') + '</span>' + p[2] + '<span class="sc">' + r.toFixed(1) + ':1</span>' + (ok ? '' : '<button type="button" class="fix" data-fix="' + p[0] + '|' + p[1] + '|' + p[3] + '">Fix</button>') + '</div>'; }).join('') + '</div>';
+        return '<div class="r"><span class="' + (ok ? 'ok' : 'bad') + '">' + (ok ? 'Reads well' : 'Hard to read') + '</span>' + p[2] + '<span class="sc">' + r.toFixed(1) + ':1</span>' + (ok ? '' : '<button type="button" class="fix" data-fix="' + p[0] + '|' + p[1] + '|' + p[3] + '">Fix</button>') + '</div>'; }).join('') +
+        (draft.mode === 'auto' ? (bad(other()).length ? '<div class="tp-other"><b>The ' + other() + ' version has ' + bad(other()).length + ' hard-to-read pair' + (bad(other()).length > 1 ? 's' : '') + '.</b> Switch Editing and previewing to ' + modeName(other()) + ' to fix ' + (bad(other()).length > 1 ? 'them' : 'it') + '.</div>' : '<div class="tp-other">The ' + other() + ' version reads well too.</div>') : '') + '</div>';
     if (g === 'fonts') return '<div class="tp-f"><label>Headings<select class="ia-select" data-p="fh">' + FONTS.map(function (f) { return '<option ' + (pc('fh') === f ? 'selected' : '') + '>' + f + '</option>'; }).join('') + '</select></label>' +
       '<label>Everything else<select class="ia-select" data-p="fb">' + FONTS.map(function (f) { return '<option ' + (pc('fb') === f ? 'selected' : '') + '>' + f + '</option>'; }).join('') + '</select></label>' +
       '<label>Heading weight' + seg('hw', [[400, 'Light'], [500, 'Regular'], [650, 'Bold'], [800, 'Heavy']]) + '</label><label>Heading letters' + seg('hc', [['none', 'As typed'], ['upper', 'ALL CAPS']]) + '</label></div>';
@@ -233,22 +245,22 @@
       i.onchange = function () { setC(i.dataset.c, i.value.toLowerCase()); };
     });
     document.querySelectorAll('[data-fix]').forEach(function (b) { b.onclick = function () { var x = b.dataset.fix.split('|'); setC(x[0], nudge(col(x[0]), col(x[1]), +x[2] + .2)); if (window.IntakeToast) IntakeToast.success('Adjusted ' + ROLES[x[0]][0].toLowerCase() + ' so it reads well'); }; });
-    document.querySelectorAll('[data-reset]').forEach(function (b) { b.onclick = function () { var g = GROUPS.filter(function (x) { return x[0] === b.dataset.reset; })[0]; if (g[0] === 'colours') draft.c[draft.mode] = {}; else g[3].forEach(function (k) { delete draft.p[k]; }); all(); }; });
+    document.querySelectorAll('[data-reset]').forEach(function (b) { b.onclick = function () { var g = GROUPS.filter(function (x) { return x[0] === b.dataset.reset; })[0]; if (g[0] === 'colours') { if (draft.mode === 'auto') draft.c = { dark: {}, light: {} }; else draft.c[em()] = {}; } else g[3].forEach(function (k) { delete draft.p[k]; }); all(); }; });
   }
   function setP(k, v) { if (String(cur().pieces[k]) === String(v)) delete draft.p[k]; else draft.p[k] = v; all(); }
-  function setC(k, v) { if (cur().modes[draft.mode][k] === v) delete draft.c[draft.mode][k]; else draft.c[draft.mode][k] = v; all(); }
+  function setC(k, v) { var m = em(); if (cur().modes[m][k] === v) delete draft.c[m][k]; else draft.c[m][k] = v; all(); }
 
   // ------------------------------------------------ preview: the real site with the unsaved choices
   var pvTimer = null, pvSeq = 0;
   function renderPreview() {
-    $('tpPvLabel').textContent = cur().name + ' · ' + draft.mode + (dirty() ? ' · not applied yet' : '');
+    $('tpPvLabel').textContent = cur().name + ' · ' + (draft.mode === 'auto' ? 'matches device, showing ' + see : draft.mode) + (dirty() ? ' · not applied yet' : '');
     clearTimeout(pvTimer); $('tpLoading').classList.add('on');
     pvTimer = setTimeout(function () {
       var seq = ++pvSeq;
       fetch(PREVIEW, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' }, body: JSON.stringify(draft) })
         .then(function (r) { if (!r.ok) throw new Error('preview'); return r.json(); }).then(function () {
           if (seq !== pvSeq) return;
-          var u = URLS[page]; $('tpIframe').src = u + (u.indexOf('?') >= 0 ? '&' : '?') + 'look_preview=1&_=' + Date.now();
+          var u = URLS[page]; $('tpIframe').src = u + (u.indexOf('?') >= 0 ? '&' : '?') + 'look_preview=1' + (draft.mode === 'auto' ? '&look_scheme=' + see : '') + '&_=' + Date.now();
         }).catch(function () { $('tpLoading').classList.remove('on'); if (window.IntakeToast) IntakeToast.error('The preview could not update. Try again in a moment.'); });
     }, 350);
   }
@@ -262,7 +274,7 @@
   }
   $('tpDiscard').onclick = function () { draft = norm(copy(live)); all(); };
   $('tpApply').onclick = function () {
-    var probs = bad(draft.mode).map(function (p) { return p[2].toLowerCase(); });
+    var probs = (draft.mode === 'auto' ? ['dark', 'light'] : [draft.mode]).reduce(function (a, m) { return a.concat(bad(m).map(function (p) { return p[2].toLowerCase() + (draft.mode === 'auto' ? ' (' + m + ')' : ''); })); }, []);
     IntakeConfirm.show({ title: 'Apply ' + cur().name + ' to your site?', message: 'Customers see it straight away on every public page: your pages, shop, search, booking and account pages. Your pages’ words, photos and products stay as they are.' + (probs.length ? ' Hard to read: ' + probs.join(', ') + '. You can apply anyway, or press Fix first.' : ''), confirmText: 'Apply to site' })
       .then(function (ok) {
         if (!ok) return;
@@ -276,6 +288,7 @@
   window.addEventListener('beforeunload', function (e) { if (dirty() && ON_TEMPLATE && !window.__tpSubmitting) { e.preventDefault(); e.returnValue = ''; } });
 
   document.querySelectorAll('#tpMode button').forEach(function (b) { b.onclick = function () { draft.mode = b.dataset.m; all(); }; });
+  document.querySelectorAll('#tpSee button').forEach(function (b) { b.onclick = function () { see = b.dataset.s; all(); }; });
   document.querySelectorAll('#tpPage button').forEach(function (b) { b.onclick = function () { page = b.dataset.p; document.querySelectorAll('#tpPage button').forEach(function (x) { x.classList.toggle('on', x === b); }); renderPreview(); }; });
   document.querySelectorAll('#tpDev button').forEach(function (b) { b.onclick = function () { document.querySelectorAll('#tpDev button').forEach(function (x) { x.classList.toggle('on', x === b); }); $('tpFrame').classList.toggle('phone', b.dataset.d === 'phone'); }; });
 

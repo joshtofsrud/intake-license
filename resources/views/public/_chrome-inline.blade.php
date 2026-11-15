@@ -15,6 +15,7 @@
   $ciNavC = $ci['nav'] ? \App\Support\SiteLook::applyDesign('nav', $ci['nav']->content ?? [], $ciLook) : [];
   $ciFootC = $ci['footer'] ? \App\Support\SiteLook::applyDesign('footer', $ci['footer']->content ?? [], $ciLook) : [];
 @endphp
+@if(($chromePos ?? 'top') === 'top'){!! \App\Support\SiteLook::schemeScript($ciTenant) !!}@endif
 
 @if(($chromePos ?? 'top') === 'top' && $ci['nav'])
   <style>

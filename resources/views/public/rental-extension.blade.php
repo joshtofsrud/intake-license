@@ -4,6 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+{!! \App\Support\SiteLook::schemeScript($currentTenant ?? tenant()) !!}
 <title>Extend your rental — {{ $tenant->name }}</title>
 @include('public._theme-fonts')
 <style>
