@@ -181,7 +181,13 @@
 @include('layouts.tenant._inventory-tabs')
 
 @if(session('flash'))
-  <div class="ia-flash ia-flash--{{ session('flash')['type'] }}">{{ session('flash')['message'] }}</div>
+  <div class="ia-flash ia-flash--{{ session('flash')['type'] }}" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+    <span style="flex:1">{{ session('flash')['message'] }}</span>
+    {{-- MARKER-INV-BULK: one undo for the last selection-bar change --}}
+    @if(session('inv_undo') && (session('flash')['message'] ?? '') === (session('inv_undo')['label'] ?? null))
+      <form method="POST" action="{{ route('tenant.inventory.bulk.undo') }}" style="margin:0">@csrf<button type="submit" class="ia-btn ia-btn--sm">Undo</button></form>
+    @endif
+  </div>
 @endif
 
 {{-- POS inventory cap banner.
@@ -573,13 +579,54 @@
   <div id="inv-merge-bar" style="display:none;align-items:center;gap:12px;padding:10px 14px;margin-bottom:12px;
        background:rgba(190,242,100,.08);border:0.5px solid rgba(190,242,100,.3);border-radius:8px;font-size:12.5px">
     <span id="inv-merge-count"></span>
-    <button type="button" class="ia-btn ia-btn--sm ia-btn--primary" style="margin-left:auto" onclick="invPrintLabels()">Print labels</button>
+    {{-- MARKER-INV-BULK: change the ticked items in one go --}}
+    <span style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+      @if($stock === 'archived')
+        <button type="button" class="ia-btn ia-btn--sm ia-btn--primary" onclick="invBulk('restore')">Restore</button>
+      @else
+        <button type="button" class="ia-btn ia-btn--sm ia-btn--primary" onclick="invOpenSetCat()">Set category…</button>
+        <button type="button" class="ia-btn ia-btn--sm" onclick="invBulk('hide')" title="Off the online store; still sold at the register">Hide from store</button>
+        <button type="button" class="ia-btn ia-btn--sm" onclick="invBulk('show')" title="Back on the online store">Show on store</button>
+        <button type="button" class="ia-btn ia-btn--sm" onclick="invArchiveAsk()">Archive…</button>
+      @endif
+    </span>
+    <button type="button" class="ia-btn ia-btn--sm ia-btn--secondary" onclick="invPrintLabels()">Print labels</button>
     @if(($canMergeItems ?? false))
     <button type="button" class="ia-btn ia-btn--sm ia-btn--secondary" title="Pick exactly two items to merge"
             id="inv-merge-go" onclick="invOpenMerge()" disabled>Merge…</button>
     @endif
     <button type="button" class="ia-btn ia-btn--sm" onclick="invClearPicks()">Clear</button>
   </div>
+{{-- MARKER-INV-BULK: the form every bar action posts, and the Set category dialog --}}
+<form method="POST" action="{{ route('tenant.inventory.bulk') }}" id="inv-bulk-form" style="display:none">@csrf
+  <input type="hidden" name="action"><input type="hidden" name="category_id"><div id="inv-bulk-ids"></div>
+</form>
+<div id="inv-sc-scrim" class="ia-confirm-backdrop" style="display:none" onclick="if(event.target===this)invCloseSetCat()">
+  <div class="ia-confirm-card" role="dialog" aria-modal="true" style="width:min(480px,94vw)">
+    <div class="ia-confirm-title" id="inv-sc-title">Set category</div>
+    <input type="text" class="ia-input" id="inv-sc-q" placeholder="Find or make a category" autocomplete="off" style="width:100%;margin-top:6px">
+    <div id="inv-sc-new" style="display:none;margin-top:8px;padding:9px 12px;border:.5px dashed var(--ia-border-strong);border-radius:var(--ia-r-md);font-size:13px">
+      <button type="button" class="nc-add" id="inv-sc-newbtn" style="background:none;border:0;color:var(--ia-accent);font-weight:500;cursor:pointer;padding:0"></button>
+      <span style="color:var(--ia-text-muted)">under</span>
+      <select class="ia-input" id="inv-sc-parent" style="width:auto;display:inline-block;padding:3px 8px;margin-left:4px">
+        <option value="">Top level</option>
+        @foreach($categoryTree as $n)<option value="{{ $n['cat']->id }}">{{ str_repeat('· ', $n['depth']) }}{{ $n['cat']->name }}</option>@endforeach
+      </select>
+    </div>
+    <div id="inv-sc-list" style="max-height:260px;overflow:auto;border:.5px solid var(--ia-border);border-radius:var(--ia-r-md);margin-top:8px">
+      @foreach($categoryTree as $n)
+        <div class="inv-sc-opt" data-id="{{ $n['cat']->id }}" data-name="{{ $n['cat']->name }}" style="padding:8px 12px 8px {{ 12 + 16 * min($n['depth'], 3) }}px;font-size:13px;cursor:pointer;border-bottom:.5px solid var(--ia-border)">{{ $n['depth'] ? '└ ' : '' }}{{ $n['cat']->name }}</div>
+      @endforeach
+    </div>
+    <div class="ia-confirm-message" style="margin-top:10px">Only the category changes. Price, stock and everything else stay as they are. You can undo it straight after.</div>
+    <div class="ia-confirm-actions">
+      <button type="button" class="ia-btn" onclick="invCloseSetCat()">Cancel</button>
+      <button type="button" class="ia-btn ia-btn--primary" id="inv-sc-go" disabled>Move items</button>
+    </div>
+  </div>
+</div>
+<style>.inv-sc-opt:hover{background:var(--ia-hover)}.inv-sc-opt.on{background:var(--ia-hover);color:var(--ia-accent);font-weight:600}</style>
+
 @if(($canMergeItems ?? false))
 
   <div id="inv-merge-scrim" onclick="invCloseMerge()"
@@ -870,6 +917,68 @@
   window.invPrintLabels = function () {
     if (picks.length && window.openLabels) window.openLabels({ items: picks.map(function (p) { return p.id; }) });
   };
+
+  // MARKER-INV-BULK
+  var bulkForm = document.getElementById('inv-bulk-form');
+  function bulkPost(action, categoryId) {
+    if (!picks.length) return;
+    bulkForm.querySelector('[name=action]').value = action;
+    bulkForm.querySelector('[name=category_id]').value = categoryId || '';
+    bulkForm.querySelector('#inv-bulk-ids').innerHTML = picks.map(function (p) { return '<input type="hidden" name="item_ids[]" value="' + esc(p.id) + '">'; }).join('');
+    bulkForm.submit();
+  }
+  window.invBulk = function (action) { bulkPost(action); };
+  window.invArchiveAsk = function () {
+    var n = picks.length;
+    IntakeConfirm.show({ title: 'Archive ' + n + ' item' + (n === 1 ? '' : 's') + '?', message: 'They leave the inventory list, search and the register. Sales history is kept, and you can bring them back from the Archived stock filter, or with Undo straight after.', confirmText: 'Archive', danger: true })
+      .then(function (ok) { if (ok) bulkPost('archive'); });
+  };
+  var sc = document.getElementById('inv-sc-scrim'), scQ = document.getElementById('inv-sc-q'), scGo = document.getElementById('inv-sc-go'),
+      scNew = document.getElementById('inv-sc-new'), scNewBtn = document.getElementById('inv-sc-newbtn'), scList = document.getElementById('inv-sc-list');
+  var scPick = null;
+  function scFilter() {
+    var q = scQ.value.trim().toLowerCase(), exact = false;
+    scList.querySelectorAll('.inv-sc-opt').forEach(function (o) {
+      var nm = o.dataset.name.toLowerCase();
+      if (nm === q) exact = true;
+      o.style.display = !q || nm.indexOf(q) !== -1 ? '' : 'none';
+    });
+    // a new category is offered at the TOP, so it is never lost below a long list
+    scNew.style.display = q && !exact ? '' : 'none';
+    scNewBtn.textContent = '+ New category "' + scQ.value.trim() + '"';
+  }
+  function scChoose(id, label) {
+    scPick = id;
+    scList.querySelectorAll('.inv-sc-opt').forEach(function (o) { o.classList.toggle('on', o.dataset.id === id); });
+    scGo.disabled = false;
+    scGo.textContent = 'Move ' + picks.length + ' item' + (picks.length === 1 ? '' : 's') + ' to ' + label;
+  }
+  window.invOpenSetCat = function () {
+    if (!picks.length) return;
+    scPick = null; scQ.value = ''; scFilter(); scGo.disabled = true; scGo.textContent = 'Move items';
+    document.getElementById('inv-sc-title').textContent = 'Set category for ' + picks.length + ' item' + (picks.length === 1 ? '' : 's');
+    sc.style.display = 'flex'; requestAnimationFrame(function () { sc.classList.add('is-shown'); }); setTimeout(function () { scQ.focus(); }, 30);
+  };
+  window.invCloseSetCat = function () { sc.classList.remove('is-shown'); sc.style.display = 'none'; };
+  scQ.addEventListener('input', scFilter);
+  scList.addEventListener('click', function (e) { var o = e.target.closest('.inv-sc-opt'); if (o) scChoose(o.dataset.id, o.dataset.name); });
+  scNewBtn.addEventListener('click', function () {
+    var name = scQ.value.trim(); if (!name) return;
+    scNewBtn.disabled = true;
+    fetch(@json(route('tenant.inventory.categories.quick')), {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': token },
+      body: JSON.stringify({ name: name, parent_id: document.getElementById('inv-sc-parent').value || null })
+    }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); }).then(function (res) {
+      scNewBtn.disabled = false;
+      if (!res.ok || !res.j.id) { IntakeConfirm.alert({ title: 'Could not make that category', message: (res.j && res.j.message) || 'Try again.' }); return; }
+      var o = document.createElement('div');
+      o.className = 'inv-sc-opt'; o.dataset.id = res.j.id; o.dataset.name = res.j.name; o.textContent = res.j.path || res.j.name;
+      o.style.cssText = 'padding:8px 12px;font-size:13px;cursor:pointer;border-bottom:.5px solid var(--ia-border)';
+      scList.insertBefore(o, scList.firstChild);
+      scQ.value = res.j.name; scFilter(); scChoose(res.j.id, res.j.name);
+    }).catch(function () { scNewBtn.disabled = false; });
+  });
+  scGo.addEventListener('click', function () { if (scPick) { scGo.disabled = true; bulkPost('category', scPick); } });
 
   window.invClearPicks = function () {
     picks = [];

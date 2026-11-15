@@ -232,7 +232,23 @@
       if (none) { none.remove(); none = null; }
     }
 
-    root.__sselApi = { setOptions: setOptions, getValue: function () { return val.value; } };
+    // MARKER-INV-NEW-CATEGORY: add one option (e.g. a category made on the spot) and optionally pick it
+    function addOption(v, l, select) {
+      var o = document.createElement('div');
+      o.className = 'ssel-opt';
+      o.setAttribute('role', 'option');
+      o.setAttribute('data-v', v);
+      o.setAttribute('data-l', l);
+      var t = document.createElement('span'); t.className = 't'; t.textContent = l;
+      var tick = document.createElement('span'); tick.className = 'ssel-tick'; tick.textContent = '\u2713';
+      o.appendChild(t); o.appendChild(tick);
+      list.appendChild(o);
+      opts.push(o);
+      if (select) { choose(o); }
+      return o;
+    }
+
+    root.__sselApi = { setOptions: setOptions, addOption: addOption, getValue: function () { return val.value; } };
   }
 
   function boot() {

@@ -1003,7 +1003,8 @@ class InventoryController extends Controller
         }
 
         return back()->with('flash', ['type' => 'success',
-            'message' => "Undone: {$restored} item(s) back to uncategorized" . ($kept ? ", {$kept} kept (changed since)." : '.')]);
+            // MARKER-INV-BULK: the selection bar uses this undo too, where items had categories before
+            'message' => "Undone: {$restored} " . \Illuminate\Support\Str::plural('item', $restored) . " back where they were" . ($kept ? ", {$kept} kept (changed since)." : '.')]);
     }
 
     public function uncategorizedAssign(Request $request): RedirectResponse
@@ -1902,6 +1903,126 @@ class InventoryController extends Controller
      * returns exactly as it was — stock, vendor sources and history
      * included.
      */
+    /**
+     * MARKER-INV-BULK: the list's selection bar. Set category, hide from or show
+     * on the online store, archive, restore. Each one can be undone once from
+     * the banner that follows (session 'inv_undo').
+     */
+    public function bulk(Request $request): RedirectResponse
+    {
+        $tenant = tenant();
+        $this->assertRetailEnabled($tenant);
+        $data = $request->validate([
+            'action'      => ['required', 'in:category,hide,show,archive,restore'],
+            'item_ids'    => ['required', 'array', 'min:1', 'max:1000'],
+            'item_ids.*'  => ['uuid'],
+            'category_id' => ['nullable', 'uuid'],
+        ]);
+        $ids = array_values(array_unique($data['item_ids']));
+        $base = fn () => TenantInventoryItem::where('tenant_id', $tenant->id)->whereIn('id', $ids);
+        $n = 0;
+        $undo = null;
+
+        switch ($data['action']) {
+            case 'category':
+                $category = TenantInventoryCategory::where('tenant_id', $tenant->id)->where('id', $data['category_id'] ?? '')->first();
+                if (! $category) {
+                    return back()->with('flash', ['type' => 'error', 'message' => 'Pick a category first.']);
+                }
+                // same ledger as Uncategorized, so the same Undo works
+                $rows = $base()->get(['id', 'category_id']);
+                $assignmentId = (string) \Illuminate\Support\Str::uuid();
+                \Illuminate\Support\Facades\DB::transaction(function () use ($rows, $assignmentId, $tenant, $category, $base, &$n) {
+                    \Illuminate\Support\Facades\DB::table('tenant_category_assignments')->insert([
+                        'id' => $assignmentId, 'tenant_id' => $tenant->id, 'bucket_key' => null,
+                        'category_id' => $category->id, 'category_name' => $category->name,
+                        'item_count' => $rows->count(), 'source' => 'hand',
+                        'created_by' => auth('tenant')->id(), 'created_at' => now(), 'updated_at' => now(),
+                    ]);
+                    foreach ($rows->chunk(500) as $chunk) {
+                        \Illuminate\Support\Facades\DB::table('tenant_category_assignment_items')->insert(
+                            $chunk->map(fn ($r) => ['id' => (string) \Illuminate\Support\Str::uuid(), 'assignment_id' => $assignmentId,
+                                                   'item_id' => $r->id, 'prior_category_id' => $r->category_id])->all()
+                        );
+                    }
+                    $n = $base()->update(['category_id' => $category->id]);
+                });
+                $msg = $n . ' ' . \Illuminate\Support\Str::plural('item', $n) . ' moved to ' . $category->name . '.';
+                $undo = ['type' => 'assignment', 'id' => $assignmentId];
+                break;
+
+            case 'hide':
+            case 'show':
+                $on = $data['action'] === 'show';
+                $changed = $base()->where('show_online', ! $on)->pluck('id')->all();
+                $n = $changed ? TenantInventoryItem::where('tenant_id', $tenant->id)->whereIn('id', $changed)->update(['show_online' => $on]) : 0;
+                $msg = $on
+                    ? $n . ' ' . \Illuminate\Support\Str::plural('item', $n) . ' back on the online store.'
+                    : $n . ' ' . \Illuminate\Support\Str::plural('item', $n) . ' hidden from the online store. Still sold at the register.';
+                $undo = ['type' => $on ? 'hide' : 'show', 'ids' => $changed];
+                break;
+
+            case 'archive':
+                $changed = [];
+                foreach ($base()->get() as $item) {
+                    $item->update(['is_active' => false]);
+                    $item->delete(); // soft-delete, same as the item page's Archive
+                    $changed[] = $item->id;
+                }
+                $n = count($changed);
+                $msg = $n . ' ' . \Illuminate\Support\Str::plural('item', $n) . ' archived. Find them under the Archived stock filter.';
+                $undo = ['type' => 'restore', 'ids' => $changed];
+                break;
+
+            case 'restore':
+                $changed = []; $skipped = 0;
+                foreach (TenantInventoryItem::withTrashed()->where('tenant_id', $tenant->id)->whereIn('id', $ids)->get() as $item) {
+                    if (! $item->trashed()) continue;
+                    if (! empty($item->merged_into_id ?? null)) { $skipped++; continue; } // merged away: never comes back
+                    $item->restore();
+                    $item->update(['is_active' => true]);
+                    $changed[] = $item->id;
+                }
+                $n = count($changed);
+                $msg = $n . ' ' . \Illuminate\Support\Str::plural('item', $n) . ' restored.' . ($skipped ? ' ' . $skipped . ' merged into other items stayed archived.' : '');
+                $undo = ['type' => 'archive', 'ids' => $changed];
+                break;
+        }
+
+        if ($undo && $n) {
+            $request->session()->put('inv_undo', $undo + ['label' => $msg]);
+        }
+        return back()->with('flash', ['type' => $n ? 'success' : 'info', 'message' => $n ? $msg : 'Nothing needed changing.']);
+    }
+
+    /** MARKER-INV-BULK: undo the last selection-bar action, once. */
+    public function bulkUndo(Request $request): RedirectResponse
+    {
+        $tenant = tenant();
+        $this->assertRetailEnabled($tenant);
+        $u = $request->session()->pull('inv_undo');
+        if (! $u) {
+            return back()->with('flash', ['type' => 'info', 'message' => 'Nothing to undo.']);
+        }
+        if ($u['type'] === 'assignment') {
+            return $this->uncategorizedUndo($request, $u['id']);
+        }
+        $ids = (array) ($u['ids'] ?? []);
+        $n = 0;
+        if ($u['type'] === 'show' || $u['type'] === 'hide') {
+            $n = TenantInventoryItem::where('tenant_id', $tenant->id)->whereIn('id', $ids)->update(['show_online' => $u['type'] === 'show']);
+        } elseif ($u['type'] === 'restore') {
+            foreach (TenantInventoryItem::withTrashed()->where('tenant_id', $tenant->id)->whereIn('id', $ids)->get() as $item) {
+                if ($item->trashed()) { $item->restore(); $item->update(['is_active' => true]); $n++; }
+            }
+        } elseif ($u['type'] === 'archive') {
+            foreach (TenantInventoryItem::where('tenant_id', $tenant->id)->whereIn('id', $ids)->get() as $item) {
+                $item->update(['is_active' => false]); $item->delete(); $n++;
+            }
+        }
+        return back()->with('flash', ['type' => 'success', 'message' => 'Undone: ' . $n . ' ' . \Illuminate\Support\Str::plural('item', $n) . ' put back.']);
+    }
+
     public function restore(string $id): RedirectResponse
     {
         $tenant = tenant();

@@ -75,7 +75,8 @@
       </div>
 
       <div class="ia-form-group">
-        <label class="ia-form-label">Category <span class="ia-required">*</span></label>
+        <div class="nc-lbl"><label class="ia-form-label">Category <span class="ia-required">*</span></label>
+          @if(\Illuminate\Support\Facades\Route::has('tenant.inventory.categories.quick'))<button type="button" class="nc-add" id="ncOpen">+ New category</button>@endif</div>
         {{-- our picker, not a native select: macOS draws
              the native popup itself and ignored two attempts to make it dark,
              so a tenant on a light-mode machine got white on white. This one
@@ -92,6 +93,7 @@
         <x-tenant.searchable-select name="category_id" :options="$catOpts"
           :selected="old('category_id', $item->category_id) ?? ''"
           any="— Select a category —" noun="categories" :searchable="count($catOpts) >= 12" />
+        @include('tenant.inventory._partials.new-category', ['catOpts' => $catOpts])
       </div>
 
       {{-- patch-99 color/size fields --}}

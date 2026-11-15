@@ -1040,6 +1040,9 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::get('/labels/data',       [TenantControllers\InventoryLabelController::class, 'data'])->name('labels.data');
                 Route::post('/labels/sheet',     [TenantControllers\InventoryLabelController::class, 'sheet'])->name('labels.sheet');
                 Route::post('/labels/prefs',     [TenantControllers\InventoryLabelController::class, 'savePrefs'])->name('labels.prefs');
+                // MARKER-INV-BULK: the list's selection bar
+                Route::post('/bulk',             [TenantControllers\InventoryController::class, 'bulk'])->name('bulk');
+                Route::post('/bulk/undo',        [TenantControllers\InventoryController::class, 'bulkUndo'])->name('bulk.undo');
                 Route::get('/{id}',              [TenantControllers\InventoryController::class, 'show'])->name('show');
                 Route::get('/{id}/edit',         [TenantControllers\InventoryController::class, 'edit'])->name('edit');
                 Route::patch('/{id}',            [TenantControllers\InventoryController::class, 'update'])->name('update');

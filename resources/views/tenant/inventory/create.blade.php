@@ -117,7 +117,8 @@
       </div>
 
       <div class="ia-form-group">
-        <label class="ia-form-label">Category <span class="ia-required">*</span></label>
+        <div class="nc-lbl"><label class="ia-form-label">Category <span class="ia-required">*</span></label>
+          @if(\Illuminate\Support\Facades\Route::has('tenant.inventory.categories.quick'))<button type="button" class="nc-add" id="ncOpen">+ New category</button>@endif</div>
         {{-- see edit.blade.php --}}
         @php
           $catOpts = [];
@@ -131,6 +132,7 @@
         <x-tenant.searchable-select name="category_id" :options="$catOpts"
           :selected="old('category_id') ?? ''"
           any="— Select a category —" noun="categories" :searchable="count($catOpts) >= 12" />
+        @include('tenant.inventory._partials.new-category', ['catOpts' => $catOpts])
         
       </div>
 

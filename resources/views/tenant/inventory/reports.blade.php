@@ -75,35 +75,64 @@
 @endif
 
 <div class="ia-card" style="margin-bottom:16px">
-  <div class="ia-card-head">
+  <div class="ia-card-head" style="gap:10px;flex-wrap:wrap">
     <div class="ia-card-title">By category</div>
     <span class="ivr-hint">movement over the last {{ $days }} days</span>
+    {{-- MARKER-INV-REPORT-LEVELS: top-level totals, or every category on its own --}}
+    <div class="ivr-window" style="margin-left:auto">
+      <a href="{{ route('tenant.inventory.reports', ['days' => $days, 'level' => 'top', 'sort' => $sort, 'dir' => $dir]) }}" class="{{ $level === 'top' ? 'on' : '' }}">Top level</a>
+      <a href="{{ route('tenant.inventory.reports', ['days' => $days, 'level' => 'all', 'sort' => $sort, 'dir' => $dir]) }}" class="{{ $level === 'all' ? 'on' : '' }}">Every level</a>
+    </div>
   </div>
   @if(count($categories))
+    @php
+      // MARKER-INV-REPORT-SORT: every heading sorts; the same one again flips it
+      $th = function (string $key, string $label, bool $num = true) use ($days, $level, $sort, $dir) {
+          $nextDir = $sort === $key ? ($dir === 'asc' ? 'desc' : 'asc') : ($key === 'name' ? 'asc' : 'desc');
+          $arrow = $sort === $key ? ($dir === 'asc' ? '▲' : '▼') : '↕';
+          return '<th class="' . ($num ? 'ia-num ' : '') . 'ivr-sort' . ($sort === $key ? ' on' : '') . '"><a href="'
+              . e(route('tenant.inventory.reports', ['days' => $days, 'level' => $level, 'sort' => $key, 'dir' => $nextDir]))
+              . '">' . e($label) . '<span class="ar">' . $arrow . '</span></a></th>';
+      };
+      $cell = function (array $c) {
+          $st = $c['sell_through_pct'] !== null
+              ? '<span class="ivr-bar"><span style="width:' . min(100, $c['sell_through_pct']) . '%"></span></span>' . $c['sell_through_pct'] . '%'
+              : '&mdash;';
+          return '<td class="ia-num">' . number_format($c['skus']) . '</td><td class="ia-num">' . number_format($c['units']) . '</td><td class="ia-num">'
+              . e(format_money($c['cost_cents'])) . '</td><td class="ia-num">' . rtrim(rtrim(number_format($c['sold_units'], 2), '0'), '.') . '</td><td class="ia-num">' . $st . '</td>';
+      };
+    @endphp
     <table class="ia-table">
       <thead>
-        <tr><th>Category</th><th class="ia-num">SKUs</th><th class="ia-num">On hand</th><th class="ia-num">At cost</th><th class="ia-num">Sold</th><th class="ia-num">Sell-through</th></tr>
+        <tr>{!! $th('name', 'Category', false) !!}{!! $th('skus', 'SKUs') !!}{!! $th('units', 'On hand') !!}{!! $th('cost', 'At cost') !!}{!! $th('sold', 'Sold') !!}{!! $th('st', 'Sell-through') !!}</tr>
       </thead>
       <tbody>
         @foreach($categories as $c)
-          <tr>
-            <td>{{ $c['category'] }}</td>
-            <td class="ia-num">{{ number_format($c['skus']) }}</td>
-            <td class="ia-num">{{ number_format($c['units']) }}</td>
-            <td class="ia-num">{{ format_money($c['cost_cents']) }}</td>
-            <td class="ia-num">{{ rtrim(rtrim(number_format($c['sold_units'], 2), '0'), '.') }}</td>
-            <td class="ia-num">
-              @if($c['sell_through_pct'] !== null)
-                <span class="ivr-bar"><span style="width:{{ min(100, $c['sell_through_pct']) }}%"></span></span>
-                {{ $c['sell_through_pct'] }}%
-              @else
-                &mdash;
-              @endif
+          @php $kids = $c['children'] ?? []; @endphp
+          <tr class="{{ $kids ? 'ivr-par' : '' }}" @if($kids) data-ivr-open="{{ $loop->index }}" title="Show what makes this up" @endif>
+            <td>
+              @if($level === 'top')<span class="ivr-tw">{{ $kids ? '▸' : '' }}</span>@endif
+              {{ $c['category'] }}
+              @if($level === 'all' && $c['parent'])<span class="ivr-chip">{{ $c['parent'] }}</span>@endif
             </td>
+            {!! $cell($c) !!}
           </tr>
+          @foreach($kids as $k)
+            <tr class="ivr-kid" data-ivr-kid="{{ $loop->parent->index }}" hidden><td>{{ $k['category'] }}</td>{!! $cell($k) !!}</tr>
+          @endforeach
         @endforeach
       </tbody>
     </table>
+    <script>
+      document.querySelectorAll('[data-ivr-open]').forEach(function (row) {
+        row.addEventListener('click', function () {
+          var kids = document.querySelectorAll('[data-ivr-kid="' + row.dataset.ivrOpen + '"]');
+          var opening = kids.length && kids[0].hidden;
+          kids.forEach(function (k) { k.hidden = !opening; });
+          row.querySelector('.ivr-tw').textContent = opening ? '▾' : '▸';
+        });
+      });
+    </script>
   @else
     <div class="ivr-empty">No active inventory yet.</div>
   @endif
@@ -170,6 +199,14 @@
   .ivr-bar{display:inline-block;width:52px;height:5px;border-radius:99px;background:rgba(127,127,127,.2);
     overflow:hidden;vertical-align:middle;margin-right:7px}
   .ivr-bar>span{display:block;height:100%;background:var(--ia-accent)}
+  /* MARKER-INV-REPORT-LEVELS / MARKER-INV-REPORT-SORT */
+  .ivr-sort a{color:inherit;text-decoration:none;white-space:nowrap}
+  .ivr-sort .ar{opacity:.35;margin-left:4px;font-size:10px}
+  .ivr-sort.on .ar{opacity:1;color:var(--ia-accent)}
+  .ivr-par{cursor:pointer !important}.ivr-par td:first-child{font-weight:500}
+  .ivr-tw{display:inline-block;width:16px;color:var(--ia-text-muted)}
+  .ivr-kid td:first-child{padding-left:38px;color:var(--ia-text-muted)}
+  .ivr-chip{display:inline-block;margin-left:8px;font-size:11px;padding:1px 8px;border-radius:99px;background:var(--ia-surface-2);color:var(--ia-text-muted)}
   .ivr-empty{padding:28px 16px;text-align:center;color:var(--ia-text-muted);font-size:13px}
   .ivr-two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
   @media (max-width:1000px){ .ivr-two{grid-template-columns:1fr} }

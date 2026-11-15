@@ -192,7 +192,7 @@
       </form>
     @else
       <form method="POST" action="{{ route('tenant.inventory.destroy', $item->id) }}"
-            onsubmit="return confirm('Archive this item? It disappears from search and the register, but nothing is lost — you can restore it from Inventory → Archived.')">
+            onsubmit="if (this.dataset.ok) return true; event.preventDefault(); var f = this; IntakeConfirm.show({ title: 'Archive this item?', message: 'It disappears from search and the register, but nothing is lost. You can restore it from Inventory, Archived.', confirmText: 'Archive', danger: true }).then(function (ok) { if (ok) { f.dataset.ok = '1'; f.submit(); } }); return false;">
         @csrf
         @method('DELETE')
         <button type="submit" class="ia-btn ia-btn--ghost" style="color:var(--ia-error)">Archive</button>

@@ -213,42 +213,114 @@ class InventoryReportService
         ];
     }
 
-    /** Holdings and movement per category. */
-    public function byCategory(Carbon $from, Carbon $to): array
+    /**
+     * Holdings and movement per category.
+     *
+     * MARKER-INV-REPORT-LEVELS: $level 'all' is one row per category an item
+     * sits in (the old report). 'top' adds every sub-category into its
+     * top-level parent, with 'children' holding the next level down for the
+     * open-up view. Rows are keyed by category id, not name: two categories
+     * with the same name under different parents used to be merged into one row.
+     */
+    public function byCategory(Carbon $from, Carbon $to, string $level = 'all'): array
     {
         $sold = $this->netSoldByItem($from, $to);
 
         $items = DB::table('tenant_inventory_items as i')
-            ->leftJoin('tenant_inventory_categories as c', 'c.id', '=', 'i.category_id')
             ->where('i.tenant_id', $this->tenant->id)
             ->where('i.is_active', true)
             ->whereNull('i.deleted_at')
-            ->select('i.id', 'i.computed_stock_count', 'c.name as category')
+            ->select('i.id', 'i.computed_stock_count', 'i.category_id')
             ->selectRaw('COALESCE(i.received_cost_cents, i.shop_cost_cents, i.catalog_cost_cents, 0) as unit_cost')
             ->get();
 
+        $cats = DB::table('tenant_inventory_categories')->where('tenant_id', $this->tenant->id)->whereNull('deleted_at')
+            ->get(['id', 'parent_id', 'name'])->keyBy('id');
+
+        // the chain from the top-level category down to this one (guarded against loops)
+        $chain = function (?string $id) use ($cats): array {
+            $out = []; $seen = 0;
+            while ($id && isset($cats[$id]) && $seen++ < 12) { array_unshift($out, $cats[$id]); $id = $cats[$id]->parent_id; }
+            return $out;
+        };
+
+        $blank = fn (string $key, string $name, ?string $parent = null) => ['key' => $key, 'category' => $name, 'parent' => $parent,
+            'skus' => 0, 'units' => 0, 'cost_cents' => 0, 'sold_units' => 0.0, 'children' => []];
+        $add = function (array &$row, $it, int $onHand, float $soldUnits) {
+            $row['skus']++;
+            $row['units']      += $onHand;
+            $row['cost_cents'] += $onHand * (int) $it->unit_cost;
+            $row['sold_units'] += $soldUnits;
+        };
+
         $rows = [];
         foreach ($items as $it) {
-            $key = $it->category ?: 'Uncategorized';
-            $rows[$key] ??= ['category' => $key, 'skus' => 0, 'units' => 0, 'cost_cents' => 0, 'sold_units' => 0.0];
-            $rows[$key]['skus']++;
             // floor here too, or a category with
             // oversold items reports negative units and negative cost.
             $onHand = max(0, (int) $it->computed_stock_count);
-            $rows[$key]['units']      += $onHand;
-            $rows[$key]['cost_cents'] += $onHand * (int) $it->unit_cost;
-            $rows[$key]['sold_units'] += $sold[$it->id]['units'] ?? 0;
+            $soldUnits = (float) ($sold[$it->id]['units'] ?? 0);
+            $path = $it->category_id ? $chain($it->category_id) : [];
+
+            if (! $path) {
+                $rows['none'] ??= $blank('none', 'Uncategorized');
+                $add($rows['none'], $it, $onHand, $soldUnits);
+                continue;
+            }
+
+            if ($level === 'top') {
+                $root = $path[0];
+                $rows[$root->id] ??= $blank($root->id, $root->name);
+                $add($rows[$root->id], $it, $onHand, $soldUnits);
+                // the next level down: the child of the top-level category on this item's path
+                $kid = $path[1] ?? null;
+                $kk = $kid ? $kid->id : $root->id . ':self';
+                $rows[$root->id]['children'][$kk] ??= $blank($kk, $kid ? $kid->name : 'In ' . $root->name . ' itself', $root->name);
+                $add($rows[$root->id]['children'][$kk], $it, $onHand, $soldUnits);
+            } else {
+                $leaf = end($path);
+                $parent = count($path) > 1 ? implode(' › ', array_map(fn ($c) => $c->name, array_slice($path, 0, -1))) : null;
+                $rows[$leaf->id] ??= $blank($leaf->id, $leaf->name, $parent);
+                $add($rows[$leaf->id], $it, $onHand, $soldUnits);
+            }
         }
 
-        foreach ($rows as $k => $r) {
-            // Sell-through = sold / (sold + still on hand): the share of what
-            // you had that actually left.
+        // Sell-through = sold / (sold + still on hand): the share of what
+        // you had that actually left.
+        $finish = function (array $r) use (&$finish): array {
             $base = $r['sold_units'] + $r['units'];
-            $rows[$k]['sell_through_pct'] = $base > 0 ? round(($r['sold_units'] / $base) * 100, 1) : null;
-        }
+            $r['sell_through_pct'] = $base > 0 ? round(($r['sold_units'] / $base) * 100, 1) : null;
+            $kids = array_values(array_map($finish, $r['children']));
+            // a top-level category whose items all sit directly in it has nothing to open up
+            $r['children'] = (count($kids) === 1 && str_ends_with((string) $kids[0]['key'], ':self')) ? [] : $kids;
+            return $r;
+        };
+        $rows = array_values(array_map($finish, $rows));
 
-        usort($rows, fn ($a, $b) => $b['cost_cents'] <=> $a['cost_cents']);
-        return array_values($rows);
+        return self::sortCategoryRows($rows, 'cost', 'desc');
+    }
+
+    public const CATEGORY_SORTS = ['name', 'skus', 'units', 'cost', 'sold', 'st'];
+
+    /** MARKER-INV-REPORT-SORT: sort rows (and each row's children) by a column. Uncategorized always last. */
+    public static function sortCategoryRows(array $rows, string $by, string $dir): array
+    {
+        $by = in_array($by, self::CATEGORY_SORTS, true) ? $by : 'cost';
+        $sign = $dir === 'asc' ? 1 : -1;
+        $val = fn (array $r) => match ($by) {
+            'name'  => mb_strtolower($r['category']),
+            'skus'  => $r['skus'], 'units' => $r['units'], 'cost' => $r['cost_cents'], 'sold' => $r['sold_units'],
+            'st'    => $r['sell_through_pct'] ?? -1,
+        };
+        usort($rows, function ($a, $b) use ($val, $sign) {
+            if (($a['key'] ?? '') === 'none') return 1;
+            if (($b['key'] ?? '') === 'none') return -1;
+            return ($val($a) <=> $val($b)) * $sign ?: strcmp(mb_strtolower($a['category']), mb_strtolower($b['category']));
+        });
+        foreach ($rows as &$r) {
+            if (! empty($r['children'])) $r['children'] = self::sortCategoryRows($r['children'], $by, $dir);
+        }
+        unset($r);
+        return $rows;
     }
 
     /** Best and worst movers by net units in the window. */
