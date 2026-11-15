@@ -32,12 +32,44 @@ class CartService
         $token = session(self::SESSION_KEY);
         if (! $token) return null;
 
-        return TenantOrder::query()
+        $cart = TenantOrder::query()
             ->where('tenant_id', $this->tenant->id)
             ->where('token', $token)
             ->where('status', TenantOrder::STATUS_CART)
             ->with('items')
             ->first();
+        if ($cart) $this->fillImages($cart);
+        return $cart;
+    }
+
+    /**
+     * MARKER-CART-PHOTO: the photo the item shows in the shop, the same one its product page
+     * leads with: the shop's own photos first, then the distributor's, skipping any the shop hid.
+     * (Lines used to take only the first distributor photo, so items with the shop's own photos,
+     * or whose first distributor photo was hidden, came into the cart with none.)
+     */
+    public static function imageFor(TenantInventoryItem $item): ?string
+    {
+        foreach ($item->displayImages(6) as $img) {
+            if (! $img['hidden'] && ! empty($img['url'])) return $img['url'];
+        }
+        return null;
+    }
+
+    /** Lines added before a photo existed (or before this fix) pick it up the next time the cart loads. */
+    private function fillImages(TenantOrder $cart): void
+    {
+        $missing = $cart->items->filter(fn ($l) => ! $l->image_snapshot && $l->inventory_item_id);
+        if ($missing->isEmpty()) return;
+        $items = TenantInventoryItem::whereIn('id', $missing->pluck('inventory_item_id')->unique()->all())
+            ->with(['distributorCatalog:id,images,distributor_code', 'itemImages.media'])->get()->keyBy(fn ($i) => (string) $i->id);
+        foreach ($missing as $line) {
+            $item = $items[(string) $line->inventory_item_id] ?? null;
+            if ($item && ($url = self::imageFor($item))) {
+                $line->image_snapshot = $url;
+                $line->save();
+            }
+        }
     }
 
     /** The session's cart, created on first need. */
@@ -70,13 +102,7 @@ class CartService
             $line->line_total_cents = (int) round($line->unit_price_cents * (float) $line->quantity);
             $line->save();
         } else {
-            $images = (array) ($item->distributorCatalog?->images ?? []);
-            $imgUrl = \App\Support\CatalogImages::urls(
-                $images,
-                $item->distributorCatalog?->distributor_code ?? null,
-                $item->tenant_id ?? null,
-                1,
-            )[0] ?? null;
+            $imgUrl = self::imageFor($item);
             $price  = (int) ($item->effectiveSellPriceCents() ?? 0);
 
             TenantOrderItem::create([
