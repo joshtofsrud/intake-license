@@ -194,6 +194,31 @@ class AdminPanelProvider extends PanelProvider
             // showing the OS default chunky scrollbar. This injects thin/dim styling
             // scoped to the sidebar nav so it gently scrolls without visually dominating.
             // MARKER-ADMIN-TOPBAR: Inbox, Calendar, Follow-ups, Issues left of Search
+            // MARKER-ADMIN-EXPIRED: a click after the session ran out (page left open
+            // overnight) reloads the page instead of Livewire's "page expired" browser
+            // dialog. The reload lands on the login screen, which then returns here.
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                fn (): string => <<<'HTML'
+                <script>
+                document.addEventListener('livewire:init', function () {
+                  Livewire.hook('request', function (r) {
+                    r.fail(function (f) {
+                      if (f.status !== 419) return;
+                      f.preventDefault();
+                      try { sessionStorage.setItem('intake-admin-expired', '1'); } catch (e) {}
+                      window.location.reload();
+                    });
+                  });
+                });
+                </script>
+                HTML
+            )
+            ->renderHook(
+                PanelsRenderHook::AUTH_LOGIN_FORM_BEFORE,
+                fn (): string => '<div id="adminExpired" style="' . (session('admin_expired') ? '' : 'display:none;') . 'margin-bottom:12px;padding:10px 12px;border-radius:8px;font-size:13px;line-height:1.5;background:rgba(139,92,246,.12);color:inherit">You were signed out because the page sat open for a long time. Sign in and you will go straight back to where you were.</div>'
+                    . '<script>try{if(sessionStorage.getItem("intake-admin-expired")){document.getElementById("adminExpired").style.display="";sessionStorage.removeItem("intake-admin-expired");}}catch(e){}</script>'
+            )
             ->renderHook(
                 PanelsRenderHook::GLOBAL_SEARCH_BEFORE,
                 fn (): string => \Livewire\Livewire::mount(\App\Livewire\AdminTopbar::class)

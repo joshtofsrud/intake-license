@@ -87,6 +87,23 @@ return Application::configure(basePath: dirname(__DIR__))
         // Also passes the ID into the 500 view as $errorRefId. The ID is
         // written into the log message via the report() hook above when
         // the exception bubbles up — same ID in both places.
+        // MARKER-ADMIN-EXPIRED: master admin left open overnight. The page's
+        // security token went stale with the session, so instead of a 419
+        // page, go to the login screen and come back to the same page after.
+        // In-page (Livewire) clicks are handled by the panel's script instead.
+        // (Laravel has already turned the token mismatch into an HTTP 419 by the time this runs.)
+        $exceptions->render(function (\Symfony\Component\HttpKernel\Exception\HttpExceptionInterface $e, \Illuminate\Http\Request $request) {
+            if ($e->getStatusCode() !== 419) return null;
+            $master = strcasecmp($request->getHost(), (string) config('intake.domain', 'intake.works')) === 0;
+            if (! $master || ! $request->is('admin', 'admin/*') || $request->expectsJson() || $request->hasHeader('X-Livewire')) {
+                return null;
+            }
+            $back = $request->isMethod('GET') ? $request->fullUrl() : url()->previous();
+            if (str_contains($back, '/admin/login') || ! str_contains($back, '/admin')) $back = url('/admin');
+            $request->session()->put('url.intended', $back);
+            return redirect('/admin/login')->with('admin_expired', true);
+        });
+
         $exceptions->render(function (\Throwable $e, \Illuminate\Http\Request $request) {
             // patch #45c: bail early for exceptions that Laravel handles
             // natively with redirects (auth, validation). Without this, the
