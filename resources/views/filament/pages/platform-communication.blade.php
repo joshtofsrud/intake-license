@@ -50,13 +50,39 @@
   .pl-seg{display:inline-flex;border:1px solid var(--pc-line);border-radius:8px;padding:2px}
   .pl-seg button{background:none;border:0;color:inherit;opacity:.6;padding:5px 11px;border-radius:6px;font:inherit;font-size:12.5px;cursor:pointer}
   .pl-seg button.on{opacity:1;background:rgba(255,255,255,.08);font-weight:600}
-  .pl-blk{border:1px solid var(--pc-line);border-radius:10px;padding:10px 12px;margin-bottom:10px}
-  .pl-blk-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:13px}
-  .pl-blk-h button{background:none;border:0;color:inherit;opacity:.6;cursor:pointer;font-size:13px;padding:0 4px}
+  /* MARKER-FEATURE-BLOCKS: the block list reads as a list of sections. Each
+     block is a card with a numbered header (type, kind chip, controls) and a
+     body of labelled fields; the add palette is grouped by kind. */
+  .pl-list{counter-reset:plb;margin-top:6px}
+  .pl-blk{border:1px solid var(--pc-line);border-radius:12px;margin-bottom:10px;background:rgba(255,255,255,.015);counter-increment:plb}
+  .pl-blk-h{display:flex;align-items:center;gap:10px;padding:10px 12px;font-size:13.5px;cursor:pointer;user-select:none}
+  .pl-blk-h::before{content:counter(plb);min-width:22px;height:22px;border-radius:6px;display:grid;place-items:center;font-size:11px;font-weight:700;background:rgba(255,255,255,.06);opacity:.8}
+  .pl-blk-h b{font-weight:650}
+  .pl-kind{font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:99px;border:1px solid var(--pc-line);opacity:.7}
+  .pl-kind--feat{border-color:rgba(190,242,100,.45);color:#BEF264;opacity:1}
+  .pl-blk-h .pl-ctl{margin-left:auto;display:flex;gap:2px}
+  .pl-blk-h .pl-ctl button{background:none;border:0;color:inherit;opacity:.55;cursor:pointer;font-size:13px;width:26px;height:26px;border-radius:6px}
+  .pl-blk-h .pl-ctl button:hover{opacity:1;background:rgba(255,255,255,.06)}
+  .pl-blk-b{padding:4px 14px 14px;border-top:1px solid var(--pc-line)}
+  .pl-l{display:block;font-size:11.5px;font-weight:600;opacity:.6;margin:10px 0 5px}
   .pl-blk textarea,.pl-blk input[type=text]{width:100%;background:transparent;border:1px solid var(--pc-line);border-radius:8px;color:inherit;font:inherit;font-size:13.5px;padding:8px 10px}
+  .pl-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .pl-row3{display:grid;grid-template-columns:1.4fr 1fr 1.4fr;gap:8px}
   .pl-grid{display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr;gap:6px}
   .pl-grid .pl-h{font-size:12px;opacity:.75}
-  .pl-add{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0 14px;font-size:12.5px;opacity:.9}
+  .pl-tilebox{border:1px solid var(--pc-line);border-radius:10px;padding:8px 10px 10px;border-left-width:4px}
+  .pl-shot{position:relative;display:inline-block;max-width:100%;cursor:crosshair;margin-top:8px}
+  .pl-shot img{display:block;max-width:100%;border-radius:8px;border:1px solid var(--pc-line)}
+  .pl-pin{position:absolute;width:24px;height:24px;margin:-12px 0 0 -12px;border-radius:50%;background:#BEF264;color:#10140a;font-size:12px;font-weight:800;display:grid;place-items:center;box-shadow:0 0 0 4px rgba(190,242,100,.3);pointer-events:none}
+  .pl-mk{display:grid;grid-template-columns:26px 1fr 1.6fr 26px;gap:8px;align-items:center;margin-top:8px}
+  .pl-mk i{width:22px;height:22px;border-radius:50%;background:#BEF264;color:#10140a;font-style:normal;font-size:11px;font-weight:800;display:grid;place-items:center}
+  .pl-mk button{background:none;border:0;color:inherit;opacity:.55;cursor:pointer}
+  .pl-add{border:1px dashed var(--pc-line);border-radius:12px;padding:12px 14px;margin:4px 0 16px}
+  .pl-add-g{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px}
+  .pl-add-g:last-child{margin-bottom:0}
+  .pl-add-g > span{font-size:11.5px;font-weight:600;opacity:.6;width:64px}
+  .pl-add .pc-btn{font-size:12.5px;padding:5px 10px}
+  .pl-add .pl-add-feat .pc-btn{border-color:rgba(190,242,100,.35)}
   .pc-note{font-size:12px;opacity:.6;line-height:1.6;margin-top:10px}
   .pc-frame{border:1px solid var(--pc-line);border-radius:10px;overflow:hidden;background:#fff}
   .pc-frame iframe{width:100%;height:520px;border:0;display:block}
@@ -232,20 +258,31 @@
             </div>
           </div>
           @if($cMode === 'letter')
+            <div class="pc-f">
+              <label>Sends in</label>
+              <div class="pl-seg">
+                <button type="button" class="{{ $cSendTheme === 'light' ? 'on' : '' }}" wire:click="setSendTheme('light')">Light</button>
+                <button type="button" class="{{ $cSendTheme === 'dark' ? 'on' : '' }}" wire:click="setSendTheme('dark')">Dark</button>
+              </div>
+            </div>
             <div class="pc-note" style="margin:-4px 0 10px">
               Tokens: <code>{first_name}</code> <code>{shop_name}</code> — and for investors <code>{amount}</code> <code>{percent}</code> <code>{remaining}</code> <code>{portal}</code>.
               The preview on the right uses sample values.
             </div>
+            <div class="pl-list">
             @foreach($cBlocks as $i => $blk)
-              <div class="pl-blk" wire:key="lb-{{ $i }}-{{ $blk['type'] }}">
-                <div class="pl-blk-h">
+              @php $isFeat = str_starts_with($blk['type'], 'feat_'); @endphp
+              <div class="pl-blk" wire:key="lb-{{ $i }}-{{ $blk['type'] }}" x-data="{ open: true }">
+                <div class="pl-blk-h" x-on:click="open = !open">
                   <b>{{ $letterTypes[$blk['type']] ?? $blk['type'] }}</b>
-                  <span>
-                    <button type="button" wire:click="moveLetterBlock({{ $i }}, -1)" title="Up">↑</button>
-                    <button type="button" wire:click="moveLetterBlock({{ $i }}, 1)" title="Down">↓</button>
+                  <span class="pl-kind {{ $isFeat ? 'pl-kind--feat' : '' }}">{{ $isFeat ? 'Feature' : 'Letter' }}</span>
+                  <span class="pl-ctl" x-on:click.stop>
+                    <button type="button" wire:click="moveLetterBlock({{ $i }}, -1)" title="Move up">↑</button>
+                    <button type="button" wire:click="moveLetterBlock({{ $i }}, 1)" title="Move down">↓</button>
                     <button type="button" wire:click="removeLetterBlock({{ $i }})" title="Remove">✕</button>
                   </span>
                 </div>
+                <div class="pl-blk-b" x-show="open">
                 @switch($blk['type'])
                   @case('letter_text')
                     <textarea rows="6" wire:model.live.debounce.700ms="cBlocks.{{ $i }}.data.text" placeholder="Write it like a note. Blank lines make paragraphs."></textarea>
@@ -290,14 +327,130 @@
                     <textarea rows="3" wire:model.live.debounce.700ms="cBlocks.{{ $i }}.data.text"></textarea>
                     <input type="text" wire:model.live.debounce.700ms="cBlocks.{{ $i }}.data.small" placeholder="Name · title · email" style="margin-top:6px">
                     @break
+                  @case('feat_hero')
+                    <label class="pl-l">Small line above <span style="opacity:.7">(optional)</span></label>
+                    <input type="text" wire:model.live.debounce.700ms="cBlocks.{{ $i }}.data.label" placeholder="November update">
+                    <label class="pl-l">Headline</label>
+                    <textarea rows="2" wire:model.live.debounce.700ms="cBlocks.{{ $i }}.data.text" placeholder="Finding the margin you already have."></textarea>
+                    @break
+                  @case('feat_display')
+                  @case('feat_headline')
+                    <label class="pl-l">Text</label>
+                    <textarea rows="2" wire:model.live.debounce.700ms="cBlocks.{{ $i }}.data.text"></textarea>
+                    @break
+                  @case('feat_lede')
+                    <label class="pl-l">Text <span style="opacity:.7">— set larger than a letter paragraph</span></label>
+                    <textarea rows="3" wire:model.live.debounce.700ms="cBlocks.{{ $i }}.data.text"></textarea>
+                    @break
+                  @case('feat_section')
+                    <label class="pl-l">Style</label>
+                    <div class="pl-seg">
+                      @foreach(['square' => 'Numbered square', 'bars' => 'Stepped bars', 'rule' => 'Split rule'] as $sk => $sl)
+                        <button type="button" class="{{ ($blk['data']['style'] ?? 'square') === $sk ? 'on' : '' }}" wire:click="setSectionStyle({{ $i }}, '{{ $sk }}')">{{ $sl }}</button>
+                      @endforeach
+                    </div>
+                    <div class="pl-row" style="grid-template-columns:90px 1fr">
+                      <div><label class="pl-l">Number</label><input type="text" wire:model.live.debounce.700ms="cBlocks.{{ $i }}.data.num" placeholder="03"></div>
+                      <div><label class="pl-l">Label</label><input type="text" wire:model.live.debounce.700ms="cBlocks.{{ $i }}.data.text" placeholder="How Intake fixes it"></div>
+                    </div>
+                    @break
+                  @case('feat_receipt')
+                    <label class="pl-l">Title <span style="opacity:.7">(optional)</span></label>
+                    <input type="text" wire:model.live.debounce.700ms="cBlocks.{{ $i }}.data.title" placeholder="One shop · 30 days">
+                    <label class="pl-l">Lines</label>
+                    @foreach(($blk['data']['rows'] ?? []) as $r => $row)
+                      <div class="pl-row" style="grid-template-columns:1.6fr 1fr;margin-bottom:6px">
+                        <input type="text" wire:model.live.debounce.700ms="cBlocks.{{ $i }}.data.rows.{{ $r }}.0" placeholder="Duplicates merged">
+                        <input type="text" wire:model.live.debounce.700ms="cBlocks.{{ $i }}.data.rows.{{ $r }}.1" placeholder="1,184">
+                      </div>
+                    @endforeach
+                    <div style="display:flex;gap:6px">
+                      <button type="button" class="pc-btn" wire:click="addReceiptRow({{ $i }})">+ Line</button>
+                      @if(count($blk['data']['rows'] ?? []) > 1)
+                        <button type="button" class="pc-btn" wire:click="removeReceiptRow({{ $i }}, {{ count($blk['data']['rows']) - 1 }})">− Last line</button>
+                      @endif
+                    </div>
+                    <div class="pl-row" style="grid-template-columns:1.6fr 1fr">
+                      <div><label class="pl-l">Total line <span style="opacity:.7">(optional, highlighted)</span></label><input type="text" wire:model.live.debounce.700ms="cBlocks.{{ $i }}.data.total_label" placeholder="Margin"></div>
+                      <div><label class="pl-l">&nbsp;</label><input type="text" wire:model.live.debounce.700ms="cBlocks.{{ $i }}.data.total_value" placeholder="41.6%"></div>
+                    </div>
+                    @break
+                  @case('feat_tiles')
+                    <label class="pl-l">Tiles</label>
+                    <div class="pl-seg">
+                      <button type="button" class="{{ count($blk['data']['tiles'] ?? []) === 2 ? 'on' : '' }}" wire:click="setTileCount({{ $i }}, 2)">Two</button>
+                      <button type="button" class="{{ count($blk['data']['tiles'] ?? []) === 4 ? 'on' : '' }}" wire:click="setTileCount({{ $i }}, 4)">Four</button>
+                    </div>
+                    <div class="pl-row" style="margin-top:8px">
+                      @foreach(($blk['data']['tiles'] ?? []) as $k => $tile)
+                        <div class="pl-tilebox" style="border-left-color:{{ ['#F2CC57', '#F09CC4', '#BEF264', '#8FB0F5'][$k % 4] }}">
+                          <label class="pl-l" style="margin-top:2px">Label</label><input type="text" wire:model.live.debounce.700ms="cBlocks.{{ $i }}.data.tiles.{{ $k }}.label" placeholder="Duplicates merged">
+                          <label class="pl-l">Figure</label><input type="text" wire:model.live.debounce.700ms="cBlocks.{{ $i }}.data.tiles.{{ $k }}.value" placeholder="1,184">
+                          <label class="pl-l">Note</label><input type="text" wire:model.live.debounce.700ms="cBlocks.{{ $i }}.data.tiles.{{ $k }}.note" placeholder="across three distributors">
+                        </div>
+                      @endforeach
+                    </div>
+                    @break
+                  @case('feat_tray')
+                  @case('feat_annotated')
+                    <label class="pl-l">Screenshot</label>
+                    <label class="pc-btn pl-file">{{ empty($blk['data']['url']) ? 'Choose image' : 'Replace image' }}<input type="file" accept="image/*" wire:model="shotUploads.{{ $i }}"></label>
+                    <span class="pc-note" wire:loading wire:target="shotUploads.{{ $i }}">Uploading…</span>
+                    @if($blk['type'] === 'feat_tray')
+                      <div class="pl-row">
+                        <div><label class="pl-l">Tab name</label><input type="text" wire:model.live.debounce.700ms="cBlocks.{{ $i }}.data.tab" placeholder="Register"></div>
+                        <div><label class="pl-l">Caption <span style="opacity:.7">(optional)</span></label><input type="text" wire:model.live.debounce.700ms="cBlocks.{{ $i }}.data.caption"></div>
+                      </div>
+                      @if(! empty($blk['data']['url']))
+                        <div class="pl-shot" style="cursor:default"><img src="{{ $blk['data']['url'] }}" alt=""></div>
+                      @endif
+                    @else
+                      @if(! empty($blk['data']['url']))
+                        <div class="pc-note" style="margin-top:8px">Click the picture to drop a numbered marker (up to six). Each marker gets a note below the image in the email.</div>
+                        <div class="pl-shot" x-on:click="const r = $event.currentTarget.getBoundingClientRect(); $wire.addMarker({{ $i }}, ($event.clientX - r.left) / r.width * 100, ($event.clientY - r.top) / r.height * 100)">
+                          <img src="{{ $blk['data']['url'] }}" alt="">
+                          @foreach(($blk['data']['markers'] ?? []) as $k => $mk)
+                            <span class="pl-pin" style="left:{{ $mk['x'] }}%;top:{{ $mk['y'] }}%">{{ $k + 1 }}</span>
+                          @endforeach
+                        </div>
+                        @foreach(($blk['data']['markers'] ?? []) as $k => $mk)
+                          <div class="pl-mk">
+                            <i>{{ $k + 1 }}</i>
+                            <input type="text" wire:model.live.debounce.700ms="cBlocks.{{ $i }}.data.markers.{{ $k }}.title" placeholder="Bold lead-in">
+                            <input type="text" wire:model.live.debounce.700ms="cBlocks.{{ $i }}.data.markers.{{ $k }}.note" placeholder="What this shows">
+                            <button type="button" wire:click="removeMarker({{ $i }}, {{ $k }})" title="Remove marker">✕</button>
+                          </div>
+                        @endforeach
+                      @else
+                        <div class="pc-note">Pick a screenshot, then click on it to place markers.</div>
+                      @endif
+                    @endif
+                    @break
+                  @case('feat_divider')
+                    <div class="pc-note" style="margin-top:6px">A perforated line between sections. Nothing to fill in.</div>
+                    @break
+                  @case('feat_button')
+                    <div class="pl-row">
+                      <div><label class="pl-l">Label</label><input type="text" wire:model.live.debounce.700ms="cBlocks.{{ $i }}.data.label" placeholder="See it in the demo"></div>
+                      <div><label class="pl-l">Link</label><input type="text" wire:model.live.debounce.700ms="cBlocks.{{ $i }}.data.url" placeholder="https://… or {portal}"></div>
+                    </div>
+                    @break
                 @endswitch
+                </div>
               </div>
             @endforeach
+            </div>
             <div class="pl-add">
-              <span>Add:</span>
-              @foreach($letterTypes as $lt => $ll)
-                <button type="button" class="pc-btn" wire:click="addLetterBlock('{{ $lt }}')">{{ $ll }}</button>
-              @endforeach
+              <div class="pl-add-g"><span>Letter</span>
+                @foreach($letterTypes as $lt => $ll)
+                  @unless(str_starts_with($lt, 'feat_'))<button type="button" class="pc-btn" wire:click="addLetterBlock('{{ $lt }}')">+ {{ $ll }}</button>@endunless
+                @endforeach
+              </div>
+              <div class="pl-add-g pl-add-feat"><span>Feature</span>
+                @foreach($letterTypes as $lt => $ll)
+                  @if(str_starts_with($lt, 'feat_'))<button type="button" class="pc-btn" wire:click="addLetterBlock('{{ $lt }}')">+ {{ $ll }}</button>@endif
+                @endforeach
+              </div>
             </div>
           @else
           <div class="pc-f">
@@ -356,7 +509,7 @@
               <div class="pc-frame" style="{{ $cTheme === 'phone' ? 'max-width:380px;margin:0 auto' : '' }}">
                 <iframe srcdoc="{{ $letterPreview }}" title="Letter preview" style="height:640px"></iframe>
               </div>
-              <div class="pc-note">Sample values stand in for the tokens. The email itself goes out in Light; Dark shows roughly how a dark-mode inbox will treat it.</div>
+              <div class="pc-note">Sample values stand in for the tokens. This campaign sends in {{ $cSendTheme === 'dark' ? 'Dark' : 'Light' }} (set above); the other theme shows roughly how it looks the other way round. Phone shows the sending theme at phone width.</div>
             </div>
           @endif
 

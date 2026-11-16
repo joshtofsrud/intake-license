@@ -48,6 +48,8 @@ class PlatformCommunication extends Page
     public string $cMode = 'body';
     public array $cBlocks = [];
     public string $cTheme = 'light';
+    public string $cSendTheme = 'light'; // what the campaign actually sends in
+    public array $trayUploads = [];   // feat_tray / feat_annotated images, by block index
     public array $shotUploads = [];
 
     public string $aName = '';
@@ -69,6 +71,13 @@ class PlatformCommunication extends Page
     {
         if ($this->editing) {
             $this->loadTemplate($this->editing);
+        }
+        // a reload (or a shared link) with ?campaign= used to show the campaign
+        // with an empty editor, and Save would then overwrite it with nothing.
+        if ($this->campaignId) {
+            \App\Models\PlatformCampaign::find($this->campaignId)
+                ? $this->openCampaign($this->campaignId)
+                : $this->campaignId = null;
         }
     }
 
@@ -214,7 +223,7 @@ class PlatformCommunication extends Page
             // the preview uses sample values, in the chosen theme
             'letterPreview' => ($campaign && $this->cMode === 'letter')
                 ? \App\Support\PlatformLetter::render($this->cBlocks, \App\Support\PlatformLetter::sampleVars(),
-                    $this->cTheme === 'dark' ? 'dark' : 'light',
+                    $this->cTheme === 'phone' ? $this->cSendTheme : ($this->cTheme === 'dark' ? 'dark' : 'light'),
                     \App\Support\PlatformLetter::footerFor(optional($campaign->audience)->source), '#')
                 : null,
             'letterTypes' => \App\Support\PlatformLetter::TYPES,
@@ -593,6 +602,8 @@ class PlatformCommunication extends Page
         $this->cSchedule  = $c->scheduled_at ? alocal($c->scheduled_at, 'Y-m-d\TH:i') : ''; // the box is in the admin zone
         $this->cBlocks    = \App\Support\PlatformLetter::isLetter($c->blocks ?? []) ? array_values($c->blocks) : [];
         $this->cMode      = $this->cBlocks ? 'letter' : 'body';
+        $this->cSendTheme = ($c->theme ?? 'light') === 'dark' ? 'dark' : 'light';
+        $this->cTheme     = $this->cSendTheme;
         $this->shotUploads = [];
         $this->tab        = 'campaigns';
     }
@@ -621,7 +632,7 @@ class PlatformCommunication extends Page
         // the block keeps an absolute URL, since a mail client has no site to be
         // relative to.
         foreach ($this->shotUploads as $i => $file) {
-            if ($file && isset($this->cBlocks[$i]) && ($this->cBlocks[$i]['type'] ?? '') === 'letter_shot') {
+            if ($file && isset($this->cBlocks[$i]) && in_array($this->cBlocks[$i]['type'] ?? '', ['letter_shot', 'feat_tray', 'feat_annotated'], true)) {
                 $path = $file->store('platform-letters', 'public');
                 $this->cBlocks[$i]['data']['url'] = url('/storage/' . $path);
             }
@@ -634,6 +645,7 @@ class PlatformCommunication extends Page
             'subject'     => trim($this->cSubject) ?: null,
             'body'        => $letter ? '' : $this->cBody,
             'blocks'      => $letter ? array_values($this->cBlocks) : null,
+            'theme'       => $this->cSendTheme === 'dark' ? 'dark' : 'light',
             'audience_id' => $this->cAudience ?: null,
         ]);
 
@@ -747,4 +759,66 @@ class PlatformCommunication extends Page
         Notification::make()->success()->title('Cancelled')
             ->body('Anything already sent has gone; nothing further will.')->send();
     }
+
+    // ---- MARKER-FEATURE-BLOCKS: editing helpers ----------------------------
+
+    public function setSendTheme(string $t): void
+    {
+        $this->cSendTheme = $t === 'dark' ? 'dark' : 'light';
+        $this->cTheme = $this->cSendTheme;   // preview follows what it sends in
+    }
+
+    /** An image picked for a tray or annotated block is stored straight away, so markers can go on it. */
+    public function updatedShotUploads($value, $key): void
+    {
+        $i = (int) $key;
+        $file = $this->shotUploads[$i] ?? null;
+        if ($file && in_array($this->cBlocks[$i]['type'] ?? '', ['feat_tray', 'feat_annotated'], true)) {
+            $this->validate(["shotUploads.$i" => 'image|max:8192']);
+            $path = $file->store('platform-letters', 'public');
+            $this->cBlocks[$i]['data']['url'] = url('/storage/' . $path);
+            unset($this->shotUploads[$i]);
+        }
+    }
+
+    public function addReceiptRow(int $i): void
+    {
+        $this->cBlocks[$i]['data']['rows'][] = ['', ''];
+    }
+
+    public function removeReceiptRow(int $i, int $r): void
+    {
+        unset($this->cBlocks[$i]['data']['rows'][$r]);
+        $this->cBlocks[$i]['data']['rows'] = array_values($this->cBlocks[$i]['data']['rows'] ?? []);
+    }
+
+    public function setTileCount(int $i, int $n): void
+    {
+        $n = in_array($n, [2, 4], true) ? $n : 2;
+        $t = array_values($this->cBlocks[$i]['data']['tiles'] ?? []);
+        $t = array_slice(array_pad($t, $n, ['label' => '', 'value' => '', 'note' => '']), 0, $n);
+        $this->cBlocks[$i]['data']['tiles'] = $t;
+    }
+
+    public function setSectionStyle(int $i, string $style): void
+    {
+        $this->cBlocks[$i]['data']['style'] = in_array($style, ['square', 'bars', 'rule'], true) ? $style : 'square';
+    }
+
+    /** Click on the picture drops the next numbered marker there (x, y in percent). */
+    public function addMarker(int $i, float $x, float $y): void
+    {
+        if (($this->cBlocks[$i]['type'] ?? '') !== 'feat_annotated') { return; }
+        $marks = $this->cBlocks[$i]['data']['markers'] ?? [];
+        if (count($marks) >= 6) { return; }
+        $marks[] = ['x' => round(max(0, min(100, $x)), 1), 'y' => round(max(0, min(100, $y)), 1), 'title' => '', 'note' => ''];
+        $this->cBlocks[$i]['data']['markers'] = $marks;
+    }
+
+    public function removeMarker(int $i, int $k): void
+    {
+        unset($this->cBlocks[$i]['data']['markers'][$k]);
+        $this->cBlocks[$i]['data']['markers'] = array_values($this->cBlocks[$i]['data']['markers'] ?? []);
+    }
+
 }

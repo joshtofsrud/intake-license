@@ -19,7 +19,7 @@ class PlatformCampaign extends Model
     protected $fillable = [
         'name', 'subject', 'preheader', 'body',
         'from_name', 'from_email',
-        'audience_id', 'blocks', 'status', 'scheduled_at', 'sent_at',
+        'audience_id', 'blocks', 'theme', 'status', 'scheduled_at', 'sent_at',
         'total_recipients', 'total_sent', 'total_opened', 'total_clicked',
     ];
 

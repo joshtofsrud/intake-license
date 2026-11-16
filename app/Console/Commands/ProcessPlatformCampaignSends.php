@@ -185,7 +185,7 @@ class ProcessPlatformCampaignSends extends Command
                 $vars += \App\Support\PlatformLetter::investorVars(\App\Models\Investor::find($row->source_id));
             }
             return \App\Support\PlatformLetter::render(
-                $campaign->blocks, $vars, 'light',
+                $campaign->blocks, $vars, ($campaign->theme ?? 'light') === 'dark' ? 'dark' : 'light',
                 \App\Support\PlatformLetter::footerFor($row->source_type),
                 PlatformUnsubscribeController::url($row->email),
                 (string) $campaign->preheader
