@@ -42,12 +42,23 @@ class ProcessPlatformCampaignSends extends Command
         $limit = max(1, (int) $this->option('limit'));
         $sent  = 0;
 
+        // unpaced rows first, so a long paced list never holds up anyone else
         $pending = PlatformCampaignSend::where('status', 'pending')
+            ->orderBy('paced')
             ->orderBy('created_at')
             ->limit($limit)
             ->get();
+        $started = microtime(true);
 
         foreach ($pending as $row) {
+            // MARKER-CAMPAIGN-PACE: cold prospects go out one at a time at the
+            // outreach sender's gap (business / free addresses apart), and
+            // after its own last send, so the two never double up. A row
+            // whose turn hasn't come stays pending for the next run.
+            if ($row->paced && ! $this->paceAllows($row->email, $started)) {
+                continue;
+            }
+
             $campaign = PlatformCampaign::find($row->campaign_id);
             if (! $campaign || $campaign->status === 'cancelled') {
                 $row->update(['status' => 'skipped', 'skip_reason' => 'campaign gone']);
@@ -97,6 +108,9 @@ class ProcessPlatformCampaignSends extends Command
 
                 if ($ok) {
                     $row->update(['status' => 'sent', 'sent_at' => now()]);
+                    if ($row->paced) {
+                        \Illuminate\Support\Facades\Cache::put($this->paceKey($row->email), now()->getTimestamp(), 86400);
+                    }
                     $campaign->increment('total_sent');
                     if ($row->source_type === 'prospects' && $row->source_id) {
                         \App\Models\SalesProspect::find($row->source_id)?->activities()->create(['type' => 'email', 'body' => 'Emailed: ' . $campaign->name]);
@@ -158,6 +172,7 @@ class ProcessPlatformCampaignSends extends Command
                         'source_type'    => $r['source_type'] ?? null,
                         'source_id'      => $r['source_id'] ?? null,
                         'status'         => 'pending',
+                        'paced'          => ! empty($r['cold']),   // cold prospect: outreach pace
                         'tracking_token' => Str::random(32),
                     ]
                 );
@@ -231,4 +246,36 @@ class ProcessPlatformCampaignSends extends Command
         $full = trim((string) $full);
         return $full === '' ? null : explode(' ', $full)[0];
     }
+
+    private function paceKey(string $email): string
+    {
+        return 'platform_campaign_pace_' . (\App\Services\Sales\OutreachQueue::isFree($email) ? 'free' : 'business');
+    }
+
+    /**
+     * May this paced row go now? Waits in-process when the gap ends within
+     * this run's time budget (the command runs every minute), else says no.
+     */
+    private function paceAllows(string $email, float $started): bool
+    {
+        $kind = \App\Services\Sales\OutreachQueue::isFree($email) ? 'free' : 'business';
+        $gap  = max(1, (int) (\App\Services\Sales\OutreachAutoSend::defaults()['gap_' . $kind] ?? ($kind === 'free' ? 60 : 10)));
+
+        $last = (int) \Illuminate\Support\Facades\Cache::get($this->paceKey($email), 0);
+        $auto = \App\Services\Sales\OutreachAutoSend::state()['last'][$kind] ?? null;   // the outreach sender's last send
+        if ($auto) {
+            try { $last = max($last, \Carbon\Carbon::parse($auto)->getTimestamp()); } catch (\Throwable $e) {}
+        }
+
+        $wait = ($last + $gap) - time();
+        if ($wait <= 0) {
+            return true;
+        }
+        if ((microtime(true) - $started) + $wait > 50) {
+            return false;   // next minute's run picks it up
+        }
+        sleep($wait);
+        return true;
+    }
+
 }

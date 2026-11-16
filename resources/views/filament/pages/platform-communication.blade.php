@@ -696,7 +696,7 @@
                 <div class="pc-note" style="margin-top:8px;opacity:.75">{{ \App\Models\PlatformAudience::SOURCE_HELP[$aSource] }}</div>
               @endif
               @if($aSource === 'prospects')
-                <div class="ab-gate"><b>Only prospects who asked to hear from us.</b> Campaigns send through Postmark's broadcast stream, which only allows people who opted in, so a prospect is included once they booked a call, wrote in through the site or became a tenant. @if($abP && $abP['cold'] > 0){{ number_format($abP['cold']) }} cold prospects are never included; they're contacted one by one, not by campaign.@endif</div>
+                <div class="ab-gate"><b>Every prospect with an email.</b> Prospects who never opted in (no call booked, never wrote in, not a tenant) go out one at a time at your outreach pace, business and free addresses apart and after the outreach sender's own last send, so a campaign never arrives as a burst. Everyone else sends straight away. Filter with Contacted and Last email sent.</div>
               @endif
               @if($abInv)
                 <div class="ab-gate inv"><b>Investor channel, kept apart.</b> Use investor audiences for investor updates only. Declined investors are always left out, and the investor details ({amount}, {percent}, {remaining}, {portal}) can't be sent to any other audience. The mailing list is people who asked for updates, not investors; keep what goes to them factual, since an offer sent to a list anyone could join starts to look like general solicitation.</div>

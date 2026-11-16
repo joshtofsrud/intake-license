@@ -188,6 +188,35 @@ class PlatformAudienceService
                 }
                 continue;
             }
+            // MARKER-PROSPECT-RULES: contacted by outreach or a campaign, and
+            // which outreach template went out to them last.
+            if ($field === 'contacted') {
+                $yes = in_array(mb_strtolower($value), ['yes', '1', 'true'], true) !== $not;
+                $sent = function ($w) {
+                    $w->whereNotNull('sales_prospects.emailed_at')
+                      ->orWhereExists(fn ($e) => $e->select(DB::raw(1))->from('sales_outreach_sends as os')->whereColumn('os.sales_prospect_id', 'sales_prospects.id'))
+                      ->orWhereExists(fn ($e) => $e->select(DB::raw(1))->from('platform_campaign_sends as cs')
+                          ->where('cs.source_type', 'prospects')->where('cs.status', 'sent')->whereColumn('cs.source_id', 'sales_prospects.id'));
+                };
+                $yes ? $q->where($sent) : $q->whereNot($sent);
+                continue;
+            }
+            if ($field === 'last_email') {
+                $last = "(SELECT os.template_id FROM sales_outreach_sends os WHERE os.sales_prospect_id = sales_prospects.id ORDER BY os.created_at DESC LIMIT 1)";
+                $any  = fn ($e) => $e->select(DB::raw(1))->from('sales_outreach_sends as os')->whereColumn('os.sales_prospect_id', 'sales_prospects.id');
+                if ($value === '__never') {
+                    $not ? $q->whereExists($any) : $q->whereNotExists($any);
+                } elseif ($value === '__hand') {
+                    $not ? $q->where(fn ($w) => $w->whereNotExists($any)->orWhereRaw("$last IS NOT NULL"))
+                         : $q->whereExists($any)->whereRaw("$last IS NULL");
+                } else {
+                    $tid = DB::table('sales_email_templates')->whereRaw('LOWER(name) = ?', [mb_strtolower($value)])->value('id');
+                    if (! $tid) { $not ? null : $q->whereRaw('1 = 0'); continue; }
+                    $not ? $q->where(fn ($w) => $w->whereNotExists($any)->orWhereRaw("COALESCE($last, '') != ?", [$tid]))
+                         : $q->whereRaw("$last = ?", [$tid]);
+                }
+                continue;
+            }
             if ($field === 'contacted_within') {
                 $since = now()->subDays(max(1, (int) $value));
                 if ($not) {
@@ -217,20 +246,17 @@ class PlatformAudienceService
         // (categories, brands, socials, quote add-ons) for every prospect and
         // ran PHP out of memory with a few thousand rows.
         $rows = collect($q->get(['id', 'email', 'shop', 'owner_contact', 'converted_at']));
-        // MARKER-AUDIENCE-BUILDER: campaigns go through Postmark's broadcast
-        // stream, which only allows people who asked to hear from us. A prospect
-        // counts once they booked a call, wrote in through the site or became a
-        // tenant. Cold prospects are never campaign recipients.
-        if (! $this->includeCold) {
-            $optin = $this->optedInEmails();
-            $rows  = $rows->filter(fn ($p) => ! empty($p->converted_at) || isset($optin[mb_strtolower(trim((string) $p->email))]));
-        }
-
+        $optin = $this->optedInEmails();
+        // MARKER-PROSPECTS-ALL: every prospect with an email is in. Cold ones
+        // (never opted in) are sent at the outreach sender's pace, not in a
+        // burst; see ProcessPlatformCampaignSends.
         return $rows->map(fn ($p) => [
             'email'       => (string) $p->email,
             'name'        => $p->owner_contact ?: $p->shop,
             'source_type' => 'prospects',
             'source_id'   => (string) $p->id,
+            // cold = never opted in and not a tenant; the sender paces these
+            'cold'        => empty($p->converted_at) && ! isset($optin[mb_strtolower(trim((string) $p->email))]),
             'vars'        => [
                 'shop_name'  => (string) ($p->shop ?? ''),
                 'first_name' => $this->firstName($p->owner_contact ?? null) ?: $this->firstNameFromEmail($p->email),
@@ -297,7 +323,7 @@ class PlatformAudienceService
 
     /** Fields a rule can use, per source. Anything else in a saved rule is kept but shown read-only. */
     public const FIELDS = [
-        'prospects'     => ['industry' => 'Industry', 'stage' => 'Stage', 'priority' => 'Priority', 'state' => 'State', 'territory' => 'Territory', 'rep' => 'Rep', 'verified' => 'Verified'],
+        'prospects'     => ['industry' => 'Industry', 'contacted' => 'Contacted', 'last_email' => 'Last email sent', 'stage' => 'Stage', 'priority' => 'Priority', 'state' => 'State', 'territory' => 'Territory', 'rep' => 'Rep', 'verified' => 'Verified'],
         'tenants'       => ['plan_tier' => 'Plan', 'subscription' => 'Subscription', 'addon' => 'Add-on', 'is_active' => 'Active'],
         'tenant_owners' => ['plan_tier' => 'Plan', 'subscription' => 'Subscription', 'addon' => 'Add-on', 'is_active' => 'Active'],
         'investors'     => ['status' => 'Status', 'amount' => 'Amount'],
@@ -314,7 +340,6 @@ class PlatformAudienceService
     public const AMOUNT_BANDS    = ['under_10k' => 'Under $10k', '10k_25k' => '$10k to $25k', '25k_plus' => '$25k and up'];
 
     /** Cold prospects are never campaign recipients. Outreach tools may turn this on. */
-    public bool $includeCold = false;
 
     /** @return array<string, array<string,string>> value => label, per field */
     public function options(string $source): array
@@ -336,6 +361,8 @@ class PlatformAudienceService
         if ($source === 'prospects') {
             $out = [
                 'industry'  => $names('sales_channels'),
+                'contacted' => ['yes' => 'Yes', 'no' => 'No'],
+                'last_email' => ['__never' => 'Never emailed', '__hand' => 'Written by hand'] + $names('sales_email_templates'),
                 'stage'     => $distinct('sales_prospects', 'stage'),
                 'priority'  => ['A' => 'A', 'B' => 'B', 'C' => 'C'],
                 'state'     => $distinct('sales_prospects', 'state'),
@@ -377,7 +404,7 @@ class PlatformAudienceService
         $sample = $ok->take(8)->map(function ($r) use ($source, $optin) {
             $tag = '';
             if ($source === 'prospects') {
-                $tag = $optin[$r['email']] ?? 'became a tenant';
+                $tag = $optin[mb_strtolower($r['email'])] ?? (! empty($r['cold']) ? 'cold · sent at outreach pace' : 'became a tenant');
             } elseif (in_array($source, ['tenants', 'tenant_owners'], true)) {
                 $tag = (string) ($r['vars']['plan'] ?? '');
             } elseif ($source === 'investors') {

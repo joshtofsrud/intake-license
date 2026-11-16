@@ -13,7 +13,7 @@ class PlatformCampaignSend extends Model
 
     protected $fillable = [
         'campaign_id', 'email', 'name', 'source_type', 'source_id',
-        'status', 'skip_reason', 'error', 'tracking_token',
+        'status', 'paced', 'skip_reason', 'error', 'tracking_token',
         'sent_at', 'opened_at', 'clicked_at',
     ];
 
