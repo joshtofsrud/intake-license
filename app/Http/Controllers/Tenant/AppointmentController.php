@@ -1757,7 +1757,7 @@ class AppointmentController extends Controller
             $user = Auth::guard('tenant')->user();
             // MARKER-NOTE-MENTIONS: @someone gets it in their bell
             $mentioned = \App\Support\NoteMentions::notifyForAppointment($tenant, $appointment, $n, $user);
-            return response()->json(['ok' => true, 'id' => $n->id, 'note' => $n->note_content, 'author' => $user->name, 'created_at' => tlocal($n->created_at, 'M j, g:i a'), // shop time, like the list it joins
+            return response()->json(['ok' => true, 'id' => $n->id, 'note' => $n->note_content, 'author' => $user->name, 'is_customer_visible' => (bool) $n->is_customer_visible, 'created_at' => tlocal($n->created_at, 'M j, g:i a'), // shop time, like the list it joins
                 'html' => \App\Support\NoteMentions::html($n->note_content, \App\Support\NoteMentions::people($tenant)), 'mentioned' => count($mentioned)]);
         }
         if ($op === 'save_work_order') {
@@ -1845,6 +1845,16 @@ class AppointmentController extends Controller
             }
 
             return response()->json(['ok' => true]);
+        }
+        // MARKER-NOTE-VISIBILITY: a staff note can be shown to, or hidden
+        // from, the customer after it's written. System notes stay internal.
+        if ($op === 'note_visibility') {
+            $n = TenantAppointmentNote::where('appointment_id', $appointment->id)
+                ->where('id', $request->input('note_id'))->first();
+            if (! $n) return response()->json(['ok' => false, 'message' => 'Note not found.'], 404);
+            if ($n->note_type === 'system') return response()->json(['ok' => false, 'message' => 'Activity notes stay staff-only.'], 422);
+            $n->update(['is_customer_visible' => $request->boolean('is_customer_visible')]);
+            return response()->json(['ok' => true, 'is_customer_visible' => (bool) $n->is_customer_visible]);
         }
         if ($op === 'delete_note') {
             TenantAppointmentNote::where('appointment_id', $appointment->id)->where('id', $request->input('note_id'))->delete();

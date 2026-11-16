@@ -1476,13 +1476,6 @@ document.addEventListener('DOMContentLoaded', function () {
     {{-- ================================================================== --}}
 
     {{-- Work order (staff-filled equipment details) --}}
-    @if($appointment->workOrderFields && $appointment->workOrderFields->isNotEmpty())
-    @php
-      $responsesByFieldId = $appointment->workOrderResponses->keyBy('field_id');
-      $identifierField = $appointment->workOrderFields->firstWhere('is_identifier', true);
-      $identifierValue = $identifierField ? ($responsesByFieldId[$identifierField->id]->response_value ?? null) : null;
-      $nonIdentifierFields = $appointment->workOrderFields->filter(fn($f) => !$f->is_identifier);
-    @endphp
     {{-- LAYOUT-B-PROMOTE-ORDER 50 --}}
     {{-- ════════════════════════════════════════════════════════════
          Special Orders integration (added by patch 88, Stage 5)
@@ -1628,6 +1621,15 @@ document.addEventListener('DOMContentLoaded', function () {
       @endpush
     @endif
 
+    {{-- work order card has its own condition: it used to wrap the special
+         orders block too, which hid special orders from shops with no work-order fields. --}}
+    @if($appointment->workOrderFields && $appointment->workOrderFields->isNotEmpty())
+    @php
+      $responsesByFieldId = $appointment->workOrderResponses->keyBy('field_id');
+      $identifierField = $appointment->workOrderFields->firstWhere('is_identifier', true);
+      $identifierValue = $identifierField ? ($responsesByFieldId[$identifierField->id]->response_value ?? null) : null;
+      $nonIdentifierFields = $appointment->workOrderFields->filter(fn($f) => !$f->is_identifier);
+    @endphp
         <div class="ia-card" id="work-order-card" style="order:50">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:12px;border-bottom:0.5px solid var(--ia-border)">
         <div class="appt-section-label" style="margin-bottom:0">{{ $apptIsTimeSlots ? 'Details' : 'Work order' }}</div>
@@ -1778,6 +1780,9 @@ document.addEventListener('DOMContentLoaded', function () {
           data-maxlength="500" data-counter="note-chars" data-mentions
           placeholder="Add a note… type @ to notify a teammate" style="width:100%;border-radius:var(--ia-r-md);border:0.5px solid var(--ia-border);background:var(--ia-input-bg);color:var(--ia-text);padding:8px 10px;font-size:13px;resize:none;font-family:var(--ia-font)"></textarea>
         <div class="ia-note-add-footer">
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ia-text-dim);cursor:pointer;margin-right:auto">
+            <input type="checkbox" id="note-customer-visible" style="accent-color:var(--ia-accent)"> Customer can see
+          </label>
           <span class="ia-char-count" id="note-chars">500</span>
           <button type="button" class="ia-btn ia-btn--primary ia-btn--sm" id="note-submit"
             data-url="{{ $updateUrl }}">
@@ -1785,7 +1790,9 @@ document.addEventListener('DOMContentLoaded', function () {
           </button>
         </div>
         <p id="note-error" style="font-size:12px;color:#E24B4A;margin-top:4px;display:none"></p>
+        <p class="nv-hint">Notes marked "Customer can see" show on the customer's work order page in their account. Click the label on any note to change it later.</p>
       </div>
+      @include('tenant.appointments._note-visibility-js')
 
       <div class="ia-notes" id="notes-list">
         @php $mentionPeople = \App\Support\NoteMentions::people($currentTenant ?? tenant()); @endphp
@@ -1795,6 +1802,7 @@ document.addEventListener('DOMContentLoaded', function () {
               <span class="ia-note-author">
                 {{ $note->user?->name ?? ($note->note_type === 'system' ? 'System' : 'Staff') }}
               </span>
+              @include('tenant.appointments._note-visibility', ['note' => $note])
               <span class="ia-note-time">
                 {{ tlocal($note->created_at, 'M j, g:i a') }}
               </span>
@@ -2255,6 +2263,8 @@ document.addEventListener('keydown', function (e) {
       fd.append('_method', 'PATCH');
       fd.append('op', 'add_note');
       fd.append('note', note);
+      var visBox = document.getElementById('note-customer-visible');
+      fd.append('is_customer_visible', visBox && visBox.checked ? '1' : '0');
 
       fetch(updateUrl, { method: 'POST', body: fd,
         headers: { 'X-Requested-With': 'XMLHttpRequest' } })
@@ -2274,6 +2284,7 @@ document.addEventListener('keydown', function (e) {
           el.innerHTML =
             '<div class="ia-note-head">' +
               '<span class="ia-note-author">' + esc(resp.author) + '</span>' +
+              '<button type="button" class="nv-pill nv-toggle' + (resp.is_customer_visible ? ' is-on' : '') + '" data-note-vis="' + resp.id + '" data-on="' + (resp.is_customer_visible ? '1' : '0') + '" title="Click to change who can see this note">' + (resp.is_customer_visible ? 'Customer can see' : 'Staff only') + '</button>' +
               '<span class="ia-note-time">' + esc(resp.created_at) + '</span>' +
               '<button type="button" class="ia-note-delete" data-note-id="' + resp.id + '" title="Delete">&#x2715;</button>' +
             '</div>' +
@@ -2282,6 +2293,7 @@ document.addEventListener('keydown', function (e) {
           bindDeleteOnEl(el.querySelector('.ia-note-delete'));
 
           noteInput.value = '';
+          var vb = document.getElementById('note-customer-visible'); if (vb) { vb.checked = false; }
           if (noteChars) { noteChars.textContent = '500'; noteChars.classList.remove('warn'); }
           hideErr();
         })

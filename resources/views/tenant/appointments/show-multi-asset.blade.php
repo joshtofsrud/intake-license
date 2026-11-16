@@ -2380,7 +2380,7 @@ input.ma-asset-name-edit:focus {
           <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 8px;">
             <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ia-text-dim); cursor: pointer;">
               <input type="checkbox" id="ma-note-customer-visible" style="accent-color: var(--ia-accent, #BEF264);">
-              Also show to customer
+              Customer can see
             </label>
             <div style="display: flex; align-items: center; gap: 10px;">
               <span id="ma-note-char-count" style="font-size: 11px; color: var(--ia-text-dim); font-variant-numeric: tabular-nums;">500</span>
@@ -2390,7 +2390,9 @@ input.ma-asset-name-edit:focus {
             </div>
           </div>
           <p id="ma-note-error" style="font-size: 12px; color: #f87171; margin-top: 6px; display: none;"></p>
+          <p class="nv-hint">Notes marked "Customer can see" show on the customer's work order page in their account. Click the label on any note to change it later.</p>
         </div>
+        @include('tenant.appointments._note-visibility-js')
 
         <div id="ma-notes-list">
           @php $mentionPeople = \App\Support\NoteMentions::people($currentTenant ?? tenant()); @endphp
@@ -2400,9 +2402,7 @@ input.ma-asset-name-edit:focus {
                 <span class="ma-note-author">
                   {{ $note->user?->name ?? ($note->note_type === 'system' ? 'Activity' : 'Staff') }}
                 </span>
-                @if($note->is_customer_visible)
-                  <span class="ma-note-visibility ma-note-visibility--customer">Customer-visible</span>
-                @endif
+                @include('tenant.appointments._note-visibility', ['note' => $note])
                 <span class="ma-note-time">
                   {{ tlocal($note->created_at, 'M j, g:i a') }}
                 </span>
