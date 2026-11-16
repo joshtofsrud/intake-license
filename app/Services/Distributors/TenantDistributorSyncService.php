@@ -87,6 +87,8 @@ class TenantDistributorSyncService
         $upcs = $catalogRows->pluck('upc')->filter()->unique()->values()->all();
         $mpns = $catalogRows->pluck('manufacturer_sku')->filter()->unique()->values()->all();
 
+        // MARKER-SYNC-RUNS: time the distributor calls and the writes apart (fetch_seconds / write_seconds in the result)
+        $t0 = microtime(true);
         [$costByVariant, $costErrors] = $this->fetchCosts($adapter, $code, $upcs, $mpns, $variantNos);
         $res['errors'] = array_merge($res['errors'], $costErrors);
         $whByVariant = []; // MARKER-SUPPLY: per-warehouse stock, beside the total
@@ -102,6 +104,9 @@ class TenantDistributorSyncService
         // batches after the loop (finally, so rows already saved above keep
         // their snapshot even if a later item throws) — not one insert per item.
         // one row per item, overwritten each sync.
+        $res['fetch_seconds'] = (int) round(microtime(true) - $t0);
+        $t1 = microtime(true);
+
         $snapshots = [];
         try {
         foreach ($pivots as $pivot) {
@@ -211,6 +216,8 @@ class TenantDistributorSyncService
                 }
             }
         }
+
+        $res['write_seconds'] = (int) round(microtime(true) - $t1);
 
         return $res;
     }
