@@ -62,6 +62,73 @@ class PlatformAudienceService
         return $all->reject(fn ($r) => in_array($r['email'], $out, true))->values();
     }
 
+    /**
+     * How many match, how many are opted out or bounced, how many will get it.
+     * Prospects are counted by the database; the smaller sources still resolve.
+     *
+     * @return array{matched:int, optout:int, bounced:int, mailable:int}
+     */
+    public function counts(PlatformAudience $audience): array
+    {
+        if ($audience->source === 'prospects') {
+            $q = $this->prospectQuery($audience->rules ?? []);
+            if (! $q) return ['matched' => 0, 'optout' => 0, 'bounced' => 0, 'mailable' => 0];
+            // one pass over the table: the opt-out list is keyed by address, so
+            // the left join adds at most one row per prospect. Cached for a
+            // minute because the campaign screen redraws on every keystroke.
+            $key = 'platform_audience_counts:' . md5(json_encode($audience->rules ?? []));
+            $r = \Illuminate\Support\Facades\Cache::remember($key, 60, function () use ($q) {
+                $addr = 'LOWER(TRIM(sales_prospects.email))';
+                return (array) (clone $q)
+                    ->leftJoin('platform_email_optouts as o', 'o.email', '=', DB::raw($addr))
+                    ->selectRaw("COUNT(DISTINCT $addr) as matched,
+                        COUNT(DISTINCT CASE WHEN o.email IS NOT NULL THEN $addr END) as n,
+                        COUNT(DISTINCT CASE WHEN o.kind IN ('bounce','complaint') THEN $addr END) as bad")
+                    ->first();
+            });
+            $matched = (int) ($r['matched'] ?? 0);
+            $n = (int) ($r['n'] ?? 0); $bad = (int) ($r['bad'] ?? 0);
+            return ['matched' => $matched, 'optout' => $n - $bad, 'bounced' => $bad, 'mailable' => max(0, $matched - $n)];
+        }
+
+        $all = $this->resolve($audience);
+        $opt = $all->isEmpty() ? collect() : PlatformEmailOptout::whereIn('email', $all->pluck('email'))->get(['email', 'kind']);
+        $bad = $opt->filter(fn ($r) => in_array($r->kind, ['bounce', 'complaint'], true))->count();
+
+        return ['matched' => $all->count(), 'optout' => $opt->count() - $bad, 'bounced' => $bad, 'mailable' => $all->count() - $opt->count()];
+    }
+
+    /** One page of the people who will receive it. */
+    public function page(PlatformAudience $audience, int $page = 1, int $per = 25): Collection
+    {
+        $page = max(1, $page);
+        if ($audience->source === 'prospects') {
+            $q = $this->prospectQuery($audience->rules ?? []);
+            if (! $q) return collect();
+            // (shop, city) order rides the table's unique index, so a page is a
+            // short index walk, not a sort of 100k rows
+            return collect($this->withoutOptouts($q)
+                ->orderBy('sales_prospects.shop')->orderBy('sales_prospects.city')
+                ->forPage($page, $per)
+                ->get(['sales_prospects.id', 'sales_prospects.email', 'sales_prospects.shop', 'sales_prospects.owner_contact', 'sales_prospects.converted_at']))
+                ->map(fn ($p) => $this->prospectRow($p))->unique('email')->values();
+        }
+
+        return $this->mailable($audience)->forPage($page, $per)->values();
+    }
+
+    /** Every recipient, in chunks, for the sender: never the whole list in memory. */
+    public function eachMailable(PlatformAudience $audience, callable $fn, int $size = 1000): void
+    {
+        if ($audience->source === 'prospects') {
+            $this->eachProspect($audience->rules ?? [], true, $fn, $size);
+            return;
+        }
+        foreach ($this->mailable($audience)->chunk($size) as $chunk) {
+            $fn($chunk->values());
+        }
+    }
+
     // ------------------------------------------------------------- sources
 
     /** everyone on the investor record who hasn't declined, narrowed by status and amount. */
@@ -146,15 +213,32 @@ class PlatformAudienceService
 
     protected function fromProspects(array $rules): Collection
     {
+        $rows = collect();
+        $this->eachProspect($rules, false, function (Collection $chunk) use (&$rows) {
+            $rows = $rows->concat($chunk);
+        });
+        return $rows;
+    }
+
+    /**
+     * MARKER-PROSPECTS-SQL: the prospects audience as a database query, so
+     * 100k prospects are counted and paged by MySQL instead of being loaded
+     * into PHP. That load ran past the 30-second limit and 500'd the audience
+     * screen. One person per address: counts are DISTINCT on the lowered
+     * address, pages group by it, and the sender's (campaign, email) unique
+     * key drops repeats.
+     */
+    protected function prospectQuery(array $rules): ?\Illuminate\Database\Query\Builder
+    {
         // this used to filter on a "status" column that
         // prospects don't have (it errored), read a "name" column that doesn't
         // exist (so {shop_name} came out blank) and matched State against the
         // address text. Rules now use the real columns.
-        if (! \Illuminate\Support\Facades\Schema::hasTable('sales_prospects')) {
-            return collect();
+        if (! Schema::hasTable('sales_prospects')) {
+            return null;
         }
 
-        $q = DB::table('sales_prospects')->whereNotNull('email')->where('email', '!=', '');
+        $q = DB::table('sales_prospects')->whereNotNull('sales_prospects.email')->where('sales_prospects.email', '!=', '');
 
         $byName = function (string $table, $value) {
             return DB::table($table)->whereRaw('LOWER(name) = ?', [mb_strtolower(trim((string) $value))])->pluck('id');
@@ -190,30 +274,39 @@ class PlatformAudienceService
             }
             // MARKER-PROSPECT-RULES: contacted by outreach or a campaign, and
             // which outreach template went out to them last.
+            // emailed_at is the outreach sender's own mark: it's set on every
+            // outreach send (and on the other listings sharing that address),
+            // so it answers "emailed by outreach" without touching the send
+            // log for each of 100k prospects. Campaign sends are checked too.
             if ($field === 'contacted') {
                 $yes = in_array(mb_strtolower($value), ['yes', '1', 'true'], true) !== $not;
-                $sent = function ($w) {
-                    $w->whereNotNull('sales_prospects.emailed_at')
-                      ->orWhereExists(fn ($e) => $e->select(DB::raw(1))->from('sales_outreach_sends as os')->whereColumn('os.sales_prospect_id', 'sales_prospects.id'))
-                      ->orWhereExists(fn ($e) => $e->select(DB::raw(1))->from('platform_campaign_sends as cs')
-                          ->where('cs.source_type', 'prospects')->where('cs.status', 'sent')->whereColumn('cs.source_id', 'sales_prospects.id'));
-                };
-                $yes ? $q->where($sent) : $q->whereNot($sent);
+                $campaign = DB::table('platform_campaign_sends')->where('source_type', 'prospects')->where('status', 'sent')
+                    ->whereNotNull('source_id')->select('source_id');
+                if ($yes) {
+                    $q->where(fn ($w) => $w->whereNotNull('sales_prospects.emailed_at')->orWhereIn('sales_prospects.id', $campaign));
+                } else {
+                    $q->whereNull('sales_prospects.emailed_at')->whereNotIn('sales_prospects.id', $campaign);
+                }
                 continue;
             }
             if ($field === 'last_email') {
-                $last = "(SELECT os.template_id FROM sales_outreach_sends os WHERE os.sales_prospect_id = sales_prospects.id ORDER BY os.created_at DESC LIMIT 1)";
-                $any  = fn ($e) => $e->select(DB::raw(1))->from('sales_outreach_sends as os')->whereColumn('os.sales_prospect_id', 'sales_prospects.id');
+                // prospects whose most recent outreach send matches $cond
+                $latest = fn (callable $cond) => tap(DB::table('sales_outreach_sends as os')
+                    ->whereNotNull('os.sales_prospect_id')->select('os.sales_prospect_id')
+                    ->whereNotExists(fn ($n) => $n->select(DB::raw(1))->from('sales_outreach_sends as n2')
+                        ->whereColumn('n2.sales_prospect_id', 'os.sales_prospect_id')
+                        ->where(fn ($w) => $w->whereColumn('n2.created_at', '>', 'os.created_at')
+                            ->orWhere(fn ($t) => $t->whereColumn('n2.created_at', 'os.created_at')->whereColumn('n2.id', '>', 'os.id')))), $cond);
                 if ($value === '__never') {
-                    $not ? $q->whereExists($any) : $q->whereNotExists($any);
+                    $not ? $q->whereNotNull('sales_prospects.emailed_at') : $q->whereNull('sales_prospects.emailed_at');
                 } elseif ($value === '__hand') {
-                    $not ? $q->where(fn ($w) => $w->whereNotExists($any)->orWhereRaw("$last IS NOT NULL"))
-                         : $q->whereExists($any)->whereRaw("$last IS NULL");
+                    $set = $latest(fn ($l) => $l->whereNull('os.template_id'));
+                    $not ? $q->whereNotIn('sales_prospects.id', $set) : $q->whereIn('sales_prospects.id', $set);
                 } else {
                     $tid = DB::table('sales_email_templates')->whereRaw('LOWER(name) = ?', [mb_strtolower($value)])->value('id');
                     if (! $tid) { $not ? null : $q->whereRaw('1 = 0'); continue; }
-                    $not ? $q->where(fn ($w) => $w->whereNotExists($any)->orWhereRaw("COALESCE($last, '') != ?", [$tid]))
-                         : $q->whereRaw("$last = ?", [$tid]);
+                    $set = $latest(fn ($l) => $l->where('os.template_id', $tid));
+                    $not ? $q->whereNotIn('sales_prospects.id', $set) : $q->whereIn('sales_prospects.id', $set);
                 }
                 continue;
             }
@@ -242,16 +335,35 @@ class PlatformAudienceService
             }
         }
 
-        // only what the audience uses: selecting * pulled the big text columns
-        // (categories, brands, socials, quote add-ons) for every prospect and
-        // ran PHP out of memory with a few thousand rows.
-        $rows = collect($q->get(['id', 'email', 'shop', 'owner_contact', 'converted_at']));
-        $optin = $this->optedInEmails();
+        return $q;
+    }
+
+    /** Opted-out (or bounced) addresses never receive; matched on the lowered address. */
+    protected function withoutOptouts($q)
+    {
+        return $q->whereNotExists(fn ($o) => $o->select(DB::raw(1))->from('platform_email_optouts as o')
+            ->whereColumn('o.email', DB::raw('LOWER(TRIM(sales_prospects.email))')));
+    }
+
+    /** Matching prospects in pages of $size, handed to $fn as recipient rows. */
+    protected function eachProspect(array $rules, bool $mailableOnly, callable $fn, int $size = 1000): void
+    {
+        $q = $this->prospectQuery($rules);
+        if (! $q) return;
+        if ($mailableOnly) $this->withoutOptouts($q);
+
+        $q->select(['sales_prospects.id', 'sales_prospects.email', 'sales_prospects.shop', 'sales_prospects.owner_contact', 'sales_prospects.converted_at'])
+          ->chunkById($size, fn ($chunk) => $fn(collect($chunk)->map(fn ($p) => $this->prospectRow($p))), 'sales_prospects.id', 'id');
+    }
+
+    protected function prospectRow($p): array
+    {
+        $optin = $this->optinMap();
         // MARKER-PROSPECTS-ALL: every prospect with an email is in. Cold ones
         // (never opted in) are sent at the outreach sender's pace, not in a
         // burst; see ProcessPlatformCampaignSends.
-        return $rows->map(fn ($p) => [
-            'email'       => (string) $p->email,
+        return [
+            'email'       => mb_strtolower(trim((string) $p->email)),
             'name'        => $p->owner_contact ?: $p->shop,
             'source_type' => 'prospects',
             'source_id'   => (string) $p->id,
@@ -261,7 +373,14 @@ class PlatformAudienceService
                 'shop_name'  => (string) ($p->shop ?? ''),
                 'first_name' => $this->firstName($p->owner_contact ?? null) ?: $this->firstNameFromEmail($p->email),
             ],
-        ]);
+        ];
+    }
+
+    protected ?array $optinCache = null;
+
+    protected function optinMap(): array
+    {
+        return $this->optinCache ??= $this->optedInEmails();
     }
 
     /**
@@ -339,8 +458,6 @@ class PlatformAudienceService
     public const INVESTOR_STAGES = ['added' => 'Added', 'invited' => 'Invited', 'opened' => 'Opened', 'committed' => 'Committed', 'signed' => 'Signed', 'funded' => 'Funded'];
     public const AMOUNT_BANDS    = ['under_10k' => 'Under $10k', '10k_25k' => '$10k to $25k', '25k_plus' => '$25k and up'];
 
-    /** Cold prospects are never campaign recipients. Outreach tools may turn this on. */
-
     /** @return array<string, array<string,string>> value => label, per field */
     public function options(string $source): array
     {
@@ -389,19 +506,18 @@ class PlatformAudienceService
         return $out;
     }
 
+    public const PREVIEW_PER = 25;
+
     /** Everything the screen shows beside the rules, from the same resolver the sender uses. */
-    public function preview(string $source, array $rules): array
+    public function preview(string $source, array $rules, int $page = 1): array
     {
-        $a   = new PlatformAudience(['name' => 'preview', 'source' => $source, 'rules' => $rules]);
-        $all = $this->resolve($a);
+        $a     = new PlatformAudience(['name' => 'preview', 'source' => $source, 'rules' => $rules]);
+        $c     = $this->counts($a);
+        $pages = max(1, (int) ceil($c['mailable'] / self::PREVIEW_PER));
+        $page  = min(max(1, $page), $pages);
+        $optin = $source === 'prospects' ? $this->optinMap() : [];
 
-        $opt   = $all->isEmpty() ? collect() : PlatformEmailOptout::whereIn('email', $all->pluck('email'))->get(['email', 'kind']);
-        $gone  = $opt->pluck('email')->flip();
-        $bad   = $opt->filter(fn ($r) => in_array($r->kind, ['bounce', 'complaint'], true))->count();
-        $ok    = $all->reject(fn ($r) => isset($gone[$r['email']]))->values();
-        $optin = $source === 'prospects' ? $this->optedInEmails() : [];
-
-        $sample = $ok->take(8)->map(function ($r) use ($source, $optin) {
+        $sample = $this->page($a, $page, self::PREVIEW_PER)->map(function ($r) use ($source, $optin) {
             $tag = '';
             if ($source === 'prospects') {
                 $tag = $optin[mb_strtolower($r['email'])] ?? (! empty($r['cold']) ? 'cold · sent at outreach pace' : 'became a tenant');
@@ -416,13 +532,12 @@ class PlatformAudienceService
             return ['name' => $r['name'] ?: $r['email'], 'email' => $r['email'], 'tag' => $tag];
         })->all();
 
-        return [
-            'matched'  => $all->count(),
-            'optout'   => $opt->count() - $bad,
-            'bounced'  => $bad,
-            'mailable' => $ok->count(),
-            'sample'   => $sample,
-            'cold'     => $source === 'prospects' ? $this->coldProspectCount() : 0,
+        return $c + [
+            'sample' => $sample,
+            'page'   => $page,
+            'pages'  => $pages,
+            'from'   => $c['mailable'] ? ($page - 1) * self::PREVIEW_PER + 1 : 0,
+            'to'     => min($c['mailable'], $page * self::PREVIEW_PER),
         ];
     }
 
@@ -443,15 +558,6 @@ class PlatformAudienceService
             }
         } catch (\Throwable $e) {}
         return $out;
-    }
-
-    public function coldProspectCount(): int
-    {
-        try {
-            $optin = $this->optedInEmails();
-            return DB::table('sales_prospects')->whereNotNull('email')->where('email', '!=', '')->whereNull('converted_at')
-                ->pluck('email')->reject(fn ($e) => isset($optin[mb_strtolower(trim((string) $e))]))->count();
-        } catch (\Throwable $e) { return 0; }
     }
 
     public static function investorStage($i): string

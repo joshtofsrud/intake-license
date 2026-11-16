@@ -157,30 +157,39 @@ class ProcessPlatformCampaignSends extends Command
                 continue;
             }
 
-            $recipients = $audiences->mailable($audience);
-            if ($recipients->isEmpty()) {
+            // MARKER-PROSPECTS-SQL: built 1,000 at a time with one insert per
+            // batch; a 100k prospect list no longer sits in memory or costs a
+            // query per person. The unique (campaign, email) key makes a rerun
+            // after an interruption pick up where it stopped.
+            $audiences->eachMailable($audience, function ($chunk) use ($campaign) {
+                $now  = now();
+                $rows = $chunk->map(fn ($r) => [
+                    'id'             => (string) Str::uuid(),
+                    'campaign_id'    => $campaign->id,
+                    'email'          => mb_substr((string) $r['email'], 0, 191),
+                    'name'           => isset($r['name']) ? mb_substr((string) $r['name'], 0, 160) : null,
+                    'source_type'    => $r['source_type'] ?? null,
+                    'source_id'      => isset($r['source_id']) ? (string) $r['source_id'] : null,
+                    'status'         => 'pending',
+                    'paced'          => ! empty($r['cold']),   // cold prospect: outreach pace
+                    'tracking_token' => Str::random(32),
+                    'created_at'     => $now,
+                    'updated_at'     => $now,
+                ])->all();
+                // repeats of an address (same person twice) are ignored by the key
+                PlatformCampaignSend::insertOrIgnore($rows);
+            });
+            $total = PlatformCampaignSend::where('campaign_id', $campaign->id)->count();
+
+            if ($total === 0) {
                 $campaign->update(['status' => 'draft']);
                 $this->warn("Campaign {$campaign->name} matched nobody — returned to draft.");
                 continue;
             }
 
-            foreach ($recipients as $r) {
-                PlatformCampaignSend::firstOrCreate(
-                    ['campaign_id' => $campaign->id, 'email' => $r['email']],
-                    [
-                        'name'           => $r['name'] ?? null,
-                        'source_type'    => $r['source_type'] ?? null,
-                        'source_id'      => $r['source_id'] ?? null,
-                        'status'         => 'pending',
-                        'paced'          => ! empty($r['cold']),   // cold prospect: outreach pace
-                        'tracking_token' => Str::random(32),
-                    ]
-                );
-            }
-
             $campaign->update([
                 'status'           => 'sending',
-                'total_recipients' => $recipients->count(),
+                'total_recipients' => $total,
             ]);
         }
     }

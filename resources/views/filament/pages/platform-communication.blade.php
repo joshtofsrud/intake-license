@@ -668,6 +668,10 @@
         .ab-math div.t{border-bottom:0;opacity:1;font-weight:600}
         .ab-s{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:7px 0;border-bottom:1px solid var(--pc-line);font-size:13px}
         .ab-s:last-child{border-bottom:0}
+        .ab-pg{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:18px 0 6px}
+        .ab-pg-b{display:flex;gap:6px}
+        .ab-pg-b .pc-btn{padding:4px 10px;font-size:12px}
+        .ab-pg-b .pc-btn:disabled{opacity:.35;cursor:default}
         .ab-s .e{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;opacity:.5;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         .ab-s .tg{font-size:11.5px;opacity:.6;white-space:nowrap}
       </style>
@@ -772,7 +776,15 @@
                 @if($abP['bounced'] > 0)<div class="m"><span>Bounced or complained</span><b>&minus;{{ number_format($abP['bounced']) }}</b></div>@endif
                 <div class="t"><span>Will receive</span><b>{{ number_format($abP['mailable']) }}</b></div>
               </div>
-              <div class="pc-grp">First {{ count($abP['sample']) }}</div>
+              <div class="ab-pg">
+                <div class="pc-grp" style="margin:0">@if($abP['mailable']){{ number_format($abP['from']) }}&ndash;{{ number_format($abP['to']) }} of {{ number_format($abP['mailable']) }}@else People @endif</div>
+                @if($abP['pages'] > 1)
+                  <div class="ab-pg-b">
+                    <button type="button" class="pc-btn" wire:click="audiencePage({{ $abP['page'] - 1 }})" @disabled($abP['page'] <= 1)>Previous</button>
+                    <button type="button" class="pc-btn" wire:click="audiencePage({{ $abP['page'] + 1 }})" @disabled($abP['page'] >= $abP['pages'])>Next</button>
+                  </div>
+                @endif
+              </div>
               @forelse($abP['sample'] as $s)
                 <div class="ab-s"><div><div>{{ $s['name'] }}</div><div class="e">{{ $s['email'] }}</div></div><div class="tg">{{ $s['tag'] }}</div></div>
               @empty

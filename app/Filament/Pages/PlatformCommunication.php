@@ -54,6 +54,7 @@ class PlatformCommunication extends Page
 
     public string $aName = '';
     public string $aSource = 'tenants';
+    public int $aPage = 1;   // audience preview page
     public string $aField = '';
     public string $aOp = 'is';
     public string $aValue = '';
@@ -148,13 +149,13 @@ class PlatformCommunication extends Page
             $campaign  = $this->campaignId ? \App\Models\PlatformCampaign::find($this->campaignId) : null;
 
             if ($campaign && $campaign->audience) {
+                // counted by the database: a prospects audience is 100k+ rows
                 $svc   = app(\App\Services\Platform\PlatformAudienceService::class);
-                $all   = $svc->resolve($campaign->audience);
-                $ok    = $svc->mailable($campaign->audience);
+                $c     = $svc->counts($campaign->audience);
                 $reach = [
-                    'matched'  => $all->count(),
-                    'mailable' => $ok->count(),
-                    'names'    => $ok->take(6)->pluck('name')->filter()->all(),
+                    'matched'  => $c['matched'],
+                    'mailable' => $c['mailable'],
+                    'names'    => $svc->page($campaign->audience, 1, 6)->pluck('name')->filter()->all(),
                 ];
             }
         } catch (\Throwable $e) {
@@ -453,12 +454,14 @@ class PlatformCommunication extends Page
     {
         if (! array_key_exists($source, \App\Models\PlatformAudience::SOURCES)) return;
         $this->aSource  = $source;
+        $this->aPage    = 1;
         $this->aRules   = [];
         $this->aExclude = $source === 'prospects' ? array_keys(\App\Services\Platform\PlatformAudienceService::EXCLUSIONS) : [];
     }
 
     public function addRule(): void
     {
+        $this->aPage = 1;
         $fields = \App\Services\Platform\PlatformAudienceService::FIELDS[$this->aSource] ?? [];
         if (! $fields) return;
         $used = collect($this->aRules)->pluck('field')->all();
@@ -469,6 +472,7 @@ class PlatformCommunication extends Page
 
     public function toggleExclude(string $key): void
     {
+        $this->aPage = 1;
         $this->aExclude = in_array($key, $this->aExclude, true)
             ? array_values(array_diff($this->aExclude, [$key]))
             : array_values(array_merge($this->aExclude, [$key]));
@@ -477,12 +481,18 @@ class PlatformCommunication extends Page
     /** Changing a rule's field resets its operator and value to that field's first choices. */
     public function updatedARules($value, $key): void
     {
+        $this->aPage = 1;
         [$i, $part] = array_pad(explode('.', (string) $key), 2, null);
         if ($part !== 'field' || ! isset($this->aRules[$i])) return;
         $f    = (string) $this->aRules[$i]['field'];
         $opts = app(\App\Services\Platform\PlatformAudienceService::class)->options($this->aSource)[$f] ?? [];
         $this->aRules[$i]['op']    = $f === 'addon' ? 'has' : 'is';
         $this->aRules[$i]['value'] = (string) (array_key_first($opts) ?? '');
+    }
+
+    public function audiencePage(int $page): void
+    {
+        $this->aPage = max(1, $page);
     }
 
     /** Fields, value lists and the live preview for the audience being built. Never throws into the page. */
@@ -493,7 +503,7 @@ class PlatformCommunication extends Page
             return [
                 'fields'  => \App\Services\Platform\PlatformAudienceService::FIELDS[$this->aSource] ?? [],
                 'options' => $svc->options($this->aSource),
-                'preview' => $svc->preview($this->aSource, $this->audienceRules()),
+                'preview' => $svc->preview($this->aSource, $this->audienceRules(), $this->aPage),
             ];
         } catch (\Throwable $e) {
             return ['fields' => [], 'options' => [], 'preview' => null];
@@ -506,6 +516,7 @@ class PlatformCommunication extends Page
         $a = \App\Models\PlatformAudience::find($id);
         if (! $a) return;
         $this->aEditing = $a->id;
+        $this->aPage    = 1;
         $this->aName    = (string) $a->name;
         $this->aSource  = (string) $a->source;
         $rules = array_values((array) ($a->rules ?? []));
@@ -521,6 +532,7 @@ class PlatformCommunication extends Page
     public function closeAudience(): void
     {
         $this->aEditing = null;
+        $this->aPage = 1;
         $this->aRules = [];
         $this->aExclude = [];
         $this->aName = ''; $this->aSource = 'tenants';
@@ -529,6 +541,7 @@ class PlatformCommunication extends Page
 
     public function removeAudienceRule(int $i): void
     {
+        $this->aPage = 1;
         unset($this->aRules[$i]);
         $this->aRules = array_values($this->aRules);
     }
@@ -665,7 +678,7 @@ class PlatformCommunication extends Page
         $reach = null;
         if ($c->audience) {
             $svc   = app(\App\Services\Platform\PlatformAudienceService::class);
-            $reach = ['matched' => 0, 'mailable' => $svc->mailable($c->audience)->count()];
+            $reach = ['matched' => 0, 'mailable' => $svc->counts($c->audience)['mailable']];
         }
 
         $blockers = $this->blockers($c, $reach);
