@@ -1290,6 +1290,17 @@ class AppointmentController extends Controller
                 \App\Jobs\SendAppointmentReceiptJob::dispatch($appointment->id)->afterCommit();
             }
 
+            // MARKER-STATUS-UPDATE-STATES: the "your work order moved" email goes
+            // only for the statuses the shop ticked (none by default), and never
+            // for a status the receipt already covers.
+            $updateStates = (array) ($tenantSettings['status_update_states'] ?? []);
+            if ($newStatus !== $oldStatus
+                && in_array($newStatus, $updateStates, true)
+                && ! in_array($newStatus, $triggerStates, true)
+                && ! AppointmentStatus::isDone($newStatus)) {
+                \App\Jobs\SendStatusUpdateJob::dispatch($appointment->id, $newStatus)->afterCommit();
+            }
+
             // Register bridge:
             //   entering committed status → create draft sale (or mark paid / overage)
             //   leaving committed status  → void any open draft sale

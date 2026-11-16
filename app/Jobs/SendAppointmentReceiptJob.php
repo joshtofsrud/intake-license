@@ -39,7 +39,7 @@ class SendAppointmentReceiptJob implements ShouldQueue
     public function handle(): void
     {
         $appt = TenantAppointment::with([
-            'tenant', 'customer', 'items', 'addons', 'charges'
+            'tenant', 'customer', 'items', 'addons', 'charges', 'parts'
         ])->find($this->appointmentId);
         if (!$appt) return;
 

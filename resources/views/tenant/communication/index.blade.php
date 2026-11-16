@@ -145,6 +145,8 @@
   .cc-chk{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ia-text-2,#a6a6ac);background:var(--ia-surface,#1b1b1f);border:1px solid var(--ia-border,#2a2a2e);border-radius:8px;padding:6px 11px;cursor:pointer}
   .cc-chk input{accent-color:var(--ia-accent,#e0a82e);margin:0}
   .cc-chk.locked{opacity:.6;cursor:default}
+  .cc-states-row{padding:7px 0 5px;gap:6px}
+  .cc-states-row .cc-chk{padding:4px 9px;font-size:12px}
 
   /* send test row */
   .cc-testrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:13px 22px;border-top:1px solid var(--ia-border,#2a2a2e);background:rgba(255,255,255,.015)}
@@ -298,7 +300,20 @@
                 @endif
               </td>
 
-              <td class="cc-fires">{{ $m['fires'] }}</td>
+              @if($m['key'] === 'status_update')
+                {{-- MARKER-STATUS-UPDATE-STATES: sends only for what is ticked here. --}}
+                <td class="cc-fires">
+                  <div>{{ $m['fires'] }}</div>
+                  <div class="cc-states cc-states-row">
+                    @foreach($updateOptions as $sv => $sl)
+                      <label class="cc-chk"><input type="checkbox" name="status_update_states[]" value="{{ $sv }}" {{ in_array($sv, $updateStates, true) ? 'checked' : '' }}> {{ $sl }}</label>
+                    @endforeach
+                  </div>
+                  <div class="cc-mdesc">{{ empty($updateStates) ? 'None picked, so this never sends.' : 'Completed is not here: the Complete step and the receipt cover it.' }}</div>
+                </td>
+              @else
+                <td class="cc-fires">{{ $m['fires'] }}</td>
+              @endif
               <td><button type="button" class="cc-edit" onclick="ccOpenEd(this)"
                     data-type="{{ $m['template'] }}"
                     data-editor="{{ $m['editor'] }}"
@@ -367,7 +382,19 @@
 
     <div class="cc-hint">
       <span>💡</span>
-      <span>Receipts are <b>on</b> and reaching customers. The lifecycle messages above are off — for a mobile service, <b>Delivery scheduled</b> and the reminders are usually the ones worth turning on first.</span>
+      @php
+        $ccOn = fn ($k) => (bool) (collect($catalog)->firstWhere('key', $k)['state']['email'] ?? false);
+        $ccLifeOff = collect($catalog)->where('group', 'Lifecycle')->filter(fn ($m) => ! ($m['state']['email'] ?? false))->pluck('label');
+      @endphp
+      <span>
+        Receipts are <b>{{ $ccOn('sale_receipt') && $ccOn('appointment_receipt') ? 'on' : 'partly off' }}</b>.
+        @if($ccLifeOff->isEmpty())
+          Every lifecycle message above is on.
+        @else
+          Off right now: {{ $ccLifeOff->implode(', ') }}.
+        @endif
+        The work-order status update sends only for the statuses ticked on its row{{ empty($updateStates) ? ', and none are ticked' : '' }}.
+      </span>
     </div>
   </div>
 

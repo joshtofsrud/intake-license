@@ -62,9 +62,24 @@ class CommunicationController extends Controller
             // these two lived ONLY on /admin/emails,
             // which was hidden from the nav. They still send from saved rows,
             // so until now a shop could not word them at all.
-            ['group'=>'Staff & status','key'=>'status_update','label'=>'Work-order status update','desc'=>'Tells the customer their work order moved','fires'=>'You change a work order status','channels'=>['email'],'template'=>'status_update','editor'=>'body','vars'=>['first_name','ra_number','status','status_note','shop_name'],'def_subject'=>'Your work order {{ra_number}} has been updated','def_body'=>'Hi {{first_name}}, your work order {{ra_number}} has been updated. New status: {{status}}. {{status_note}}'],
+            ['group'=>'Staff & status','key'=>'status_update','label'=>'Work-order status update','desc'=>'Tells the customer their work order moved','fires'=>'A work order moves to a status you pick below','channels'=>['email'],'template'=>'status_update','editor'=>'body','vars'=>['first_name','ra_number','status','status_note','shop_name'],'def_subject'=>'Your work order {{ra_number}} has been updated','def_body'=>'Hi {{first_name}}, your work order {{ra_number}} has been updated. New status: {{status}}. {{status_note}}'],
             ['group'=>'Staff & status','key'=>'password_reset','label'=>'Staff password reset','desc'=>'Goes to your own team, not customers','fires'=>'A staff member requests a reset','channels'=>['email'],'template'=>'password_reset','editor'=>'body','vars'=>['name','reset_url','shop_name'],'def_subject'=>'Reset your password — {{shop_name}}','def_body'=>'Hi {{name}}, you requested a password reset for your {{shop_name}} staff account. The button below expires in 60 minutes.'],
         ];
+    }
+
+    /**
+     * MARKER-STATUS-UPDATE-STATES: statuses a shop can pick for the status-update
+     * email. Every selectable status except the Done ones (the Complete modal
+     * and the work-order receipt own that moment).
+     */
+    private function statusUpdateOptions(): array
+    {
+        $out = [];
+        foreach (\App\Support\AppointmentStatus::DEFAULT_SET as $st) {
+            if (\App\Support\AppointmentStatus::isDone($st)) continue;
+            $out[$st] = \App\Support\AppointmentStatus::LABELS[$st] ?? $st;
+        }
+        return $out;
     }
 
     private function smsReady($tenant): bool
@@ -120,6 +135,8 @@ class CommunicationController extends Controller
             'smsNumber' => $tenant->sms_from_number,
             'trackOpens'    => (bool) ($tenant->settings['email_track_opens'] ?? true),
             'triggerStates' => (array) ($tenant->settings['receipt_appointment_trigger_states'] ?? ['completed']),
+            'updateOptions' => $this->statusUpdateOptions(),
+            'updateStates'  => (array) ($tenant->settings['status_update_states'] ?? []),
             'testEmail'     => optional(auth()->user())->email ?? '',
             // suppressions belong with the rest of
             // the email surface, not on their own hidden page.
@@ -169,6 +186,12 @@ class CommunicationController extends Controller
             $states[] = 'completed';
         }
         $settings['receipt_appointment_trigger_states'] = array_values(array_unique($states));
+
+        // MARKER-STATUS-UPDATE-STATES: empty means the status update never sends.
+        $settings['status_update_states'] = array_values(array_intersect(
+            (array) $request->input('status_update_states', []),
+            array_keys($this->statusUpdateOptions())
+        ));
 
         // email header logo choice.
         $choice = (string) $request->input('email_logo_choice', 'light');
@@ -298,6 +321,8 @@ class CommunicationController extends Controller
             'last_name'        => 'Rivera',
             'shop_name'        => $tenant->name,
             'ra_number'        => 'ITO-TEST-0001',
+            'status'           => 'In progress',
+            'status_note'      => '',
             'sale_number'      => 'S-TEST-0001',
             'recipient_name'   => 'Sam',
             'card_amount'      => '$50.00',
