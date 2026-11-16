@@ -83,6 +83,36 @@
   .pl-add-g > span{font-size:11.5px;font-weight:600;opacity:.6;width:64px}
   .pl-add .pc-btn{font-size:12.5px;padding:5px 10px}
   .pl-add .pl-add-feat .pc-btn{border-color:rgba(190,242,100,.35)}
+
+  /* MARKER-COMPOSER-LAYOUT: preview stays in view; insert between blocks;
+     folded blocks show their content in one line. */
+  .pc-cols > .pc-sticky{position:sticky;top:76px;max-height:calc(100vh - 92px);overflow:auto}
+  @media(max-width:1000px){.pc-cols > .pc-sticky{position:static;max-height:none}}
+  .pl-tools{display:flex;justify-content:space-between;align-items:center;margin:2px 0 8px;font-size:12px}
+  .pl-tools button{background:none;border:0;color:inherit;opacity:.65;cursor:pointer;font:inherit;padding:2px 6px;border-radius:6px}
+  .pl-tools button:hover{opacity:1;background:rgba(127,127,127,.12)}
+  .pl-sum{font-size:12.5px;opacity:.55;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1}
+  .pl-ins{position:relative;height:14px;margin:-2px 0 6px}
+  .pl-ins > button{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:24px;height:24px;border-radius:50%;
+    border:1px solid var(--pc-line);background:var(--pc-bg2,#fff);color:inherit;font-size:15px;line-height:1;cursor:pointer;opacity:.35;transition:opacity .12s}
+  .pl-ins:hover > button,.pl-ins.on > button{opacity:1;border-color:var(--pc-accent)}
+  .pl-ins::before{content:'';position:absolute;left:0;right:0;top:50%;border-top:1px dashed transparent}
+  .pl-ins:hover::before,.pl-ins.on::before{border-top-color:var(--pc-accent)}
+  .pl-pick{position:absolute;left:50%;top:22px;transform:translateX(-50%);z-index:20;width:min(560px,96%);background:var(--pc-bg2,#fff);
+    border:1px solid var(--pc-line);border-radius:12px;padding:12px 14px;box-shadow:0 18px 40px rgba(0,0,0,.35)}
+  /* dark: lift the working surfaces off the page so it isn't black on black */
+  .dark .pc{--pc-line:rgba(255,255,255,.12);--pc-bg2:#1c1c1f}
+  .dark .pc-card{background:#141416}
+  .dark .pl-blk{background:#1c1c1f;border-color:rgba(255,255,255,.1)}
+  .dark .pl-blk-h::before{background:rgba(255,255,255,.1)}
+  .dark .pl-blk-b{border-top-color:rgba(255,255,255,.08)}
+  .dark .pc-f input,.dark .pc-f textarea,.dark .pc-f select,.dark .pl-blk textarea,.dark .pl-blk input[type=text]{background:#26262a;border-color:rgba(255,255,255,.1)}
+  .dark .pl-seg{background:#1c1c1f}
+  .dark .pl-seg button.on{background:rgba(255,255,255,.12)}
+  .dark .pl-add{background:#18181b;border-color:rgba(255,255,255,.14)}
+  .dark .pl-tilebox{background:#232327}
+  .dark .pc-btn{background:#232327}
+  .dark .pc-btn--pri{background:var(--pc-accent)}
   .pc-note{font-size:12px;opacity:.6;line-height:1.6;margin-top:10px}
   .pc-frame{border:1px solid var(--pc-line);border-radius:10px;overflow:hidden;background:#fff}
   .pc-frame iframe{width:100%;height:520px;border:0;display:block}
@@ -269,13 +299,40 @@
               Tokens: <code>{first_name}</code> <code>{shop_name}</code> — and for investors <code>{amount}</code> <code>{percent}</code> <code>{remaining}</code> <code>{portal}</code>.
               The preview on the right uses sample values.
             </div>
+            @if(count($cBlocks) > 1)
+              <div class="pl-tools">
+                <span style="opacity:.6">{{ count($cBlocks) }} blocks</span>
+                <span>
+                  <button type="button" x-on:click="window.dispatchEvent(new CustomEvent('pl-fold', { detail: true }))">Fold all</button>
+                  <button type="button" x-on:click="window.dispatchEvent(new CustomEvent('pl-fold', { detail: false }))">Unfold all</button>
+                </span>
+              </div>
+            @endif
             <div class="pl-list">
             @foreach($cBlocks as $i => $blk)
               @php $isFeat = str_starts_with($blk['type'], 'feat_'); @endphp
-              <div class="pl-blk" wire:key="lb-{{ $i }}-{{ $blk['type'] }}" x-data="{ open: true }">
+              @if($i > 0)
+                <div class="pl-ins" x-data="{ pick: false }" x-bind:class="{ on: pick }" wire:key="ins-{{ $i }}">
+                  <button type="button" x-on:click="pick = !pick" title="Insert a block here">+</button>
+                  <div class="pl-pick" x-show="pick" x-on:click.outside="pick = false" x-cloak>
+                      <div class="pl-add-g"><span>Letter</span>
+                        @foreach($letterTypes as $lt => $ll)
+                          @unless(str_starts_with($lt, 'feat_'))<button type="button" class="pc-btn" wire:click="insertLetterBlock({{ $i }}, '{{ $lt }}')" x-on:click="pick = false">+ {{ $ll }}</button>@endunless
+                        @endforeach
+                      </div>
+                      <div class="pl-add-g pl-add-feat"><span>Feature</span>
+                        @foreach($letterTypes as $lt => $ll)
+                          @if(str_starts_with($lt, 'feat_'))<button type="button" class="pc-btn" wire:click="insertLetterBlock({{ $i }}, '{{ $lt }}')" x-on:click="pick = false">+ {{ $ll }}</button>@endif
+                        @endforeach
+                      </div>
+                    </div>
+                </div>
+              @endif
+              <div class="pl-blk" wire:key="lb-{{ $i }}-{{ $blk['type'] }}" x-data="{ open: true }" x-on:pl-fold.window="open = ! $event.detail">
                 <div class="pl-blk-h" x-on:click="open = !open">
                   <b>{{ $letterTypes[$blk['type']] ?? $blk['type'] }}</b>
                   <span class="pl-kind {{ $isFeat ? 'pl-kind--feat' : '' }}">{{ $isFeat ? 'Feature' : 'Letter' }}</span>
+                  <span class="pl-sum" x-show="! open">{{ \App\Support\PlatformLetter::summary($blk) }}</span>
                   <span class="pl-ctl" x-on:click.stop>
                     <button type="button" wire:click="moveLetterBlock({{ $i }}, -1)" title="Move up">↑</button>
                     <button type="button" wire:click="moveLetterBlock({{ $i }}, 1)" title="Move down">↓</button>
@@ -482,7 +539,7 @@
           </div>
         </div>
 
-        <div class="pc-card">
+        <div class="pc-card pc-sticky">
           <h3>Who this reaches</h3>
           <div class="sub">Counted by the same rules the sender uses</div>
           @if($reach)

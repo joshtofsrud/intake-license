@@ -329,6 +329,29 @@ class PlatformLetter
             . '</table></td></tr></table></body></html>';
     }
 
+    /** One line of what a block holds, for its folded header in the composer. */
+    public static function summary(array $b): string
+    {
+        $d = (array) ($b['data'] ?? []);
+        $one = fn ($t) => trim(preg_replace('/\s+/', ' ', (string) $t));
+        $out = match ($b['type'] ?? '') {
+            'letter_text', 'feat_display', 'feat_lede', 'feat_headline' => $one($d['text'] ?? ''),
+            'feat_hero'        => $one(($d['label'] ?? '') !== '' ? $d['label'] . ' · ' . ($d['text'] ?? '') : ($d['text'] ?? '')),
+            'letter_numbers'   => count(array_filter((array) ($d['rows'] ?? []), fn ($r) => trim(implode('', (array) $r)) !== '')) . ' rows',
+            'letter_shot', 'feat_tray' => ($d['url'] ?? '') !== '' ? $one(($d['tab'] ?? '') ?: ($d['caption'] ?? '') ?: 'Image chosen') : 'No image yet',
+            'feat_annotated'   => ($d['url'] ?? '') !== '' ? count((array) ($d['markers'] ?? [])) . ' markers' : 'No image yet',
+            'letter_ask'       => $one($d['title'] ?? ''),
+            'letter_signature' => $one($d['text'] ?? ''),
+            'feat_section'     => $one(trim(($d['num'] ?? '') . ' ' . ($d['text'] ?? ''))),
+            'feat_receipt'     => $one(($d['title'] ?? '') ?: 'Receipt') . (($d['total_value'] ?? '') !== '' ? ' · ' . $d['total_label'] . ' ' . $d['total_value'] : ''),
+            'feat_tiles'       => implode(' · ', array_filter(array_map(fn ($t) => $one($t['value'] ?? ''), (array) ($d['tiles'] ?? [])))),
+            'feat_button'      => $one($d['label'] ?? ''),
+            'feat_divider'     => 'Perforated line',
+            default            => '',
+        };
+        return $out !== '' ? mb_strimwidth($out, 0, 90, '…') : 'Empty';
+    }
+
     /** Why this person is getting the email, by audience source. */
     public static function footerFor(?string $source): string
     {

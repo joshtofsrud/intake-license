@@ -712,6 +712,15 @@ class PlatformCommunication extends Page
         }
     }
 
+    /** Insert a new block before position $at (the "+" between blocks). */
+    public function insertLetterBlock(int $at, string $type): void
+    {
+        if (! isset(\App\Support\PlatformLetter::TYPES[$type])) { return; }
+        $at = max(0, min($at, count($this->cBlocks)));
+        array_splice($this->cBlocks, $at, 0, [\App\Support\PlatformLetter::blank($type)]);
+        $this->shotUploads = [];
+    }
+
     public function removeLetterBlock(int $i): void
     {
         unset($this->cBlocks[$i], $this->shotUploads[$i]);
