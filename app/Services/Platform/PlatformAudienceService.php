@@ -213,7 +213,10 @@ class PlatformAudienceService
             }
         }
 
-        $rows = collect($q->get());
+        // only what the audience uses: selecting * pulled the big text columns
+        // (categories, brands, socials, quote add-ons) for every prospect and
+        // ran PHP out of memory with a few thousand rows.
+        $rows = collect($q->get(['id', 'email', 'shop', 'owner_contact', 'converted_at']));
         // MARKER-AUDIENCE-BUILDER: campaigns go through Postmark's broadcast
         // stream, which only allows people who asked to hear from us. A prospect
         // counts once they booked a call, wrote in through the site or became a
