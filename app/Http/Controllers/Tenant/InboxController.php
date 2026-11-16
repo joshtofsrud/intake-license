@@ -148,10 +148,24 @@ class InboxController extends Controller
             'customer_id' => ['required', 'string', 'uuid'],
             'body'        => ['required', 'string', 'max:1200'],
             'channel'     => ['nullable', 'in:sms,email'],
+            'about_type'  => ['nullable', 'in:sale'],
+            'about_id'    => ['nullable', 'string', 'uuid'],
         ]);
 
         $customer = TenantCustomer::where('tenant_id', $tenant->id)
             ->where('id', $request->input('customer_id'))->firstOrFail();
+
+        // optional "about" tag (sent from a sale page). Only kept when the
+        // record is this tenant's and belongs to this customer.
+        $about = null;
+        if ($request->input('about_type') === 'sale' && $request->input('about_id')) {
+            $aboutSale = \App\Models\Tenant\TenantSale::where('tenant_id', $tenant->id)
+                ->where('customer_id', $customer->id)
+                ->find($request->input('about_id'), ['id', 'sale_number']);
+            if ($aboutSale) {
+                $about = ['type' => 'sale', 'id' => $aboutSale->id, 'label' => 'Sale ' . $aboutSale->sale_number];
+            }
+        }
 
         // channel comes from the compose panel; it seeds the
         // thread when new and is passed explicitly so postOutbound can't infer.
@@ -160,9 +174,13 @@ class InboxController extends Controller
         $thread = $this->inbox->threadFor($tenant, $customer, $channel);
 
         try {
-            $this->inbox->postOutbound($tenant, $thread, $request->input('body'), auth('tenant')->id(), $channel);
+            $this->inbox->postOutbound($tenant, $thread, $request->input('body'), auth('tenant')->id(), $channel, $about);
         } catch (\RuntimeException $e) {
-            return back()->withErrors(['body' => $e->getMessage()]);
+            return back()->withErrors(['body' => $e->getMessage()])->withInput();
+        }
+
+        if ($about && $request->boolean('stay')) {
+            return back()->with('flash', 'Message sent. It is in the inbox under ' . ($customer->fullName() ?: 'this customer') . '.');
         }
 
         return redirect()->route('tenant.inbox.index', ['thread' => $thread->id]);

@@ -68,7 +68,7 @@ class InboxService
      * the message. Throws \RuntimeException with a human message on guard
      * failure so the controller can flash it.
      */
-    public function postOutbound(Tenant $tenant, TenantThread $thread, string $body, ?string $userId = null, ?string $channel = null): TenantMessage
+    public function postOutbound(Tenant $tenant, TenantThread $thread, string $body, ?string $userId = null, ?string $channel = null, ?array $about = null): TenantMessage
     {
         $customer = $thread->customer;
 
@@ -118,7 +118,12 @@ class InboxService
             'body'            => $body,
             'channel'         => $channel,
             'sent_by_user_id' => $userId,
-            'meta'            => $tenant->is_demo ? ['demo_suppressed' => true] : null,
+            // $about tags the message with the record it's about (sale, work
+            // order, rental), which the inbox shows as an "About" chip.
+            'meta'            => array_filter([
+                'demo_suppressed' => $tenant->is_demo ? true : null,
+                'about'           => $about,
+            ]) ?: null,
             'delivered_at'    => now(), // best-effort; delivery receipts are a later enhancement
         ]);
 

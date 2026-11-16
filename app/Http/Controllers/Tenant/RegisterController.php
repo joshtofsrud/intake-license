@@ -2140,7 +2140,7 @@ class RegisterController extends Controller
 
         $sale = TenantSale::where('id', $id)
             ->where('tenant_id', $tenant->id)
-            ->with(['customer', 'rangUpBy', 'items', 'payments', 'location', 'refundOf:id,sale_number', 'appointment:id,ra_number'])
+            ->with(['customer', 'rangUpBy', 'items', 'payments', 'location', 'refundOf:id,sale_number'])
             ->firstOrFail();
 
         $refunds = TenantSale::where('refund_of_sale_id', $sale->id)
@@ -2150,17 +2150,46 @@ class RegisterController extends Controller
 
         // linked context (rental/lease the sale belongs to).
         $linkedRental = $sale->rental_id
-            ? \App\Models\Tenant\TenantRental::where('tenant_id', $tenant->id)->find($sale->rental_id, ['id', 'rental_number'])
+            ? \App\Models\Tenant\TenantRental::where('tenant_id', $tenant->id)->find($sale->rental_id)
             : null;
         $linkedLease = $sale->lease_id
-            ? \App\Models\Tenant\Lease::where('tenant_id', $tenant->id)->find($sale->lease_id, ['id', 'lease_number'])
+            ? \App\Models\Tenant\Lease::where('tenant_id', $tenant->id)->find($sale->lease_id)
             : null;
+
+        // MARKER-SALE-PAGE-CONTEXT: the record this sale belongs to, with its
+        // money picture, so the page answers "what was this for and where does
+        // it stand". Other sales on the same record are listed beside it.
+        $appt = $sale->appointment_id
+            ? \App\Models\Tenant\TenantAppointment::where('tenant_id', $tenant->id)->with('items')->find($sale->appointment_id)
+            : null;
+
+        $siblingQuery = null;
+        if ($appt)              { $siblingQuery = ['appointment_id', $appt->id]; }
+        elseif ($linkedRental)  { $siblingQuery = ['rental_id', $linkedRental->id]; }
+        elseif ($linkedLease)   { $siblingQuery = ['lease_id', $linkedLease->id]; }
+        $siblings = $siblingQuery
+            ? TenantSale::where('tenant_id', $tenant->id)
+                ->where($siblingQuery[0], $siblingQuery[1])
+                ->where('id', '!=', $sale->id)
+                ->where('status', '!=', 'cancelled')
+                ->orderBy('created_at')
+                ->get(['id', 'sale_number', 'total_cents', 'payment_status', 'sale_date', 'created_at'])
+            : collect();
+
+        $customerSales = $sale->customer_id
+            ? TenantSale::where('tenant_id', $tenant->id)->where('customer_id', $sale->customer_id)
+                ->where('status', '!=', 'cancelled')->count()
+            : 0;
 
         return view('tenant.register.sale-show', [
             'sale'         => $sale,
             'refunds'      => $refunds,
             'linkedRental' => $linkedRental,
             'linkedLease'  => $linkedLease,
+            'appt'         => $appt,
+            'siblings'     => $siblings,
+            'customerSales'=> $customerSales,
+            'inboxOn'      => (bool) $tenant->unified_inbox_enabled,
         ]);
     }
 
