@@ -692,6 +692,9 @@
                   <button type="button" class="{{ $aSource === $k ? 'on' : '' }}" wire:click="setSource('{{ $k }}')">{{ $label }}</button>
                 @endforeach
               </div>
+              @if(isset(\App\Models\PlatformAudience::SOURCE_HELP[$aSource]))
+                <div class="pc-note" style="margin-top:8px;opacity:.75">{{ \App\Models\PlatformAudience::SOURCE_HELP[$aSource] }}</div>
+              @endif
               @if($aSource === 'prospects')
                 <div class="ab-gate"><b>Only prospects who asked to hear from us.</b> Campaigns send through Postmark's broadcast stream, which only allows people who opted in, so a prospect is included once they booked a call, wrote in through the site or became a tenant. @if($abP && $abP['cold'] > 0){{ number_format($abP['cold']) }} cold prospects are never included; they're contacted one by one, not by campaign.@endif</div>
               @endif

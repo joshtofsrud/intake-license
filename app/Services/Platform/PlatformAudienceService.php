@@ -115,8 +115,10 @@ class PlatformAudienceService
         }
 
         return $q->get()->map(function (Tenant $t) use ($source) {
+            // tenants: the shop's contact address; owners: the owner's own login
+            // (both branches used to be identical, so the two choices did the same thing)
             $email = $source === 'tenant_owners'
-                ? ($t->notification_email ?: $this->ownerEmail($t))
+                ? ($this->ownerEmail($t) ?: $t->notification_email)
                 : ($t->notification_email ?: $this->ownerEmail($t));
 
             return [
@@ -137,6 +139,7 @@ class PlatformAudienceService
     {
         return DB::table('tenant_users')
             ->where('tenant_id', $t->id)
+            ->orderByRaw("CASE WHEN role = 'owner' THEN 0 ELSE 1 END")
             ->orderBy('created_at')
             ->value('email');
     }
@@ -232,13 +235,36 @@ class PlatformAudienceService
         ]);
     }
 
+    /**
+     * MARKER-WROTE-IN: inbox threads the person started, or answered.
+     *
+     * Outgoing mail (prospect outreach, campaign sends) also opens a "contact"
+     * thread so a reply has somewhere to land. Those threads alone are not the
+     * person writing in, and must never count as asking to hear from us; they
+     * count once a real (non-automatic) reply has come back on them.
+     */
+    protected function wroteInThreads()
+    {
+        return DB::table('platform_inbox_messages as m')
+            ->where('m.kind', 'contact')
+            ->where('m.status', '!=', 'spam')
+            ->whereNotNull('m.email')
+            ->where(function ($q) {
+                $q->whereRaw("COALESCE(JSON_UNQUOTE(JSON_EXTRACT(m.meta, '$.origin')), '') NOT IN ('prospect_email', 'campaign_send')")
+                  ->orWhereExists(function ($r) {
+                      $r->select(DB::raw(1))->from('platform_inbox_replies as r')
+                        ->whereColumn('r.message_id', 'm.id')
+                        ->where('r.direction', 'in')
+                        ->where(fn ($a) => $a->whereNull('r.is_auto')->orWhere('r.is_auto', false));
+                  });
+            });
+    }
+
     protected function fromInbox(array $rules): Collection
     {
-        return DB::table('platform_inbox_messages')
-            ->where('kind', 'contact')
-            ->where('status', '!=', 'spam')
-            ->whereNotNull('email')
-            ->get(['name', 'email'])
+        return $this->wroteInThreads()
+            ->get(['m.name', 'm.email'])
+            ->unique(fn ($m) => mb_strtolower(trim((string) $m->email)))
             ->map(fn ($m) => [
                 'email'       => (string) $m->email,
                 'name'        => $m->name,
@@ -376,8 +402,7 @@ class PlatformAudienceService
         $out = [];
         try {
             if (Schema::hasTable('platform_inbox_messages')) {
-                foreach (DB::table('platform_inbox_messages')->where('kind', 'contact')->where('status', '!=', 'spam')
-                    ->whereNotNull('email')->pluck('email') as $e) {
+                foreach ($this->wroteInThreads()->pluck('m.email') as $e) {
                     $out[mb_strtolower(trim((string) $e))] = 'wrote in';
                 }
             }
