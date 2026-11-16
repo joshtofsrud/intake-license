@@ -1,0 +1,208 @@
+/* MARKER-APPT-STUDIO: appointment / work order pages in the Studio design.
+   Everything is scoped to .ap so the page's own (older) rules still drive
+   behaviour, and these only change how it looks. Loaded after
+   dashboard-studio.css and rentals-studio.css, which supply the tokens
+   (--sd-*), the header, status pills, track, rail headings and legend. */
+
+.ap .sd-head { position: static; margin-bottom: 18px; }
+.ap .sd-head-r { flex-wrap: wrap; justify-content: flex-end; }
+
+/* ---------- banners: tinted strips ---------- */
+.ap .ap-ban { display: flex; align-items: center; gap: 14px; padding: 11px 14px; border-radius: 12px; margin: 0 0 14px;
+  font-size: 12.5px; background: color-mix(in srgb, var(--sd-t1) 22%, var(--ia-surface)); border: 0; }
+.ap .ap-ban > div { flex: 1; min-width: 0; }
+.ap .ap-ban--info { background: color-mix(in srgb, var(--sd-t4) 24%, var(--ia-surface)); }
+.ap .ap-ban--ok   { background: color-mix(in srgb, var(--sd-t3) 22%, var(--ia-surface)); }
+.ap .ap-ban--warn { background: color-mix(in srgb, var(--sd-t1) 26%, var(--ia-surface)); }
+.ap .ap-ban--text { display: block; color: var(--ia-text); }
+.ap .ap-ban--text b { color: var(--ia-text); }
+
+/* ---------- two columns: work on the left, rail on the right ---------- */
+@media (min-width: 901px) {
+  .ap .appt-b-shell { grid-template-columns: minmax(0, 1fr) 340px; gap: 32px; }
+  .ap .appt-b-rail { order: 2; position: static; gap: 0; }
+}
+.ap .appt-b-main { gap: 0 !important; }
+
+/* ---------- flatten every card into a Studio section ---------- */
+.ap .appt-b-shell .ia-card { background: transparent; border: 0; border-radius: 0; box-shadow: none; padding: 0; }
+.ap .appt-b-main > .ia-card { border-top: 1px solid var(--ia-border); padding-top: 18px; margin-bottom: 30px; }
+.ap .appt-b-main > .ap-track-wrap + .ia-card { border-top: 0; padding-top: 0; }
+.ap #so-parts-card { border-left: 0 !important; }
+.ap .appt-section-label { font-size: 15px; font-weight: 600; text-transform: none; letter-spacing: 0; opacity: 1; color: var(--ia-text); margin-bottom: 10px; }
+.ap .appt-b-main .ia-btn--ghost.ia-btn--sm { border: 1px solid var(--ia-border); }
+
+/* tables read as lines */
+.ap .appt-line-items th { font-size: 11px; text-transform: none; letter-spacing: 0; font-weight: 500; opacity: 1; color: var(--ia-text-dim); }
+.ap .appt-line-items td { padding: 10px 0; border-bottom: 1px solid var(--ia-border); }
+.ap .appt-line-items tr:last-child td { border-bottom: 1px solid var(--ia-border); }
+.ap .appt-line-items .ia-num, .ap .appt-total-row span:last-child, .ap .appt-charge-row > div:last-child { font-family: var(--ia-font-mono); font-size: 12.5px; }
+.ap .appt-line-items input.ia-input { font-family: var(--ia-font-mono); font-size: 12.5px; }
+.ap .appt-total-row { border-top: 0; padding: 12px 0 0; font-weight: 600; }
+.ap .appt-charge-row { border-bottom: 1px solid var(--ia-border); padding: 10px 0; }
+
+/* notes */
+.ap .ia-note { background: transparent; border: 0; border-left: 2px solid var(--ia-border); border-radius: 0; padding: 4px 0 4px 12px; margin: 0 0 14px; }
+.ap .ia-note-head { gap: 8px; }
+.ap .ia-note-time { font-variant-numeric: tabular-nums; }
+
+/* ---------- status track (horizontal, rentals-style) ---------- */
+.ap .ap-track-wrap { margin: 0 0 26px; }
+.ap .ap-track-wrap .appt-progress-card { padding: 0; margin: 0; }
+.ap .ap-track-wrap .appt-progress-bar { align-items: center; gap: 0; }
+.ap .ap-track-wrap .appt-progress-bar::before,
+.ap .ap-track-wrap .appt-progress-bar::after { top: 11px; left: 11px; }
+.ap .ap-track-wrap .appt-progress-bar::before { right: auto; width: calc(100% - 22px); }
+.ap .ap-track-wrap .appt-progress-bar::after { background: var(--sd-t3); width: calc((100% - 22px) * var(--progress, 0)); }
+.ap .ap-track-wrap .appt-progress-step { flex-direction: row; justify-content: flex-start; gap: 8px; flex: 1; }
+.ap .ap-track-wrap .appt-progress-step:last-child { flex: none; }
+.ap .ap-track-wrap .appt-progress-dot { width: 22px; height: 22px; border: 0; background: var(--ia-surface-2); color: var(--ia-text-dim); }
+.ap .ap-track-wrap .appt-progress-step.is-done .appt-progress-dot { background: var(--sd-t3); color: var(--sd-ink); }
+body.ia-theme-c .ap .ap-track-wrap .appt-progress-step.is-done .appt-progress-dot { color: #111; }
+.ap .ap-track-wrap .appt-progress-step.is-current .appt-progress-dot { border: 0; background: var(--ia-accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--ia-accent) 25%, transparent); }
+.ap .ap-track-wrap .appt-progress-step.is-current .appt-progress-dot-inner { background: var(--ia-accent-text); }
+.ap .ap-track-wrap .appt-progress-label { font-size: 12px; font-weight: 600; color: var(--ia-text-dim); background: var(--ia-bg); padding: 0 8px 0 4px; }
+.ap .ap-track-wrap .appt-progress-step.is-done .appt-progress-label,
+.ap .ap-track-wrap .appt-progress-step.is-current .appt-progress-label { color: var(--ia-text); }
+.ap .ap-track-wrap .appt-terminal-card { padding: 12px 14px !important; border-radius: 12px !important; background: color-mix(in srgb, var(--sd-bad) 12%, var(--ia-surface)) !important; }
+
+/* ---------- rail ---------- */
+.ap .ap-rh { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin: 0 0 10px; font-size: 13px; }
+.ap .appt-b-rail > .ia-card,
+.ap .appt-b-rail > .ap-group,
+.ap .appt-b-rail > .ap-more-h { border-top: 1px solid var(--ia-border); padding-top: 18px; margin: 0 0 22px; }
+.ap .appt-b-rail > :first-child { border-top: 0; padding-top: 0; }
+.ap .appt-b-rail .appt-section-label,
+.ap .appt-b-rail .ia-card > div[style*="uppercase"] { font-size: 13px !important; font-weight: 600 !important; text-transform: none !important;
+  letter-spacing: 0 !important; opacity: 1 !important; color: var(--ia-text); margin-bottom: 10px !important; }
+.ap .ap-sched .ia-card { margin-top: 18px; }
+.ap .ap-sched .ia-card > div[style*="uppercase"] { font-size: 12px !important; color: var(--ia-text-muted); }
+
+/* customer */
+.ap .ap-cust > div:nth-child(2) { font-size: 15px; font-weight: 600 !important; }
+.ap .ap-contact { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 4px 0 10px; }
+.ap .ap-contact .ia-btn { justify-content: center; }
+.ap .ap-contact .is-off { opacity: .35; pointer-events: none; }
+.ap .ap-visits { font-size: 12px; color: var(--ia-text-muted); margin-bottom: 10px; }
+
+/* schedule: the when band becomes plain text */
+.ap .appt-b-when { background: transparent; border: 0; border-radius: 0; padding: 0; }
+.ap .appt-b-when-time { font-size: 17px; font-weight: 600; }
+.ap .appt-b-when-resource { border-top: 0; padding-top: 0; margin-top: 8px; }
+
+/* money */
+.ap .ap-pay-card .sidebar-stat { padding: 7px 0; border-bottom: 0; font-size: 12.5px; }
+.ap .ap-pay-card .sidebar-stat-value { font-family: var(--ia-font-mono); font-weight: 500; }
+
+/* more: Print and Reschedule moved to the header on desktop; Cancel reads as a quiet red link */
+@media (min-width: 901px) {
+  .ap .appt-b-actions { background: transparent; border: 0; padding: 0; box-shadow: none; display: flex; flex-direction: column; gap: 2px; }
+  .ap .appt-b-actions > .ia-btn:not(.appt-b-cancel-btn), .ap .appt-b-actions-divider { display: none !important; }
+  .ap .appt-b-actions .appt-b-cancel-btn { order: 9; background: transparent !important; border: 0 !important; color: var(--sd-bad) !important;
+    justify-content: flex-start; padding: 7px 8px; font-size: 12.5px; }
+  .ap .appt-b-actions .appt-b-cancel-btn:hover { background: var(--ia-hover) !important; }
+}
+
+/* ---------- phone: header and track give way to the phone summary ---------- */
+@media (max-width: 900px) {
+  .ap .ap-head { display: none !important; }
+  .ap .appt-b-rail > .ia-card, .ap .appt-b-rail > .ap-group, .ap .appt-b-rail > .ap-more-h { border-top: 0; padding-top: 0; margin-bottom: 14px; }
+  .ap .ap-more-h, .ap .ap-sched > .ap-rh, .ap .ap-sched .appt-b-when { display: none !important; }
+  .ap .ap-legend { padding-bottom: 20px; }
+}
+.ap .appt-b-rail .ia-btn--ghost { border: 1px solid var(--ia-border); justify-content: center; }
+
+/* =====================================================================
+   Multi-asset page (.ap-ma). Same look; its own class names.
+   ===================================================================== */
+.ap-ma .ma-page-head.sd-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; margin: 0 0 18px; padding: 0; border: 0; }
+.ap-ma .ma-layout { --ia-border: var(--ia-border-base, rgba(255,255,255,.1)); }
+body.ia-theme-c .ap-ma .ma-layout { --ia-border: rgba(255,255,255,.1); }
+body:not(.ia-theme-c) .ap-ma .ma-layout { --ia-border: rgba(0,0,0,.1); }
+.ap-ma .ma-layout .ma-top-tile, .ap-ma .ma-layout .ma-asset { box-shadow: none; }
+
+/* layout: work left; customer then rail on the right */
+@media (min-width: 1001px) {
+  .ap-ma .ma-layout { grid-template-columns: minmax(0, 1fr) 340px; grid-template-rows: auto 1fr; column-gap: 32px; row-gap: 0; }
+  .ap-ma .ap-cust-row .ma-top-actions .appt-b-reschedule-btn { display: none; }
+  .ap-ma .ma-layout > main { grid-column: 1; grid-row: 1 / span 2; min-width: 0; }
+  .ap-ma .ma-layout > .ap-cust-row { grid-column: 2; grid-row: 1; }
+  .ap-ma .ma-layout > .ma-rail { grid-column: 2; grid-row: 2; }
+}
+.ap-ma .ma-top-row.ap-cust-row, .ap-ma .ma-top-row.ap-track-row { display: block; margin: 0; }
+.ap-ma .ma-top-row.ap-track-row { margin-bottom: 26px; }
+
+/* banners */
+.ap-ma .ma-sale-banner { border: 0 !important; border-radius: 12px !important; background: color-mix(in srgb, var(--sd-t1) 22%, var(--ia-surface)) !important; }
+
+/* status track */
+.ap-ma .ap-track-row .ma-top-tile { background: transparent; border: 0; padding: 0; box-shadow: none; min-height: 0; }
+.ap-ma .ap-track-row .ma-top-tile-label { display: none; }
+.ap-ma .ma-progress-bar { align-items: center; padding: 0; }
+.ap-ma .ma-progress-bar::after { background: var(--sd-t3) !important; }
+.ap-ma .ma-progress-step { flex-direction: row !important; gap: 8px; justify-content: flex-start; }
+.ap-ma .ma-progress-step:last-child { flex: none; }
+.ap-ma .ma-progress-dot { width: 22px !important; height: 22px !important; border: 0 !important; background: var(--ia-surface-2) !important; color: var(--ia-text-dim); }
+.ap-ma .ma-progress-step.is-done .ma-progress-dot { background: var(--sd-t3) !important; color: #111; }
+.ap-ma .ma-progress-step.is-current .ma-progress-dot { background: var(--ia-accent) !important; box-shadow: 0 0 0 4px color-mix(in srgb, var(--ia-accent) 25%, transparent); }
+.ap-ma .ma-progress-step.is-current .ma-progress-dot-inner { background: var(--ia-accent-text) !important; }
+.ap-ma .ma-progress-label { font-size: 12px !important; font-weight: 600 !important; color: var(--ia-text-dim); background: var(--ia-bg); padding: 0 8px 0 4px; }
+.ap-ma .ma-progress-step.is-done .ma-progress-label, .ap-ma .ma-progress-step.is-current .ma-progress-label { color: var(--ia-text); }
+.ap-ma .ma-terminal-card { border-radius: 12px !important; background: color-mix(in srgb, var(--sd-bad) 12%, var(--ia-surface)) !important; border: 0 !important; }
+
+/* customer block at the head of the rail */
+.ap-ma .ap-cust-row .ma-top-tile { background: transparent; border: 0; padding: 0 0 18px; border-radius: 0; }
+.ap-ma .ap-cust-row .ma-mcontact { display: grid; }
+.ap-ma .ma-top-resource { margin-top: 14px; }
+.ap-ma .ma-top-tile-label { font-size: 12px; font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--ia-text-muted); }
+.ap-ma .ma-top-actions .ma-cancel-btn { background: transparent !important; border: 1px solid color-mix(in srgb, var(--sd-bad) 45%, transparent) !important; color: var(--sd-bad) !important; }
+
+/* rail: cards become plain groups */
+.ap-ma .ma-rail { gap: 0; }
+.ap-ma .ma-rail-card { background: transparent; border: 0; border-top: 1px solid var(--ia-border); border-radius: 0; padding: 18px 0 0; margin-bottom: 22px; box-shadow: none; }
+.ap-ma .ma-rail-card-title { font-size: 13px; font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--ia-text); opacity: 1; }
+.ap-ma .ma-rail-row .v, .ap-ma .ma-rail-row span:last-child { font-family: var(--ia-font-mono); font-size: 12.5px; }
+.ap-ma .ma-schedule-row .lbl { text-transform: none; letter-spacing: 0; font-size: 12.5px; }
+
+/* main: sections without boxes */
+.ap-ma .ma-section-head { margin-bottom: 4px; }
+.ap-ma .ma-section-title { font-size: 15px; font-weight: 600; text-transform: none; letter-spacing: 0; }
+.ap-ma .ma-asset { background: transparent; border: 0; border-top: 1px solid var(--ia-border); border-radius: 0; margin: 0 0 8px; overflow: visible; }
+.ap-ma .ma-asset-head { background: transparent; border: 0; padding: 14px 0 8px; }
+.ap-ma .ma-asset-num { background: color-mix(in srgb, var(--sd-t3) 50%, var(--ia-surface)); color: var(--sd-ink); border: 0; }
+.ap-ma .ma-asset-name { font-size: 15px; }
+.ap-ma .ma-asset-subtotal { font-family: var(--ia-font-mono); }
+.ap-ma .ma-asset-services { padding: 0 0 0 40px; background: transparent; border: 0; }
+.ap-ma .ma-service-row { background: transparent; border: 0; border-bottom: 1px solid var(--ia-border); border-radius: 0; padding: 10px 6px; margin: 0; }
+.ap-ma .ma-service-tag { background: transparent; padding: 0; color: var(--ia-text-dim); }
+.ap-ma .ma-service-edit { font-family: var(--ia-font-mono); }
+.ap-ma .ma-add-svc-btn { border-style: dashed; margin-top: 8px; }
+.ap-ma .ma-asset-parts, .ap-ma .ma-asset-wo { background: transparent; border: 0; margin-left: 40px; border-radius: 0; }
+.ap-ma .ma-asset-parts-head { padding: 10px 6px; }
+.ap-ma .ma-asset-parts-title { font-size: 12.5px; font-weight: 600; color: var(--ia-text-muted); }
+.ap-ma .ma-asset-parts-body, .ap-ma .ma-asset-wo-body { padding: 0 6px 12px; }
+.ap-ma .ma-parts-blank { background: transparent; border: 1px dashed var(--ia-border); }
+.ap-ma .ma-add-asset-btn { border-style: dashed; background: transparent; }
+.ap-ma .ma-charges-card, .ap-ma .ma-so-card, .ap-ma .ma-notes-card { background: transparent; border: 0; border-top: 1px solid var(--ia-border); border-radius: 0; padding: 18px 0 0; margin: 22px 0 8px; box-shadow: none; border-left: 0 !important; }
+.ap-ma .ma-charges-head, .ap-ma .ma-so-head { padding: 0; margin-bottom: 10px; }
+.ap-ma .ma-charge-row, .ap-ma .ma-part-row td, .ap-ma .ma-so-table td { border-bottom: 1px solid var(--ia-border); }
+.ap-ma .ma-note { background: transparent; border: 0; border-left: 2px solid var(--ia-border); border-radius: 0; padding: 4px 0 4px 12px; margin-bottom: 14px; }
+
+@media (max-width: 1000px) {
+  /* one column: status, then the customer, then the work and the rail */
+  .ap-ma .ma-layout { display: flex !important; flex-direction: column; align-items: stretch; }
+  .ap-ma .ma-layout > main { order: 1; }
+  .ap-ma .ma-layout > .ap-cust-row { order: 2; }
+  .ap-ma .ma-layout > .ma-rail { order: 3; }
+  .ap-ma .ma-top-row.ap-track-row { margin-bottom: 14px; }
+}
+@media (max-width: 640px) {
+  .ap-ma .ma-asset-services, .ap-ma .ma-asset-parts, .ap-ma .ma-asset-wo { padding-left: 0; margin-left: 0; }
+  /* phone keeps its tiles */
+  .ap-ma .ap-track-row .ma-top-tile, .ap-ma .ap-cust-row .ma-top-tile { background: var(--ia-surface); border: 1px solid var(--ia-border); border-radius: 14px; padding: 15px 16px; }
+  .ap-ma .ap-track-row .ma-top-tile-label { display: block; }
+  .ap-ma .ma-progress-step { flex-direction: column !important; align-items: center; gap: 6px; }
+  .ap-ma .ma-progress-step:last-child { flex: 1; }
+  .ap-ma .ma-progress-label { background: transparent; padding: 0; font-size: 11px !important; }
+  .ap-ma .ap-cust-row { margin-bottom: 14px; }
+}

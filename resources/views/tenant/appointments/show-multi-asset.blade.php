@@ -1361,43 +1361,64 @@ input.ma-asset-name-edit:focus {
 
 @section('mobile-back', 'Appointments|' . route('tenant.appointments.index'))
 
+@push('styles')
+  @foreach (['dashboard-simple', 'dashboard-studio', 'rentals-studio', 'appointments-studio'] as $apCss)
+    <link rel="stylesheet" href="{{ asset('css/tenant/'.$apCss.'.css') }}?v={{ filemtime(public_path('css/tenant/'.$apCss.'.css')) }}">
+  @endforeach
+@endpush
 @section('content')
 {{-- Removed max-width:1400px + margin:0 auto. No other tenant page uses centered wrapper; this one shouldn't either. --}}
 {{-- this view renders whenever the appointment
      has assets, which is most of them. $noteCustomer also makes the pad
      button pre-attach this customer. --}}
 @php $noteCustomer = $appointment->customer ?? null; @endphp
-<div class="ia-page" id="ma-appt" style="padding: 24px 28px 60px;">
+<div class="ia-page sd rf ap ap-ma" id="ma-appt" style="padding: 24px 28px 60px;">
+
+  {{-- MARKER-APPT-STUDIO: Studio header (desktop). The phone keeps its hero below. --}}
+  @php
+    $hdStatus  = (string) $appointment->status;
+    $hdIdx     = array_search($hdStatus, $pipelineSteps, true);
+    $hdNext    = ($hdIdx !== false && isset($pipelineSteps[$hdIdx + 1])) ? $pipelineSteps[$hdIdx + 1] : null;
+    $hdAllowed = \App\Support\AppointmentStatus::TRANSITIONS[$hdStatus] ?? [];
+    if ($hdNext && ! in_array($hdNext, $hdAllowed, true)) { $hdNext = null; }
+    $hdVerb    = ['confirmed' => 'Confirm', 'in_progress' => 'Start work', 'completed' => 'Mark completed'];
+    $hdTone    = match (\App\Support\AppointmentStatus::role($hdStatus)) {
+      'awaiting' => 'due', 'scheduled' => 'res', 'active' => 'going', 'done' => 'done', 'cancelled' => 'late', default => 'off',
+    };
+    $hdAssetWord = \Illuminate\Support\Str::plural(strtolower(tenant()->asset_label_singular ?: 'asset'), $appointmentAssets->count());
+  @endphp
+  <header class="sd-head ma-page-head ap-head">
+    <div class="sd-head-l">
+      <div class="rf-crumb"><a href="{{ route('tenant.appointments.index') }}">Appointments</a> / <span class="rf-mono">{{ $appointment->ra_number }}</span></div>
+      <h1 class="sd-hi">{{ $appointment->customer ? $appointment->customer->fullName() : $appointment->customerName() }}<span class="rf-hpill"><span class="rf-st {{ $hdTone }}">{{ $statusLabels[$hdStatus] ?? $hdStatus }}</span></span></h1>
+      <p class="sd-sub"><span class="rf-mono">{{ $appointment->ra_number }}</span> · {{ $appointment->appointment_date->format('D, M j') }}@if($appointment->appointment_time) · {{ \Carbon\Carbon::parse($appointment->appointment_time)->format('g:i A') }}@endif @if($appointment->resource) · {{ $appointment->resource->name }}@endif · {{ $appointmentAssets->count() }} {{ $hdAssetWord }} · {{ $serviceCount + $addonCount }} {{ \Illuminate\Support\Str::plural('service', $serviceCount + $addonCount) }}</p>
+    </div>
+    <div class="sd-head-r">
+      @if(data_get(tenant()->settings, 'work_order_tag.enabled', true))
+        <button type="button" class="ia-btn ia-btn--secondary ia-btn--sm" onclick="window.openPrintComposer ? openPrintComposer('appointment', '{{ $appointment->id }}', {type:'tag', number:'{{ $appointment->ra_number }}'}) : openTagModal()">Print &amp; send</button>
+      @endif
+      @unless($isTerminal)
+        <button type="button" class="ia-btn ia-btn--secondary ia-btn--sm" data-am-proxy=".appt-b-reschedule-btn">Reschedule</button>
+        @if($hdNext)
+          <button type="button" class="ia-btn ia-btn--primary ia-btn--sm" data-am-proxy='.ma-progress-step[data-status="{{ $hdNext }}"]'>{{ $hdVerb[$hdNext] ?? 'Mark ' . ($statusLabels[$hdNext] ?? $hdNext) }} →</button>
+        @endif
+      @else
+        <button type="button" class="ia-btn ia-btn--secondary ia-btn--sm" data-am-proxy="#ma-reopen-btn">Reopen</button>
+      @endunless
+    </div>
+  </header>
+  <script>
+    // header buttons drive the page's own controls, so every flow (confirms,
+    // delivery offer, reschedule modal) is the one the page already runs.
+    document.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-am-proxy]');
+      if (!b || !document.getElementById('ma-appt')) { return; }
+      var t = document.querySelector(b.getAttribute('data-am-proxy'));
+      if (t) { e.preventDefault(); t.click(); }
+    });
+  </script>
 
   @include('tenant._notes-banner', ['bannerCustomer' => $noteCustomer])
-
-  {{-- Header --}}
-  <div class="ma-page-head">
-    <div>
-      <div class="ma-page-eyebrow">Appointment</div>
-      <h1 class="ma-page-title">
-        <span class="ma-ra-number">{{ $appointment->ra_number }}</span>
-        <span class="ma-status-pill ma-status-pill--{{ $appointment->status }}">{{ $statusLabels[$appointment->status] ?? $appointment->status }}</span>
-      </h1>
-      <div class="ma-page-sub">
-        <span>{{ $appointment->appointment_date->format('D M j') }}@if($appointment->appointment_time), {{ \Carbon\Carbon::parse($appointment->appointment_time)->format('g:i A') }}@endif</span>
-        @if($appointment->resource)
-          <span class="dot">·</span>
-          <span>{{ $appointment->resource->name }}</span>
-        @endif
-        <span class="dot">·</span>
-        <span>{{ $appointmentAssets->count() }} {{ \Illuminate\Support\Str::plural('asset', $appointmentAssets->count()) }} · {{ $serviceCount + $addonCount }} {{ \Illuminate\Support\Str::plural('service', $serviceCount + $addonCount) }}</span>
-      </div>
-    </div>
-    {{-- invoice export trigger --}}
-    <div class="ma-page-actions">
-      {{-- gated on the tag enable toggle --}}
-      @if(data_get(tenant()->settings, 'work_order_tag.enabled', true))
-      <button type="button" class="ia-btn ia-btn--secondary" onclick="window.openPrintComposer ? openPrintComposer('appointment', '{{ $appointment->id }}', {type:'tag', number:'{{ $appointment->ra_number }}'}) : openTagModal()">&#9113; Print &amp; Send</button>
-      @endif
-      {{-- Invoice button removed; Print & Send (Invoice → "Graphical invoice") covers this. --}}
-    </div>
-  </div>
 
   {{-- _invoice-modal include removed with the Invoice button. --}}
   @include('tenant.appointments._tag_modal')
@@ -1596,51 +1617,10 @@ input.ma-asset-name-edit:focus {
       ? strtoupper(substr($appointment->customer->first_name ?? '?', 0, 1) . substr($appointment->customer->last_name ?? '', 0, 1))
       : '?';
   @endphp
-  <div class="ma-top-row">
+  <div class="ma-layout">
 
-    {{-- LEFT: Status pipeline (or terminal card) --}}
-    @if($isTerminal)
-      <div class="ma-top-tile ma-terminal-card">
-        <div class="ma-terminal-icon">
-          @if($appointment->status === 'cancelled')✕@else↩@endif
-        </div>
-        <div class="ma-terminal-title">{{ $statusLabels[$appointment->status] ?? $appointment->status }}</div>
-        <button type="button" class="ia-btn ia-btn--secondary ia-btn--sm" data-status="pending" id="ma-reopen-btn" style="margin-left:auto;">
-          Reopen
-        </button>
-      </div>
-    @else
-      <div class="ma-top-tile ma-progress-card">
-        <div class="ma-top-tile-label">Status</div>
-        <div class="ma-progress-bar"
-             data-current-index="{{ $currentIndex }}"
-             data-update-url="{{ $updateUrl }}"
-             style="--progress: {{ count($pipelineSteps) > 1 ? $currentIndex / (count($pipelineSteps) - 1) : 0 }};">
-          @foreach($pipelineSteps as $idx => $step)
-            @php
-              $stepLabel = $statusLabels[$step] ?? $step;
-              $isDone    = $idx < $currentIndex;
-              $isCurrent = $idx === $currentIndex;
-            @endphp
-            <button type="button"
-                    class="ma-progress-step {{ $isDone ? 'is-done' : '' }} {{ $isCurrent ? 'is-current' : '' }}"
-                    data-status="{{ $step }}"
-                    data-step-index="{{ $idx }}"
-                    data-label="{{ $stepLabel }}">
-              <span class="ma-progress-dot">
-                @if($isDone)
-                  <svg width="12" height="12" viewBox="0 0 10 10" fill="none"><path d="M2 5l2 2 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                @elseif($isCurrent)
-                  <span class="ma-progress-dot-inner"></span>
-                @endif
-              </span>
-              <span class="ma-progress-label">{{ $stepLabel }}</span>
-            </button>
-          @endforeach
-        </div>
-      </div>
-    @endif
-
+    {{-- MARKER-APPT-STUDIO: customer, resource and actions head the right rail --}}
+    <div class="ma-top-row ap-cust-row">
     {{-- RIGHT: Customer + resource + actions tile --}}
     <div class="ma-top-tile" data-appt-resource-card data-appt-id="{{ $appointment->id }}">
       @if($appointment->customer)
@@ -1709,13 +1689,58 @@ input.ma-asset-name-edit:focus {
         </div>
       @endunless
     </div>
-
-  </div>
-
-  <div class="ma-layout">
+    </div>
 
     {{-- LEFT: assets + services --}}
     <main>
+
+      {{-- MARKER-APPT-STUDIO: the status track leads the work --}}
+      <div class="ma-top-row ap-track-row">
+
+    {{-- LEFT: Status pipeline (or terminal card) --}}
+    @if($isTerminal)
+      <div class="ma-top-tile ma-terminal-card">
+        <div class="ma-terminal-icon">
+          @if($appointment->status === 'cancelled')✕@else↩@endif
+        </div>
+        <div class="ma-terminal-title">{{ $statusLabels[$appointment->status] ?? $appointment->status }}</div>
+        <button type="button" class="ia-btn ia-btn--secondary ia-btn--sm" data-status="pending" id="ma-reopen-btn" style="margin-left:auto;">
+          Reopen
+        </button>
+      </div>
+    @else
+      <div class="ma-top-tile ma-progress-card">
+        <div class="ma-top-tile-label">Status</div>
+        <div class="ma-progress-bar"
+             data-current-index="{{ $currentIndex }}"
+             data-update-url="{{ $updateUrl }}"
+             style="--progress: {{ count($pipelineSteps) > 1 ? $currentIndex / (count($pipelineSteps) - 1) : 0 }};">
+          @foreach($pipelineSteps as $idx => $step)
+            @php
+              $stepLabel = $statusLabels[$step] ?? $step;
+              $isDone    = $idx < $currentIndex;
+              $isCurrent = $idx === $currentIndex;
+            @endphp
+            <button type="button"
+                    class="ma-progress-step {{ $isDone ? 'is-done' : '' }} {{ $isCurrent ? 'is-current' : '' }}"
+                    data-status="{{ $step }}"
+                    data-step-index="{{ $idx }}"
+                    data-label="{{ $stepLabel }}">
+              <span class="ma-progress-dot">
+                @if($isDone)
+                  <svg width="12" height="12" viewBox="0 0 10 10" fill="none"><path d="M2 5l2 2 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                @elseif($isCurrent)
+                  <span class="ma-progress-dot-inner"></span>
+                @endif
+              </span>
+              <span class="ma-progress-label">{{ $stepLabel }}</span>
+            </button>
+          @endforeach
+        </div>
+      </div>
+    @endif
+
+      </div>
 
       {{-- assets group wrapper (mobile Items tab target) --}}
       <div class="ma-assets-group">
@@ -2616,6 +2641,7 @@ input.ma-asset-name-edit:focus {
     </aside>
 
   </div>
+  <p class="sd-legend ap-legend">Click a step in the track to move the job there. Parts are taken out of stock when the job is marked completed, not when they're added. Notes marked "Customer can see" show on the customer's work order page in their account; everything else is staff-only. Payments are taken in the register and land on this appointment's ledger.</p>
 </div>
 
 {{-- ============== Modals + JS ============== --}}

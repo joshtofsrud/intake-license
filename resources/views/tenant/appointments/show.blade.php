@@ -529,11 +529,60 @@
 @section('mobile-back', 'Schedule|' . route('tenant.calendar.index'))
 @section('mobile-fab', 'walk-in')
 
+@push('styles')
+  @foreach (['dashboard-simple', 'dashboard-studio', 'rentals-studio', 'appointments-studio'] as $apCss)
+    <link rel="stylesheet" href="{{ asset('css/tenant/'.$apCss.'.css') }}?v={{ filemtime(public_path('css/tenant/'.$apCss.'.css')) }}">
+  @endforeach
+@endpush
 @section('content')
+<div class="sd rf ap ap-b">
+
+{{-- time-slot shops book a time, not a repair: drop-off
+     only sections (capacity slots, promised date, print tag) hide, and the page
+     is an "Appointment", not a "Work order". --}}
+@php $apptIsTimeSlots = (tenant()->booking_mode ?? 'drop_off') === 'time_slots'; @endphp
+<script>document.documentElement.dataset.apptTimeslots = @json($apptIsTimeSlots ? '1' : '0');</script>
+{{-- MARKER-APPT-STUDIO: Studio header. Status, the next step and the
+     print / reschedule actions live here on desktop; the phone keeps its own
+     summary and three-button bar below. --}}
+@php
+  $hdStatus  = (string) $appointment->status;
+  $hdSteps   = \App\Support\AppointmentStatus::pipeline();
+  $hdIdx     = array_search($hdStatus, $hdSteps, true);
+  $hdNext    = ($hdIdx !== false && isset($hdSteps[$hdIdx + 1])) ? $hdSteps[$hdIdx + 1] : null;
+  $hdAllowed = \App\Support\AppointmentStatus::TRANSITIONS[$hdStatus] ?? [];
+  if ($hdNext && ! in_array($hdNext, $hdAllowed, true)) { $hdNext = null; }
+  $hdVerb    = ['confirmed' => 'Confirm', 'in_progress' => 'Start work', 'completed' => 'Mark completed'];
+  $hdTone    = match (\App\Support\AppointmentStatus::role($hdStatus)) {
+    'awaiting' => 'due', 'scheduled' => 'res', 'active' => 'going', 'done' => 'done', 'cancelled' => 'late', default => 'off',
+  };
+  $hdRes     = ($availableResources ?? collect())->firstWhere('id', $appointment->resource_id);
+  $hdTime    = $appointment->appointment_time ? \Carbon\Carbon::parse($appointment->appointment_time)->format('g:i A') : null;
+@endphp
+<header class="sd-head appt-head ap-head">
+  <div class="sd-head-l">
+    <div class="rf-crumb"><a href="{{ route('tenant.appointments.index') }}">Appointments</a> / <span class="rf-mono">{{ $appointment->ra_number }}</span></div>
+    <h1 class="sd-hi">{{ $appointment->customerName() }}<span class="rf-hpill"><span class="rf-st {{ $hdTone }}">{{ $statusLabels[$hdStatus] ?? ucfirst(str_replace('_', ' ', $hdStatus)) }}</span></span></h1>
+    <p class="sd-sub"><span class="rf-mono">{{ $appointment->ra_number }}</span> · {{ $appointment->appointment_date->format('D, M j') }}@if($hdTime) · {{ $hdTime }}@endif · {{ $apptIsTimeSlots ? 'Appointment' : 'Work order' }}@if($hdRes) · {{ $hdRes->name }}@endif</p>
+  </div>
+  <div class="sd-head-r">
+    @if(data_get(tenant()->settings, 'work_order_tag.enabled', true) || $apptIsTimeSlots)
+      <button type="button" class="ia-btn ia-btn--secondary ia-btn--sm" onclick="window.openPrintComposer ? openPrintComposer('appointment', '{{ $appointment->id }}', {type:'tag', number:'{{ $appointment->ra_number }}'}) : (window.openTagModal && openTagModal())">Print &amp; send</button>
+    @endif
+    @unless(\App\Support\AppointmentStatus::isTerminal($hdStatus))
+      <button type="button" class="ia-btn ia-btn--secondary ia-btn--sm" data-am-proxy=".appt-b-reschedule-btn">Reschedule</button>
+      @if($hdNext)
+        <button type="button" class="ia-btn ia-btn--primary ia-btn--sm" data-am-proxy='.appt-progress-step[data-status="{{ $hdNext }}"]'>{{ $hdVerb[$hdNext] ?? 'Mark ' . ($statusLabels[$hdNext] ?? $hdNext) }} →</button>
+      @endif
+    @else
+      <button type="button" class="ia-btn ia-btn--secondary ia-btn--sm" data-am-proxy=".appt-reopen-btn">Reopen</button>
+    @endunless
+  </div>
+</header>
 
 {{-- a bent rule says so on the record it produced. --}}
 @if($appointment->isOverride())
-  <div style="border:0.5px solid rgba(240,196,106,.35);background:rgba(240,196,106,.1);border-radius:8px;padding:11px 14px;margin-bottom:14px;font-size:13px;color:#f0c46a">
+  <div class="ap-ban ap-ban--warn ap-ban--text">
     <b>{{ $appointment->overrideLabel() }}.</b>
     @if($appointment->override_reason)
       <span style="color:var(--ia-text-muted)">{{ $appointment->override_reason }}</span>
@@ -562,8 +611,8 @@
 
 @if($bannerPendingLink)
   {{-- a payment link is out and awaiting the customer. --}}
-  <div style="background:rgba(96,165,250,.10);border:0.5px solid rgba(96,165,250,.35);border-radius:var(--ia-r-md);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:14px">
-    <span style="font-size:20px;line-height:1">🔗</span>
+  <div class="ap-ban ap-ban--info">
+    
     <div style="flex:1">
       <div style="font-weight:500;font-size:13px;color:var(--ia-text)">Payment link sent — awaiting customer · {{ format_money($bannerPendingLink->total_cents) }}</div>
       <div style="font-size:12px;color:var(--ia-text-muted);margin-top:2px">
@@ -574,8 +623,8 @@
        class="ia-btn ia-btn--ghost ia-btn--sm">View status →</a>
   </div>
 @elseif($bannerSale)
-  <div style="background:rgba(251,191,36,.10);border:0.5px solid rgba(251,191,36,.35);border-radius:var(--ia-r-md);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:14px">
-    <span style="font-size:20px;line-height:1">💳</span>
+  <div class="ap-ban ap-ban--due">
+    
     <div style="flex:1">
       <div style="font-weight:500;font-size:13px;color:var(--ia-text)">Ready for checkout — {{ format_money($bannerBalance) }}</div>
       <div style="font-size:12px;color:var(--ia-text-muted);margin-top:2px">
@@ -586,8 +635,8 @@
        class="ia-btn ia-btn--primary ia-btn--sm">Open in register →</a>
   </div>
 @elseif($bannerPaidFull)
-  <div class="appt-banner-paidfull" style="background:rgba(132,204,22,.08);border:0.5px solid rgba(132,204,22,.30);border-radius:var(--ia-r-md);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:14px">
-    <span style="font-size:20px;line-height:1">✅</span>
+  <div class="appt-banner-paidfull ap-ban ap-ban--ok">
+    
     <div style="flex:1">
       <div style="font-weight:500;font-size:13px;color:var(--ia-text)">Paid in full — {{ format_money($appointment->paid_cents) }}</div>
       <div style="font-size:12px;color:var(--ia-text-muted);margin-top:2px">
@@ -600,8 +649,8 @@
     </div>
   </div>
 @elseif($bannerOverage > 0)
-  <div style="background:rgba(251,191,36,.10);border:0.5px solid rgba(251,191,36,.45);border-radius:var(--ia-r-md);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:14px">
-    <span style="font-size:20px;line-height:1">⚠️</span>
+  <div class="ap-ban ap-ban--warn">
+    
     <div style="flex:1">
       <div style="font-weight:500;font-size:13px;color:var(--ia-text)">Customer owed {{ format_money($bannerOverage) }}</div>
       <div style="font-size:12px;color:var(--ia-text-muted);margin-top:2px">
@@ -611,26 +660,6 @@
   </div>
 @endif
 
-{{-- time-slot shops book a time, not a repair: drop-off
-     only sections (capacity slots, promised date, print tag) hide, and the page
-     is an "Appointment", not a "Work order". --}}
-@php $apptIsTimeSlots = (tenant()->booking_mode ?? 'drop_off') === 'time_slots'; @endphp
-<script>document.documentElement.dataset.apptTimeslots = @json($apptIsTimeSlots ? '1' : '0');</script>
-<div class="ia-page-head appt-head">
-  <div class="ia-page-head-left">
-    <div style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;opacity:.4;margin-bottom:4px">
-      {{ $apptIsTimeSlots ? 'Appointment' : 'Work order' }}
-    </div>
-    <h1 class="ia-page-title">{{ $appointment->ra_number }}</h1>
-    <p class="ia-page-subtitle">
-      {{ $appointment->customerName() }} ·
-      {{ $appointment->appointment_date->format('M j, Y') }}
-    </p>
-  </div>
-  <div class="ia-page-actions">
-    <a href="{{ route('tenant.appointments.index') }}" class="ia-btn ia-btn--ghost">← Back</a>
-  </div>
-</div>
 
 {{-- the phone view: what you need first, on one screen.
      Time, staff, customer with Call · Text · Email, services, total and paid.
@@ -933,7 +962,7 @@ document.addEventListener('DOMContentLoaded', function () {
     },
     payment:  function () {
       var hit = null;
-      document.querySelectorAll('.appt-b-main > .ia-card').forEach(function (c) {
+      document.querySelectorAll('.appt-b-shell .ia-card').forEach(function (c) {
         var l = c.querySelector('.appt-section-label');
         if (!hit && l && l.textContent.trim() === 'Payment') { hit = c; }
       });
@@ -1001,7 +1030,207 @@ document.addEventListener('DOMContentLoaded', function () {
 
   {{-- LAYOUT-B-RAIL v1 — left rail: time/date, status, actions, customer --}}
   <aside class="appt-b-rail">
+    {{-- Customer card --}}
+    <div class="ia-card ia-card--tight appt-b-cust-card ap-cust">
+      <div class="appt-section-label">Customer</div>
+      <div style="font-weight:500;margin-bottom:4px">
+        {{ $appointment->customerName() }}
+        {{-- business context where the job is done --}}
+        @if($appointment->customer && $appointment->customer->isBusiness())
+          <span class="biz-pill">Business</span>
+        @endif
+      </div>
+      @if($appointment->customer && $appointment->customer->isBusiness())
+        @php $bizPrimary = $appointment->customer->primaryContact; @endphp
+        @if($bizPrimary)
+          <div style="font-size:13px;opacity:.75;margin-bottom:2px">
+            {{ $bizPrimary->name }}@if($bizPrimary->role) · {{ $bizPrimary->role }}@endif
+            @if($bizPrimary->phone) · {{ $bizPrimary->phone }}@endif
+          </div>
+        @endif
+        <div style="font-size:12.5px;opacity:.6;margin-bottom:6px">
+          {{ $appointment->customer->termsLabel() }}
+          @if($appointment->customer->tax_exempt)
+            · Tax exempt
+              @if($appointment->customer->tax_exempt_certificate) (cert {{ $appointment->customer->tax_exempt_certificate }})@endif
+          @endif
+          @if($appointment->customer->po_required) · <span style="color:#E8A33D">PO required</span>@endif
+        </div>
+      @endif
+      <div style="font-size:13px;opacity:.6;margin-bottom:2px">
+        {{ $appointment->customer_email }}
+      </div>
+      @if($appointment->customer_phone)
+        <div style="font-size:13px;opacity:.6;margin-bottom:10px">
+          {{ $appointment->customer_phone }}
+        </div>
+      @else
+        <div style="margin-bottom:10px"></div>
+      @endif
+      {{-- MARKER-APPT-STUDIO: one-tap contact, as on the phone view --}}
+      @php
+        $apPhone = preg_replace('/[^0-9+]/', '', (string) $appointment->customer_phone);
+        $apEmail = (string) $appointment->customer_email;
+        $apVisits = $appointment->customer_id
+          ? \App\Models\Tenant\TenantAppointment::where('tenant_id', tenant()->id)->where('customer_id', $appointment->customer_id)->where('id', '!=', $appointment->id)->count()
+          : 0;
+      @endphp
+      <div class="ap-contact">
+        <a href="{{ $apPhone ? 'tel:' . $apPhone : '#' }}" class="ia-btn ia-btn--secondary ia-btn--sm {{ $apPhone ? '' : 'is-off' }}">Call</a>
+        <a href="{{ $apPhone ? 'sms:' . $apPhone : '#' }}" class="ia-btn ia-btn--secondary ia-btn--sm {{ $apPhone ? '' : 'is-off' }}">Text</a>
+        <a href="{{ $apEmail ? 'mailto:' . $apEmail : '#' }}" class="ia-btn ia-btn--secondary ia-btn--sm {{ $apEmail ? '' : 'is-off' }}">Email</a>
+      </div>
+      @if($appointment->customer_id)
+        <div class="ap-visits">{{ $apVisits > 0 ? $apVisits . ' ' . Str::plural('visit', $apVisits) . ' before this' : 'First visit' }}</div>
+      @endif
+      @if($appointment->customer_id)
+        <a href="{{ route('tenant.customers.show', $appointment->customer_id) }}"
+           class="ia-btn ia-btn--secondary ia-btn--sm" style="width:100%;justify-content:center">
+          View customer profile →
+        </a>
+        @if($appointment->responses->isNotEmpty())
+          <button type="button"
+                  class="ia-btn ia-btn--primary ia-btn--sm appt-b-cust-details-btn"
+                  style="width:100%;justify-content:center;margin-top:6px">
+            View booking notes →
+          </button>
+        @endif
+      @endif
+    </div>
 
+    {{-- Payment ledger · LAYOUT-B-PROMOTE-ORDER 80 (order applies to the wrapping ia-card div below) --}}
+    @php
+      $payments      = $appointment->payments;
+      $balanceDue    = max(0, (int)$appointment->total_cents - (int)$appointment->paid_cents);
+      $overage       = max(0, (int)$appointment->paid_cents - (int)$appointment->total_cents);
+      $openSale      = $appointment->openRegisterSale();
+      $hasOpenSale   = $openSale !== null;
+    @endphp
+    <div class="ia-card ia-card--tight ap-pay-card">
+      <div class="appt-section-label">Payment</div>
+      <div class="sidebar-stat">
+        <span class="sidebar-stat-label">Status</span>
+        <span>
+          <span class="ia-badge ia-badge--{{ $appointment->payment_status }}">
+            {{ ucwords(str_replace('_', ' ', $appointment->payment_status)) }}
+          </span>
+        </span>
+      </div>
+      <div class="sidebar-stat">
+        <span class="sidebar-stat-label">Subtotal</span>
+        <span class="sidebar-stat-value">{{ format_money($appointment->subtotal_cents) }}</span>
+      </div>
+      @if((int) ($appointment->discount_cents ?? 0) > 0)
+      <div class="sidebar-stat">
+        <span class="sidebar-stat-label">
+          Discount @if($appointment->discount_code)<span style="opacity:.7">· {{ $appointment->discount_code }}</span>@endif
+        </span>
+        <span class="sidebar-stat-value">&minus;{{ format_money($appointment->discount_cents) }}</span>
+      </div>
+      @endif
+      @if($appointment->tax_cents > 0)
+      <div class="sidebar-stat">
+        <span class="sidebar-stat-label">Tax</span>
+        <span class="sidebar-stat-value">{{ format_money($appointment->tax_cents) }}</span>
+      </div>
+      @endif
+      <div class="sidebar-stat">
+        <span class="sidebar-stat-label" style="font-weight:500">Total</span>
+        <span class="sidebar-stat-value" style="font-size:16px">{{ format_money($appointment->total_cents) }}</span>
+      </div>
+
+      {{-- the discount changes the balance the customer
+           is asked for, so it lives beside the money, not in a menu. --}}
+      @if((int) $appointment->paid_cents === 0)
+        <div style="margin-top:10px;display:flex;gap:8px">
+          <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" onclick="ApptDiscount.open()">
+            {{ (int) ($appointment->discount_cents ?? 0) > 0 ? 'Change discount' : 'Add discount' }}
+          </button>
+          @if((int) ($appointment->discount_cents ?? 0) > 0)
+            <form method="POST" action="{{ route('tenant.appointments.discount.remove', $appointment->id) }}">
+              @csrf
+              @method('DELETE')
+              <button type="submit" class="ia-btn ia-btn--ghost ia-btn--sm">Remove</button>
+            </form>
+          @endif
+        </div>
+      @elseif((int) ($appointment->discount_cents ?? 0) > 0)
+        <div style="margin-top:8px;font-size:11.5px;color:var(--ia-text-dim);line-height:1.5">
+          Payment has started, so the discount is locked. Refund first to change it.
+        </div>
+      @endif
+
+      @if($payments->isNotEmpty())
+        <div style="margin-top:14px;padding-top:12px;border-top:0.5px solid var(--ia-border)">
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ia-text-dim);font-weight:600;margin-bottom:8px">Payment ledger</div>
+          @foreach($payments as $p)
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;font-size:12px;padding:6px 0;border-bottom:0.5px solid var(--ia-border)">
+              <div style="flex:1;min-width:0">
+                <div style="font-weight:500;color:var(--ia-text)">
+                  {{ $p->kind === 'refund' || $p->kind === 'overage_refund' ? 'Refund' : ucfirst($p->kind) }}
+                  · {{ $p->methodLabel() }}
+                </div>
+                <div style="font-size:10px;color:var(--ia-text-dim);margin-top:2px">
+                  {{ $p->recorded_at ? tlocal($p->recorded_at, 'M j · g:i A') : '' }}
+                  @if($p->source === 'register_sale' && $p->register_sale_id)
+                    · sale {{ optional($p->registerSale)->sale_number ?? '#' }}
+                  @endif
+                </div>
+              </div>
+              <div style="font-weight:500;color:{{ $p->amount_cents < 0 ? '#F09595' : '#A8D670' }}">
+                {{ $p->amount_cents < 0 ? '−' : '+' }}{{ format_money(abs($p->amount_cents)) }}
+              </div>
+            </div>
+          @endforeach
+        </div>
+      @endif
+
+      <div class="sidebar-stat" style="margin-top:8px">
+        <span class="sidebar-stat-label">Paid so far</span>
+        <span class="sidebar-stat-value" style="color:#A8D670">{{ format_money($appointment->paid_cents) }}</span>
+      </div>
+
+      @if($balanceDue > 0)
+        <div class="sidebar-stat">
+          <span class="sidebar-stat-label" style="font-weight:500">Balance owed</span>
+          <span class="sidebar-stat-value" style="font-size:15px;font-weight:500">{{ format_money($balanceDue) }}</span>
+        </div>
+      @elseif($overage > 0)
+        <div class="sidebar-stat">
+          <span class="sidebar-stat-label" style="font-weight:500;color:#FBBF24">Customer is owed</span>
+          <span class="sidebar-stat-value" style="font-size:15px;font-weight:500;color:#FBBF24">{{ format_money($overage) }}</span>
+        </div>
+      @else
+        <div class="sidebar-stat">
+          <span class="sidebar-stat-label" style="font-weight:500">Balance owed</span>
+          <span class="sidebar-stat-value" style="font-size:15px;font-weight:500;color:#A8D670">$0.00</span>
+        </div>
+      @endif
+
+      @if($hasOpenSale)
+        <a href="{{ route('tenant.register.index', []) }}?resume={{ $openSale->id }}"
+           class="ia-btn ia-btn--primary ia-btn--sm" style="width:100%;margin-top:14px;text-align:center;display:block">
+          Take payment in register
+        </a>
+      @elseif($balanceDue > 0 && !\App\Support\AppointmentStatus::isTerminal($appointment->status))
+        <button type="button" id="record-deposit-toggle" class="ia-btn ia-btn--secondary ia-btn--sm" style="width:100%;margin-top:14px">
+          + Record deposit
+        </button>
+        <div id="record-deposit-form" style="display:none;margin-top:10px;padding:12px;background:var(--ia-surface-2);border-radius:var(--ia-r-md);border:0.5px solid var(--ia-border)">
+          <label style="font-size:11px;color:var(--ia-text-dim);display:block;margin-bottom:4px">Amount</label>
+          <input type="number" id="record-deposit-amount" min="0.01" step="0.01" placeholder="0.00" style="width:100%;padding:6px 10px;background:var(--ia-bg);border:0.5px solid var(--ia-border);color:var(--ia-text);border-radius:6px;font-size:13px;margin-bottom:8px">
+          <div style="display:flex;gap:6px">
+            <button type="button" id="record-deposit-cancel" class="ia-btn ia-btn--ghost ia-btn--sm" style="flex:1">Cancel</button>
+            <button type="button" id="record-deposit-go" class="ia-btn ia-btn--primary ia-btn--sm" style="flex:1">Send to register</button>
+          </div>
+          <p style="font-size:10px;color:var(--ia-text-dim);margin:8px 0 0">Creates a draft sale in the register where you take the actual payment.</p>
+        </div>
+      @endif
+    </div>
+
+    {{-- MARKER-APPT-STUDIO: schedule group --}}
+    <div class="ap-group ap-sched">
+      <div class="ap-rh"><b>Schedule</b><button type="button" class="rf-linkbtn" data-am-proxy=".appt-b-reschedule-btn">Reschedule</button></div>
     {{-- Time/date hero band --}}
     @php
       try {
@@ -1054,121 +1283,7 @@ document.addEventListener('DOMContentLoaded', function () {
     @include('tenant.appointments._delivery_propose_modal')
     @include('tenant.appointments._route_trip')
 
-    {{-- Status pipeline (markup is fed into vertical CSS by .appt-b-rail wrapper) --}}
-    @if($isTerminal)
-      {{-- Terminal state — show compact card --}}
-      <div class="ia-card appt-terminal-card" style="padding:12px 14px">
-        <div class="appt-terminal-icon appt-terminal-icon--{{ $appointment->status }}">
-          @if($appointment->status === 'cancelled')
-            <svg width="14" height="14" viewBox="0 0 10 10" fill="none"><path d="M2.5 2.5l5 5M7.5 2.5l-5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-          @else
-            <svg width="14" height="14" viewBox="0 0 10 10" fill="none"><path d="M2 5h6M5 2v6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-          @endif
-        </div>
-        <div>
-          <div class="appt-terminal-title" style="font-size:13px">{{ $statusLabels[$appointment->status] }}</div>
-        </div>
-        <button type="button" class="ia-btn ia-btn--secondary ia-btn--sm appt-reopen-btn" data-status="pending" style="margin-left:auto">
-          Reopen
-        </button>
-      </div>
-    @else
-      <div class="ia-card appt-progress-card">
-        <div class="appt-progress-bar" data-current-index="{{ $currentIndex }}" data-update-url="{{ $updateUrl }}">
-          @foreach($pipelineSteps as $idx => $step)
-            @php
-              $stepLabel = $statusLabels[$step];
-              $isDone    = $idx < $currentIndex;
-              $isCurrent = $idx === $currentIndex;
-            @endphp
-            <button type="button"
-                    class="appt-progress-step {{ $isDone ? 'is-done' : '' }} {{ $isCurrent ? 'is-current' : '' }}"
-                    data-status="{{ $step }}"
-                    data-step-index="{{ $idx }}"
-                    data-label="{{ $stepLabel }}">
-              <span class="appt-progress-dot">
-                @if($isDone)
-                  <svg width="12" height="12" viewBox="0 0 10 10" fill="none"><path d="M2 5l2 2 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                @elseif($isCurrent)
-                  <span class="appt-progress-dot-inner"></span>
-                @endif
-              </span>
-              <span class="appt-progress-label">{{ $stepLabel }}</span>
-            </button>
-          @endforeach
-        </div>
-      </div>
-    @endif
-
-    {{-- Action stack --}}
-    @unless($isTerminal)
-    <div class="appt-b-actions">
-      {{-- gated on the tag enable toggle --}}
-      @if(! $apptIsTimeSlots && data_get(tenant()->settings, 'work_order_tag.enabled', true))
-      <button type="button" class="ia-btn ia-btn--secondary" onclick="openTagModal()">&#9113; Print tag</button>
-      @endif
-      <div class="appt-b-actions-divider"></div>
-      {{-- removed stray "Reschedule shipping tomorrow" cruft --}}
-      <button type="button" class="ia-btn ia-btn--secondary appt-b-reschedule-btn">↻ Reschedule</button>
-      <div class="appt-b-actions-divider"></div>
-      <button type="button" class="ia-btn ia-btn--danger appt-b-cancel-btn">Cancel appointment</button>
-      <div class="appt-b-actions-divider"></div>
-      @include('tenant.appointments._send-confirmation')
     </div>
-    @endunless
-
-    {{-- Customer card --}}
-    <div class="ia-card ia-card--tight appt-b-cust-card">
-      <div class="appt-section-label">Customer</div>
-      <div style="font-weight:500;margin-bottom:4px">
-        {{ $appointment->customerName() }}
-        {{-- business context where the job is done --}}
-        @if($appointment->customer && $appointment->customer->isBusiness())
-          <span class="biz-pill">Business</span>
-        @endif
-      </div>
-      @if($appointment->customer && $appointment->customer->isBusiness())
-        @php $bizPrimary = $appointment->customer->primaryContact; @endphp
-        @if($bizPrimary)
-          <div style="font-size:13px;opacity:.75;margin-bottom:2px">
-            {{ $bizPrimary->name }}@if($bizPrimary->role) · {{ $bizPrimary->role }}@endif
-            @if($bizPrimary->phone) · {{ $bizPrimary->phone }}@endif
-          </div>
-        @endif
-        <div style="font-size:12.5px;opacity:.6;margin-bottom:6px">
-          {{ $appointment->customer->termsLabel() }}
-          @if($appointment->customer->tax_exempt)
-            · Tax exempt
-              @if($appointment->customer->tax_exempt_certificate) (cert {{ $appointment->customer->tax_exempt_certificate }})@endif
-          @endif
-          @if($appointment->customer->po_required) · <span style="color:#E8A33D">PO required</span>@endif
-        </div>
-      @endif
-      <div style="font-size:13px;opacity:.6;margin-bottom:2px">
-        {{ $appointment->customer_email }}
-      </div>
-      @if($appointment->customer_phone)
-        <div style="font-size:13px;opacity:.6;margin-bottom:10px">
-          {{ $appointment->customer_phone }}
-        </div>
-      @else
-        <div style="margin-bottom:10px"></div>
-      @endif
-      @if($appointment->customer_id)
-        <a href="{{ route('tenant.customers.show', $appointment->customer_id) }}"
-           class="ia-btn ia-btn--secondary ia-btn--sm" style="width:100%;justify-content:center">
-          View customer profile →
-        </a>
-        @if($appointment->responses->isNotEmpty())
-          <button type="button"
-                  class="ia-btn ia-btn--primary ia-btn--sm appt-b-cust-details-btn"
-                  style="width:100%;justify-content:center;margin-top:6px">
-            View booking notes →
-          </button>
-        @endif
-      @endif
-    </div>
-
     {{-- Resource — change which staff member or station owns this appointment.
          Soft-warns on conflicts with an override path. Auto-notes on change. --}}
     {{-- LAYOUT-B-PROMOTE-ORDER 20 --}}
@@ -1259,10 +1374,78 @@ document.addEventListener('DOMContentLoaded', function () {
     </div>
     @endunless
 
+    {{-- Action stack --}}
+    @unless($isTerminal)
+    <div class="ap-rh ap-more-h"><b>More</b></div>
+    <div class="appt-b-actions">
+      {{-- gated on the tag enable toggle --}}
+      @if(! $apptIsTimeSlots && data_get(tenant()->settings, 'work_order_tag.enabled', true))
+      <button type="button" class="ia-btn ia-btn--secondary" onclick="openTagModal()">&#9113; Print tag</button>
+      @endif
+      <div class="appt-b-actions-divider"></div>
+      {{-- removed stray "Reschedule shipping tomorrow" cruft --}}
+      <button type="button" class="ia-btn ia-btn--secondary appt-b-reschedule-btn">↻ Reschedule</button>
+      <div class="appt-b-actions-divider"></div>
+      <button type="button" class="ia-btn ia-btn--danger appt-b-cancel-btn">Cancel appointment</button>
+      <div class="appt-b-actions-divider"></div>
+      @include('tenant.appointments._send-confirmation')
+    </div>
+    @endunless
+
+
   </aside>
 
   {{-- Main column starts here (existing content unchanged) --}}
   <div class="appt-b-main" style="display:flex;flex-direction:column;gap:20px">
+    {{-- MARKER-APPT-STUDIO: the status track leads the page --}}
+    <div class="ap-track-wrap" style="order:1">
+    {{-- Status pipeline (markup is fed into vertical CSS by .appt-b-rail wrapper) --}}
+    @if($isTerminal)
+      {{-- Terminal state — show compact card --}}
+      <div class="ia-card appt-terminal-card" style="padding:12px 14px">
+        <div class="appt-terminal-icon appt-terminal-icon--{{ $appointment->status }}">
+          @if($appointment->status === 'cancelled')
+            <svg width="14" height="14" viewBox="0 0 10 10" fill="none"><path d="M2.5 2.5l5 5M7.5 2.5l-5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          @else
+            <svg width="14" height="14" viewBox="0 0 10 10" fill="none"><path d="M2 5h6M5 2v6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          @endif
+        </div>
+        <div>
+          <div class="appt-terminal-title" style="font-size:13px">{{ $statusLabels[$appointment->status] }}</div>
+        </div>
+        <button type="button" class="ia-btn ia-btn--secondary ia-btn--sm appt-reopen-btn" data-status="pending" style="margin-left:auto">
+          Reopen
+        </button>
+      </div>
+    @else
+      <div class="ia-card appt-progress-card">
+        <div class="appt-progress-bar" data-current-index="{{ $currentIndex }}" data-update-url="{{ $updateUrl }}">
+          @foreach($pipelineSteps as $idx => $step)
+            @php
+              $stepLabel = $statusLabels[$step];
+              $isDone    = $idx < $currentIndex;
+              $isCurrent = $idx === $currentIndex;
+            @endphp
+            <button type="button"
+                    class="appt-progress-step {{ $isDone ? 'is-done' : '' }} {{ $isCurrent ? 'is-current' : '' }}"
+                    data-status="{{ $step }}"
+                    data-step-index="{{ $idx }}"
+                    data-label="{{ $stepLabel }}">
+              <span class="appt-progress-dot">
+                @if($isDone)
+                  <svg width="12" height="12" viewBox="0 0 10 10" fill="none"><path d="M2 5l2 2 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                @elseif($isCurrent)
+                  <span class="appt-progress-dot-inner"></span>
+                @endif
+              </span>
+              <span class="appt-progress-label">{{ $stepLabel }}</span>
+            </button>
+          @endforeach
+        </div>
+      </div>
+    @endif
+
+    </div>
 
     {{-- Line items · LAYOUT-B-PROMOTE-ORDER 10 --}}
     <div class="ia-card" style="order:10">
@@ -1871,136 +2054,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
     {{-- LAYOUT-B-RAIL-MOVE v1: Capacity card moved to rail --}}
 
-    {{-- Payment ledger · LAYOUT-B-PROMOTE-ORDER 80 (order applies to the wrapping ia-card div below) --}}
-    @php
-      $payments      = $appointment->payments;
-      $balanceDue    = max(0, (int)$appointment->total_cents - (int)$appointment->paid_cents);
-      $overage       = max(0, (int)$appointment->paid_cents - (int)$appointment->total_cents);
-      $openSale      = $appointment->openRegisterSale();
-      $hasOpenSale   = $openSale !== null;
-    @endphp
-    <div style="order:80" class="ia-card ia-card--tight">
-      <div class="appt-section-label">Payment</div>
-      <div class="sidebar-stat">
-        <span class="sidebar-stat-label">Status</span>
-        <span>
-          <span class="ia-badge ia-badge--{{ $appointment->payment_status }}">
-            {{ ucwords(str_replace('_', ' ', $appointment->payment_status)) }}
-          </span>
-        </span>
-      </div>
-      <div class="sidebar-stat">
-        <span class="sidebar-stat-label">Subtotal</span>
-        <span class="sidebar-stat-value">{{ format_money($appointment->subtotal_cents) }}</span>
-      </div>
-      @if((int) ($appointment->discount_cents ?? 0) > 0)
-      <div class="sidebar-stat">
-        <span class="sidebar-stat-label">
-          Discount @if($appointment->discount_code)<span style="opacity:.7">· {{ $appointment->discount_code }}</span>@endif
-        </span>
-        <span class="sidebar-stat-value">&minus;{{ format_money($appointment->discount_cents) }}</span>
-      </div>
-      @endif
-      @if($appointment->tax_cents > 0)
-      <div class="sidebar-stat">
-        <span class="sidebar-stat-label">Tax</span>
-        <span class="sidebar-stat-value">{{ format_money($appointment->tax_cents) }}</span>
-      </div>
-      @endif
-      <div class="sidebar-stat">
-        <span class="sidebar-stat-label" style="font-weight:500">Total</span>
-        <span class="sidebar-stat-value" style="font-size:16px">{{ format_money($appointment->total_cents) }}</span>
-      </div>
-
-      {{-- the discount changes the balance the customer
-           is asked for, so it lives beside the money, not in a menu. --}}
-      @if((int) $appointment->paid_cents === 0)
-        <div style="margin-top:10px;display:flex;gap:8px">
-          <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" onclick="ApptDiscount.open()">
-            {{ (int) ($appointment->discount_cents ?? 0) > 0 ? 'Change discount' : 'Add discount' }}
-          </button>
-          @if((int) ($appointment->discount_cents ?? 0) > 0)
-            <form method="POST" action="{{ route('tenant.appointments.discount.remove', $appointment->id) }}">
-              @csrf
-              @method('DELETE')
-              <button type="submit" class="ia-btn ia-btn--ghost ia-btn--sm">Remove</button>
-            </form>
-          @endif
-        </div>
-      @elseif((int) ($appointment->discount_cents ?? 0) > 0)
-        <div style="margin-top:8px;font-size:11.5px;color:var(--ia-text-dim);line-height:1.5">
-          Payment has started, so the discount is locked. Refund first to change it.
-        </div>
-      @endif
-
-      @if($payments->isNotEmpty())
-        <div style="margin-top:14px;padding-top:12px;border-top:0.5px solid var(--ia-border)">
-          <div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ia-text-dim);font-weight:600;margin-bottom:8px">Payment ledger</div>
-          @foreach($payments as $p)
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;font-size:12px;padding:6px 0;border-bottom:0.5px solid var(--ia-border)">
-              <div style="flex:1;min-width:0">
-                <div style="font-weight:500;color:var(--ia-text)">
-                  {{ $p->kind === 'refund' || $p->kind === 'overage_refund' ? 'Refund' : ucfirst($p->kind) }}
-                  · {{ $p->methodLabel() }}
-                </div>
-                <div style="font-size:10px;color:var(--ia-text-dim);margin-top:2px">
-                  {{ $p->recorded_at ? tlocal($p->recorded_at, 'M j · g:i A') : '' }}
-                  @if($p->source === 'register_sale' && $p->register_sale_id)
-                    · sale {{ optional($p->registerSale)->sale_number ?? '#' }}
-                  @endif
-                </div>
-              </div>
-              <div style="font-weight:500;color:{{ $p->amount_cents < 0 ? '#F09595' : '#A8D670' }}">
-                {{ $p->amount_cents < 0 ? '−' : '+' }}{{ format_money(abs($p->amount_cents)) }}
-              </div>
-            </div>
-          @endforeach
-        </div>
-      @endif
-
-      <div class="sidebar-stat" style="margin-top:8px">
-        <span class="sidebar-stat-label">Paid so far</span>
-        <span class="sidebar-stat-value" style="color:#A8D670">{{ format_money($appointment->paid_cents) }}</span>
-      </div>
-
-      @if($balanceDue > 0)
-        <div class="sidebar-stat">
-          <span class="sidebar-stat-label" style="font-weight:500">Balance owed</span>
-          <span class="sidebar-stat-value" style="font-size:15px;font-weight:500">{{ format_money($balanceDue) }}</span>
-        </div>
-      @elseif($overage > 0)
-        <div class="sidebar-stat">
-          <span class="sidebar-stat-label" style="font-weight:500;color:#FBBF24">Customer is owed</span>
-          <span class="sidebar-stat-value" style="font-size:15px;font-weight:500;color:#FBBF24">{{ format_money($overage) }}</span>
-        </div>
-      @else
-        <div class="sidebar-stat">
-          <span class="sidebar-stat-label" style="font-weight:500">Balance owed</span>
-          <span class="sidebar-stat-value" style="font-size:15px;font-weight:500;color:#A8D670">$0.00</span>
-        </div>
-      @endif
-
-      @if($hasOpenSale)
-        <a href="{{ route('tenant.register.index', []) }}?resume={{ $openSale->id }}"
-           class="ia-btn ia-btn--primary ia-btn--sm" style="width:100%;margin-top:14px;text-align:center;display:block">
-          Take payment in register
-        </a>
-      @elseif($balanceDue > 0 && !\App\Support\AppointmentStatus::isTerminal($appointment->status))
-        <button type="button" id="record-deposit-toggle" class="ia-btn ia-btn--secondary ia-btn--sm" style="width:100%;margin-top:14px">
-          + Record deposit
-        </button>
-        <div id="record-deposit-form" style="display:none;margin-top:10px;padding:12px;background:var(--ia-surface-2);border-radius:var(--ia-r-md);border:0.5px solid var(--ia-border)">
-          <label style="font-size:11px;color:var(--ia-text-dim);display:block;margin-bottom:4px">Amount</label>
-          <input type="number" id="record-deposit-amount" min="0.01" step="0.01" placeholder="0.00" style="width:100%;padding:6px 10px;background:var(--ia-bg);border:0.5px solid var(--ia-border);color:var(--ia-text);border-radius:6px;font-size:13px;margin-bottom:8px">
-          <div style="display:flex;gap:6px">
-            <button type="button" id="record-deposit-cancel" class="ia-btn ia-btn--ghost ia-btn--sm" style="flex:1">Cancel</button>
-            <button type="button" id="record-deposit-go" class="ia-btn ia-btn--primary ia-btn--sm" style="flex:1">Send to register</button>
-          </div>
-          <p style="font-size:10px;color:var(--ia-text-dim);margin:8px 0 0">Creates a draft sale in the register where you take the actual payment.</p>
-        </div>
-      @endif
-    </div>
-
     {{-- Cancel appointment — DOM kept, hidden in B layout; rail Cancel proxies to this --}}
     @unless(\App\Support\AppointmentStatus::isTerminal($appointment->status))
       <button type="button" class="ia-btn ia-btn--danger ia-btn--sm appt-cancel-btn appt-cancel-btn-original" style="width:100%;order:9999">
@@ -2011,6 +2064,8 @@ document.addEventListener('DOMContentLoaded', function () {
   </div>{{-- /.appt-b-main --}}
 
 </div>{{-- /.appt-b-shell --}}
+<p class="sd-legend ap-legend">Click a step in the track to move the job there. Parts are taken out of stock when the job is marked completed, not when they're added. Notes marked "Customer can see" show on the customer's work order page in their account; everything else is staff-only. Payments are taken in the register and land on this {{ $apptIsTimeSlots ? 'appointment' : 'work order' }}'s ledger.</p>
+</div>{{-- /.ap --}}
 {{-- Cancel lives in the action row now. --}}
 
 {{-- RESCHEDULE-MODAL v1 --}}
