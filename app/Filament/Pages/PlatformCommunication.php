@@ -90,6 +90,9 @@ class PlatformCommunication extends Page
         $this->tab = in_array($tab, ['messages', 'campaigns', 'activity', 'suppressions'], true)
             ? $tab
             : 'messages';
+        // clicking a tab always lands on its list; an open campaign used to
+        // stay open (and come back on every reload through ?campaign=)
+        $this->campaignId = null;
     }
 
     /**

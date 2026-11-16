@@ -39,6 +39,8 @@
   .pc-f textarea{min-height:230px;resize:vertical;line-height:1.6}
   .pc-tok{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
   .pc-tok code{font-size:11.5px;border:1px solid var(--pc-line);border-radius:99px;padding:2px 8px;opacity:.8}
+  .pc-back{background:none;border:0;padding:0;margin:0 0 10px;color:inherit;opacity:.6;font:inherit;font-size:12.5px;cursor:pointer}
+  .pc-back:hover{opacity:1}
   .pc-acts{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px}
   .pc-btn{border:1px solid var(--pc-line);background:none;color:inherit;font:inherit;font-size:13px;
     padding:7px 13px;border-radius:9px;cursor:pointer}
@@ -265,6 +267,7 @@
     @if($campaign)
       <div class="pc-cols">
         <div class="pc-card">
+          <button type="button" class="pc-back" wire:click="closeCampaign">&larr; All campaigns</button>
           <h3>{{ $campaign->name }}</h3>
           <div class="sub">{{ ucfirst($campaign->status) }}@if($campaign->scheduled_at) · {{ alocal($campaign->scheduled_at, 'D M j, g:i A') }}@endif</div>
 
