@@ -20,6 +20,7 @@ class User extends Authenticatable implements FilamentUser
         'password'          => 'hashed',
         'is_admin'          => 'boolean',
         'suspended_at'      => 'datetime',
+        'admin_prefs'       => 'array', // MARKER-LOAD-PANEL
     ];
 
     /**

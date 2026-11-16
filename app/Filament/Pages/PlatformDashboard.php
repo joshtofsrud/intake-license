@@ -62,9 +62,38 @@ class PlatformDashboard extends Page
             ->success()->send();
     }
 
+    /** MARKER-LOAD-PANEL: what the Load panel shows; polled while it is open. */
+    #[\Livewire\Attributes\Renderless]
+    public function loadSnapshot(): array
+    {
+        return app(\App\Services\Admin\ServerLoadService::class)->snapshot();
+    }
+
+    /** The views the dashboard can open on: the four headline charts, or Load. */
+    public const OPEN_ON = ['signups' => 'Signups', 'tenants' => 'Total tenants', 'mrr' => 'Est. MRR', 'failed' => 'Failed jobs', 'load' => 'Server load'];
+
+    #[\Livewire\Attributes\Renderless]
+    public function setOpenOn(string $view): void
+    {
+        if (! array_key_exists($view, self::OPEN_ON)) return;
+        $u = auth()->user();
+        if (! $u || ! \Illuminate\Support\Facades\Schema::hasColumn('users', 'admin_prefs')) return;
+        $prefs = (array) ($u->admin_prefs ?? []);
+        $prefs['dashboard_open_on'] = $view;
+        $u->forceFill(['admin_prefs' => $prefs])->save();
+    }
+
+    private function openOn(): string
+    {
+        $v = (string) (((array) (auth()->user()?->admin_prefs ?? []))['dashboard_open_on'] ?? 'signups');
+        return array_key_exists($v, self::OPEN_ON) ? $v : 'signups';
+    }
+
     public function getViewData(): array
     {
         return [
+            'openOn'     => $this->openOn(),
+            'openOnOpts' => self::OPEN_ON,
             'hero'       => $this->buildHero(),
             'health'     => $this->buildHealth(),
             'saas'       => $this->buildSaas(),
