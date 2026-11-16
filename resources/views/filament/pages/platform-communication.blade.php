@@ -76,6 +76,8 @@
   .pl-shot{position:relative;display:inline-block;max-width:100%;cursor:crosshair;margin-top:8px}
   .pl-shot img{display:block;max-width:100%;border-radius:8px;border:1px solid var(--pc-line)}
   .pl-pin{position:absolute;width:24px;height:24px;margin:-12px 0 0 -12px;border-radius:50%;background:#BEF264;color:#10140a;font-size:12px;font-weight:800;display:grid;place-items:center;box-shadow:0 0 0 4px rgba(190,242,100,.3);pointer-events:none}
+  .pl-mk-shot{display:flex;align-items:center;gap:10px;margin:-2px 0 10px 30px;flex-wrap:wrap}
+  .pl-mk-shot img{width:120px;height:auto;border-radius:6px;border:1px solid var(--pc-line)}
   .pl-mk{display:grid;grid-template-columns:26px 1fr 1.6fr 26px;gap:8px;align-items:center;margin-top:8px}
   .pl-mk i{width:22px;height:22px;border-radius:50%;background:#BEF264;color:#10140a;font-style:normal;font-size:11px;font-weight:800;display:grid;place-items:center}
   .pl-mk button{background:none;border:0;color:inherit;opacity:.55;cursor:pointer}
@@ -498,6 +500,16 @@
                             <input type="text" wire:model.live.debounce.700ms="cBlocks.{{ $i }}.data.markers.{{ $k }}.title" placeholder="Bold lead-in">
                             <input type="text" wire:model.live.debounce.700ms="cBlocks.{{ $i }}.data.markers.{{ $k }}.note" placeholder="What this shows">
                             <button type="button" wire:click="removeMarker({{ $i }}, {{ $k }})" title="Remove marker">✕</button>
+                          </div>
+                          {{-- MARKER-MARKER-SHOTS --}}
+                          <div class="pl-mk-shot">
+                            @if(! empty($mk['shot']))
+                              <img src="{{ $mk['shot'] }}" alt="">
+                              <button type="button" class="pc-btn" wire:click="removeMarkerShot({{ $i }}, {{ $k }})">Remove picture</button>
+                            @else
+                              <label class="pc-btn pl-file">Add a close-up for {{ $k + 1 }}<input type="file" accept="image/*" wire:model="markerUploads.{{ $i }}.{{ $k }}"></label>
+                              <span class="pc-note" style="margin:0">Optional. Shows under this note in the email.</span>
+                            @endif
                           </div>
                         @endforeach
                       @else

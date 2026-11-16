@@ -286,7 +286,13 @@ class PlatformLetter
                         foreach ($marks as $k => $mk) {
                             $t = trim((string) ($mk['title'] ?? '')); $n = trim((string) ($mk['note'] ?? ''));
                             $html .= '<tr><td valign="top" style="width:40px;padding:0 0 16px"><div style="width:26px;height:26px;border-radius:50%;background:#BEF264;color:' . $c['ink'] . ';font-family:' . $font . ';font-size:13px;line-height:26px;font-weight:800;text-align:center">' . ($k + 1) . '</div></td>'
-                                . '<td style="padding:0 0 16px;font-size:16px;line-height:1.6;color:' . $c['body'] . '">' . ($t !== '' ? '<b style="color:' . $c['text'] . '">' . $m($t) . '</b> ' : '') . $m($n) . '</td></tr>';
+                                . '<td style="padding:0 0 16px;font-size:16px;line-height:1.6;color:' . $c['body'] . '">' . ($t !== '' ? '<b style="color:' . $c['text'] . '">' . $m($t) . '</b> ' : '') . $m($n);
+                            // MARKER-MARKER-SHOTS: a marker can carry its own close-up
+                            $shot = trim((string) ($mk['shot'] ?? ''));
+                            if ($shot !== '') {
+                                $html .= '<img src="' . $e($shot) . '" alt="' . $m($t !== '' ? $t : 'Detail') . '" width="472" style="display:block;width:100%;max-width:472px;height:auto;margin:12px 0 6px;border:1px solid ' . ($dark ? '#2e2e2e' : '#e3e2dc') . ';border-radius:10px">';
+                            }
+                            $html .= '</td></tr>';
                         }
                         $html .= '</table>';
                     }

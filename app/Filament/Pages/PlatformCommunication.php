@@ -51,6 +51,7 @@ class PlatformCommunication extends Page
     public string $cSendTheme = 'light'; // what the campaign actually sends in
     public array $trayUploads = [];   // feat_tray / feat_annotated images, by block index
     public array $shotUploads = [];
+    public array $markerUploads = [];   // close-up picture per marker, keyed "block.marker"
 
     public string $aName = '';
     public string $aSource = 'tenants';
@@ -625,6 +626,7 @@ class PlatformCommunication extends Page
         $this->cSendTheme = ($c->theme ?? 'light') === 'dark' ? 'dark' : 'light';
         $this->cTheme     = $this->cSendTheme;
         $this->shotUploads = [];
+        $this->markerUploads = [];
         $this->tab        = 'campaigns';
     }
 
@@ -658,6 +660,7 @@ class PlatformCommunication extends Page
             }
         }
         $this->shotUploads = [];
+        $this->markerUploads = [];
         $letter = $this->cMode === 'letter';
 
         $c->update([
@@ -800,6 +803,7 @@ class PlatformCommunication extends Page
         $at = max(0, min($at, count($this->cBlocks)));
         array_splice($this->cBlocks, $at, 0, [\App\Support\PlatformLetter::blank($type)]);
         $this->shotUploads = [];
+        $this->markerUploads = [];
     }
 
     public function removeLetterBlock(int $i): void
@@ -807,6 +811,7 @@ class PlatformCommunication extends Page
         unset($this->cBlocks[$i], $this->shotUploads[$i]);
         $this->cBlocks = array_values($this->cBlocks);
         $this->shotUploads = [];
+        $this->markerUploads = [];
     }
 
     public function moveLetterBlock(int $i, int $dir): void
@@ -815,6 +820,7 @@ class PlatformCommunication extends Page
         if (isset($this->cBlocks[$i], $this->cBlocks[$j])) {
             [$this->cBlocks[$i], $this->cBlocks[$j]] = [$this->cBlocks[$j], $this->cBlocks[$i]];
             $this->shotUploads = [];
+            $this->markerUploads = [];
         }
     }
 
@@ -903,6 +909,25 @@ class PlatformCommunication extends Page
         if (count($marks) >= 6) { return; }
         $marks[] = ['x' => round(max(0, min(100, $x)), 1), 'y' => round(max(0, min(100, $y)), 1), 'title' => '', 'note' => ''];
         $this->cBlocks[$i]['data']['markers'] = $marks;
+    }
+
+    /** MARKER-MARKER-SHOTS: a close-up under one marker's note */
+    public function updatedMarkerUploads($value, $key): void
+    {
+        [$i, $k] = array_map('intval', array_pad(explode('.', (string) $key), 2, -1));
+        $file = $this->markerUploads[$i][$k] ?? null;
+        if (! $file || ! isset($this->cBlocks[$i]['data']['markers'][$k])) {
+            return;
+        }
+        $this->validate(["markerUploads.$i.$k" => 'image|max:8192']);
+        $path = $file->store('platform-letters', 'public');
+        $this->cBlocks[$i]['data']['markers'][$k]['shot'] = url('/storage/' . $path);
+        unset($this->markerUploads[$i][$k]);
+    }
+
+    public function removeMarkerShot(int $i, int $k): void
+    {
+        unset($this->cBlocks[$i]['data']['markers'][$k]['shot']);
     }
 
     public function removeMarker(int $i, int $k): void

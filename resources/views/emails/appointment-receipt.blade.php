@@ -84,6 +84,25 @@
 </table>
 @endif
 
+{{-- MARKER-RECEIPT-PARTS: parts are in the subtotal, so they're listed too
+     (they were left out, and the lines didn't add up to the total) --}}
+@if($appointment->parts && $appointment->parts->isNotEmpty())
+<p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#888;margin:14px 0 8px">
+  Parts
+</p>
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:8px">
+  @foreach($appointment->parts as $part)
+  @php $each = $part->unit_price_cents_override ?? $part->unit_price_cents; $qty = max(1, (int) $part->quantity); @endphp
+  <tr>
+    <td style="padding:6px 0;border-bottom:1px solid #f0f0ee;font-size:13px;vertical-align:top">
+      {{ $part->item_name_snapshot }}@if($qty > 1) <span style="color:#888">× {{ $qty }}</span>@endif
+    </td>
+    <td style="padding:6px 0;border-bottom:1px solid #f0f0ee;font-size:13px;text-align:right;white-space:nowrap;vertical-align:top">{{ format_money($each * $qty) }}</td>
+  </tr>
+  @endforeach
+</table>
+@endif
+
 {{-- Additional charges (mid-service add-ons, parts, etc) --}}
 @if($appointment->charges && $appointment->charges->isNotEmpty())
 <p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#888;margin:14px 0 8px">
