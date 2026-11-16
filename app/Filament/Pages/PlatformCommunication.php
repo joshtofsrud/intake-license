@@ -70,6 +70,12 @@ class PlatformCommunication extends Page
     public string $testTo  = '';
     public string $cSender = '';    // '' automatic, 'platform' or 'outreach'
     public string $cTestTo = '';    // campaign test address
+    // MARKER-CAMPAIGN-REPORT: the report takes the editor's place; Back returns to it
+    #[Url(as: 'report')]
+    public bool   $report  = false;
+    public string $rFilter = 'all';
+    public string $rSearch = '';
+    public int    $rPage   = 1;
 
     public function mount(): void
     {
@@ -94,6 +100,38 @@ class PlatformCommunication extends Page
         // clicking a tab always lands on its list; an open campaign used to
         // stay open (and come back on every reload through ?campaign=)
         $this->campaignId = null;
+        $this->report = false;
+    }
+
+    // ---- MARKER-CAMPAIGN-REPORT
+    public function openReport(string $id): void
+    {
+        $this->openCampaign($id);
+        $this->report  = true;
+        $this->rFilter = 'all';
+        $this->rSearch = '';
+        $this->rPage   = 1;
+    }
+
+    public function closeReport(): void
+    {
+        $this->report = false;
+    }
+
+    public function setReportFilter(string $f): void
+    {
+        $this->rFilter = array_key_exists($f, \App\Services\Platform\PlatformCampaignReport::FILTERS) ? $f : 'all';
+        $this->rPage   = 1;
+    }
+
+    public function updatedRSearch(): void
+    {
+        $this->rPage = 1;
+    }
+
+    public function reportPage(int $p): void
+    {
+        $this->rPage = max(1, $p);
     }
 
     /**
@@ -215,7 +253,25 @@ class PlatformCommunication extends Page
             // migration not run yet
         }
 
+        // MARKER-CAMPAIGN-REPORT: progress and rates on the list, the report when open
+        $listCounts = [];
+        $reportData = null;
+        try {
+            $listCounts = \App\Services\Platform\PlatformCampaignReport::countsFor($campaigns->pluck('id')->all());
+            if ($campaign && $this->report) {
+                $reportData = [
+                    'sum'  => \App\Services\Platform\PlatformCampaignReport::summary($campaign),
+                    'list' => \App\Services\Platform\PlatformCampaignReport::recipients($campaign, $this->rFilter, $this->rSearch, $this->rPage),
+                ];
+            }
+        } catch (\Throwable $e) {
+            // migration not run yet
+        }
+
         return [
+            'listCounts'     => $listCounts,
+            'reportData'     => $reportData,
+            'reportFilters'  => \App\Services\Platform\PlatformCampaignReport::FILTERS,
             'activity'       => $activity,
             'suppressions'   => $suppressions,
             'suppressCounts' => $suppressCounts,
@@ -633,6 +689,7 @@ class PlatformCommunication extends Page
     public function closeCampaign(): void
     {
         $this->campaignId = null;
+        $this->report = false;
     }
 
     public function saveCampaign(bool $quiet = false): void

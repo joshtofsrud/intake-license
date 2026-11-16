@@ -27,6 +27,50 @@
   .pc-rule{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--pc-line);border-radius:99px;padding:3px 6px 3px 10px;font-size:12px;margin:0 6px 6px 0}
   .pc-rule button{background:none;border:0;color:inherit;opacity:.55;cursor:pointer;font:inherit;padding:0 4px}
   .pc-rule button:hover{opacity:1}
+  /* MARKER-CAMPAIGN-REPORT */
+  .rp-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:4px}
+  .rp-head h3{font-size:17px;font-weight:700;margin:0}
+  .rp-head .sub{font-size:12.5px;opacity:.55}
+  .rp-head .sp{margin-left:auto;display:flex;gap:14px;font-size:12.5px}
+  .rp-prog{margin:14px 0 4px}
+  .rp-bar{display:flex;height:8px;border-radius:5px;overflow:hidden;background:rgba(127,127,127,.15)}
+  .rp-bar i{display:block;height:100%}
+  .rp-prog .l{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;opacity:.7;margin-top:6px}
+  .rp-prog .l b{opacity:1}
+  .rp-k{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));border:1px solid var(--pc-line);border-radius:12px;margin:16px 0}
+  @media(max-width:1000px){.rp-k{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  .rp-k button{background:none;border:0;border-right:1px solid var(--pc-line);color:inherit;font:inherit;text-align:left;padding:12px 14px;cursor:pointer}
+  .rp-k button:last-child{border-right:0}
+  .rp-k button.on{background:rgba(139,124,246,.1);box-shadow:inset 0 -2px 0 var(--pc-accent)}
+  .rp-k .k{display:block;font-size:11.5px;opacity:.55}
+  .rp-k .v{display:block;font-size:22px;font-weight:700;letter-spacing:-.02em;line-height:1.2}
+  .rp-k .d{display:block;font-size:11.5px;opacity:.6}
+  .rp-k .bad .v{color:#f08a8a}
+  .rp-plot{position:relative;height:120px}
+  .rp-plot svg{position:absolute;inset:0;width:100%;height:100%}
+  .rp-axis{display:flex;justify-content:space-between;font-size:11px;opacity:.45;margin-top:4px}
+  .rp-key{display:flex;gap:14px;font-size:11.5px;opacity:.7;margin-top:6px}
+  .rp-key i{display:inline-block;width:10px;height:3px;border-radius:2px;vertical-align:middle;margin-right:5px}
+  .rp-side{display:grid;grid-template-columns:minmax(0,2fr) minmax(220px,1fr);gap:22px;align-items:start}
+  @media(max-width:1000px){.rp-side{grid-template-columns:1fr}}
+  .rp-mini{font-size:12.5px;line-height:1.9}
+  .rp-mini .r{display:flex;gap:8px}.rp-mini .r span:first-child{flex:1;opacity:.7;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .rp-filters{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:18px 0 10px}
+  .rp-filters button{border:1px solid var(--pc-line);background:none;color:inherit;font:inherit;font-size:12.5px;border-radius:99px;padding:5px 11px;cursor:pointer;opacity:.75}
+  .rp-filters button.on{border-color:var(--pc-accent);background:rgba(139,124,246,.12);opacity:1;font-weight:600}
+  .rp-filters input{margin-left:auto;background:transparent;border:1px solid var(--pc-line);border-radius:8px;color:inherit;font:inherit;font-size:13px;padding:6px 10px;width:220px}
+  .rp-tbl{width:100%;border-collapse:collapse;font-size:13px}
+  .rp-tbl th{text-align:left;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;opacity:.45;font-weight:700;padding:8px 10px;border-bottom:1px solid var(--pc-line)}
+  .rp-tbl td{padding:8px 10px;border-bottom:1px solid var(--pc-line);vertical-align:top}
+  .rp-tbl .em{font-size:11.5px;opacity:.55}
+  .rp-tbl a{color:inherit}
+  .rp-ev{display:inline-block;font-size:11px;border-radius:99px;padding:1px 8px;margin:0 4px 3px 0;border:1px solid var(--pc-line);white-space:nowrap}
+  .rp-ev.good{border-color:rgba(127,217,143,.45);color:#7fd98f}
+  .rp-ev.bad{border-color:rgba(240,138,138,.5);color:#f08a8a}
+  .rp-ev.warn{border-color:rgba(240,196,106,.5);color:#f0c46a}
+  .rp-pager{display:flex;align-items:center;gap:10px;justify-content:flex-end;font-size:12.5px;margin-top:10px}
+  .pc-progline{height:3px;border-radius:2px;background:rgba(127,127,127,.18);margin-top:5px;overflow:hidden;max-width:220px}
+  .pc-progline i{display:block;height:100%;background:var(--pc-accent)}
   .pc-cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
   @media(max-width:1000px){.pc-cols{grid-template-columns:1fr}}
   .pc-card{border:1px solid var(--pc-line);border-radius:12px;padding:16px 18px}
@@ -266,12 +310,180 @@
       @endunless
     </div>
 
-    @if($campaign)
+    @if($campaign && $report && $reportData)
+      {{-- MARKER-CAMPAIGN-REPORT: takes the editor's place; nothing here changes the campaign --}}
+      @php
+        $R = $reportData['sum']; $L = $reportData['list'];
+        $fmtPct = fn ($v) => $v === null ? '—' : rtrim(rtrim(number_format($v, 1), '0'), '.') . '%';
+        $eta = $R['eta_minutes'];
+        $etaTxt = $eta === null ? null : ($eta < 90 ? '~' . $eta . ' min left' : '~' . round($eta / 60, 1) . ' h left');
+        $filterCount = ['all' => $R['total'], 'opened' => $R['opened'], 'clicked' => $R['clicked'], 'replied' => $R['replied'],
+          'unopened' => max(0, $R['delivered'] - $R['opened']), 'bounced' => $R['bounced'], 'complained' => $R['complained'],
+          'unsubscribed' => $R['unsubscribed'], 'pending' => $R['pending'], 'skipped' => $R['skipped'], 'failed' => $R['failed']];
+        $tl = $R['timeline'];
+      @endphp
+      <div class="pc-card" @if(in_array($campaign->status, ['sending', 'scheduled'], true)) wire:poll.20s @endif>
+        <div style="display:flex;gap:16px">
+          <button type="button" class="pc-back" wire:click="closeReport">&larr; Back to campaign</button>
+          <button type="button" class="pc-back" wire:click="closeCampaign">All campaigns</button>
+        </div>
+        <div class="rp-head">
+          <h3>{{ $campaign->name }}</h3>
+          <span class="sub">{{ $campaign->subject }}</span>
+          <span class="sp"><span class="pc-pill {{ $campaign->status === 'sent' ? 'pc-pill--custom' : '' }}">{{ ucfirst($campaign->status) }}</span></span>
+        </div>
+        <div class="sub" style="font-size:12px;opacity:.55">
+          {{ optional($campaign->audience)->name ?: 'No audience' }}
+          @if($R['first_sent']) · first sent {{ alocal(\Carbon\Carbon::parse($R['first_sent'], 'UTC'), 'D M j, g:i a') }}@endif
+          @if($campaign->status === 'sent' && $campaign->sent_at) · finished {{ alocal($campaign->sent_at, 'D M j, g:i a') }}@endif
+          @if($campaign->status === 'scheduled' && $campaign->scheduled_at) · starts {{ alocal($campaign->scheduled_at, 'D M j, g:i a') }}@endif
+        </div>
+
+        {{-- sending progress --}}
+        @if($R['total'] > 0)
+          <div class="rp-prog">
+            <div class="rp-bar">
+              <i style="width:{{ $R['total'] ? $R['sent'] / $R['total'] * 100 : 0 }}%;background:var(--pc-accent)"></i>
+              <i style="width:{{ $R['total'] ? $R['skipped'] / $R['total'] * 100 : 0 }}%;background:rgba(127,127,127,.45)"></i>
+              <i style="width:{{ $R['total'] ? $R['failed'] / $R['total'] * 100 : 0 }}%;background:#f08a8a"></i>
+            </div>
+            <div class="l">
+              <span><b>{{ number_format($R['sent']) }}</b> sent</span>
+              <span><b>{{ number_format($R['pending']) }}</b> waiting</span>
+              <span><b>{{ number_format($R['skipped']) }}</b> skipped</span>
+              <span><b>{{ number_format($R['failed']) }}</b> failed</span>
+              <span>of <b>{{ number_format($R['total']) }}</b> · {{ $R['progress'] }}% done</span>
+              @if($R['pending'] > 0)
+                <span>{{ number_format($R['last_hour']) }} sent in the last hour{{ $etaTxt ? ' · ' . $etaTxt : ($R['last_hour'] === 0 ? ' · paused or between paced sends' : '') }}</span>
+              @endif
+            </div>
+          </div>
+        @elseif($campaign->status === 'scheduled')
+          <div class="pc-note">The recipient list is built when it starts, so anyone who unsubscribes before then is left out. Progress shows here from that moment.</div>
+        @else
+          <div class="pc-note">Nothing has been sent yet.</div>
+        @endif
+
+        {{-- headline rates; each one filters the list below --}}
+        <div class="rp-k">
+          <button type="button" class="{{ $rFilter === 'all' ? 'on' : '' }}" wire:click="setReportFilter('all')"><span class="k">Delivered</span><span class="v">{{ number_format($R['delivered']) }}</span><span class="d">of {{ number_format($R['sent']) }} sent</span></button>
+          <button type="button" class="{{ $rFilter === 'opened' ? 'on' : '' }}" wire:click="setReportFilter('opened')"><span class="k">Opened</span><span class="v">{{ $fmtPct($R['open_rate']) }}</span><span class="d">{{ number_format($R['opened']) }} {{ $R['opened'] === 1 ? 'person' : 'people' }}</span></button>
+          <button type="button" class="{{ $rFilter === 'clicked' ? 'on' : '' }}" wire:click="setReportFilter('clicked')"><span class="k">Clicked</span><span class="v">{{ $fmtPct($R['click_rate']) }}</span><span class="d">{{ number_format($R['clicked']) }} {{ $R['clicked'] === 1 ? 'person' : 'people' }}</span></button>
+          <button type="button" class="{{ $rFilter === 'replied' ? 'on' : '' }}" wire:click="setReportFilter('replied')"><span class="k">Replied</span><span class="v">{{ $fmtPct($R['reply_rate']) }}</span><span class="d">{{ number_format($R['replied']) }} {{ $R['replied'] === 1 ? 'person' : 'people' }}</span></button>
+          <button type="button" class="{{ $rFilter === 'bounced' ? 'on' : '' }} {{ ($R['bounce_rate'] ?? 0) >= 5 ? 'bad' : '' }}" wire:click="setReportFilter('bounced')"><span class="k">Bounced</span><span class="v">{{ $fmtPct($R['bounce_rate']) }}</span><span class="d">{{ number_format($R['bounced']) }} {{ $R['bounced'] === 1 ? 'address' : 'addresses' }}</span></button>
+          <button type="button" class="{{ $rFilter === 'unsubscribed' ? 'on' : '' }} {{ $R['complained'] > 0 ? 'bad' : '' }}" wire:click="setReportFilter('unsubscribed')"><span class="k">Unsubscribed</span><span class="v">{{ $fmtPct($R['unsub_rate']) }}</span><span class="d">{{ number_format($R['unsubscribed']) }} {{ $R['unsubscribed'] === 1 ? 'person' : 'people' }} · {{ $R['complained'] }} marked spam</span></button>
+        </div>
+
+        <div class="rp-side">
+          <div>
+            <div class="pc-grp" style="padding-top:0">Over time · by {{ $tl['unit'] }}</div>
+            @if(count($tl['labels']) > 1)
+              @php
+                $W = 640; $H = 120; $P = 6; $mx = max(1, max($tl['sent'] ?: [1]));
+                $pathOf = function ($arr) use ($W, $H, $P, $mx) { $n = count($arr); $o = [];
+                  foreach ($arr as $i => $v) { $o[] = ($i ? 'L' : 'M') . round($n > 1 ? $i / ($n - 1) * $W : $W, 1) . ' ' . round($H - $P - $v / $mx * ($H - 2 * $P), 1); }
+                  return implode(' ', $o); };
+              @endphp
+              <div class="rp-plot">
+                <svg viewBox="0 0 {{ $W }} {{ $H }}" preserveAspectRatio="none">
+                  <path d="{{ $pathOf($tl['sent']) }}" fill="none" stroke="rgba(127,127,127,.6)" stroke-width="2" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"/>
+                  <path d="{{ $pathOf($tl['opened']) }}" fill="none" stroke="#8b7cf6" stroke-width="2" vector-effect="non-scaling-stroke"/>
+                  <path d="{{ $pathOf($tl['clicked']) }}" fill="none" stroke="#7fd98f" stroke-width="2" vector-effect="non-scaling-stroke"/>
+                </svg>
+              </div>
+              <div class="rp-axis"><span>{{ $tl['labels'][0] }}</span><span>{{ $tl['labels'][intdiv(count($tl['labels']), 2)] }}</span><span>{{ end($tl['labels']) }}</span></div>
+              <div class="rp-key"><span><i style="background:rgba(127,127,127,.6)"></i>Sent</span><span><i style="background:#8b7cf6"></i>Opened</span><span><i style="background:#7fd98f"></i>Clicked</span><span style="opacity:.6">running totals</span></div>
+            @else
+              <div class="pc-note" style="margin-top:0">The line starts once sending has run for more than an hour.</div>
+            @endif
+          </div>
+          <div class="rp-mini">
+            <div class="pc-grp" style="padding-top:0">Why some were skipped</div>
+            @forelse($R['skip_reasons'] as $why => $n)
+              <div class="r"><span title="{{ $why }}">{{ $why }}</span><span>{{ number_format($n) }}</span></div>
+            @empty
+              <div style="opacity:.5">None skipped.</div>
+            @endforelse
+            @if($R['bounce_types'])
+              <div class="pc-grp">Bounce types</div>
+              @foreach($R['bounce_types'] as $bt => $n)
+                <div class="r"><span>{{ $bt }}</span><span>{{ number_format($n) }}</span></div>
+              @endforeach
+            @endif
+          </div>
+        </div>
+
+        <div class="rp-filters">
+          @foreach($reportFilters as $fk => $fl)
+            @if($fk === 'all' || ($filterCount[$fk] ?? 0) > 0 || $rFilter === $fk)
+              <button type="button" class="{{ $rFilter === $fk ? 'on' : '' }}" wire:click="setReportFilter('{{ $fk }}')">{{ $fl }} {{ number_format($filterCount[$fk] ?? 0) }}</button>
+            @endif
+          @endforeach
+          <input type="search" wire:model.live.debounce.400ms="rSearch" placeholder="Search name or email">
+        </div>
+
+        <table class="rp-tbl">
+          <thead><tr><th>Recipient</th><th>Sent</th><th>What happened</th><th></th></tr></thead>
+          <tbody>
+            @forelse($L['rows'] as $r)
+              <tr>
+                <td>
+                  @if($r->source_type === 'prospects' && $r->source_id)
+                    <a href="{{ \App\Filament\Resources\SalesProspectResource::getUrl('edit', ['record' => $r->source_id]) }}" target="_blank">{{ $r->name ?: $r->email }}</a>
+                  @else
+                    {{ $r->name ?: $r->email }}
+                  @endif
+                  @if($r->name)<div class="em">{{ $r->email }}</div>@endif
+                </td>
+                <td style="white-space:nowrap">
+                  @if($r->status === 'sent'){{ $r->sent_at ? alocal(\Carbon\Carbon::parse($r->sent_at, 'UTC'), 'M j, g:i a') : 'sent' }}
+                  @elseif($r->status === 'pending')<span class="rp-ev">waiting</span>
+                  @elseif($r->status === 'skipped')<span class="rp-ev" title="{{ $r->skip_reason }}">skipped · {{ \Illuminate\Support\Str::limit($r->skip_reason ?: 'no reason', 40) }}</span>
+                  @else<span class="rp-ev bad" title="{{ $r->error }}">failed</span>@endif
+                </td>
+                <td>
+                  @if($r->opened_at)<span class="rp-ev good">opened {{ alocal(\Carbon\Carbon::parse($r->opened_at, 'UTC'), 'M j, g:i a') }}</span>@endif
+                  @if($r->clicked_at)<span class="rp-ev good">clicked {{ alocal(\Carbon\Carbon::parse($r->clicked_at, 'UTC'), 'M j, g:i a') }}</span>@endif
+                  @if($r->replied_at)<span class="rp-ev good">replied {{ alocal(\Carbon\Carbon::parse($r->replied_at, 'UTC'), 'M j, g:i a') }}</span>@endif
+                  @if($r->bounced_at)<span class="rp-ev bad">bounced · {{ $r->bounce_type ?: 'bounce' }}</span>@endif
+                  @if($r->complained_at)<span class="rp-ev bad">marked spam</span>@endif
+                  @if($r->unsubscribed_at)<span class="rp-ev warn">unsubscribed</span>@endif
+                  @if($r->status === 'sent' && ! $r->opened_at && ! $r->bounced_at)<span style="opacity:.4;font-size:12px">no opens yet</span>@endif
+                </td>
+                <td style="text-align:right;white-space:nowrap">
+                  @if($r->thread_id && $r->replied_at)<a class="pc-edit" href="/admin/inbox?id={{ $r->thread_id }}" target="_blank">Open reply</a>@endif
+                </td>
+              </tr>
+            @empty
+              <tr><td colspan="4" style="text-align:center;opacity:.5;padding:22px">
+                {{ trim($rSearch) !== '' ? 'Nobody matches "' . $rSearch . '".' : 'Nobody here yet.' }}
+                @if($rFilter !== 'all') <button type="button" class="pc-edit" wire:click="setReportFilter('all')">Show everyone</button>@endif
+              </td></tr>
+            @endforelse
+          </tbody>
+        </table>
+        @if($L['pages'] > 1)
+          <div class="rp-pager">
+            <span style="opacity:.6">{{ number_format($L['from']) }}–{{ number_format($L['to']) }} of {{ number_format($L['total']) }}</span>
+            <button type="button" class="pc-btn" wire:click="reportPage({{ $L['page'] - 1 }})" @disabled($L['page'] <= 1)>Previous</button>
+            <button type="button" class="pc-btn" wire:click="reportPage({{ $L['page'] + 1 }})" @disabled($L['page'] >= $L['pages'])>Next</button>
+          </div>
+        @endif
+
+        <div class="pc-note">
+          Rates are out of delivered emails (sent minus bounced); bounces are out of sent. Opens are approximate: some mail apps open every email automatically and others block the tracking image, and a click always counts as an open.
+          Bounces, spam marks and unsubscribes are tied to the email that caused them from today on; ones from before today are not on this report. An unsubscribe from the link in an email goes on the newest campaign that address was sent.
+          @if(in_array($campaign->status, ['sending', 'scheduled'], true)) This report refreshes every 20 seconds while the campaign is going out. @endif
+        </div>
+      </div>
+    @elseif($campaign)
       <div class="pc-cols">
         <div class="pc-card">
           <button type="button" class="pc-back" wire:click="closeCampaign">&larr; All campaigns</button>
           <h3>{{ $campaign->name }}</h3>
-          <div class="sub">{{ ucfirst($campaign->status) }}@if($campaign->scheduled_at) · {{ alocal($campaign->scheduled_at, 'D M j, g:i A') }}@endif</div>
+          <div class="sub">{{ ucfirst($campaign->status) }}@if($campaign->scheduled_at) · {{ alocal($campaign->scheduled_at, 'D M j, g:i A') }}@endif
+            @if($campaign->status !== 'draft') · <button type="button" class="pc-edit" style="font-size:12px" wire:click="openReport('{{ $campaign->id }}')">Report &rarr;</button>@endif
+          </div>
 
           <div class="pc-f"><label>Name</label><input type="text" wire:model="cName"></div>
           <div class="pc-f"><label>Subject</label><input type="text" wire:model="cSubject"></div>
@@ -631,7 +843,7 @@
         <button type="button" class="pc-btn pc-btn--pri" wire:click="newCampaign">New campaign</button>
       </div>
 
-      <div class="pc-list">
+      <div class="pc-list" @if($campaigns->contains(fn ($x) => $x->status === 'sending')) wire:poll.30s @endif>
         @forelse($campaigns as $c)
           <div class="pc-row" style="grid-template-columns:1fr 110px 1fr 150px">
             <div>
@@ -641,7 +853,16 @@
             <div><span class="pc-pill {{ $c->status === 'sent' ? 'pc-pill--custom' : '' }}">{{ ucfirst($c->status) }}</span></div>
             <div class="fires">
               {{ optional($c->audience)->name ?: 'No audience' }}
-              @if($c->total_sent) · {{ $c->total_sent }} sent @endif
+              @php $lc = $listCounts[$c->id] ?? null; @endphp
+              @if($c->status === 'scheduled' && $c->scheduled_at)
+                <div class="d">starts {{ alocal($c->scheduled_at, 'D M j, g:i a') }}</div>
+              @elseif($lc && $lc['pending'] > 0)
+                {{-- MARKER-CAMPAIGN-REPORT: sending progress --}}
+                <div class="d">{{ number_format($lc['sent']) }} of {{ number_format($lc['total']) }} sent · {{ number_format($lc['pending']) }} waiting{{ $lc['eta_minutes'] ? ' · ~' . ($lc['eta_minutes'] < 90 ? $lc['eta_minutes'] . ' min' : round($lc['eta_minutes'] / 60, 1) . ' h') . ' left' : '' }}</div>
+                <div class="pc-progline"><i style="width:{{ $lc['progress'] }}%"></i></div>
+              @elseif($lc && $lc['sent'] > 0)
+                <div class="d">{{ number_format($lc['sent']) }} sent · {{ $lc['open_rate'] ?? 0 }}% opened · {{ $lc['click_rate'] ?? 0 }}% clicked{{ $lc['replied'] ? ' · ' . $lc['replied'] . ' replied' : '' }}{{ $lc['bounced'] ? ' · ' . $lc['bounced'] . ' bounced' : '' }}</div>
+              @endif
             </div>
             <div class="pc-acts-row">
               @if($confirmDel === 'c:' . $c->id)
@@ -650,6 +871,7 @@
                 <button type="button" class="pc-edit" wire:click="cancelDelete">No</button>
               @else
                 @if($c->status === 'draft')<button type="button" class="pc-del" wire:click="askDelete('c:{{ $c->id }}')">Delete</button>@endif
+                @if($c->status !== 'draft')<button type="button" class="pc-edit" wire:click="openReport('{{ $c->id }}')">Report</button>@endif
                 <button type="button" class="pc-edit" wire:click="openCampaign('{{ $c->id }}')">Open</button>
               @endif
             </div>

@@ -58,6 +58,7 @@ class PlatformUnsubscribeController extends Controller
             ['email' => $email],
             ['reason' => 'link', 'source' => 'campaign']
         );
+        \App\Models\PlatformCampaignSend::stampOutcome($email, 'unsubscribed_at'); // MARKER-CAMPAIGN-REPORT
 
         return view('platform.unsubscribe', [
             'email' => $email, 'e' => $e, 'sig' => $sig, 'done' => true,
