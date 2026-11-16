@@ -184,6 +184,17 @@ class PlatformCampaignSamplesSeeder extends Seeder
         if (! Storage::disk('public')->exists($to)) {
             Storage::disk('public')->put($to, file_get_contents(database_path('seeders/assets/platform-letters/' . $file)));
         }
+        // run as root, the folders it made would be root's and the web server
+        // couldn't add annotated pictures next to them: hand them to the owner
+        // of the storage folder
+        $root  = Storage::disk('public')->path('');
+        $owner = @fileowner($root); $group = @filegroup($root);
+        foreach (['platform-letters', 'platform-letters/samples', $to] as $p) {
+            $full = Storage::disk('public')->path($p);
+            if ($owner !== false && function_exists('posix_getuid') && posix_getuid() === 0) {
+                @chown($full, $owner); @chgrp($full, $group);
+            }
+        }
         return url('/storage/' . $to);
     }
 }

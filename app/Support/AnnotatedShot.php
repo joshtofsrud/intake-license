@@ -70,7 +70,15 @@ class AnnotatedShot
         imagepng($im, null, 6);
         $png = ob_get_clean();
         imagedestroy($im);
-        $disk->put($path, $png);
+        // a folder the web server can't write (e.g. made by a command run as
+        // root) must not take the page down: the email falls back to the
+        // plain picture with the notes listed under it, and the cause is logged
+        try {
+            $disk->put($path, $png);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Annotated screenshot not saved: ' . $e->getMessage());
+            return null;
+        }
 
         return url('/storage/' . $path);
     }
