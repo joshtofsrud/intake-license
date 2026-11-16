@@ -2415,7 +2415,7 @@ input.ma-asset-name-edit:focus {
             </div>
           </div>
           <p id="ma-note-error" style="font-size: 12px; color: #f87171; margin-top: 6px; display: none;"></p>
-          <p class="nv-hint">Notes marked "Customer can see" show on the customer's work order page in their account. Click the label on any note to change it later.</p>
+          <p class="nv-hint">Notes marked "Customer can see" show on the customer's work order page in their account. Flip the switch on any note to change it later.</p>
         </div>
         @include('tenant.appointments._note-visibility-js')
 
@@ -2519,7 +2519,7 @@ input.ma-asset-name-edit:focus {
         {{-- Payment section --}}
         <div style="margin-top: 14px; padding-top: 14px; border-top: 0.5px solid var(--ia-border);">
           <div class="ma-rail-row" style="margin-bottom: 6px;">
-            <span class="k" style="font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--ia-text-dim); font-weight: 600;">Payment</span>
+            <span class="k ap-sublbl">Payment</span>
             <span class="v" style="text-transform: capitalize;">
               <span class="ma-payment-badge ma-payment-badge--{{ $appointment->payment_status }}">
                 {{ ucwords(str_replace('_', ' ', $appointment->payment_status ?? 'unpaid')) }}
@@ -2529,7 +2529,7 @@ input.ma-asset-name-edit:focus {
 
           @if($payments->isNotEmpty())
             <div style="margin-top: 10px;">
-              <div style="font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--ia-text-dim); font-weight: 600; margin-bottom: 6px;">Ledger</div>
+              <div class="ap-sublbl" style="margin-bottom: 6px;">Payments</div>
               @foreach($payments as $p)
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; font-size: 12px; padding: 6px 0; border-bottom: 0.5px solid var(--ia-border);">
                   <div style="flex: 1; min-width: 0;">
@@ -2557,7 +2557,16 @@ input.ma-asset-name-edit:focus {
             <span class="v" style="color: #A8D670;">${{ number_format(($appointment->paid_cents ?? 0) / 100, 2) }}</span>
           </div>
 
-          @if($balanceDue > 0)
+          @if($isTerminal)
+            {{-- a cancelled job owes nothing; say what's held instead of a balance --}}
+            <div class="ma-rail-row" style="font-weight: 500;">
+              <span class="k">Balance</span>
+              <span class="v ap-plain">None, job {{ strtolower($statusLabels[$appointment->status] ?? 'closed') }}</span>
+            </div>
+            @if((int) ($appointment->paid_cents ?? 0) > 0)
+              <p class="ap-fine">{{ format_money($appointment->paid_cents) }} was paid on this job. Refund it through the register if the shop isn't keeping it.</p>
+            @endif
+          @elseif($balanceDue > 0)
             <div class="ma-rail-row" style="font-weight: 500;">
               <span class="k">Balance owed</span>
               <span class="v" style="font-size: 14px; font-weight: 500;">${{ number_format($balanceDue / 100, 2) }}</span>

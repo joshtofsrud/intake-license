@@ -1162,7 +1162,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
       @if($payments->isNotEmpty())
         <div style="margin-top:14px;padding-top:12px;border-top:0.5px solid var(--ia-border)">
-          <div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ia-text-dim);font-weight:600;margin-bottom:8px">Payment ledger</div>
+          <div class="ap-sublbl" style="margin-bottom:8px">Payments</div>
           @foreach($payments as $p)
             <div style="display:flex;justify-content:space-between;align-items:flex-start;font-size:12px;padding:6px 0;border-bottom:0.5px solid var(--ia-border)">
               <div style="flex:1;min-width:0">
@@ -1190,7 +1190,16 @@ document.addEventListener('DOMContentLoaded', function () {
         <span class="sidebar-stat-value" style="color:#A8D670">{{ format_money($appointment->paid_cents) }}</span>
       </div>
 
-      @if($balanceDue > 0)
+      @if(\App\Support\AppointmentStatus::isTerminal($appointment->status))
+        {{-- a cancelled job owes nothing; say what's held instead of a balance --}}
+        <div class="sidebar-stat">
+          <span class="sidebar-stat-label" style="font-weight:500">Balance</span>
+          <span class="sidebar-stat-value">None, job {{ strtolower($statusLabels[$appointment->status] ?? 'closed') }}</span>
+        </div>
+        @if((int) $appointment->paid_cents > 0)
+          <p class="ap-fine">{{ format_money($appointment->paid_cents) }} was paid on this job. Refund it through the register if the shop isn't keeping it.</p>
+        @endif
+      @elseif($balanceDue > 0)
         <div class="sidebar-stat">
           <span class="sidebar-stat-label" style="font-weight:500">Balance owed</span>
           <span class="sidebar-stat-value" style="font-size:15px;font-weight:500">{{ format_money($balanceDue) }}</span>
@@ -1973,7 +1982,7 @@ document.addEventListener('DOMContentLoaded', function () {
           </button>
         </div>
         <p id="note-error" style="font-size:12px;color:#E24B4A;margin-top:4px;display:none"></p>
-        <p class="nv-hint">Notes marked "Customer can see" show on the customer's work order page in their account. Click the label on any note to change it later.</p>
+        <p class="nv-hint">Notes marked "Customer can see" show on the customer's work order page in their account. Flip the switch on any note to change it later.</p>
       </div>
       @include('tenant.appointments._note-visibility-js')
 
@@ -2339,7 +2348,7 @@ document.addEventListener('keydown', function (e) {
           el.innerHTML =
             '<div class="ia-note-head">' +
               '<span class="ia-note-author">' + esc(resp.author) + '</span>' +
-              '<button type="button" class="nv-pill nv-toggle' + (resp.is_customer_visible ? ' is-on' : '') + '" data-note-vis="' + resp.id + '" data-on="' + (resp.is_customer_visible ? '1' : '0') + '" title="Click to change who can see this note">' + (resp.is_customer_visible ? 'Customer can see' : 'Staff only') + '</button>' +
+              '<button type="button" class="nv-toggle' + (resp.is_customer_visible ? ' is-on' : '') + '" role="switch" aria-checked="' + (resp.is_customer_visible ? 'true' : 'false') + '" data-note-vis="' + resp.id + '" data-on="' + (resp.is_customer_visible ? '1' : '0') + '" title="Show this note to the customer on their work order page"><i class="nv-sw" aria-hidden="true"></i><span>Customer can see</span></button>' +
               '<span class="ia-note-time">' + esc(resp.created_at) + '</span>' +
               '<button type="button" class="ia-note-delete" data-note-id="' + resp.id + '" title="Delete">&#x2715;</button>' +
             '</div>' +

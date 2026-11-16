@@ -4,7 +4,8 @@
 @if($note->note_type === 'system')
   <span class="nv-pill" title="Activity notes are never shown to the customer">Staff only</span>
 @else
-  <button type="button" class="nv-pill nv-toggle {{ $note->is_customer_visible ? 'is-on' : '' }}"
+  <button type="button" class="nv-toggle {{ $note->is_customer_visible ? 'is-on' : '' }}" role="switch"
+          aria-checked="{{ $note->is_customer_visible ? 'true' : 'false' }}"
           data-note-vis="{{ $note->id }}" data-on="{{ $note->is_customer_visible ? '1' : '0' }}"
-          title="Click to change who can see this note">{{ $note->is_customer_visible ? 'Customer can see' : 'Staff only' }}</button>
+          title="Show this note to the customer on their work order page"><i class="nv-sw" aria-hidden="true"></i><span>Customer can see</span></button>
 @endif
