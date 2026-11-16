@@ -103,7 +103,8 @@ class ProcessPlatformCampaignSends extends Command
                     $html,
                     PlatformUnsubscribeController::url($row->email),
                     ['X-PM-Metadata-platform_campaign' => $campaign->id, 'X-PM-Metadata-platform_send_id' => $row->id],
-                    $thread->replyToken()
+                    $thread->replyToken(),
+                    $campaign->senderPair()   // MARKER-CAMPAIGN-SENDER
                 );
 
                 if ($ok) {
@@ -194,7 +195,8 @@ class ProcessPlatformCampaignSends extends Command
         }
     }
 
-    protected function renderFor(PlatformCampaign $campaign, PlatformCampaignSend $row): string
+    /** Public so the composer's test send renders exactly what a real send does. */
+    public function renderFor(PlatformCampaign $campaign, PlatformCampaignSend $row): string
     {
         $vars = [
             'first_name' => $this->firstName($row->name) ?: 'there',
@@ -234,7 +236,7 @@ class ProcessPlatformCampaignSends extends Command
         ]);
     }
 
-    protected function merge(string $text, PlatformCampaignSend $row): string
+    public function merge(string $text, PlatformCampaignSend $row): string
     {
         $first = $this->firstName($row->name) ?: 'there';
         $text = str_replace(

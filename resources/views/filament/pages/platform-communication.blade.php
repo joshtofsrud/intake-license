@@ -279,6 +279,25 @@
               @endforeach
             </select>
           </div>
+          {{-- MARKER-CAMPAIGN-SENDER --}}
+          @php
+            $sKey  = in_array($cSender, ['platform', 'outreach'], true) ? $cSender
+                   : (optional($audiences->firstWhere('id', $cAudience))->source === 'prospects' ? 'outreach' : 'platform');
+            $sPlat = [\App\Services\Platform\PlatformMailer::fromAddress(), \App\Services\Platform\PlatformMailer::fromName()];
+            $sOut  = \App\Models\PlatformSettings::outreachFrom();
+            $sNow  = $sKey === 'outreach' ? $sOut : $sPlat;
+          @endphp
+          <div class="pc-f">
+            <label>From</label>
+            <div class="pl-seg">
+              <button type="button" class="{{ $sKey === 'platform' ? 'on' : '' }}" wire:click="setSender('platform')">{{ $sPlat[1] }}</button>
+              <button type="button" class="{{ $sKey === 'outreach' ? 'on' : '' }}" wire:click="setSender('outreach')">{{ $sOut[1] }} (outreach)</button>
+            </div>
+            <div class="pc-note" style="margin-top:6px">
+              {{ $sNow[1] }} &lt;{{ $sNow[0] }}&gt;{{ $cSender === '' ? ' · automatic: your outreach sender for prospects, Intake for everyone else' : '' }}.
+              Replies come back to the Inbox under the person who answered.
+            </div>
+          </div>
           {{-- plain text, or a letter built from blocks --}}
           <div class="pc-f">
             <label>Content</label>
@@ -526,6 +545,16 @@
               @foreach($blockers as $b){{ $b }} @endforeach
             </div>
           @endif
+
+          {{-- MARKER-CAMPAIGN-TEST --}}
+          <div class="pc-f">
+            <label>Send a test</label>
+            <div style="display:flex;gap:8px">
+              <input type="email" wire:model="cTestTo" placeholder="you@intake.works" style="flex:1">
+              <button type="button" class="pc-btn" wire:click="sendCampaignTest" wire:loading.attr="disabled" wire:target="sendCampaignTest">Send test</button>
+            </div>
+            <div class="pc-note" style="margin-top:6px">One copy, exactly as it will go out, filled in with the first person in the audience and "[TEST]" on the subject. Saves the draft first.</div>
+          </div>
 
           <div class="pc-acts">
             <button type="button" class="pc-btn" wire:click="saveCampaign">Save draft</button>

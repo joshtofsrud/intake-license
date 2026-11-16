@@ -18,7 +18,7 @@ class PlatformCampaign extends Model
     // once already (scheduled_at and sent_at silently un-fillable).
     protected $fillable = [
         'name', 'subject', 'preheader', 'body',
-        'from_name', 'from_email',
+        'sender',
         'audience_id', 'blocks', 'theme', 'status', 'scheduled_at', 'sent_at',
         'total_recipients', 'total_sent', 'total_opened', 'total_clicked',
     ];
@@ -37,6 +37,25 @@ class PlatformCampaign extends Model
     public function sends(): HasMany
     {
         return $this->hasMany(PlatformCampaignSend::class, 'campaign_id');
+    }
+
+    /**
+     * MARKER-CAMPAIGN-SENDER: 'platform' (Intake) or 'outreach' (your own
+     * name). Left blank, prospects hear from the outreach sender, the same
+     * person who emailed them before; everyone else from Intake.
+     */
+    public function senderKey(): string
+    {
+        if (in_array($this->sender, ['platform', 'outreach'], true)) {
+            return $this->sender;
+        }
+        return $this->audience?->source === 'prospects' ? 'outreach' : 'platform';
+    }
+
+    /** [address, name] for PlatformMailer::send, or null for the platform sender. */
+    public function senderPair(): ?array
+    {
+        return $this->senderKey() === 'outreach' ? PlatformSettings::outreachFrom() : null;
     }
 
     public function isEditable(): bool

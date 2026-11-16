@@ -67,6 +67,8 @@ class PlatformCommunication extends Page
     public string $subject = '';
     public string $body    = '';
     public string $testTo  = '';
+    public string $cSender = '';    // '' automatic, 'platform' or 'outreach'
+    public string $cTestTo = '';    // campaign test address
 
     public function mount(): void
     {
@@ -612,6 +614,8 @@ class PlatformCommunication extends Page
         $this->cSubject   = (string) $c->subject;
         $this->cBody      = (string) $c->body;
         $this->cAudience  = (string) $c->audience_id;
+        $this->cSender    = (string) ($c->sender ?? '');
+        $this->cTestTo    = $this->cTestTo ?: (string) (auth()->user()?->email ?? '');
         $this->cSchedule  = $c->scheduled_at ? alocal($c->scheduled_at, 'Y-m-d\TH:i') : ''; // the box is in the admin zone
         $this->cBlocks    = \App\Support\PlatformLetter::isLetter($c->blocks ?? []) ? array_values($c->blocks) : [];
         $this->cMode      = $this->cBlocks ? 'letter' : 'body';
@@ -626,7 +630,7 @@ class PlatformCommunication extends Page
         $this->campaignId = null;
     }
 
-    public function saveCampaign(): void
+    public function saveCampaign(bool $quiet = false): void
     {
         $c = $this->campaignId ? \App\Models\PlatformCampaign::find($this->campaignId) : null;
         if (! $c) {
@@ -660,9 +664,70 @@ class PlatformCommunication extends Page
             'blocks'      => $letter ? array_values($this->cBlocks) : null,
             'theme'       => $this->cSendTheme === 'dark' ? 'dark' : 'light',
             'audience_id' => $this->cAudience ?: null,
+            'sender'      => in_array($this->cSender, ['platform', 'outreach'], true) ? $this->cSender : null,
         ]);
 
-        Notification::make()->success()->title('Saved')->send();
+        if (! $quiet) {
+            Notification::make()->success()->title('Saved')->send();
+        }
+    }
+
+    public function setSender(string $key): void
+    {
+        $this->cSender = in_array($key, ['platform', 'outreach'], true) ? $key : '';
+    }
+
+    /**
+     * MARKER-CAMPAIGN-TEST: one copy to you, rendered and sent exactly as the
+     * worker would (same renderer, sender, stream and unsubscribe footer),
+     * filled with the first real recipient's name, "[TEST]" on the subject.
+     * Saves first so the test is what you'd send.
+     */
+    public function sendCampaignTest(): void
+    {
+        $to = trim($this->cTestTo);
+        if (! filter_var($to, FILTER_VALIDATE_EMAIL)) {
+            Notification::make()->warning()->title('Enter a valid address for the test')->send();
+            return;
+        }
+        $this->saveCampaign(true);
+        $c = \App\Models\PlatformCampaign::find($this->campaignId);
+        if (! $c) return;
+
+        // the first person it would reach, so tokens read like a real email
+        $first = null;
+        if ($c->audience) {
+            try { $first = app(\App\Services\Platform\PlatformAudienceService::class)->page($c->audience, 1, 1)->first(); } catch (\Throwable $e) {}
+        }
+        $row = new \App\Models\PlatformCampaignSend([
+            'campaign_id' => $c->id,
+            'email'       => $to,
+            'name'        => $first['name'] ?? 'Alex Rivera',
+            'source_type' => $first['source_type'] ?? null,
+            'source_id'   => $first['source_id'] ?? null,
+        ]);
+
+        try {
+            $worker  = app(\App\Console\Commands\ProcessPlatformCampaignSends::class);
+            $subject = '[TEST] ' . $worker->merge((string) ($c->subject ?: $c->name), $row);
+            $ok = PlatformMailer::send(
+                $to, null, $subject, $worker->renderFor($c, $row),
+                \App\Http\Controllers\Platform\PlatformUnsubscribeController::url($to),
+                [], null, $c->senderPair()
+            );
+        } catch (\Throwable $e) {
+            Notification::make()->danger()->title('Test not sent')->body(\Illuminate\Support\Str::limit($e->getMessage(), 200))->send();
+            return;
+        }
+
+        if (! $ok) {
+            Notification::make()->warning()->title('Test not sent')->body('No platform broadcast stream is set, so nothing can send yet.')->send();
+            return;
+        }
+        PlatformMailer::log('test', $to, $subject);
+        [$fromAddr, $fromName] = $c->senderPair() ?? [PlatformMailer::fromAddress(), PlatformMailer::fromName()];
+        Notification::make()->success()->title('Test sent to ' . $to)
+            ->body('From ' . $fromName . ' <' . $fromAddr . '>' . ($first ? ', filled in as ' . $row->name . '.' : '.'))->send();
     }
 
     /** Schedule, or send now — both go through the worker, never inline. */
