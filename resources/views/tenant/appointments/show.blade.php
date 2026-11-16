@@ -631,7 +631,7 @@
         Sale {{ $bannerSale->sale_number }} parked in the register for {{ $appointment->customerName() }}.
       </div>
     </div>
-    <a href="{{ route('tenant.register.index', []) }}?resume={{ $bannerSale->id }}"
+    <a href="{{ route('tenant.register.index', []) }}?resume={{ $bannerSale->id }}&{{ http_build_query(['return_to' => parse_url(route('tenant.appointments.show', $appointment->id), PHP_URL_PATH), 'return_label' => 'Back to ' . $appointment->ra_number]) }}"
        class="ia-btn ia-btn--primary ia-btn--sm">Open in register →</a>
   </div>
 @elseif($bannerPaidFull)
@@ -1217,7 +1217,7 @@ document.addEventListener('DOMContentLoaded', function () {
       @endif
 
       @if($hasOpenSale)
-        <a href="{{ route('tenant.register.index', []) }}?resume={{ $openSale->id }}"
+        <a href="{{ route('tenant.register.index', []) }}?resume={{ $openSale->id }}&{{ http_build_query(['return_to' => parse_url(route('tenant.appointments.show', $appointment->id), PHP_URL_PATH), 'return_label' => 'Back to ' . $appointment->ra_number]) }}"
            class="ia-btn ia-btn--primary ia-btn--sm" style="width:100%;margin-top:14px;text-align:center;display:block">
           Take payment in register
         </a>

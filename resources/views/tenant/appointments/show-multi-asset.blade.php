@@ -1507,7 +1507,7 @@ input.ma-asset-name-edit:focus {
           {{ trim(($appointment->customer->first_name ?? '') . ' ' . ($appointment->customer->last_name ?? '')) ?: 'this customer' }}.
         </div>
       </div>
-      <a href="{{ route('tenant.register.index', []) }}?resume={{ $bannerSale->id }}"
+      <a href="{{ route('tenant.register.index', []) }}?resume={{ $bannerSale->id }}&{{ http_build_query(['return_to' => parse_url(route('tenant.appointments.show', $appointment->id), PHP_URL_PATH), 'return_label' => 'Back to ' . $appointment->ra_number]) }}"
          class="ia-btn ia-btn--primary ia-btn--sm">Open in register →</a>
     </div>
   @elseif($bannerPaidFull)
@@ -2584,7 +2584,7 @@ input.ma-asset-name-edit:focus {
           @endif
 
           @if($hasOpenSale)
-            <a href="{{ route('tenant.register.index', []) }}?resume={{ $openSale->id }}"
+            <a href="{{ route('tenant.register.index', []) }}?resume={{ $openSale->id }}&{{ http_build_query(['return_to' => parse_url(route('tenant.appointments.show', $appointment->id), PHP_URL_PATH), 'return_label' => 'Back to ' . $appointment->ra_number]) }}"
                class="ia-btn ia-btn--primary ia-btn--sm"
                style="display: block; width: 100%; text-align: center; margin-top: 14px;">
               Take payment in register

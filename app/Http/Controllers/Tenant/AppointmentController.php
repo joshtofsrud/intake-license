@@ -1585,8 +1585,12 @@ class AppointmentController extends Controller
                 'ok'              => true,
                 'sale_id'         => $sale->id,
                 'sale_number'     => $sale->sale_number,
+                // MARKER-REG-RETURN: the receipt sends staff back to this work order
                 'redirect_url'    => route('tenant.register.index', [
-                    ]) . '?resume=' . $sale->id,
+                    ]) . '?resume=' . $sale->id . '&' . http_build_query([
+                        'return_to'    => parse_url(route('tenant.appointments.show', $appointment->id), PHP_URL_PATH),
+                        'return_label' => 'Back to ' . $appointment->ra_number,
+                    ]),
                 'message'         => 'Deposit sale created. Take payment in the register.',
             ]);
         }

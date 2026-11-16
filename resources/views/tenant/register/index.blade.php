@@ -5805,7 +5805,10 @@ function showReceipt(data) {
     if (window.registerReturnTo) {
       backBtn.href = window.registerReturnTo;
       backBtn.style.display = '';
-      backBtn.textContent = 'Back to where you were →';
+      backBtn.textContent = (window.registerReturnLabel || 'Back to where you were') + ' →';
+      // going back is the expected next step, so New sale steps down a level
+      const ns = document.getElementById('receiptNewSale');
+      if (ns) { ns.classList.remove('reg-btn-primary'); ns.classList.add('reg-btn-secondary'); }
       const autoEl = document.getElementById('receiptAutoReset');
       if (autoEl) autoEl.innerHTML = 'Heading back in <span id="receiptCountdown">45</span>s';
     } else {
@@ -6385,6 +6388,8 @@ loadDrafts().then(refreshDraftsBanner);
   // query string. Local paths only; anything else is ignored.
   const rawReturnTo = params.get('return_to') || '';
   window.registerReturnTo = (rawReturnTo.startsWith('/') && !rawReturnTo.startsWith('//')) ? rawReturnTo : null;
+  // a short label for the way back ("Back to ITO-…"); shown as text only.
+  window.registerReturnLabel = window.registerReturnTo ? (params.get('return_label') || '').slice(0, 60) : '';
   const resumeId = params.get('resume');
   if (!resumeId) return;
   // Strip the param from the URL so a refresh doesn't re-trigger.
