@@ -48,6 +48,7 @@ class PlatformEmail extends Page implements HasForms
             'email_broadcast_stream' => $settings->email_broadcast_stream,
             // MARKER-PROSPECT-STREAM
             'platform_broadcast_stream' => $settings->platform_broadcast_stream,
+            'platform_outreach_stream'  => $settings->platform_outreach_stream, // MARKER-PERSONAL-DELIVERY
             'platform_postal_address'   => $settings->platform_postal_address,
             'email_rate'             => $settings->email_rate !== null ? (string) $settings->email_rate : '0.002',
             'email_rate_marketing'   => $settings->email_rate_marketing !== null ? (string) $settings->email_rate_marketing : '0.0035',
@@ -174,6 +175,13 @@ class PlatformEmail extends Page implements HasForms
                             ->maxLength(64)
                             ->helperText('Use its own Broadcasts-type stream, not the shops\' one above — a complaint about prospect outreach must never hurt shop campaigns. Turn on Open and Click tracking for this stream in Postmark so engagement reaches lead scores.')
                             ->autocomplete('off'),
+                        // MARKER-PERSONAL-DELIVERY
+                        TextInput::make('platform_outreach_stream')
+                            ->label('Postmark stream ID for cold outreach')
+                            ->placeholder('Blank = the stream above')
+                            ->maxLength(64)
+                            ->helperText('Cold mail to prospects only: the Prospects drawer, auto-send and campaigns to a Prospects audience. Give it its own Broadcasts stream so a cold-mail reputation never reaches investor or shop emails. Blank keeps today\'s behaviour: everything on the stream above.')
+                            ->autocomplete('off'),
                         TextInput::make('platform_postal_address')
                             ->label('Postal address in the footer')
                             ->placeholder('Intake Inc · street, city, state ZIP')
@@ -206,6 +214,7 @@ class PlatformEmail extends Page implements HasForms
             'email_broadcast_stream' => trim((string) ($state['email_broadcast_stream'] ?? '')) ?: null,
             // MARKER-PROSPECT-STREAM
             'platform_broadcast_stream' => trim((string) ($state['platform_broadcast_stream'] ?? '')) ?: null,
+            'platform_outreach_stream'  => trim((string) ($state['platform_outreach_stream'] ?? '')) ?: null, // MARKER-PERSONAL-DELIVERY
             'platform_postal_address'   => trim((string) ($state['platform_postal_address'] ?? '')) ?: null,
             'email_rate'             => is_numeric($state['email_rate'] ?? null) ? (float) $state['email_rate'] : 0.002,
             'email_rate_marketing'   => is_numeric($state['email_rate_marketing'] ?? null) ? (float) $state['email_rate_marketing'] : 0.0035,

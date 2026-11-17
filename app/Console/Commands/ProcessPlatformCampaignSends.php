@@ -44,6 +44,8 @@ class ProcessPlatformCampaignSends extends Command
 
         // unpaced rows first, so a long paced list never holds up anyone else
         $pending = PlatformCampaignSend::where('status', 'pending')
+            // MARKER-PERSONAL-DELIVERY: personal rows wait for their own click
+            ->where(fn ($q) => $q->whereNull('channel')->orWhere('channel', '!=', 'personal'))
             ->orderBy('paced')
             ->orderBy('created_at')
             ->limit($limit)
@@ -72,49 +74,17 @@ class ProcessPlatformCampaignSends extends Command
                 continue;
             }
             // MARKER-POSTMARK-INACTIVE
-            if ($pmWhy = \App\Services\PostmarkInactive::reason(\App\Services\Platform\PlatformMailer::stream(), $row->email)) {
+            $pmStream = $campaign->bulkMode() === 'outreach' ? PlatformMailer::outreachStream() : PlatformMailer::stream(); // MARKER-PERSONAL-DELIVERY
+            if ($pmWhy = \App\Services\PostmarkInactive::reason($pmStream, $row->email)) {
                 $row->update(['status' => 'skipped', 'skip_reason' => mb_substr(\App\Services\PostmarkInactive::skipText($pmWhy), 0, 120)]);
                 continue;
             }
 
             try {
-                $html = $this->renderFor($campaign, $row);
-                // every campaign email gets an inbox
-                // message and its token up front, so a reply has somewhere to
-                // land. The message starts archived: a campaign send is not
-                // something you need to read, but the moment they answer, the
-                // webhook flips it to new and it surfaces.
-                $thread = \App\Models\PlatformInboxMessage::firstOrCreate(
-                    ['campaign_id' => $campaign->id, 'email' => $row->email],
-                    [
-                        'kind'    => \App\Models\PlatformInboxMessage::KIND_CONTACT,
-                        'status'  => 'archived',
-                        'name'    => $row->name,
-                        'subject' => (string) $campaign->name,
-                        'body'    => 'Sent as part of the campaign "' . $campaign->name . '".',
-                        'meta'    => ['campaign' => $campaign->id, 'origin' => 'campaign_send'],
-                    ]
-                );
-
-                $ok = PlatformMailer::send(
-                    $row->email,
-                    $row->name,
-                    $this->merge((string) $campaign->subject, $row),
-                    $html,
-                    PlatformUnsubscribeController::url($row->email),
-                    ['X-PM-Metadata-platform_campaign' => $campaign->id, 'X-PM-Metadata-platform_send_id' => $row->id],
-                    $thread->replyToken(),
-                    $campaign->senderPair()   // MARKER-CAMPAIGN-SENDER
-                );
-
+                $ok = $this->deliver($campaign, $row, $campaign->bulkMode(), $campaign->senderPair());
                 if ($ok) {
-                    $row->update(['status' => 'sent', 'sent_at' => now()]);
                     if ($row->paced) {
                         \Illuminate\Support\Facades\Cache::put($this->paceKey($row->email), now()->getTimestamp(), 86400);
-                    }
-                    $campaign->increment('total_sent');
-                    if ($row->source_type === 'prospects' && $row->source_id) {
-                        \App\Models\SalesProspect::find($row->source_id)?->activities()->create(['type' => 'email', 'body' => 'Emailed: ' . $campaign->name]);
                     }
                     $sent++;
                 } else {
@@ -158,29 +128,7 @@ class ProcessPlatformCampaignSends extends Command
                 continue;
             }
 
-            // MARKER-PROSPECTS-SQL: built 1,000 at a time with one insert per
-            // batch; a 100k prospect list no longer sits in memory or costs a
-            // query per person. The unique (campaign, email) key makes a rerun
-            // after an interruption pick up where it stopped.
-            $audiences->eachMailable($audience, function ($chunk) use ($campaign) {
-                $now  = now();
-                $rows = $chunk->map(fn ($r) => [
-                    'id'             => (string) Str::uuid(),
-                    'campaign_id'    => $campaign->id,
-                    'email'          => mb_substr((string) $r['email'], 0, 191),
-                    'name'           => isset($r['name']) ? mb_substr((string) $r['name'], 0, 160) : null,
-                    'source_type'    => $r['source_type'] ?? null,
-                    'source_id'      => isset($r['source_id']) ? (string) $r['source_id'] : null,
-                    'status'         => 'pending',
-                    'paced'          => ! empty($r['cold']),   // cold prospect: outreach pace
-                    'tracking_token' => Str::random(32),
-                    'created_at'     => $now,
-                    'updated_at'     => $now,
-                ])->all();
-                // repeats of an address (same person twice) are ignored by the key
-                PlatformCampaignSend::insertOrIgnore($rows);
-            });
-            $total = PlatformCampaignSend::where('campaign_id', $campaign->id)->count();
+            $total = $this->buildList($campaign, $audiences);
 
             if ($total === 0) {
                 $campaign->update(['status' => 'draft']);
@@ -193,6 +141,94 @@ class ProcessPlatformCampaignSends extends Command
                 'total_recipients' => $total,
             ]);
         }
+    }
+
+    /**
+     * The recipient rows for a campaign, built from its audience NOW so
+     * anyone who unsubscribed since it was scheduled is left out. Personal
+     * campaigns build theirs the same way, marked personal so the worker
+     * leaves them for their Send buttons.
+     */
+    public function buildList(PlatformCampaign $campaign, PlatformAudienceService $audiences, ?string $channel = null): int
+    {
+        // MARKER-PROSPECTS-SQL: built 1,000 at a time with one insert per
+        // batch; a 100k prospect list no longer sits in memory or costs a
+        // query per person. The unique (campaign, email) key makes a rerun
+        // after an interruption pick up where it stopped.
+        $audiences->eachMailable($campaign->audience, function ($chunk) use ($campaign, $channel) {
+            $now  = now();
+            $rows = $chunk->map(fn ($r) => [
+                'id'             => (string) Str::uuid(),
+                'campaign_id'    => $campaign->id,
+                'email'          => mb_substr((string) $r['email'], 0, 191),
+                'name'           => isset($r['name']) ? mb_substr((string) $r['name'], 0, 160) : null,
+                'source_type'    => $r['source_type'] ?? null,
+                'source_id'      => isset($r['source_id']) ? (string) $r['source_id'] : null,
+                'status'         => 'pending',
+                'paced'          => ! empty($r['cold']),   // cold prospect: outreach pace
+                'channel'        => $channel,
+                'tracking_token' => Str::random(32),
+                'created_at'     => $now,
+                'updated_at'     => $now,
+            ])->all();
+            // repeats of an address (same person twice) are ignored by the key
+            PlatformCampaignSend::insertOrIgnore($rows);
+        });
+        return PlatformCampaignSend::where('campaign_id', $campaign->id)->count();
+    }
+
+    /**
+     * MARKER-PERSONAL-DELIVERY: one email for one row, shared by the worker
+     * (bulk) and the per-person Send button (personal). Throws on a mailer
+     * error; returns false when there is no stream to send on. A resend of an
+     * already-sent row counts once in the campaign total, not twice.
+     */
+    public function deliver(PlatformCampaign $campaign, PlatformCampaignSend $row, ?string $mode, ?array $sender): bool
+    {
+        $html = $this->renderFor($campaign, $row);
+        // every campaign email gets an inbox message and its token up front,
+        // so a reply has somewhere to land. It starts archived; the moment
+        // they answer, the webhook flips it to new and it surfaces.
+        $thread = \App\Models\PlatformInboxMessage::firstOrCreate(
+            ['campaign_id' => $campaign->id, 'email' => $row->email],
+            [
+                'kind'    => \App\Models\PlatformInboxMessage::KIND_CONTACT,
+                'status'  => 'archived',
+                'name'    => $row->name,
+                'subject' => (string) $campaign->name,
+                'body'    => 'Sent as part of the campaign "' . $campaign->name . '".',
+                'meta'    => ['campaign' => $campaign->id, 'origin' => 'campaign_send'],
+            ]
+        );
+
+        $ok = PlatformMailer::send(
+            $row->email,
+            $row->name,
+            $this->merge((string) $campaign->subject, $row),
+            $html,
+            PlatformUnsubscribeController::url($row->email),
+            ['X-PM-Metadata-platform_campaign' => $campaign->id, 'X-PM-Metadata-platform_send_id' => $row->id],
+            $thread->replyToken(),
+            $sender,
+            $mode
+        );
+        if (! $ok) return false;
+
+        $first = $row->status !== 'sent';
+        $row->update([
+            'status'     => 'sent',
+            'sent_at'    => now(),
+            'channel'    => $mode === 'personal' ? 'personal' : ($row->channel ?: 'bulk'),
+            'send_count' => (int) $row->send_count + 1,
+            'error'      => null,
+        ]);
+        if ($first) {
+            $campaign->increment('total_sent');
+            if ($row->source_type === 'prospects' && $row->source_id) {
+                \App\Models\SalesProspect::find($row->source_id)?->activities()->create(['type' => 'email', 'body' => 'Emailed: ' . $campaign->name]);
+            }
+        }
+        return true;
     }
 
     /** Public so the composer's test send renders exactly what a real send does. */

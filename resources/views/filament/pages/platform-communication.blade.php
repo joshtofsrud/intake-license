@@ -354,7 +354,11 @@
               <span><b>{{ number_format($R['failed']) }}</b> failed</span>
               <span>of <b>{{ number_format($R['total']) }}</b> · {{ $R['progress'] }}% done</span>
               @if($R['pending'] > 0)
+                @if($campaign->deliveryKey() === 'personal')
+                  <span>one at a time: each waits for its Send button</span>
+                @else
                 <span>{{ number_format($R['last_hour']) }} sent in the last hour{{ $etaTxt ? ' · ' . $etaTxt : ($R['last_hour'] === 0 ? ' · paused or between paced sends' : '') }}</span>
+                @endif
               @endif
             </div>
           </div>
@@ -413,6 +417,16 @@
           </div>
         </div>
 
+        @php $canPersonal = optional($campaign->audience)->source !== 'prospects'; @endphp
+        @if($canPersonal)
+          {{-- MARKER-PERSONAL-DELIVERY --}}
+          <div class="pc-note" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:14px">
+            <span>Send or Send again goes to that one person, personally, from {{ \App\Models\PlatformSettings::outreachFrom()[1] }} on the receipts stream. Nothing else goes out.</span>
+            @if($campaign->deliveryKey() === 'personal')
+              <button type="button" class="pc-edit" wire:click="refreshPersonalList">Add anyone new in the audience</button>
+            @endif
+          </div>
+        @endif
         <div class="rp-filters">
           @foreach($reportFilters as $fk => $fl)
             @if($fk === 'all' || ($filterCount[$fk] ?? 0) > 0 || $rFilter === $fk)
@@ -437,7 +451,7 @@
                 </td>
                 <td style="white-space:nowrap">
                   @if($r->status === 'sent'){{ $r->sent_at ? alocal(\Carbon\Carbon::parse($r->sent_at, 'UTC'), 'M j, g:i a') : 'sent' }}
-                  @elseif($r->status === 'pending')<span class="rp-ev">waiting</span>
+                  @elseif($r->status === 'pending')<span class="rp-ev">{{ $r->channel === 'personal' ? 'not sent yet' : 'waiting' }}</span>
                   @elseif($r->status === 'skipped')<span class="rp-ev" title="{{ $r->skip_reason }}">skipped · {{ \Illuminate\Support\Str::limit($r->skip_reason ?: 'no reason', 40) }}</span>
                   @else<span class="rp-ev bad" title="{{ $r->error }}">failed</span>@endif
                 </td>
@@ -452,6 +466,10 @@
                 </td>
                 <td style="text-align:right;white-space:nowrap">
                   @if($r->thread_id && $r->replied_at)<a class="pc-edit" href="/admin/inbox?id={{ $r->thread_id }}" target="_blank">Open reply</a>@endif
+                  @if($canPersonal && $r->source_type !== 'prospects' && in_array($r->status, ['pending', 'sent', 'failed'], true) && ! $r->unsubscribed_at && ! $r->complained_at)
+                    <button type="button" class="pc-edit" style="margin-left:10px" wire:click="sendPersonal('{{ $r->id }}')" wire:loading.attr="disabled" wire:target="sendPersonal('{{ $r->id }}')">{{ $r->status === 'sent' ? 'Send again' : 'Send' }}</button>
+                    @if($r->send_count > 1)<div class="em" style="text-align:right">sent {{ $r->send_count }} times{{ $r->channel === 'personal' ? ', last personally' : '' }}</div>@endif
+                  @endif
                 </td>
               </tr>
             @empty
@@ -496,6 +514,13 @@
               @endforeach
             </select>
           </div>
+          {{-- MARKER-PERSONAL-DELIVERY --}}
+          @php
+            $dSource = optional($audiences->firstWhere('id', $cAudience))->source;
+            $dKey = $dSource === 'prospects' ? 'bulk'
+                  : (in_array($cDelivery, ['bulk', 'personal'], true) ? $cDelivery
+                  : (in_array($dSource, ['investors', 'inv_leads'], true) ? 'personal' : 'bulk'));
+          @endphp
           {{-- MARKER-CAMPAIGN-SENDER --}}
           @php
             $sKey  = in_array($cSender, ['platform', 'outreach'], true) ? $cSender
@@ -506,6 +531,11 @@
           @endphp
           <div class="pc-f">
             <label>From</label>
+            @if($dKey === 'personal')
+              {{-- MARKER-PERSONAL-DELIVERY: personal email always comes from you --}}
+              <div style="font-size:13.5px">{{ $sOut[1] }} &lt;{{ $sOut[0] }}&gt;</div>
+              <div class="pc-note" style="margin-top:6px">One at a time always sends from you. Replies come back to the Inbox under the person who answered.</div>
+            @else
             <div class="pl-seg">
               <button type="button" class="{{ $sKey === 'platform' ? 'on' : '' }}" wire:click="setSender('platform')">{{ $sPlat[1] }}</button>
               <button type="button" class="{{ $sKey === 'outreach' ? 'on' : '' }}" wire:click="setSender('outreach')">{{ $sOut[1] }} (outreach)</button>
@@ -514,7 +544,25 @@
               {{ $sNow[1] }} &lt;{{ $sNow[0] }}&gt;{{ $cSender === '' ? ' · automatic: your outreach sender for prospects, Intake for everyone else' : '' }}.
               Replies come back to the Inbox under the person who answered.
             </div>
+            @endif
           </div>
+          @if($dSource !== 'prospects')
+            <div class="pc-f">
+              <label>How it goes out</label>
+              <div class="pl-seg">
+                <button type="button" class="{{ $dKey === 'bulk' ? 'on' : '' }}" wire:click="setDelivery('bulk')">All at once</button>
+                <button type="button" class="{{ $dKey === 'personal' ? 'on' : '' }}" wire:click="setDelivery('personal')">One at a time</button>
+              </div>
+              <div class="pc-note" style="margin-top:6px">
+                @if($dKey === 'personal')
+                  Each person gets their own email from {{ $sOut[1] }}, sent when you press Send next to their name, on the same stream as receipts and replies. No bulk-mail headers, so it lands like a personal email.
+                @else
+                  The campaign goes out on the platform campaign stream, paced by the worker.
+                @endif
+                {{ $cDelivery === '' ? ' Automatic: one at a time for investors, all at once for everyone else.' : '' }}
+              </div>
+            </div>
+          @endif
           {{-- plain text, or a letter built from blocks --}}
           <div class="pc-f">
             <label>Content</label>
@@ -762,10 +810,12 @@
             <div class="pc-tok"><code>&#123;&#123;first_name&#125;&#125;</code><code>&#123;&#123;shop_name&#125;&#125;</code></div>
           </div>
           @endif
+          @if($dKey !== 'personal')
           <div class="pc-f">
             <label>Send at <span style="opacity:.55">(leave blank to send now)</span></label>
             <input type="datetime-local" wire:model="cSchedule" title="{{ admin_tz_label() }}"> <span style="font-size:11.5px;opacity:.6">{{ admin_tz_label() }}</span>
           </div>
+          @endif
 
           @if($blockers)
             <div class="pc-note" style="color:#f0c46a">
@@ -785,9 +835,13 @@
 
           <div class="pc-acts">
             <button type="button" class="pc-btn" wire:click="saveCampaign">Save draft</button>
+            @if($dKey === 'personal')
+              <button type="button" class="pc-btn pc-btn--pri" wire:click="startPersonal" @disabled(count($blockers) > 0)>Prepare the list</button>
+            @else
             <button type="button" class="pc-btn pc-btn--pri" wire:click="scheduleCampaign" @disabled(count($blockers) > 0)>
               {{ trim($cSchedule) !== '' ? 'Schedule' : 'Send now' }}
             </button>
+            @endif
             @if(in_array($campaign->status, ['scheduled', 'sending'], true))
               <button type="button" class="pc-btn pc-btn--warn" wire:click="cancelCampaign">Cancel</button>
             @endif

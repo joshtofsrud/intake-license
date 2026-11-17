@@ -16,6 +16,7 @@ class PlatformCampaignSend extends Model
         'status', 'paced', 'skip_reason', 'error', 'tracking_token',
         'sent_at', 'opened_at', 'clicked_at',
         'bounced_at', 'bounce_type', 'complained_at', 'unsubscribed_at', // MARKER-CAMPAIGN-REPORT
+        'channel', 'send_count', // MARKER-PERSONAL-DELIVERY
     ];
 
     protected $casts = [

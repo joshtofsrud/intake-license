@@ -29,6 +29,7 @@ class PlatformSettings extends Model
         'alert_500_enabled',
         'alert_500_email',
         'platform_broadcast_stream',
+        'platform_outreach_stream', // MARKER-PERSONAL-DELIVERY: cold prospect mail only
         // platform_from_name / platform_from_email
         // removed: mail_from_address and mail_from_name above already are the
         // platform sender, and two homes for one address is how they drift.

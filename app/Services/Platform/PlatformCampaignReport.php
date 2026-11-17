@@ -190,7 +190,7 @@ class PlatformCampaignReport
         $rows = $q->orderByRaw('COALESCE(s.clicked_at, s.opened_at, s.bounced_at, s.sent_at, s.created_at) DESC')
             ->offset(($page - 1) * self::PER_PAGE)->limit(self::PER_PAGE)
             ->get(['s.id', 's.email', 's.name', 's.source_type', 's.source_id', 's.status', 's.skip_reason', 's.error',
-                   's.sent_at', 's.opened_at', 's.clicked_at', 's.bounced_at', 's.bounce_type', 's.complained_at', 's.unsubscribed_at']);
+                   's.sent_at', 's.opened_at', 's.clicked_at', 's.bounced_at', 's.bounce_type', 's.complained_at', 's.unsubscribed_at', 's.channel', 's.send_count']);
 
         // replies and the inbox thread to open, for just this page
         $threads = DB::table('platform_inbox_messages as m')->where('m.campaign_id', $campaign->id)

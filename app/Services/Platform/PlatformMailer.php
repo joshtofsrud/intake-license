@@ -59,6 +59,13 @@ class PlatformMailer
             : 'intake@' . $domain;
     }
 
+    /** MARKER-PERSONAL-DELIVERY: cold prospect mail; falls back to the stream above until one is set. */
+    public static function outreachStream(): ?string
+    {
+        $s = trim((string) (PlatformSettings::current()->platform_outreach_stream ?? ''));
+        return $s !== '' ? $s : self::stream();
+    }
+
     public static function postalAddress(): string
     {
         return (string) (PlatformSettings::current()->platform_postal_address ?? '');
@@ -78,10 +85,14 @@ class PlatformMailer
         string $unsubscribeUrl,
         array $headers = [],
         ?string $replyToken = null,
-        ?array $sender = null // MARKER-OUTREACH-SENDER: [address, name] instead of the platform sender
+        ?array $sender = null, // MARKER-OUTREACH-SENDER: [address, name] instead of the platform sender
+        ?string $mode = null   // MARKER-PERSONAL-DELIVERY: null = campaign stream, 'outreach' = cold stream, 'personal' = transactional
     ): bool {
-        $stream = self::stream();
-        if (! $stream) {
+        // personal mail rides the transactional stream (no stream header) and
+        // carries no bulk markers: it is one email, sent by a person's click.
+        $personal = $mode === 'personal';
+        $stream   = $personal ? null : ($mode === 'outreach' ? self::outreachStream() : self::stream());
+        if (! $personal && ! $stream) {
             return false;
         }
 
@@ -93,7 +104,7 @@ class PlatformMailer
         // disappearing into a mailbox the app can't see.
         $replyTo = self::replyTo($replyToken) ?: $from;
 
-        Mail::send([], [], function ($message) use ($toEmail, $toName, $subject, $html, $from, $fromName, $stream, $unsubscribeUrl, $headers, $replyTo) {
+        Mail::send([], [], function ($message) use ($toEmail, $toName, $subject, $html, $from, $fromName, $stream, $unsubscribeUrl, $headers, $replyTo, $personal) {
             $message->to($toEmail, $toName ?: null)
                 ->from($from, $fromName)
                 ->replyTo($replyTo, $fromName)
@@ -101,12 +112,18 @@ class PlatformMailer
                 ->html($html);
 
             $h = $message->getHeaders();
-            $h->addTextHeader('X-PM-Message-Stream', $stream);
-            $h->addTextHeader('List-Unsubscribe', '<' . $unsubscribeUrl . '>');
-            $h->addTextHeader('List-Unsubscribe-Post', 'List-Unsubscribe=One-Click');
-            // opens and clicks come back by webhook and raise the shop's lead score
-            $h->addTextHeader('X-PM-TrackOpens', 'true');
-            $h->addTextHeader('X-PM-TrackLinks', 'HtmlOnly');
+            if ($personal) {
+                // opens only: rewritten links are a bulk-mail sign
+                $h->addTextHeader('X-PM-TrackOpens', 'true');
+                $h->addTextHeader('X-PM-TrackLinks', 'None');
+            } else {
+                $h->addTextHeader('X-PM-Message-Stream', $stream);
+                $h->addTextHeader('List-Unsubscribe', '<' . $unsubscribeUrl . '>');
+                $h->addTextHeader('List-Unsubscribe-Post', 'List-Unsubscribe=One-Click');
+                // opens and clicks come back by webhook and raise the shop's lead score
+                $h->addTextHeader('X-PM-TrackOpens', 'true');
+                $h->addTextHeader('X-PM-TrackLinks', 'HtmlOnly');
+            }
             foreach ($headers as $k => $v) {
                 $h->addTextHeader($k, (string) $v);
             }

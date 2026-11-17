@@ -70,6 +70,7 @@ class PlatformCommunication extends Page
     public string $testTo  = '';
     public string $cSender = '';    // '' automatic, 'platform' or 'outreach'
     public string $cTestTo = '';    // campaign test address
+    public string $cDelivery = '';  // MARKER-PERSONAL-DELIVERY: '' automatic, 'bulk' or 'personal'
     // MARKER-CAMPAIGN-REPORT: the report takes the editor's place; Back returns to it
     #[Url(as: 'report')]
     public bool   $report  = false;
@@ -434,7 +435,7 @@ class PlatformCommunication extends Page
     {
         $out = [];
 
-        if (! PlatformMailer::stream()) {
+        if ($c->deliveryKey() !== 'personal' && ! ($c->bulkMode() === 'outreach' ? PlatformMailer::outreachStream() : PlatformMailer::stream())) { // MARKER-PERSONAL-DELIVERY: personal mail needs no broadcast stream
             $out[] = 'No platform broadcast stream is set, so nothing can send.';
         }
         // judged on what's in the editor now, not the
@@ -675,6 +676,7 @@ class PlatformCommunication extends Page
         $this->cBody      = (string) $c->body;
         $this->cAudience  = (string) $c->audience_id;
         $this->cSender    = (string) ($c->sender ?? '');
+        $this->cDelivery  = (string) ($c->delivery ?? '');
         $this->cTestTo    = $this->cTestTo ?: (string) (auth()->user()?->email ?? '');
         $this->cSchedule  = $c->scheduled_at ? alocal($c->scheduled_at, 'Y-m-d\TH:i') : ''; // the box is in the admin zone
         $this->cBlocks    = \App\Support\PlatformLetter::isLetter($c->blocks ?? []) ? array_values($c->blocks) : [];
@@ -728,6 +730,7 @@ class PlatformCommunication extends Page
             'theme'       => $this->cSendTheme === 'dark' ? 'dark' : 'light',
             'audience_id' => $this->cAudience ?: null,
             'sender'      => in_array($this->cSender, ['platform', 'outreach'], true) ? $this->cSender : null,
+            'delivery'    => in_array($this->cDelivery, ['bulk', 'personal'], true) ? $this->cDelivery : null, // MARKER-PERSONAL-DELIVERY
         ]);
 
         if (! $quiet) {
@@ -738,6 +741,88 @@ class PlatformCommunication extends Page
     public function setSender(string $key): void
     {
         $this->cSender = in_array($key, ['platform', 'outreach'], true) ? $key : '';
+    }
+
+    // ---- MARKER-PERSONAL-DELIVERY
+    public function setDelivery(string $key): void
+    {
+        $this->cDelivery = in_array($key, ['bulk', 'personal'], true) ? $key : '';
+    }
+
+    /** Build the list for a one-at-a-time campaign and open it; nothing is sent. */
+    public function startPersonal(): void
+    {
+        $this->saveCampaign(true);
+        $c = \App\Models\PlatformCampaign::with('audience')->find($this->campaignId);
+        if (! $c) return;
+        if ($c->deliveryKey() !== 'personal') {
+            Notification::make()->warning()->title('This campaign sends all at once')->send();
+            return;
+        }
+        $blockers = $this->blockers($c, null);
+        if ($blockers) {
+            Notification::make()->warning()->title('Not ready yet')->body(implode(' ', $blockers))->send();
+            return;
+        }
+        $total = app(\App\Console\Commands\ProcessPlatformCampaignSends::class)
+            ->buildList($c, app(\App\Services\Platform\PlatformAudienceService::class), 'personal');
+        if ($total === 0) {
+            Notification::make()->warning()->title('Nobody in this audience can be emailed')->send();
+            return;
+        }
+        $c->update(['status' => in_array($c->status, ['sent'], true) ? 'sent' : 'sending', 'total_recipients' => $total]);
+        $this->openReport($c->id);
+        Notification::make()->success()->title('List ready: ' . $total . ' ' . ($total === 1 ? 'person' : 'people'))
+            ->body('Nothing has been sent. Use Send on each person.')->send();
+    }
+
+    /**
+     * Send (or send again) one person's email, personally, on the
+     * transactional stream. Never for prospects: cold mail stays off it.
+     */
+    public function sendPersonal(string $sendId): void
+    {
+        $row = \App\Models\PlatformCampaignSend::find($sendId);
+        $c   = $row ? \App\Models\PlatformCampaign::with('audience')->find($row->campaign_id) : null;
+        if (! $row || ! $c || $c->id !== $this->campaignId) return;
+        if (($c->audience?->source ?? null) === 'prospects' || $row->source_type === 'prospects') {
+            Notification::make()->warning()->title('Prospects can\'t be sent personally')->body('Cold mail stays on the outreach stream.')->send();
+            return;
+        }
+        if (\App\Models\PlatformEmailOptout::has($row->email)) {
+            Notification::make()->warning()->title($row->email . ' has unsubscribed')->body('Nothing was sent.')->send();
+            return;
+        }
+        try {
+            $ok = app(\App\Console\Commands\ProcessPlatformCampaignSends::class)
+                ->deliver($c, $row, 'personal', \App\Models\PlatformSettings::outreachFrom());
+        } catch (\Throwable $e) {
+            $row->update(['error' => \Illuminate\Support\Str::limit($e->getMessage(), 400)]);
+            Notification::make()->danger()->title('Not sent')->body(\Illuminate\Support\Str::limit($e->getMessage(), 200))->send();
+            return;
+        }
+        if (! $ok) {
+            Notification::make()->danger()->title('Not sent')->send();
+            return;
+        }
+        // the last personal row sent finishes a one-at-a-time campaign
+        if ($c->status === 'sending' && ! \App\Models\PlatformCampaignSend::where('campaign_id', $c->id)->where('status', 'pending')->exists()) {
+            $c->update(['status' => 'sent', 'sent_at' => now()]);
+        }
+        $row->refresh();
+        Notification::make()->success()->title(($row->send_count > 1 ? 'Sent again to ' : 'Sent to ') . ($row->name ?: $row->email))->send();
+    }
+
+    /** Add anyone who has joined the audience since the list was built. */
+    public function refreshPersonalList(): void
+    {
+        $c = \App\Models\PlatformCampaign::with('audience')->find($this->campaignId);
+        if (! $c || $c->deliveryKey() !== 'personal' || ! $c->audience) return;
+        $before = \App\Models\PlatformCampaignSend::where('campaign_id', $c->id)->count();
+        $total  = app(\App\Console\Commands\ProcessPlatformCampaignSends::class)
+            ->buildList($c, app(\App\Services\Platform\PlatformAudienceService::class), 'personal');
+        $c->update(['total_recipients' => $total] + ($total > $before && $c->status === 'sent' ? ['status' => 'sending'] : []));
+        Notification::make()->success()->title($total > $before ? ($total - $before) . ' added to the list' : 'Nobody new in this audience')->send();
     }
 
     /**
@@ -773,10 +858,12 @@ class PlatformCommunication extends Page
         try {
             $worker  = app(\App\Console\Commands\ProcessPlatformCampaignSends::class);
             $subject = '[TEST] ' . $worker->merge((string) ($c->subject ?: $c->name), $row);
+            $personal = $c->deliveryKey() === 'personal'; // MARKER-PERSONAL-DELIVERY: tested the way it will go out
             $ok = PlatformMailer::send(
                 $to, null, $subject, $worker->renderFor($c, $row),
                 \App\Http\Controllers\Platform\PlatformUnsubscribeController::url($to),
-                [], null, $c->senderPair()
+                [], null, $personal ? \App\Models\PlatformSettings::outreachFrom() : $c->senderPair(),
+                $personal ? 'personal' : $c->bulkMode()
             );
         } catch (\Throwable $e) {
             Notification::make()->danger()->title('Test not sent')->body(\Illuminate\Support\Str::limit($e->getMessage(), 200))->send();
@@ -788,7 +875,7 @@ class PlatformCommunication extends Page
             return;
         }
         PlatformMailer::log('test', $to, $subject);
-        [$fromAddr, $fromName] = $c->senderPair() ?? [PlatformMailer::fromAddress(), PlatformMailer::fromName()];
+        [$fromAddr, $fromName] = ($c->deliveryKey() === 'personal' ? \App\Models\PlatformSettings::outreachFrom() : $c->senderPair()) ?? [PlatformMailer::fromAddress(), PlatformMailer::fromName()];
         Notification::make()->success()->title('Test sent to ' . $to)
             ->body('From ' . $fromName . ' <' . $fromAddr . '>' . ($first ? ', filled in as ' . $row->name . '.' : '.'))->send();
     }
@@ -812,6 +899,11 @@ class PlatformCommunication extends Page
         $blockers = $this->blockers($c, $reach);
         if ($blockers) {
             Notification::make()->warning()->title('Not ready to send')->body(implode(' ', $blockers))->send();
+            return;
+        }
+        // MARKER-PERSONAL-DELIVERY: one-at-a-time campaigns are never handed to the worker
+        if ($c->deliveryKey() === 'personal') {
+            $this->startPersonal();
             return;
         }
 

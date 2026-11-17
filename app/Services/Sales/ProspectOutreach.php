@@ -289,7 +289,7 @@ class ProspectOutreach
         if ($subject === '') return [false, 'Add a subject'];
         try {
             $ok = PlatformMailer::send($to, $toSelf ? ($u?->name ?: null) : null, ($toSelf ? '[Test] ' : '') . $subject, self::html($body, $p, $page, $to, true),
-                \App\Http\Controllers\Platform\PlatformUnsubscribeController::url($to), [], null, \App\Models\PlatformSettings::outreachFrom());
+                \App\Http\Controllers\Platform\PlatformUnsubscribeController::url($to), [], null, \App\Models\PlatformSettings::outreachFrom(), 'outreach');
         } catch (\Throwable $e) {
             report($e);
             return [false, 'Test not sent: ' . $e->getMessage()];
@@ -340,7 +340,7 @@ class ProspectOutreach
             return [false, 'Not sent: this address unsubscribed from Intake email'];
         }
         // MARKER-POSTMARK-INACTIVE: Postmark would refuse it without telling us
-        if ($pmWhy = \App\Services\PostmarkInactive::reason(\App\Services\Platform\PlatformMailer::stream(), $to)) {
+        if ($pmWhy = \App\Services\PostmarkInactive::reason(\App\Services\Platform\PlatformMailer::outreachStream(), $to)) {
             return [false, 'Not sent: ' . \App\Services\PostmarkInactive::skipText($pmWhy)];
         }
         if ($prev = self::recentSendTo($to)) {
@@ -374,7 +374,7 @@ class ProspectOutreach
             $ok = PlatformMailer::send($to, $p->owner_contact ?: null, $subject, $html,
                 \App\Http\Controllers\Platform\PlatformUnsubscribeController::url($to),
                 ['X-PM-Metadata-prospect' => $p->id, 'X-PM-Metadata-platform_thread' => $thread->id], $thread->replyToken(),
-                \App\Models\PlatformSettings::outreachFrom()); // MARKER-OUTREACH-SENDER
+                \App\Models\PlatformSettings::outreachFrom(), 'outreach'); // MARKER-OUTREACH-SENDER, MARKER-PERSONAL-DELIVERY: cold stream
         } catch (\Throwable $e) {
             report($e);
             PlatformMailer::log('prospect', $to, $subject, ['status' => 'failed', 'error' => mb_substr($e->getMessage(), 0, 400)]);

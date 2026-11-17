@@ -34,6 +34,8 @@ class PostmarkInactive
         $out = [];
         if ($s = EmailLedger::broadcastStream()) $out[$s] = 'Shop campaigns';
         if ($p = \App\Services\Platform\PlatformMailer::stream()) $out[$p] = ($out[$p] ?? null) ? $out[$p] . ' and Intake marketing' : 'Intake marketing';
+        // MARKER-PERSONAL-DELIVERY: cold outreach on its own stream, when one is set
+        if (($o = \App\Services\Platform\PlatformMailer::outreachStream()) && ! isset($out[$o])) $out[$o] = 'Intake cold outreach';
 
         return $out;
     }

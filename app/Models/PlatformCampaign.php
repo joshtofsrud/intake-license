@@ -19,6 +19,7 @@ class PlatformCampaign extends Model
     protected $fillable = [
         'name', 'subject', 'preheader', 'body',
         'sender',
+        'delivery', // MARKER-PERSONAL-DELIVERY
         'audience_id', 'blocks', 'theme', 'status', 'scheduled_at', 'sent_at',
         'total_recipients', 'total_sent', 'total_opened', 'total_clicked',
     ];
@@ -56,6 +57,26 @@ class PlatformCampaign extends Model
     public function senderPair(): ?array
     {
         return $this->senderKey() === 'outreach' ? PlatformSettings::outreachFrom() : null;
+    }
+
+    /**
+     * MARKER-PERSONAL-DELIVERY: 'personal' = one email at a time, each sent by
+     * a click, on the transactional stream; 'bulk' = the campaign worker.
+     * Automatic: investors get personal mail, everyone else bulk. Prospects
+     * can never go personal: cold mail stays off the transactional stream.
+     */
+    public function deliveryKey(): string
+    {
+        $source = $this->audience?->source;
+        if ($source === 'prospects') return 'bulk';
+        if (in_array($this->delivery, ['bulk', 'personal'], true)) return $this->delivery;
+        return in_array($source, ['investors', 'inv_leads'], true) ? 'personal' : 'bulk';
+    }
+
+    /** The PlatformMailer mode for this campaign's bulk sends. */
+    public function bulkMode(): ?string
+    {
+        return $this->audience?->source === 'prospects' ? 'outreach' : null;
     }
 
     public function isEditable(): bool

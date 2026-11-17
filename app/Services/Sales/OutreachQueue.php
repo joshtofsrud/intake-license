@@ -85,7 +85,7 @@ class OutreachQueue
             ->when($who === 'new', fn ($q) => $q->whereRaw('LOWER(TRIM(email)) NOT IN (SELECT LOWER(email) FROM sales_outreach_sends)'));
 
         // MARKER-POSTMARK-INACTIVE: addresses Postmark would refuse never reach the queue
-        if ($pm = \App\Services\Platform\PlatformMailer::stream()) {
+        if ($pm = \App\Services\Platform\PlatformMailer::outreachStream()) { // MARKER-PERSONAL-DELIVERY
             $q->whereRaw('LOWER(TRIM(email)) NOT IN (SELECT email FROM postmark_suppressions WHERE stream = ?)', [$pm]);
         }
 
