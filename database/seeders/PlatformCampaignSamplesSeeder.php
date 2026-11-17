@@ -153,8 +153,8 @@ class PlatformCampaignSamplesSeeder extends Seeder
                     ['type' => 'feat_section', 'data' => ['style' => 'square', 'num' => '02', 'text' => 'On your side']],
                     ['type' => 'feat_headline', 'data' => ['text' => 'Every offer, and what it earned.']],
                     ['type' => 'feat_annotated', 'data' => ['url' => $a('rt-offers.jpg'), 'markers' => [
-                        ['x' => 75, 'y' => 34, 'title' => 'Money you would have left on the floor.', 'note' => 'Revenue from accepted offers over the last 30 days.'],
-                        ['x' => 51, 'y' => 34, 'title' => 'How often they say yes.', 'note' => 'Accepted, declined and expired, side by side.'],
+                        ['x' => 40.5, 'y' => 40, 'title' => 'How often they say yes.', 'note' => 'Accepted, declined and expired, side by side.'],
+                        ['x' => 65, 'y' => 34, 'title' => 'Money you would have left on the floor.', 'note' => 'Revenue from accepted offers over the last 30 days.'],
                         ['x' => 97, 'y' => 72, 'title' => 'Paid means done.', 'note' => 'No call, no re-booking: the rental moves itself.'],
                     ]]],
                     ['type' => 'letter_text', 'data' => ['text' => "You choose the discount, how long before return the offer goes out, and quiet hours when nothing gets sent."]],
