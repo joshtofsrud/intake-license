@@ -445,11 +445,10 @@
     btns.forEach(function (b) {
       b.addEventListener('click', function () { try { sessionStorage.setItem('pd-view', b.dataset.metric); } catch (e) {} });
     });
-    if (start === 'load') { pickMetric('signups'); showLoad(); } else { pickMetric(start); }
 
     var openSel = document.getElementById('pd-open-on');
     if (openSel) openSel.addEventListener('change', function () {
-      @this.call('setOpenOn', openSel.value);
+      var c = lw(); if (c) c.call('setOpenOn', openSel.value);
       try { sessionStorage.removeItem('pd-view'); } catch (e) {}
       if (openSel.value === 'load') { showLoad(); } else { showCharts(); pickMetric(openSel.value); }
     });
@@ -508,10 +507,19 @@
         return '<div class="ld-row"><span class="nm"><code>' + esc(e.command) + '</code></span>' + (e.running ? '<span class="run">running now</span>' : '') + '<span class="n">' + esc(e.every) + '</span><span class="n">next ' + at(e.next) + '</span></div>';
       }, 'Nothing due in the next 2 hours.');
     }
+    // the page's Livewire component, once Livewire has started (null until then)
+    function lw() {
+      try { return (window.Livewire && window.Livewire.find(@json($this->getId()))) || null; } catch (e) { return null; }
+    }
     function poll() {
       if (!ldOpen) return;
-      @this.call('loadSnapshot').then(function (d) { if (d) paint(d); })
-        .catch(function () { document.getElementById('ld-when').textContent = 'Could not refresh'; })
+      var c = lw();
+      // opening straight onto this panel runs before Livewire is ready: wait for it
+      if (!c) { ldTimer = setTimeout(poll, 300); return; }
+      var p;
+      try { p = c.call('loadSnapshot'); } catch (e) { p = Promise.reject(e); }
+      Promise.resolve(p).then(function (d) { if (d) paint(d); })
+        .catch(function () { document.getElementById('ld-when').textContent = 'Could not refresh, trying again'; })
         .finally(function () { if (ldOpen) ldTimer = setTimeout(poll, 5000); });
     }
     function showLoad() {
@@ -532,6 +540,8 @@
     var lt = document.querySelector('[data-show-load]');
     if (lt) lt.addEventListener('click', function () { if (ldOpen) { showCharts(); } else { showLoad(); } });
     document.querySelectorAll('[data-show-charts]').forEach(function (b) { b.addEventListener('click', showCharts); });
+    // open on the saved view, now that the panel's state above is set up
+    if (start === 'load') { pickMetric('signups'); showLoad(); } else { pickMetric(start); }
 
     // ---- refresh cadence: one small menu, remembered in this browser ----
     var KEY = 'pd-refresh-secs';
