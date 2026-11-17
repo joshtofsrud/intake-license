@@ -165,7 +165,17 @@
             </div>
           </div>
           <span class="cm-status-pill {{ $c->status }}">{{ ucfirst($c->status) }}</span>
+          @php $lc = $listCounts[$c->id] ?? null; @endphp
+          @if($lc && $lc['total'] > 0)
+            {{-- MARKER-SHOP-CAMPAIGN-REPORT: sending progress --}}
+            <div class="cm-row-stat">
+              <span class="cm-row-stat-value">{{ number_format($lc['went_out']) }}</span> / {{ number_format($lc['total']) }} sent
+              <br>{{ $lc['eta_minutes'] ? ($lc['eta_minutes'] < 90 ? 'about ' . $lc['eta_minutes'] . ' min left' : 'about ' . round($lc['eta_minutes'] / 60, 1) . ' h left') : $lc['progress'] . '% done' }}
+              <div style="height:3px;border-radius:2px;background:var(--ia-hover);margin-top:5px;overflow:hidden"><i style="display:block;height:100%;width:{{ $lc['progress'] }}%;background:var(--ia-accent)"></i></div>
+            </div>
+          @else
           <div class="cm-row-stat"><span class="cm-row-stat-value">{{ $c->total_recipients }}</span><br>recipients</div>
+          @endif
           <div style="opacity:.3;font-size:16px">›</div>
         </a>
       @endforeach
@@ -190,8 +200,16 @@
             <div class="cm-row-meta">Sent {{ $c->sent_at?->diffForHumans() }}</div>
           </div>
           <span class="cm-status-pill sent">Sent</span>
+          @php $lc = $listCounts[$c->id] ?? null; @endphp
           <div class="cm-row-stat">
-            <span class="cm-row-stat-value">{{ $c->total_sent }}</span> / {{ $c->total_recipients }}<br>delivered
+            @if($lc)
+              {{-- MARKER-SHOP-CAMPAIGN-REPORT: rates on the list --}}
+              <span class="cm-row-stat-value">{{ $lc['open_rate'] !== null ? rtrim(rtrim(number_format($lc['open_rate'], 1), '0'), '.') . '%' : '—' }}</span> opened ·
+              <span class="cm-row-stat-value">{{ $lc['click_rate'] !== null ? rtrim(rtrim(number_format($lc['click_rate'], 1), '0'), '.') . '%' : '—' }}</span> clicked
+              <br>{{ number_format($lc['delivered']) }} delivered{{ $lc['bounced'] ? ' · ' . $lc['bounced'] . ' bounced' : '' }}{{ $lc['unsubscribed'] ? ' · ' . $lc['unsubscribed'] . ' unsubscribed' : '' }}
+            @else
+              <span class="cm-row-stat-value">{{ $c->total_sent }}</span> / {{ $c->total_recipients }}<br>delivered
+            @endif
           </div>
           <div style="opacity:.3;font-size:16px">›</div>
         </a>
@@ -200,4 +218,8 @@
   @endif
 </div>
 
+@if($campaigns->contains(fn ($c) => $c->status === 'sending'))
+  {{-- MARKER-SHOP-CAMPAIGN-REPORT: keep sending progress current --}}
+  <script>setTimeout(function () { location.reload(); }, 30000);</script>
+@endif
 @endsection

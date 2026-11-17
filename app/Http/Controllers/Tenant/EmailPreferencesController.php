@@ -37,6 +37,8 @@ class EmailPreferencesController extends Controller
         }
 
         app(ConsentService::class)->optOut($customer);
+        // MARKER-SHOP-CAMPAIGN-REPORT: counted against the campaign that brought them here
+        \App\Models\Tenant\TenantCampaignSend::stampOutcome('unsubscribed_at', null, $tenant?->id, $customer->id);
 
         return view('public.email.unsubscribe', [
             'state'    => 'done',

@@ -27,8 +27,12 @@ class CampaignController extends Controller
         ];
 
         $customerCount = TenantCustomer::where('tenant_id', $tenant->id)->count();
+        // MARKER-SHOP-CAMPAIGN-REPORT: progress and rates on the list
+        $listCounts = \App\Services\Tenant\CampaignReport::countsFor(
+            $campaigns->whereIn('status', ['sending', 'sent'])->pluck('id')->all()
+        );
 
-        return view('tenant.campaigns.index', compact('campaigns', 'groups', 'customerCount'));
+        return view('tenant.campaigns.index', compact('campaigns', 'groups', 'customerCount', 'listCounts'));
     }
 
     public function show(Request $request, string $id)
@@ -252,33 +256,29 @@ class CampaignController extends Controller
      * The aggregate counters live on the campaign; this is the detail behind
      * them, including WHY someone was skipped.
      */
-    public function results(string $id)
+    /**
+     * MARKER-SHOP-CAMPAIGN-REPORT: the campaign's report. Progress while it
+     * sends, rates that filter the list, opens over time, every recipient
+     * (searchable, linked to the customer) and what the discount code did.
+     */
+    public function results(Request $request, string $id)
     {
         $tenant   = tenant();
         $campaign = TenantCampaign::where('tenant_id', $tenant->id)->findOrFail($id);
 
-        $rows = TenantCampaignSend::where('campaign_id', $campaign->id)
-            ->orderByRaw("FIELD(status,'bounced','failed','skipped','sent','pending')")
-            ->orderByDesc('clicked_at')
-            ->orderByDesc('opened_at')
-            ->limit(1000)
-            ->get();
-
-        $summary = [
-            'sent'    => $rows->where('status', 'sent')->count(),
-            'opened'  => $rows->whereNotNull('opened_at')->count(),
-            'clicked' => $rows->whereNotNull('clicked_at')->count(),
-            'skipped' => $rows->where('status', 'skipped')->count(),
-            'failed'  => $rows->where('status', 'failed')->count(),
-            'bounced' => $rows->where('status', 'bounced')->count(),
-            'pending' => $rows->where('status', 'pending')->count(),
-        ];
+        $filter = (string) $request->query('f', 'all');
+        if (! array_key_exists($filter, \App\Services\Tenant\CampaignReport::FILTERS)) $filter = 'all';
+        $search = (string) $request->query('q', '');
 
         return view('tenant.campaigns.results', [
-            'pageTitle' => 'Results — ' . $campaign->name,
-            'campaign'  => $campaign,
-            'rows'      => $rows,
-            'summary'   => $summary,
+            'pageTitle'   => 'Report — ' . $campaign->name,
+            'campaign'    => $campaign,
+            'sum'         => \App\Services\Tenant\CampaignReport::summary($campaign),
+            'list'        => \App\Services\Tenant\CampaignReport::recipients($campaign, $filter, $search, (int) $request->query('page', 1)),
+            'filter'      => $filter,
+            'search'      => $search,
+            'filters'     => \App\Services\Tenant\CampaignReport::FILTERS,
+            'attribution' => $this->attributionFor($campaign),
         ]);
     }
 

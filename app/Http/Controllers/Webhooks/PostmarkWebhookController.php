@@ -212,6 +212,9 @@ class PostmarkWebhookController extends Controller
                 $bounceRow->update([
                     'status'        => 'bounced',
                     'error_message' => (string) ($payload['Description'] ?? $payload['Type'] ?? 'bounced'),
+                    // MARKER-SHOP-CAMPAIGN-REPORT
+                    'bounced_at'    => $bounceRow->bounced_at ?: now(),
+                    'bounce_type'   => mb_substr((string) ($payload['Type'] ?? 'Bounce'), 0, 64),
                 ]);
                 $this->recountCampaign((string) $bounceRow->campaign_id);
             }
@@ -331,6 +334,12 @@ class PostmarkWebhookController extends Controller
             }
         }
 
+        // MARKER-SHOP-CAMPAIGN-REPORT: a shop campaign email marked as spam counts against that campaign
+        if ($tenantId) {
+            \App\Models\Tenant\TenantCampaignSend::stampOutcome('complained_at',
+                ($payload['Metadata']['send_id'] ?? null) ?: null, $tenantId, null, $email);
+        }
+
         // Complaints are always platform-wide (tenant_id = null).
         $this->suppress(null, $email, 'complaint', 'SpamComplaint', $msgId, null);
 
@@ -375,6 +384,8 @@ class PostmarkWebhookController extends Controller
                 app(\App\Services\Tenant\ConsentService::class)->optOut($customer);
             }
             Log::info('[Postmark] Unsubscribe applied to shop customers', ['tenant_id' => $tenantId, 'count' => $customers->count()]);
+            \App\Models\Tenant\TenantCampaignSend::stampOutcome('unsubscribed_at',
+                ($payload['Metadata']['send_id'] ?? null) ?: null, $tenantId, null, $email); // MARKER-SHOP-CAMPAIGN-REPORT
         } else {
             \App\Models\PlatformEmailOptout::suppress($email, 'unsubscribe', 'Unsubscribed through Postmark', 'postmark');
             \App\Models\PlatformCampaignSend::stampOutcome($email, 'unsubscribed_at',
