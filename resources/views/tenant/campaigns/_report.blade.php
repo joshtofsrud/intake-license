@@ -1,10 +1,18 @@
-@extends('layouts.tenant.app')
-@php $pageTitle = 'Campaign report'; @endphp
-
-{{-- MARKER-SHOP-CAMPAIGN-REPORT --}}
+{{-- MARKER-SHOP-CAMPAIGN-REPORT: the report, at the top of a campaign that has started sending.
+     The six numbers are always shown; "Show full report" opens the rest in place. --}}
 @push('styles')
 <style>
-  .cr-wrap{max-width:1080px}
+
+  .cr-panel{background:var(--ia-surface);border:.5px solid var(--ia-border);border-radius:var(--ia-r-md);padding:14px 16px;margin:0 0 16px}
+  .cr-top{display:flex;align-items:center;gap:12px}
+  .cr-top .t{font-size:11px;text-transform:uppercase;letter-spacing:.07em;opacity:.4;font-weight:600}
+  .cr-top .sp{margin-left:auto;display:flex;gap:8px;align-items:center}
+  .cr-panel details > summary{list-style:none;cursor:default}
+  .cr-toggle{cursor:pointer}
+  .cr-panel details[open] .cr-k{border-bottom:.5px solid var(--ia-border)}
+  .cr-panel details[open] .cr-full{border-top:0}
+  .cr-panel details > summary::-webkit-details-marker{display:none}
+  .cr-full{border-top:.5px solid var(--ia-border);margin-top:4px;padding-top:16px}
   .cr-crumb{color:var(--ia-text-muted);font-size:12.5px;margin-bottom:12px}
   .cr-crumb a{color:var(--ia-text-muted);text-decoration:none}
   .cr-crumb a:hover{color:var(--ia-text)}
@@ -21,9 +29,9 @@
   .cr-prog .l{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--ia-text-muted);margin-top:7px}
   .cr-prog b{color:var(--ia-text);font-weight:600}
   /* one ruled strip, not a wall of cards */
-  .cr-k{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));border-top:1px solid var(--ia-border);border-bottom:1px solid var(--ia-border);margin:18px 0}
+  .cr-k{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));margin:12px -16px 0;border-top:.5px solid var(--ia-border)}
   @media(max-width:860px){.cr-k{grid-template-columns:repeat(3,minmax(0,1fr))}}
-  .cr-k a{display:block;padding:12px 14px;text-decoration:none;color:inherit;border-right:1px solid var(--ia-border)}
+  .cr-k a{display:block;padding:12px 14px;text-decoration:none;color:inherit;border-right:.5px solid var(--ia-border)}
   .cr-k a:last-child{border-right:0}
   .cr-k a:hover{background:var(--ia-hover)}
   .cr-k a.on{box-shadow:inset 0 -2px 0 var(--ia-accent)}
@@ -62,8 +70,6 @@
   .cr-code b{color:var(--ia-text);font-size:15px}
 </style>
 @endpush
-
-@section('content')
 @php
   $S = $sum; $L = $list;
   $pct = fn ($v) => $v === null ? '—' : rtrim(rtrim(number_format($v, 1), '0'), '.') . '%';
@@ -72,27 +78,21 @@
   $count = ['all' => $S['total'], 'opened' => $S['opened'], 'clicked' => $S['clicked'], 'unopened' => max(0, $S['delivered'] - $S['opened']),
             'bounced' => $S['bounced'], 'complained' => $S['complained'], 'unsubscribed' => $S['unsubscribed'],
             'pending' => $S['pending'], 'skipped' => $S['skipped'], 'failed' => $S['failed']];
-  $u = fn (array $q) => route('tenant.campaigns.results', $campaign->id) . '?' . http_build_query(array_filter($q + ['f' => $filter, 'q' => $search], fn ($v) => $v !== '' && $v !== 'all' && $v !== null));
+  $u = fn (array $q) => route('tenant.campaigns.show', $campaign->id) . '?' . http_build_query(array_filter($q + ['report' => 1, 'f' => $filter, 'q' => $search], fn ($v) => $v !== '' && $v !== 'all' && $v !== null)) . '#report';
   $tl = $S['timeline'];
   $live = in_array($campaign->status, ['sending', 'scheduled'], true);
 @endphp
-<div class="cr-wrap">
-  <div class="cr-crumb"><a href="{{ route('tenant.campaigns.index') }}">Campaigns</a> → <a href="{{ route('tenant.campaigns.show', $campaign->id) }}">{{ $campaign->name }}</a> → Report</div>
-
-  <div class="cr-head">
-    <h1>{{ $campaign->name }}</h1>
-    <span class="cr-pill {{ $campaign->status }}">{{ ucfirst($campaign->status) }}</span>
-  </div>
-  <div class="cr-sub">
-    {{ $campaign->subject }}
-    @if($S['first_sent']) · first sent {{ tlocal(\Carbon\Carbon::parse($S['first_sent'], 'UTC'), 'D M j, g:i a') }}@endif
-    @if($campaign->status === 'sent' && $campaign->sent_at) · finished {{ tlocal($campaign->sent_at, 'D M j, g:i a') }}@endif
-    @if($campaign->status === 'scheduled' && $campaign->scheduled_at) · starts {{ tlocal($campaign->scheduled_at, 'D M j, g:i a') }}@endif
-  </div>
-
+<div class="cr-panel" id="report">
+  <details {{ $reportOpen ? 'open' : '' }}>
+    <summary onclick="if (!event.target.closest('.cr-toggle')) { if (!event.target.closest('a')) event.preventDefault(); }">
+    <div class="cr-top">
+      <span class="t">Report</span>
+      @if($S['first_sent'])<span style="font-size:12px;color:var(--ia-text-muted)">first sent {{ tlocal(\Carbon\Carbon::parse($S['first_sent'], 'UTC'), 'D M j, g:i a') }}</span>@endif
+      <span class="sp"><span class="ia-btn ia-btn--primary ia-btn--sm cr-toggle" role="button"><span class="cr-open-l">Show full report ▾</span><span class="cr-close-l">Hide full report ▴</span></span></span>
+    </div>
   {{-- sending progress --}}
   @if($S['total'] > 0)
-    <div class="cr-prog">
+    <div class="cr-prog" style="margin-top:10px">
       <div class="cr-bar">
         <i style="width:{{ $S['sent'] / $S['total'] * 100 }}%;background:var(--ia-accent)"></i>
         <i style="width:{{ $S['bounced'] / $S['total'] * 100 }}%;background:#f08a8a"></i>
@@ -113,8 +113,7 @@
     <div class="cr-legend">Nothing has been sent yet.</div>
   @endif
 
-  {{-- headline rates; each one filters the list below --}}
-  <div class="cr-k">
+  <div class="cr-k cr-k-always">
     <a href="{{ $u(['f' => 'all', 'page' => null]) }}" class="{{ $filter === 'all' ? 'on' : '' }}"><span class="k">Delivered</span><span class="v">{{ number_format($S['delivered']) }}</span><span class="d">of {{ number_format($S['went_out']) }} sent</span></a>
     <a href="{{ $u(['f' => 'opened', 'page' => null]) }}" class="{{ $filter === 'opened' ? 'on' : '' }}"><span class="k">Opened</span><span class="v">{{ $pct($S['open_rate']) }}</span><span class="d">{{ number_format($S['opened']) }} {{ $S['opened'] === 1 ? 'person' : 'people' }}</span></a>
     <a href="{{ $u(['f' => 'clicked', 'page' => null]) }}" class="{{ $filter === 'clicked' ? 'on' : '' }}"><span class="k">Clicked</span><span class="v">{{ $pct($S['click_rate']) }}</span><span class="d">{{ number_format($S['clicked']) }} {{ $S['clicked'] === 1 ? 'person' : 'people' }}</span></a>
@@ -123,17 +122,9 @@
     <a href="{{ $u(['f' => 'complained', 'page' => null]) }}" class="{{ $filter === 'complained' ? 'on' : '' }} {{ $S['complained'] > 0 ? 'bad' : '' }}"><span class="k">Marked spam</span><span class="v">{{ number_format($S['complained']) }}</span><span class="d">{{ $S['complained'] > 0 ? 'they won\'t get your campaigns again' : 'none' }}</span></a>
   </div>
 
-  @if($attribution)
-    <div class="cr-h">Discount code {{ $attribution['code'] }}</div>
-    <div class="cr-code">
-      <span><b>{{ number_format($attribution['uses']) }}</b> uses</span>
-      <span><b>${{ number_format($attribution['sales_cents'] / 100, 2) }}</b> in sales</span>
-      <span><b>${{ number_format($attribution['given_cents'] / 100, 2) }}</b> given away</span>
-      <span>{{ $attribution['summary'] }}</span>
-    </div>
-    <div style="height:18px"></div>
-  @endif
-
+    </summary>
+    <style>.cr-panel details[open] .cr-open-l,.cr-panel details:not([open]) .cr-close-l{display:none}</style>
+    <div class="cr-full">
   <div class="cr-side">
     <div>
       <div class="cr-h">Over time · by {{ $tl['unit'] }}</div>
@@ -179,7 +170,8 @@
         <a class="cr-chip {{ $filter === $fk ? 'on' : '' }}" href="{{ $u(['f' => $fk, 'page' => null]) }}">{{ $fl }} {{ number_format($count[$fk] ?? 0) }}</a>
       @endif
     @endforeach
-    <form method="GET" action="{{ route('tenant.campaigns.results', $campaign->id) }}">
+    <form method="GET" action="{{ route('tenant.campaigns.show', $campaign->id) }}#report">
+      <input type="hidden" name="report" value="1">
       @if($filter !== 'all')<input type="hidden" name="f" value="{{ $filter }}">@endif
       <input type="search" name="q" value="{{ $search }}" class="ia-input" placeholder="Search name or email" style="width:220px">
     </form>
@@ -217,7 +209,7 @@
     @empty
       <tr><td colspan="3" style="text-align:center;color:var(--ia-text-muted);padding:22px">
         {{ trim($search) !== '' ? 'Nobody matches "' . $search . '".' : 'Nobody here yet.' }}
-        @if($filter !== 'all' || trim($search) !== '') <a href="{{ route('tenant.campaigns.results', $campaign->id) }}" style="color:var(--ia-accent)">Show everyone</a>@endif
+        @if($filter !== 'all' || trim($search) !== '') <a href="{{ $u(['f' => 'all', 'q' => '', 'page' => null]) }}" style="color:var(--ia-accent)">Show everyone</a>@endif
       </td></tr>
     @endforelse
     </tbody>
@@ -235,8 +227,9 @@
     Unsubscribes and spam marks count against the campaign that caused them from this update on; earlier ones aren't on reports. Replies go to your reply-to mailbox and aren't counted here.
     @if($live) This page refreshes every 20 seconds while the campaign is going out. @endif
   </div>
+    </div>
+  </details>
 </div>
 @if($live)
-  <script>setTimeout(function () { if (!document.querySelector('.cr-filters input:focus')) location.reload(); }, 20000);</script>
+  <script>setTimeout(function () { var a = document.activeElement; if (!a || a.tagName !== 'INPUT') location.reload(); }, 20000);</script>
 @endif
-@endsection

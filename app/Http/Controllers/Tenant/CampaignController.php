@@ -87,9 +87,25 @@ class CampaignController extends Controller
 
         $attribution = $this->attributionFor($campaign);
 
+        // MARKER-SHOP-CAMPAIGN-REPORT: the report sits at the top once it has started sending
+        $report = null;
+        if (in_array($campaign->status, ['sending', 'sent'], true)) {
+            $filter = (string) $request->query('f', 'all');
+            if (! array_key_exists($filter, \App\Services\Tenant\CampaignReport::FILTERS)) $filter = 'all';
+            $search = (string) $request->query('q', '');
+            $report = [
+                'sum'        => \App\Services\Tenant\CampaignReport::summary($campaign),
+                'list'       => \App\Services\Tenant\CampaignReport::recipients($campaign, $filter, $search, (int) $request->query('page', 1)),
+                'filter'     => $filter,
+                'search'     => $search,
+                'filters'    => \App\Services\Tenant\CampaignReport::FILTERS,
+                'reportOpen' => $request->boolean('report') || $request->has('f') || $request->has('q'),
+            ];
+        }
+
         return view('tenant.campaigns.show', compact(
             'campaign', 'customerCount', 'segments', 'blocks', 'discounts', 'attribution',
-            'audienceFields', 'audienceChoices', 'audienceTags', 'savedAudiences', 'audienceSummary'
+            'audienceFields', 'audienceChoices', 'audienceTags', 'savedAudiences', 'audienceSummary', 'report'
         ));
     }
 
@@ -256,30 +272,12 @@ class CampaignController extends Controller
      * The aggregate counters live on the campaign; this is the detail behind
      * them, including WHY someone was skipped.
      */
-    /**
-     * MARKER-SHOP-CAMPAIGN-REPORT: the campaign's report. Progress while it
-     * sends, rates that filter the list, opens over time, every recipient
-     * (searchable, linked to the customer) and what the discount code did.
-     */
+    /** MARKER-SHOP-CAMPAIGN-REPORT: the report now lives at the top of the campaign; old links land there, open. */
     public function results(Request $request, string $id)
     {
-        $tenant   = tenant();
-        $campaign = TenantCampaign::where('tenant_id', $tenant->id)->findOrFail($id);
-
-        $filter = (string) $request->query('f', 'all');
-        if (! array_key_exists($filter, \App\Services\Tenant\CampaignReport::FILTERS)) $filter = 'all';
-        $search = (string) $request->query('q', '');
-
-        return view('tenant.campaigns.results', [
-            'pageTitle'   => 'Report — ' . $campaign->name,
-            'campaign'    => $campaign,
-            'sum'         => \App\Services\Tenant\CampaignReport::summary($campaign),
-            'list'        => \App\Services\Tenant\CampaignReport::recipients($campaign, $filter, $search, (int) $request->query('page', 1)),
-            'filter'      => $filter,
-            'search'      => $search,
-            'filters'     => \App\Services\Tenant\CampaignReport::FILTERS,
-            'attribution' => $this->attributionFor($campaign),
-        ]);
+        $campaign = TenantCampaign::where('tenant_id', tenant()->id)->findOrFail($id);
+        $q = array_filter(['report' => 1, 'f' => $request->query('f'), 'q' => $request->query('q'), 'page' => $request->query('page')], fn ($v) => $v !== null && $v !== '');
+        return redirect()->to(route('tenant.campaigns.show', $campaign->id) . '?' . http_build_query($q) . '#report');
     }
 
     public function send(Request $request, string $id)

@@ -473,6 +473,10 @@
   </div>
 </div>
 
+@if($report)
+  @include('tenant.campaigns._report', $report + ['campaign' => $campaign])
+@endif
+
 <form method="POST" action="{{ route('tenant.campaigns.update', $campaign->id) }}" id="cb-form">
   @csrf @method('PATCH')
 
@@ -739,15 +743,6 @@
       </p>
     </div>
   @else
-    <div class="cb-col">
-      <div class="cb-col-title">Performance</div>
-      <div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0"><span style="opacity:.5">Recipients</span><strong>{{ $campaign->total_recipients }}</strong></div>
-      <div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0"><span style="opacity:.5">Delivered</span><strong>{{ $campaign->total_sent }}</strong></div>
-      <div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0"><span style="opacity:.5">Opened</span><strong>{{ $campaign->total_opened }}</strong></div>
-      <div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0"><span style="opacity:.5">Clicked</span><strong>{{ $campaign->total_clicked }}</strong></div>
-      <a href="{{ route('tenant.campaigns.results', $campaign->id) }}" class="ia-btn ia-btn--ghost ia-btn--sm" style="text-decoration:none;display:block;text-align:center;margin-top:10px">Open the report</a>
-    </div>
-
     {{-- what the code did, with an honest
          statement of what these numbers can and can't tell you. --}}
     @if($attribution)
