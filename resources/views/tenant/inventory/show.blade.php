@@ -64,6 +64,12 @@
   // nothing, so the page showed blanks while Identity said "Source BTI".
   $infoCatalogId = $item->distributor_catalog_id;
 
+  // the short names master admin set for supplier warehouses ("Q-Central", "FL"),
+  // keyed "DIST|code"; a warehouse not listed falls back to its feed name
+  $whLabels = \App\Services\Distributors\WarehouseRegistry::ready()
+      ? \App\Models\DistributionWarehouse::query()->get()->mapWithKeys(fn ($w) => [strtoupper($w->distributor_code) . '|' . $w->code => $w->label()])->all()
+      : [];
+
   // no filter. This used to keep only rows with a
   // distributor_code, which silently hid every hand-added vendor and left an
   // item sourced only from those with no Sourcing card at all.
@@ -443,7 +449,7 @@
                 @if(count($src->wh) > 1 || collect($src->wh)->contains(fn ($w) => ($w['q'] ?? 0) == 0 && ! empty($w['eta'])))
                   <div style="font-size:11px;color:var(--ia-text-dim);margin-top:2px;white-space:nowrap">
                     @foreach($src->wh as $w)
-                      {{ $w['c'] ?? ($w['n'] ?? '?') }} {{ (int) ($w['q'] ?? 0) }}@if(($w['q'] ?? 0) == 0 && ! empty($w['eta'])) <span title="Next available">· back {{ \Illuminate\Support\Carbon::parse($w['eta'])->format('M j') }}</span>@endif
+                      {{ $whLabels[strtoupper((string) $src->code) . '|' . ($w['c'] ?? '')] ?? \App\Models\DistributionWarehouse::defaultLabel((string) ($w['n'] ?? ''), (string) ($w['c'] ?? '?')) }} {{ (int) ($w['q'] ?? 0) }}@if(($w['q'] ?? 0) == 0 && ! empty($w['eta'])) <span title="Next available">· back {{ \Illuminate\Support\Carbon::parse($w['eta'])->format('M j') }}</span>@endif
                       @if(! $loop->last) &nbsp;·&nbsp; @endif
                     @endforeach
                   </div>

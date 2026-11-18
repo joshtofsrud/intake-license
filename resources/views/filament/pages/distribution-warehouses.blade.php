@@ -111,11 +111,12 @@
       <div>
         <div class="dw-vend">{{ $code }} <small>{{ count($list) }} {{ count($list) === 1 ? 'warehouse' : 'warehouses' }}</small></div>
         <table class="dw-tbl">
-          <thead><tr><th>Warehouse</th><th>Feed code</th><th>Ships from ZIP</th><th class="n">Handling days</th><th class="n">Shops using</th><th class="c">Shown<span class="dw-tip"><button type="button" aria-label="More about this">i</button><span>Shops see this warehouse's stock counts on their items.</span></span></th><th class="c">Dropship<span class="dw-tip"><button type="button" aria-label="More about this">i</button><span>Shops may ship online orders from here. Needs Shown on.</span></span></th></tr></thead>
+          <thead><tr><th>Warehouse</th><th>Shops see<span class="dw-tip"><button type="button" aria-label="More about this">i</button><span>The short name on shops' stock lists. Leave blank to use the suggestion shown.</span></span></th><th>Feed code</th><th>Ships from ZIP</th><th class="n">Handling days</th><th class="n">Shops using</th><th class="c">Shown<span class="dw-tip"><button type="button" aria-label="More about this">i</button><span>Shops see this warehouse's stock counts on their items.</span></span></th><th class="c">Dropship<span class="dw-tip"><button type="button" aria-label="More about this">i</button><span>Shops may ship online orders from here. Needs Shown on.</span></span></th></tr></thead>
           <tbody>
           @foreach ($list as $w)
             <tr wire:key="wh-{{ $w->id }}">
               <td>{{ $w->name }}@if ($w->first_seen_at && $w->first_seen_at->gt(now()->subDays(7)))<span class="dw-pill">New</span>@endif</td>
+              <td><input type="text" class="dw-in" style="width:120px" maxlength="24" wire:model="wh.{{ $w->id }}.short" placeholder="{{ \App\Models\DistributionWarehouse::defaultLabel((string) $w->name, (string) $w->code) }}" @disabled($ro)></td>
               <td>{{ $w->code }}</td>
               <td><input type="text" class="dw-in" style="width:84px" wire:model="wh.{{ $w->id }}.zip" @disabled($ro)></td>
               <td class="n"><input type="number" class="dw-in" style="width:64px" min="0" max="60" wire:model="wh.{{ $w->id }}.days" @disabled($ro)></td>

@@ -147,7 +147,7 @@ class WarehouseRegistry
         $out = $rows->map(function ($w) use ($sel, $stock) {
             $s = $sel[$w->id] ?? null;
             return [
-                'id' => $w->id, 'dist' => $w->distributor_code, 'code' => $w->code, 'name' => $w->name,
+                'id' => $w->id, 'dist' => $w->distributor_code, 'code' => $w->code, 'name' => $w->label(), 'full_name' => $w->name,
                 'ships_from' => trim(implode(', ', array_filter([$w->ship_from_city, $w->ship_from_state])) ?: ($w->ship_from_zip ?? '')),
                 'dropship' => (bool) $w->dropship_enabled,
                 'enabled' => (bool) ($s->enabled ?? false),
@@ -253,11 +253,11 @@ class WarehouseRegistry
                 $q = (int) ($w['q'] ?? 0);
                 $use = $usable($wh);
                 $out[$p->inventory_item_id]['chips'][] = [
-                    'id' => $wh->id, 'name' => $wh->name, 'qty' => $fresh ? $q : null, 'on' => $use,
+                    'id' => $wh->id, 'name' => $wh->label(), 'qty' => $fresh ? $q : null, 'on' => $use,
                 ];
                 if ($use && $fresh && $q > 0) {
                     $out[$p->inventory_item_id]['offers'][] = [
-                        'id' => $wh->id, 'name' => $wh->name, 'qty' => $q,
+                        'id' => $wh->id, 'name' => $wh->label(), 'qty' => $q,
                         'priority' => (int) ($sel[$wh->id]->priority ?? 9999),
                     ];
                 }

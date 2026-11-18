@@ -31,7 +31,7 @@ class DistributionWarehouses extends Page
     protected static string  $view            = 'filament.pages.distribution-warehouses';
 
     public array $set = [];       // feature_on, shop_default, stale_hours
-    public array $wh = [];        // warehouse id => [shown, drop, zip, days]
+    public array $wh = [];        // warehouse id => [shown, drop, zip, days, short]
     public array $ov = [];        // tenant id => follow|allow|block
     public array $units = [];     // MARKER-SHIPPING-RATES: distributor code => [weight, length] its feed uses
     public string $dist = '';
@@ -46,7 +46,8 @@ class DistributionWarehouses extends Page
         $this->set['stale_hours'] = (string) $this->set['stale_hours']; // an input holds strings; the box showed blank
         foreach ($this->warehouses() as $w) {
             $this->wh[$w->id] = ['shown' => (bool) $w->shown_to_shops, 'drop' => (bool) $w->dropship_enabled,
-                'zip' => (string) ($w->ship_from_zip ?? ''), 'days' => (int) $w->handling_days];
+                'zip' => (string) ($w->ship_from_zip ?? ''), 'days' => (int) $w->handling_days,
+                'short' => (string) ($w->short_name ?? '')];
         }
         $plat = (array) (\App\Models\PlatformSettings::current()->distribution_settings ?? []);
         foreach ($this->unitCodes() as $code) {
@@ -156,6 +157,7 @@ class DistributionWarehouses extends Page
         $this->validate([
             'set.stale_hours'  => ['required', 'integer', 'min:1', 'max:168'],
             'wh.*.zip'         => ['nullable', 'string', 'max:10'],
+            'wh.*.short'       => ['nullable', 'string', 'max:24'],
             'wh.*.days'        => ['nullable', 'integer', 'min:0', 'max:60'],
         ]);
         $this->validate([
@@ -178,6 +180,7 @@ class DistributionWarehouses extends Page
             $w->forceFill([
                 'shown_to_shops' => $shown, 'dropship_enabled' => $shown && (bool) $r['drop'],
                 'ship_from_zip' => trim((string) $r['zip']) ?: null, 'handling_days' => max(0, (int) $r['days']),
+                'short_name' => trim((string) ($r['short'] ?? '')) ?: null,
             ])->save();
         }
 
