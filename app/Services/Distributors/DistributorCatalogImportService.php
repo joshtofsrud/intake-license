@@ -20,6 +20,12 @@ class DistributorCatalogImportService
      */
     public function import(string $tenantId, string $distributorCode, array $filters = [], bool $dryRun = false, int $limit = 0, int $offset = 0, ?callable $onRow = null, ?array $columns = null): array
     {
+        // a large shop's indexes plus a whole-catalog candidate list outgrow a
+        // web request's default 128 MB (Ground Control: 45,000 items)
+        if ((int) ini_get('memory_limit') > 0 && (int) ini_get('memory_limit') < 512) {
+            @ini_set('memory_limit', '512M');
+        }
+
         $code = strtoupper($distributorCode);
         $res = [
             'tenant_id' => $tenantId, 'code' => $code, 'matched_catalog' => 0,
@@ -249,6 +255,7 @@ class DistributorCatalogImportService
      */
     public function plan(string $tenantId, string $distributorCode, array $filters = []): array
     {
+
         $rows = [];
         $this->import($tenantId, $distributorCode, $filters, true, 0, 0,
             function ($cat, string $action, $itemId, ?string $how) use (&$rows) {
@@ -346,7 +353,9 @@ class DistributorCatalogImportService
         }
         $q->orderBy('id');   // required for paging
         if ($columns) {
-            $q->select($columns);   // the preview's plan reads a handful of columns, not 21,000 full rows
+            // the preview's plan: a handful of columns as plain rows, never
+            // 21,000 full models (it never writes, so it never needs one)
+            return $q->toBase()->get($columns);
         }
 
         if ($limit > 0) {
@@ -420,23 +429,34 @@ class DistributorCatalogImportService
      */
     private function existingIndexes(string $tenantId): array
     {
+        // plain rows, not models: a shop with 45,000 items ran a web request
+        // out of its 128 MB building full Eloquent records it only reads
+        // seven fields of. Every use below is property access, which plain
+        // rows answer the same way.
         $items = TenantInventoryItem::query()
             ->where('tenant_id', $tenantId)
+            ->toBase()
             ->get(['id', 'sku', 'catalog_upc', 'catalog_ean', 'catalog_mpn', 'shop_brand', 'distributor_catalog_id']);
 
-        $itemIds = $items->pluck('id');
-        $pivots = TenantInventoryItemVendor::query()
-            ->whereIn('inventory_item_id', $itemIds)
-            ->get(['inventory_item_id', 'distributor_catalog_id']);
+        // joined on the tenant rather than an IN list of every item id
+        $pivots = \Illuminate\Support\Facades\DB::table('tenant_inventory_item_vendors as v')
+            ->join('tenant_inventory_items as i', 'i.id', '=', 'v.inventory_item_id')
+            ->where('i.tenant_id', $tenantId)
+            ->whereNotNull('v.distributor_catalog_id')
+            ->get(['v.inventory_item_id', 'v.distributor_catalog_id']);
 
         $catalogIds = $items->pluck('distributor_catalog_id')
             ->merge($pivots->pluck('distributor_catalog_id'))
             ->filter()->unique()->values();
 
-        $catRows = PlatformDistributorCatalog::query()
-            ->whereIn('id', $catalogIds)
-            ->get(['id', 'product_key', 'manufacturer', 'manufacturer_sku'])
-            ->keyBy('id');
+        $catRows = collect();
+        foreach ($catalogIds->chunk(5000) as $slice) {
+            $catRows = $catRows->merge(PlatformDistributorCatalog::query()
+                ->whereIn('id', $slice->all())
+                ->toBase()
+                ->get(['id', 'product_key', 'manufacturer', 'manufacturer_sku'])
+                ->keyBy('id'));
+        }
         $keyByCatalog = $catRows->map(fn ($r) => $r->product_key);
 
         // brand-qualified part numbers the shop already carries: the item's own

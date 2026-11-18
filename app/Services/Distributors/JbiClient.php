@@ -520,7 +520,7 @@ class JbiClient implements DistributorAdapter
         if ($mtime > 0 && time() - $mtime > $this->staleHours * 3600
             && Cache::add('jbi.stale_stock_reported', 1, now()->addDay())) {
             JobFailureReporter::report(self::class,
-                'JBI stock file inv_loc.txt was last updated ' . $this->age($mtime) . ' (JBI says every 15 minutes)',
+                'JBI stock file inv_loc.txt was ' . $this->age($mtime) . ' (JBI says every 15 minutes)',
                 new \RuntimeException('JBI inv_loc.txt is stale'),
                 ['file_updated' => date('c', $mtime)]);
         }
