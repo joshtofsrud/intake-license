@@ -40,7 +40,7 @@
 .dc-wh-pos{font-size:11px;color:var(--ia-text-dim);margin-left:6px;font-family:var(--ia-mono);vertical-align:middle}
 .dc-wh-t .dc-toggle{vertical-align:middle}
 .dc-wh-t .dc-toggle[disabled]{opacity:.5;cursor:wait}
-.dc-wh-msg{font-size:12px;color:var(--ia-text-dim)}
+.dc-wh-msg{font-size:11.5px;color:var(--ia-accent);margin-left:6px}
 .dc-wh-msg.err{color:#f0a3a3}
 .dc-tip{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;border:.5px solid var(--ia-border-strong);font-size:9.5px;color:var(--ia-text-dim);cursor:help;position:relative;text-transform:none;letter-spacing:0;margin-left:3px}
 .dc-tip:hover::after,.dc-tip:focus::after{content:attr(data-tip);position:absolute;top:18px;right:-8px;width:240px;padding:8px 10px;background:var(--ia-surface);border:.5px solid var(--ia-border-strong);border-radius:var(--ia-r-md);font-size:11.5px;font-weight:400;line-height:1.45;color:var(--ia-text-muted);white-space:normal;z-index:20;box-shadow:0 6px 20px rgba(0,0,0,.35)}
@@ -182,11 +182,8 @@
         @php $wh = $b['wh']; @endphp
         <div class="dc-wh" data-wh-box data-code="{{ $b['code'] }}"
              style="border-top:.5px solid var(--ia-border);padding-top:16px;margin-top:14px">
-          <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:8px">
-            <span style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ia-text-dim);font-weight:600">Warehouses</span>
-            <span class="dc-wh-msg" aria-live="polite"></span>
-          </div>
           @if (! $wh['rows'])
+            <div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ia-text-dim);font-weight:600;margin-bottom:8px">Warehouse</div>
             <div style="font-size:12.5px;color:var(--ia-text-dim);line-height:1.5">
               None yet. {{ $b['label'] }} lists its warehouses with stock, so they appear here after the first
               refresh of your linked items{{ $b['hasKey'] ? '' : ', once the account is connected' }}.
@@ -238,7 +235,7 @@
               </tbody>
             </table>
             <div style="font-size:11.5px;color:var(--ia-text-dim);margin-top:7px;line-height:1.5">
-              Switches save straight away.
+              Switches save straight away. <span class="dc-wh-msg" aria-live="polite"></span>
               @if ($wh['can_ship'] && \Illuminate\Support\Facades\Route::has('tenant.storefront.settings'))
                 Change the order online orders try them in on
                 <a href="{{ route('tenant.storefront.settings', ['tab' => 'ful']) }}" style="color:var(--ia-accent)">Online store, Fulfillment</a>.
