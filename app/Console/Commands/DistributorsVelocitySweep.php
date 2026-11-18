@@ -21,7 +21,7 @@ class DistributorsVelocitySweep extends Command
         } else {
             // MARKER-VELOCITY-FETCH: only the distributors due by their fetch setting
             $last = \App\Support\VelocityFetch::lastReads();
-            $codes = array_values(array_filter(['BTI', 'HLC', 'QBP', 'SHIMANO'], fn ($c) => \App\Support\VelocityFetch::due($c, $last[$c] ?? null)));
+            $codes = array_values(array_filter(\App\Support\VelocityFetch::codes(), fn ($c) => \App\Support\VelocityFetch::due($c, $last[$c] ?? null)));
             if (! $codes) {
                 $this->line('No distributor is due yet.');
                 return self::SUCCESS;

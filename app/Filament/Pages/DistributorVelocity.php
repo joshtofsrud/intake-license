@@ -83,7 +83,7 @@ class DistributorVelocity extends Page
         $mfs = \App\Support\MovingFast::settings();
         $this->mf = ['on' => $mfs['on']] + array_map('strval', array_intersect_key($mfs, self::MF_FIELDS));
         $codes = $this->codes();
-        $this->fetch = array_map('strval', \App\Support\VelocityFetch::all(array_values(array_unique(array_merge(['BTI', 'HLC', 'QBP', 'SHIMANO'], $codes)))));
+        $this->fetch = array_map('strval', \App\Support\VelocityFetch::all(array_values(array_unique(array_merge(\App\Support\VelocityFetch::codes(), $codes)))));
         $on = $saved['vendors'] ?? $codes;
         $this->shop['vendors'] = array_fill_keys($codes, false);
         foreach ($codes as $c) {

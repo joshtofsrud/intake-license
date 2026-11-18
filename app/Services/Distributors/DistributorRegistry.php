@@ -26,6 +26,10 @@ class DistributorRegistry
         'QBP' => QbpClient::class,
         // an SFTP spreadsheet feed. One platform login serves every shop.
         'SHIMANO' => ShimanoClient::class,
+        // FTP files for the catalog, the v3 API for live stock. Each shop
+        // brings its own JBI login (dealer pricing is per account), packed
+        // as JSON in api_key; see JbiClient::pack().
+        'JBI' => JbiClient::class,
     ];
 
     /** Marker stored in a shop's subscription when the platform login is used. */
@@ -64,6 +68,14 @@ class DistributorRegistry
                  'hint' => 'The account number on your BTI Inventory Data Download page.'],
                 ['name' => 'password', 'label' => 'BTI password', 'type' => 'password',
                  'hint' => 'The long code on the same page.'],
+            ],
+            'JBI' => [
+                ['name' => 'username', 'label' => 'JBI FTP username', 'type' => 'text',
+                 'hint' => 'From the FTP access email JBI sent (ftp.jbi.bike).'],
+                ['name' => 'password', 'label' => 'JBI FTP password', 'type' => 'password',
+                 'hint' => 'Same email. Stored encrypted.'],
+                ['name' => 'api_key', 'label' => 'JBI API token', 'type' => 'password',
+                 'hint' => 'Optional. Turns on live stock; without it stock comes from JBI\'s stock file.'],
             ],
             // two services, two keys, one header name.
             'QBP' => [
@@ -109,7 +121,26 @@ class DistributorRegistry
             $p = trim($input['password'] ?? '') ?: $cp;
             return ($u === '' || $p === '') ? null : $u . ':' . $p;
         }
+        if (strtoupper($code) === 'JBI') {
+            return $this->packJbi($input, $stored, true);
+        }
         return $this->packCredentials($code, $input, $stored);
+    }
+
+    /**
+     * JBI's four parts. A blank field keeps its stored part, the same promise
+     * every credential form makes.
+     */
+    private function packJbi(array $input, ?string $stored, bool $withAccount): ?string
+    {
+        $c = JbiClient::unpack($stored);
+        $c['u'] = trim((string) ($input['username'] ?? '')) ?: $c['u'];
+        $c['p'] = trim((string) ($input['password'] ?? '')) ?: $c['p'];
+        $c['t'] = trim((string) ($input['api_key'] ?? '')) ?: $c['t'];
+        if ($withAccount) {
+            $c['a'] = trim((string) ($input['account'] ?? '')) ?: $c['a'];
+        }
+        return ($c['u'] === '' || $c['p'] === '') ? null : JbiClient::pack($c);
     }
 
     /**
@@ -135,6 +166,7 @@ class DistributorRegistry
             'BTI' => 'BTI',
             'QBP' => 'QBP',
             'SHIMANO' => 'Shimano',
+            'JBI' => 'J&B (JBI)',
             default => strtoupper($code),
         };
     }
@@ -182,6 +214,11 @@ class DistributorRegistry
             return ($u === '' || $p === '') ? null : $u . ':' . $p;
         }
 
+        // a shop's JBI account number lives on its subscription, not in here
+        if (strtoupper($code) === 'JBI') {
+            return $this->packJbi($input, $stored, false);
+        }
+
         // same colon packing BTI uses. A blank field
         // keeps whatever is stored, so saving one key never wipes the other.
         if (strtoupper($code) === 'QBP') {
@@ -227,6 +264,15 @@ class DistributorRegistry
                 'username' => $user,
                 'password' => $mask($pass),
             ];
+        }
+
+        if (strtoupper($code) === 'JBI') {
+            $c = JbiClient::unpack($stored);
+            return array_filter([
+                'username' => $c['u'],
+                'password' => $c['p'] !== '' ? $mask($c['p']) : '',
+                'api_key'  => $c['t'] !== '' ? $mask($c['t']) : '',
+            ]);
         }
 
         // QBP packs "api1:cls". Without this the API1 box
@@ -285,7 +331,14 @@ class DistributorRegistry
 
         // Every current adapter shares the (apiKey, region) constructor shape.
         // If a future distributor needs a different signature, branch here.
-        return new $class($apiKey, $region);
+        $adapter = new $class($apiKey, $region);
+
+        // shop-level settings that are not credentials (JBI: the account
+        // number on the subscription and the shop's closeout switch)
+        if (method_exists($adapter, 'setOptions')) {
+            $adapter->setOptions($credentials);
+        }
+        return $adapter;
     }
 
     /**
@@ -304,6 +357,7 @@ class DistributorRegistry
             return null;
         }
 
+        $creds['account_number'] = $sub->account_number;
         return $this->make((string) $sub->distributor_code, $creds);
     }
 }

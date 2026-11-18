@@ -74,6 +74,20 @@ class StockVelocitySweep
                 $wh = $this->sync->normalizeWarehouses($resp);
                 break;
 
+            case 'JBI':
+                // one call: the adapter reads the whole catalog from JBI's
+                // inventory API, 200 part numbers a request, and falls back
+                // to the stock file for any batch that fails. No restock dates.
+                $hasEta = false;
+                $resp = $adapter->inventory([]);
+                $out['calls'] = (int) ceil(count($catalog) / 200);
+                $avail = $this->sync->normalizeInventory($resp);
+                $wh = $this->sync->normalizeWarehouses($resp);
+                if (property_exists($adapter, 'lastStockSource') && $adapter->lastStockSource !== 'api') {
+                    $out['note'] = 'Stock read from ' . ($adapter->lastStockSource === 'mixed' ? 'the API and, for failed batches, ' : '') . "JBI's stock file.";
+                }
+                break;
+
             case 'QBP':
                 $hasEta = false;
                 $codes = $this->qbpWarehouses();

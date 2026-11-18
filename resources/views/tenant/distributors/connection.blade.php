@@ -160,6 +160,41 @@
         </div>
       @endif
 
+      {{-- JBI's closeout warehouse, per shop. Its own form, like pricing,
+           so it never travels through the credential form. --}}
+      @if ($b['enabled'] && strtoupper($b['code']) === 'JBI')
+        @php $closeoutOn = ! empty($b['options']['include_closeout']); @endphp
+        <div class="dc-row" style="border-top:.5px solid var(--ia-border);padding-top:16px;margin-top:14px">
+          <div class="dc-field" style="min-width:280px">
+            <label>Florida Closeout warehouse (111)</label>
+            <form method="POST" action="{{ route('tenant.distributors.connection.option') }}" style="margin:0">
+              @csrf
+              <input type="hidden" name="distributor_code" value="{{ $b['code'] }}">
+              <input type="hidden" name="option" value="include_closeout">
+              <div style="display:inline-flex;border:1px solid var(--ia-border-strong);border-radius:var(--ia-r-md);overflow:hidden">
+                @foreach (['1' => 'On', '0' => 'Off'] as $val => $lbl)
+                  <button type="submit" name="value" value="{{ $val }}"
+                          style="padding:8px 16px;font-size:13px;font-weight:600;border:0;cursor:pointer;
+                                 {{ ($closeoutOn ? '1' : '0') === $val
+                                     ? 'background:var(--ia-accent);color:var(--ia-accent-text)'
+                                     : 'background:transparent;color:var(--ia-text-dim)' }}">{{ $lbl }}</button>
+                @endforeach
+              </div>
+            </form>
+            <div style="font-size:11.5px;color:var(--ia-text-dim);margin-top:6px;line-height:1.5">
+              @if ($closeoutOn)
+                <b>On:</b> closeout stock is added to your JBI stock counts and shown as its own warehouse.
+              @else
+                <b>Off:</b> closeout stock is left out of your JBI stock counts, availability and reorder signals.
+              @endif
+              Closeout stock is limited and often end-of-line. JBI's live stock does not include
+              this warehouse, so its numbers come from JBI's stock file. Applies from the next stock refresh;
+              your own stock and prices are not affected.
+            </div>
+          </div>
+        </div>
+      @endif
+
       <form method="POST" action="{{ route('tenant.distributors.connection.key') }}" style="margin-top:14px">
         @csrf
         <input type="hidden" name="distributor_code" value="{{ $b['code'] }}">
@@ -189,7 +224,8 @@
           <div class="dc-field" style="max-width:180px">
             <label>Account #</label>
             <input class="dc-input" type="text" name="account_number"
-                   value="{{ $b['sub']->account_number }}" placeholder="optional">
+                   value="{{ $b['sub']->account_number }}"
+                   placeholder="{{ strtoupper($b['code']) === 'JBI' ? 'needed for live stock' : 'optional' }}">
           </div>
         </div>
 

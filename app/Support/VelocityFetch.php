@@ -15,7 +15,7 @@ class VelocityFetch
 {
     /** hours => label; 0 = off */
     public const CHOICES = [4 => 'Every 4 hours', 6 => 'Every 6 hours', 8 => 'Every 8 hours', 12 => 'Twice a day', 24 => 'Once a day', 0 => 'Off'];
-    public const DEFAULTS = ['BTI' => 4, 'HLC' => 4, 'QBP' => 4, 'SHIMANO' => 12];
+    public const DEFAULTS = ['BTI' => 4, 'HLC' => 4, 'QBP' => 4, 'SHIMANO' => 12, 'JBI' => 4];
     public const FALLBACK = 4;
 
     public static function hours(string $code): int
@@ -32,6 +32,12 @@ class VelocityFetch
         $out = [];
         foreach ($codes as $c) $out[strtoupper($c)] = self::hours($c);
         return $out;
+    }
+
+    /** Every distributor the registry supports: the one list, so a new one needs no edits here. */
+    public static function codes(): array
+    {
+        return app(\App\Services\Distributors\DistributorRegistry::class)->supported();
     }
 
     /** When each distributor was last read by a sweep (from the run log). */

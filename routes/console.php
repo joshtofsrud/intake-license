@@ -194,6 +194,14 @@ Schedule::command('distributors:sync-catalog SHIMANO')
     ->withoutOverlapping()
     ->runInBackground();
 
+// J&B: four FTP files joined into one catalog. Full, like BTI and Shimano —
+// JBI rewrites the files whole and gives no per-row timestamp. Before
+// identifiers are indexed at 05:30.
+Schedule::command('distributors:sync-catalog JBI')
+    ->dailyAt('04:50')
+    ->withoutOverlapping()
+    ->runInBackground();
+
 // Reads the rows both syncs just wrote. Without this, matching sees nothing
 // new — which is exactly why 55,773 QBP rows were invisible to the importer.
 Schedule::command('catalog:index-identifiers')

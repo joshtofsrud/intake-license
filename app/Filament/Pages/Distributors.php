@@ -86,7 +86,13 @@ class Distributors extends Page implements HasForms
     {
         // BTI is HTTP Basic; there is nothing to choose, and offering the
         // field would invite setting a value that does nothing.
-        return ! in_array(strtoupper($code), ['BTI', 'SHIMANO'], true);
+        return ! in_array(strtoupper($code), ['BTI', 'SHIMANO', 'JBI'], true);
+    }
+
+    /** Distributors that log in with a username and password. */
+    private function usesLogin(string $code): bool
+    {
+        return in_array(strtoupper($code), ['BTI', 'SHIMANO', 'JBI'], true);
     }
 
     /** Real HLC variant shapes (trimmed) for the live mapping test. */
@@ -138,6 +144,14 @@ class Distributors extends Page implements HasForms
             [$user, $pass] = explode(':', (string) $conn->api_key, 2);
         }
 
+        // JBI keeps four parts as JSON: FTP login, account number, API token
+        $account = '';
+        $jbiToken = '';
+        if (strtoupper($this->code) === 'JBI') {
+            $c = \App\Services\Distributors\JbiClient::unpack((string) $conn->api_key);
+            [$user, $pass, $account, $jbiToken] = [$c['u'], $c['p'], $c['a'], $c['t']];
+        }
+
         // QBP packs "api1:cls" in the same slot.
         // API1 is free and carries the catalog; CLS is licensed and carries
         // only the images.
@@ -152,7 +166,8 @@ class Distributors extends Page implements HasForms
             // "Select an option" and every field under it looked empty,
             // including a stored key and an active connection.
             'code'       => $this->code,
-            'api_key'    => $apiKeyShown,
+            'api_key'    => strtoupper($this->code) === 'JBI' ? $jbiToken : $apiKeyShown,
+            'account'    => $account,
             'cls_key'    => $clsKey,
             'username'   => $user,
             'password'   => $pass,
@@ -193,11 +208,19 @@ class Distributors extends Page implements HasForms
 
                         // One key, or a username and password — whichever this
                         // distributor actually issues.
-                        TextInput::make('api_key')->label('Platform API key')
+                        TextInput::make('api_key')
+                            ->label(fn () => strtoupper($this->currentCode()) === 'JBI' ? 'API token' : 'Platform API key')
                             ->password()->revealable()->autocomplete('off')
-                            ->helperText('Encrypted at rest. Leave blank to keep the saved key.')
+                            ->helperText(fn () => strtoupper($this->currentCode()) === 'JBI'
+                                ? 'Optional. Turns on live stock from the inventory API; without it stock comes from inv_loc.txt. Encrypted at rest. Leave blank to keep the saved one.'
+                                : 'Encrypted at rest. Leave blank to keep the saved key.')
                             ->visible(fn () => ! in_array(strtoupper($this->currentCode()), ['BTI', 'SHIMANO'], true))
                             ->columnSpanFull(),
+
+                        TextInput::make('account')->label('JBI account number')
+                            ->autocomplete('off')
+                            ->helperText('The accountId the API token belongs to.')
+                            ->visible(fn () => strtoupper($this->currentCode()) === 'JBI'),
 
                         // QBP's second key. Optional:
                         // without it the catalog, cost and stock all still
@@ -210,13 +233,13 @@ class Distributors extends Page implements HasForms
 
                         TextInput::make('username')->label('Username')
                             ->autocomplete('off')
-                            ->helperText('Your BTI account number. For Shimano, the SFTP username.')
-                            ->visible(fn () => in_array(strtoupper($this->currentCode()), ['BTI', 'SHIMANO'], true)),
+                            ->helperText('Your BTI account number. For Shimano, the SFTP username. For JBI, the FTP username.')
+                            ->visible(fn () => $this->usesLogin($this->currentCode())),
 
                         TextInput::make('password')->label('Password')
                             ->password()->revealable()->autocomplete('off')
                             ->helperText('Encrypted at rest. Leave blank to keep the saved one.')
-                            ->visible(fn () => in_array(strtoupper($this->currentCode()), ['BTI', 'SHIMANO'], true)),
+                            ->visible(fn () => $this->usesLogin($this->currentCode())),
 
                         Select::make('auth_style')->label('Auth style')->native(false)
                             ->options([
@@ -326,7 +349,7 @@ class Distributors extends Page implements HasForms
             // pull that doesn't exist and quietly run a full one.
             Action::make('runDelta')->label('Run delta sync')->color('gray')
                 // Shimano is a whole-file feed too: no delta to offer.
-                ->visible(fn () => ! in_array(strtoupper($this->currentCode()), ['BTI', 'SHIMANO'], true))
+                ->visible(fn () => ! in_array(strtoupper($this->currentCode()), ['BTI', 'SHIMANO', 'JBI'], true))
                 ->action(fn () => $this->dispatchSync(true)),
         ];
     }

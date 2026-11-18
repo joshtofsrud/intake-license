@@ -441,7 +441,7 @@ class PlatformDashboard extends Page
                     $res   = json_decode((string) $run->results, true) ?: [];
                     $read  = array_sum(array_column($res, 'read'));
                     // two missed runs of the most frequent distributor (MARKER-VELOCITY-FETCH)
-                    $minH = collect(\App\Support\VelocityFetch::all(['BTI', 'HLC', 'QBP', 'SHIMANO']))->filter()->min() ?: 24;
+                    $minH = collect(\App\Support\VelocityFetch::all(\App\Support\VelocityFetch::codes()))->filter()->min() ?: 24;
                     $stale = \Carbon\Carbon::parse($run->finished_at)->lt(now()->subHours($minH * 2 + 1));
                     $rows[] = [
                         'name'  => 'Distributor sweeps',

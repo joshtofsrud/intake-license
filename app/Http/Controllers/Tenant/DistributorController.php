@@ -84,6 +84,7 @@ class DistributorController extends Controller
                     $code, $creds['api_key'] ?? null, fn ($v) => $this->mask($v)
                 ),
                 'priority'  => (int) ($sub->data_priority ?? 50),
+                'options'   => (array) ($creds['options'] ?? []),
                 'linked'    => TenantInventoryItemVendor::query()
                     ->where('distributor_code', $code)
                     ->whereNotNull('distributor_catalog_id')
@@ -336,6 +337,42 @@ class DistributorController extends Controller
             . strtoupper($data['price_seed']) . '.');
     }
 
+    /**
+     * Shop switches that are not credentials, kept with the subscription's
+     * credentials so the adapter receives them. Only listed options exist.
+     */
+    public const OPTIONS = [
+        // JBI's Florida Closeout warehouse (111). Off by default: closeout
+        // stock is limited and often end-of-line.
+        'JBI' => ['include_closeout'],
+    ];
+
+    public function saveOption(Request $request): RedirectResponse
+    {
+        $this->guard();
+        $data = $request->validate([
+            'distributor_code' => ['required', 'string', 'max:32'],
+            'option'           => ['required', 'string', 'max:64'],
+            'value'            => ['required', 'in:0,1'],
+        ]);
+        $code = strtoupper($data['distributor_code']);
+        abort_unless(in_array($data['option'], self::OPTIONS[$code] ?? [], true), 404);
+
+        $sub = TenantDistributorCatalogSubscription::where('tenant_id', tenant()->id)
+            ->where('distributor_code', $code)->firstOrFail();
+        $creds = (array) ($sub->credentials_encrypted ?? []);
+        $creds['options'] = array_merge((array) ($creds['options'] ?? []), [$data['option'] => $data['value'] === '1']);
+        $sub->credentials_encrypted = $creds;
+        $sub->save();
+
+        if ($data['option'] === 'include_closeout') {
+            return back()->with('success', $data['value'] === '1'
+                ? 'Florida Closeout (111) stock is now counted in your JBI stock from the next refresh.'
+                : 'Florida Closeout (111) stock is left out of your JBI stock from the next refresh.');
+        }
+        return back()->with('success', 'Saved.');
+    }
+
     /** where this distributor's items sit today. */
     public function pricingCheck(Request $request, \App\Services\Distributors\DistributorPricingService $pricing): \Illuminate\Http\JsonResponse
     {
@@ -497,10 +534,9 @@ class DistributorController extends Controller
         }
 
         try {
-            $adapter = app(DistributorRegistry::class)->make($code, [
-                'api_key' => $creds['api_key'],
-                'region'  => $creds['region'] ?? 'us',
-            ]);
+            // through the subscription, so the account number and the shop's
+            // own switches reach the adapter exactly as a sync would pass them
+            $adapter = app(DistributorRegistry::class)->forSubscription($sub);
             $res = $adapter->testConnection();
             $ok = (bool) ($res['ok'] ?? false);
 
@@ -515,6 +551,12 @@ class DistributorController extends Controller
                 ? 'connected'
                 : ($isAuth ? 'auth_failed' : 'unreachable');
             $sub->save();
+
+            // JBI checks two things (FTP files and the stock API) and says
+            // which of them answered; its own words beat a status code
+            if ($code === 'JBI' && filled($res['body'] ?? null)) {
+                return back()->with($ok ? 'success' : 'error', $label . ': ' . $res['body']);
+            }
 
             return back()->with($ok ? 'success' : 'error',
                 $ok

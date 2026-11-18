@@ -101,4 +101,25 @@ return [
         'sync_page_size'  => (int) env('SHIMANO_SYNC_PAGE_SIZE', 50000),
     ],
 
+    // J&B Importers. FTP files for the catalog, the v3 API for live stock.
+    // Logins are per shop (and one in master admin for the shared catalog);
+    // only transport settings live here.
+    'jbi' => [
+        'name'            => 'J&B (JBI)',
+        'ftp_host'        => env('JBI_FTP_HOST', 'ftp.jbi.bike'),
+        'dir'             => env('JBI_DIR', 'inv/v2'),
+        'api_base'        => env('JBI_API_BASE', 'https://api.jbi.bike'),
+        'timeout'         => (int) env('JBI_TIMEOUT', 120),
+        // the joined catalog is reused this long by stock and price reads;
+        // a catalog sync always fetches fresh files
+        'catalog_minutes' => (int) env('JBI_CATALOG_MINUTES', 360),
+        // the stock file is re-read no more often than JBI says it changes
+        'stock_minutes'   => (int) env('JBI_STOCK_MINUTES', 15),
+        // a stock file older than this is reported in Issues (once a day)
+        'stale_hours'     => (int) env('JBI_STALE_HOURS', 6),
+        // part numbers per inventory API call; JBI's limit is 200
+        'api_batch'       => (int) env('JBI_API_BATCH', 200),
+        // about 21,600 products today; one pull takes them all
+        'sync_page_size'  => (int) env('JBI_SYNC_PAGE_SIZE', 60000),
+    ],
 ];

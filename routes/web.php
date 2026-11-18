@@ -1428,6 +1428,8 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::post('/connection/test',   [TenantControllers\DistributorController::class, 'testConnection'])->name('connection.test');
                 // the pricing rule and its check, per distributor.
                 Route::post('/connection/pricing',       [TenantControllers\DistributorController::class, 'savePricing'])->name('connection.pricing');
+                // switches that are not credentials (JBI's closeout warehouse)
+                Route::post('/connection/option',        [TenantControllers\DistributorController::class, 'saveOption'])->name('connection.option');
                 Route::get('/connection/pricing-check',  [TenantControllers\DistributorController::class, 'pricingCheck'])->name('connection.pricing.check');
                 Route::post('/connection/pricing-sweep', [TenantControllers\DistributorController::class, 'pricingSweep'])->name('connection.pricing.sweep');
                 Route::post('/connection/refresh',[TenantControllers\DistributorController::class, 'refreshSync'])->name('connection.refresh');

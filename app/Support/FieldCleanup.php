@@ -14,7 +14,7 @@ namespace App\Support;
  *     value_map     {from: to}         whole value, any case. A key written
  *                                      "Label: value" applies to one spec only.
  *     blank_values  [..]               values that mean "nothing" ("One size")
- *     value_case    sentence | title_to_sentence | first_upper
+ *     value_case    sentence | title_to_sentence | first_upper | caps_to_sentence
  *
  *   the attributes (specs) field, per spec
  *     label_map     {from: to}         rename a spec label, matched on the
@@ -33,6 +33,7 @@ class FieldCleanup
         'sentence'          => 'Sentence case ("Chromoly steel")',
         'title_to_sentence' => 'Only Title Case Phrases → sentence case',
         'first_upper'       => 'Capitalise the first letter only',
+        'caps_to_sentence'  => 'ALL CAPS values → Sentence case (each " > " level)',
     ];
 
     public static function apply(mixed $value, ?array $c, bool $isAttributes = false): mixed
@@ -118,6 +119,13 @@ class FieldCleanup
             'sentence'          => self::sentence($v),
             'title_to_sentence' => preg_match('/^\p{Lu}\p{Ll}+( \p{Lu}\p{Ll}+)+$/u', $v) ? self::sentence($v) : $v,
             'first_upper'       => $v === '' ? $v : mb_strtoupper(mb_substr($v, 0, 1)) . mb_substr($v, 1),
+            // feeds that shout (JBI's categories): only a value with no lower
+            // case letters at all is touched, and each level of a path is
+            // capitalised on its own
+            'caps_to_sentence'  => preg_match('/\p{Ll}/u', $v) ? $v : implode(' > ', array_map(
+                fn ($part) => ($p = mb_strtolower(trim($part))) === '' ? $p : mb_strtoupper(mb_substr($p, 0, 1)) . mb_substr($p, 1),
+                explode('>', $v)
+            )),
             default             => $v,
         };
     }
