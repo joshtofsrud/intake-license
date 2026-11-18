@@ -163,18 +163,17 @@ class JbiClient implements DistributorAdapter
         } else {
             try {
                 $r = $this->http()->post($this->apiUrl(), ['__test__']);
+                // the files still carry stock by warehouse, so a refused or
+                // failing API is a warning, not a failed connection
                 if ($r->status() === 401) {
-                    $ok = false;
-                    $lines[] = 'API: token refused for account ' . $this->account . '.';
+                    $lines[] = 'API: token refused for account ' . $this->account . ', so stock comes from inv_loc.txt. Check with JBI that the token is live and for this account.';
                 } elseif ($r->successful()) {
                     $lines[] = 'API: token accepted for account ' . $this->account . '; live stock on.';
                 } else {
-                    $ok = false;
-                    $lines[] = 'API: answered ' . $r->status() . ' ' . ($r->json('error.message') ?? '');
+                    $lines[] = 'API: answered ' . $r->status() . ' ' . ($r->json('error.message') ?? '') . ', so stock comes from inv_loc.txt.';
                 }
             } catch (\Throwable $e) {
-                $ok = false;
-                $lines[] = 'API: ' . $e->getMessage();
+                $lines[] = 'API: ' . $e->getMessage() . ', so stock comes from inv_loc.txt.';
             }
         }
 

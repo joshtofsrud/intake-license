@@ -269,6 +269,11 @@
           <button class="dc-btn" type="submit" data-dc-test
                   data-dc-slow="{{ strtoupper($b['code']) === 'BTI' ? '1' : '0' }}"
                   formaction="{{ route('tenant.distributors.connection.test') }}">Test connection</button>
+          @if ($b['enabled'] && $b['hasKey'])
+            {{-- this distributor only: cost, stock and warehouses for linked items --}}
+            <button class="dc-btn" type="submit"
+                    formaction="{{ route('tenant.distributors.connection.refresh') }}">Refresh stock &amp; cost</button>
+          @endif
         </div>
         <div data-dc-testnote
              style="display:none;font-size:11.5px;color:var(--ia-text-dim);margin-top:9px;line-height:1.5"></div>

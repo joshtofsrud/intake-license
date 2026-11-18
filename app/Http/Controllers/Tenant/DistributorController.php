@@ -579,14 +579,17 @@ class DistributorController extends Controller
         [$code, $label, $sub] = $this->requestedSub($request);
 
         $creds = (array) ($sub->credentials_encrypted ?? []);
+        if (! $sub->is_active) {
+            return back()->with('error', 'Turn ' . $label . ' on before refreshing it.');
+        }
         if (blank($creds['api_key'] ?? null)) {
             return back()->with('error', 'Connect ' . $label . ' before refreshing.');
         }
 
-        // same logged job as Catalog attention's Sync now,
-        // so every sync (any button) appears in the run history.
-        \App\Jobs\RunTenantDistributorSyncJob::dispatch(tenant()->id, false, 'manual');
-        return back()->with('success', 'Refreshing your cost & availability in the background.');
+        // same logged job as Catalog attention's Check for changes now, but
+        // for this one distributor, so every sync appears in the run history
+        \App\Jobs\RunTenantDistributorSyncJob::dispatch(tenant()->id, false, 'manual', null, $code);
+        return back()->with('success', 'Refreshing ' . $label . ' cost, stock and warehouses in the background. Give it a minute.');
     }
 
     public function import(\Illuminate\Http\Request $request): \Illuminate\Contracts\View\View
@@ -778,6 +781,12 @@ class DistributorController extends Controller
             }
             unset($r);
             \Illuminate\Support\Facades\Cache::put($key, $rows, now()->addMinutes(30));
+        }
+
+        // the bulk import refreshes stock when it finishes; one item must too,
+        // or it sits with no cost or stock from this distributor until tonight
+        if (($res['created'] ?? 0) + ($res['merged'] ?? 0) > 0) {
+            \App\Jobs\RunTenantDistributorSyncJob::dispatch(tenant()->id, false, 'import', null, $code);
         }
 
         $what = ($res['created'] ?? 0) > 0 ? 'created' : (($res['merged'] ?? 0) > 0 ? 'merged' : 'linked');
