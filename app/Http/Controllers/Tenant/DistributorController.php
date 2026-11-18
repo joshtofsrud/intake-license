@@ -638,21 +638,28 @@ class DistributorController extends Controller
         }
 
         if ($data['mode'] !== 'commit') {
-            // Preview inspects a leading sample for the created/merged/skipped
-            // estimate — hydrating 47,000 rows to preview them is the problem
-            // we are fixing — but reports the true total beside it.
-            // exact counts over the whole set, in SQL.
-            // The old preview sampled 2,000 rows and said so on screen, which
-            // read as a cap. Nobody needs to know how an estimate was made.
-            $linked = $importer->linkedCandidateCount(tenant()->id, $code, $filters);
+            // the preview runs the import itself as a dry run, every match
+            // test included, so "new" means new: an item the shop already
+            // carries from another distributor shows as getting a second
+            // source, not as an import. The row-by-row plan is kept briefly
+            // for the list under the counts.
+            $plan = $importer->plan(tenant()->id, $code, $filters);
+            $key  = 'import_plan:' . tenant()->id . ':' . sha1($code . json_encode($filters));
+            \Illuminate\Support\Facades\Cache::put($key, $plan['rows'], now()->addMinutes(30));
+
+            $c = $plan['counts'];
             $view['result'] = [
                 'matched_catalog' => $total,
-                'created'         => max(0, $total - $linked),
-                'merged'          => $linked,
-                'skipped'         => 0,
+                'created'         => $c['new'],
+                'merged'          => $c['merge'],
+                'skipped'         => $c['linked'],
+                'by_barcode'      => $c['by_barcode'],
+                'by_part'         => $c['by_part'],
+                'by_sku'          => $c['by_sku'],
                 'dry_run'         => true,
                 'candidate_total' => $total,
             ];
+            $view['planKey'] = $key;
 
             return view('tenant.distributors.import', $view);
         }
@@ -675,6 +682,107 @@ class DistributorController extends Controller
         $view['queued'] = ['total' => $total, 'code' => $code];
 
         return view('tenant.distributors.import', $view);
+    }
+
+    /**
+     * One page of the preview's row-by-row plan: what Import would do with
+     * each catalog row, searchable so a shop can check a specific product.
+     */
+    public function importPlan(\Illuminate\Http\Request $request): \Illuminate\Http\JsonResponse
+    {
+        $this->guard();
+        $key = (string) $request->query('key', '');
+        // a key is only ever this shop's own plan
+        abort_unless(str_starts_with($key, 'import_plan:' . tenant()->id . ':'), 404);
+
+        $rows = \Illuminate\Support\Facades\Cache::get($key);
+        if (! is_array($rows)) {
+            return response()->json(['ok' => false, 'error' => 'This preview has expired. Press Preview again.'], 410);
+        }
+
+        $tab = (string) $request->query('tab', 'all');
+        $q   = mb_strtolower(trim((string) $request->query('q', '')));
+        $qd  = preg_replace('/[^a-z0-9]/', '', $q);
+
+        $rows = array_values(array_filter($rows, function ($r) use ($tab, $q, $qd) {
+            if (in_array($tab, ['new', 'merge', 'linked'], true) && $r['action'] !== $tab) {
+                return false;
+            }
+            if ($q === '') {
+                return true;
+            }
+            $hay = mb_strtolower($r['name'] . ' ' . $r['brand'] . ' ' . ($r['item_name'] ?? ''));
+            if (str_contains($hay, $q)) {
+                return true;
+            }
+            // part numbers and barcodes match with or without dashes, dots or spaces
+            foreach ([$r['part'], $r['mpn'], $r['code']] as $id) {
+                $idd = preg_replace('/[^a-z0-9]/', '', mb_strtolower((string) $id));
+                if ($qd !== '' && $idd !== '' && str_contains($idd, $qd)) {
+                    return true;
+                }
+            }
+            return false;
+        }));
+
+        $per   = 50;
+        $total = count($rows);
+        $pages = max(1, (int) ceil($total / $per));
+        $page  = max(1, min($pages, (int) $request->query('page', 1)));
+        $slice = array_slice($rows, ($page - 1) * $per, $per);
+
+        foreach ($slice as &$r) {
+            $r['item_url'] = ($r['item'] && $r['item'] !== 'dry') ? route('tenant.inventory.show', $r['item']) : null;
+        }
+        unset($r);
+
+        return response()->json(['ok' => true, 'rows' => $slice, 'total' => $total, 'page' => $page, 'pages' => $pages]);
+    }
+
+    /**
+     * Import one catalog row now, from the preview list. Runs the same import
+     * as the bulk button, so it still joins an item the shop already carries
+     * instead of duplicating it.
+     */
+    public function importOne(\Illuminate\Http\Request $request): \Illuminate\Http\JsonResponse
+    {
+        $this->guard();
+        $data = $request->validate([
+            'code' => ['required', 'string', 'max:32'],
+            'id'   => ['required', 'string', 'max:64'],
+            'key'  => ['nullable', 'string', 'max:200'],
+        ]);
+        $code = $this->importCode($data['code']);
+
+        $res = app(\App\Services\Distributors\DistributorCatalogImportService::class)
+            ->import(tenant()->id, $code, ['ids' => [$data['id']], 'include_unsellable' => true]);
+
+        if (($res['matched_catalog'] ?? 0) === 0) {
+            return response()->json(['ok' => false, 'error' => 'That item is not available to import. Its brand may be switched off for your shop.'], 422);
+        }
+        if (! empty($res['errors'])) {
+            return response()->json(['ok' => false, 'error' => 'That item could not be added. It has been reported.'], 500);
+        }
+
+        $itemId = \App\Models\Tenant\TenantInventoryItem::query()->where('tenant_id', tenant()->id)
+            ->where(function ($w) use ($data) {
+                $w->where('distributor_catalog_id', $data['id'])
+                  ->orWhereHas('vendors', fn ($v) => $v->where('tenant_inventory_item_vendors.distributor_catalog_id', $data['id']));
+            })->value('id');
+
+        // the cached plan learns it, so paging back shows it as linked
+        $key = (string) ($data['key'] ?? '');
+        if ($itemId && str_starts_with($key, 'import_plan:' . tenant()->id . ':') && is_array($rows = \Illuminate\Support\Facades\Cache::get($key))) {
+            foreach ($rows as &$r) {
+                if ($r['id'] === $data['id']) { $r['action'] = 'linked'; $r['item'] = (string) $itemId; }
+            }
+            unset($r);
+            \Illuminate\Support\Facades\Cache::put($key, $rows, now()->addMinutes(30));
+        }
+
+        $what = ($res['created'] ?? 0) > 0 ? 'created' : (($res['merged'] ?? 0) > 0 ? 'merged' : 'linked');
+        return response()->json(['ok' => true, 'did' => $what,
+            'url' => $itemId ? route('tenant.inventory.show', $itemId) : null]);
     }
 
     /**

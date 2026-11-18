@@ -18,7 +18,7 @@ class DistributorCatalogImportService
      * @param array{category?:string,brand?:string,include_unsellable?:bool} $filters
      * @return array{tenant_id:string,code:string,matched_catalog:int,created:int,merged:int,skipped:int,dry_run:bool}
      */
-    public function import(string $tenantId, string $distributorCode, array $filters = [], bool $dryRun = false, int $limit = 0, int $offset = 0): array
+    public function import(string $tenantId, string $distributorCode, array $filters = [], bool $dryRun = false, int $limit = 0, int $offset = 0, ?callable $onRow = null, ?array $columns = null): array
     {
         $code = strtoupper($distributorCode);
         $res = [
@@ -26,7 +26,7 @@ class DistributorCatalogImportService
             'created' => 0, 'merged' => 0, 'skipped' => 0, 'dry_run' => $dryRun,
         ];
 
-        $candidates = $this->candidates($code, $filters, $limit, $offset, $tenantId);
+        $candidates = $this->candidates($code, $filters, $limit, $offset, $tenantId, $columns);
         $res['matched_catalog'] = $candidates->count();
         if ($candidates->isEmpty()) {
             return $res;
@@ -42,8 +42,11 @@ class DistributorCatalogImportService
             // 1) exact same catalog row already sourced -> idempotent skip
             if (isset($linkedCatalog[$cat->id])) {
                 $res['skipped']++;
+                if ($onRow) { $onRow($cat, 'linked', $linkedCatalog[$cat->id], 'linked'); }
                 continue;
             }
+            // which test found the match, for the preview's list
+            $how = null;
 
             // 2) a catalog row LINKED to this one is already carried.
             //
@@ -56,6 +59,7 @@ class DistributorCatalogImportService
             foreach (($matchedRows[$cat->id] ?? []) as $otherId) {
                 if (isset($linkedCatalog[$otherId])) {
                     $matchId = $linkedCatalog[$otherId];
+                    $how = 'matcher';
                     break;
                 }
             }
@@ -66,6 +70,7 @@ class DistributorCatalogImportService
                 $matchId = ($key && isset($byKey[$key]))
                     ? $byKey[$key]
                     : (($cat->upc && isset($byUpc[$cat->upc])) ? $byUpc[$cat->upc] : null);
+                if ($matchId !== null) { $how = ($key && isset($byKey[$key])) ? 'key' : 'upc'; }
             }
 
             // same product, different distributor,
@@ -78,6 +83,7 @@ class DistributorCatalogImportService
                 $ean = trim((string) $cat->ean);
                 if ($ean !== '' && isset($byEan[$ean])) {
                     $matchId = $byEan[$ean];
+                    $how = 'ean';
                 }
             }
 
@@ -88,6 +94,7 @@ class DistributorCatalogImportService
                 $sku = strtoupper(trim((string) ($cat->product_key ?: $cat->distributor_variant_no)));
                 if ($sku !== '' && isset($bySku[$sku])) {
                     $matchId = $bySku[$sku];
+                    $how = 'sku';
                 }
             }
 
@@ -103,6 +110,7 @@ class DistributorCatalogImportService
                     $barcode = strtoupper(trim($barcode));
                     if ($barcode !== '' && isset($bySku[$barcode])) {
                         $matchId = $bySku[$barcode];
+                        $how = 'barcode';
                         break;
                     }
                 }
@@ -117,6 +125,7 @@ class DistributorCatalogImportService
                 foreach (\App\Support\Barcode::keys($cat->upc, $cat->ean) as $bk) {
                     if (isset($byBarcode[$bk])) {
                         $matchId = $byBarcode[$bk];
+                        $how = 'barcode';
                         break;
                     }
                 }
@@ -130,6 +139,7 @@ class DistributorCatalogImportService
             $mpnKey = $this->mpnKey($ids, $cat->manufacturer, $cat->manufacturer_sku);
             if ($matchId === null && $mpnKey !== null && isset($byMpn[$mpnKey])) {
                 $matchId = $byMpn[$mpnKey];
+                $how = 'mpn';
             }
 
             if ($matchId) {
@@ -173,6 +183,7 @@ class DistributorCatalogImportService
                     $byMpn[$mpnKey] = $byMpn[$mpnKey] ?? $matchId;
                 }
                 $res['merged']++;
+                if ($onRow) { $onRow($cat, 'merge', $matchId, $how); }
                 continue;
             }
 
@@ -223,9 +234,77 @@ class DistributorCatalogImportService
             }
             $linkedCatalog[$cat->id] = $id;
             $res['created']++;
+            if ($onRow) { $onRow($cat, 'new', null, null); }
         }
 
         return $res;
+    }
+
+    /**
+     * The import preview, row by row: what pressing Import would do with each
+     * catalog row, found by running the import itself as a dry run, so the
+     * preview and the import can never disagree.
+     *
+     * @return array{counts:array<string,int>,rows:array<int,array<string,mixed>>}
+     */
+    public function plan(string $tenantId, string $distributorCode, array $filters = []): array
+    {
+        $rows = [];
+        $this->import($tenantId, $distributorCode, $filters, true, 0, 0,
+            function ($cat, string $action, $itemId, ?string $how) use (&$rows) {
+                $rows[] = [
+                    'id'     => (string) $cat->id,
+                    'name'   => (string) ($cat->display_name ?: $cat->name ?: $cat->distributor_variant_no),
+                    'brand'  => (string) $cat->manufacturer,
+                    'part'   => (string) $cat->distributor_variant_no,
+                    'mpn'    => (string) $cat->manufacturer_sku,
+                    'code'   => (string) ($cat->upc ?: $cat->ean),
+                    'msrp'   => $cat->msrp_cents !== null ? (int) $cat->msrp_cents : null,
+                    'action' => $action,
+                    // 'dry' = another new item in this same import
+                    'item'   => $itemId === null ? null : (string) $itemId,
+                    'how'    => $how,
+                ];
+            },
+            ['id', 'product_key', 'upc', 'ean', 'manufacturer', 'manufacturer_sku', 'distributor_variant_no',
+             'name', 'display_name', 'msrp_cents']
+        );
+
+        // names of the shop's items that rows would join
+        $itemIds = array_values(array_unique(array_filter(array_column($rows, 'item'), fn ($i) => $i && $i !== 'dry')));
+        $names = [];
+        foreach (array_chunk($itemIds, 2000) as $slice) {
+            $names += TenantInventoryItem::query()->where('tenant_id', $tenantId)->whereIn('id', $slice)
+                ->pluck('name', 'id')->all();
+        }
+
+        $counts = ['all' => count($rows), 'new' => 0, 'merge' => 0, 'linked' => 0,
+                   'by_barcode' => 0, 'by_part' => 0, 'by_sku' => 0];
+        foreach ($rows as &$r) {
+            $counts[$r['action']]++;
+            if ($r['action'] === 'merge') {
+                $kind = self::howKind($r['how'], $r['item']);
+                $r['kind'] = $kind;
+                if (isset($counts['by_' . $kind])) { $counts['by_' . $kind]++; }
+            }
+            $r['item_name'] = $r['item'] === 'dry' ? null : ($names[$r['item']] ?? null);
+        }
+        unset($r);
+
+        return ['counts' => $counts, 'rows' => $rows];
+    }
+
+    /** barcode | part | sku | same: how sure the preview should say a match is. */
+    private static function howKind(?string $how, ?string $item): string
+    {
+        if ($item === 'dry') {
+            return 'same';   // two rows of one product in this import: one item, both sources
+        }
+        return match ($how) {
+            'mpn'   => 'part',
+            'sku'   => 'sku',
+            default => 'barcode',   // upc, ean, barcode, grouping key, cross-distributor match
+        };
     }
 
     /**
@@ -241,7 +320,7 @@ class DistributorCatalogImportService
      * import loop rather than filtered out here, so the candidate set does
      * not shift as the import progresses and offsets stay meaningful.
      */
-    private function candidates(string $code, array $filters, int $limit, int $offset = 0, ?string $tenantId = null)
+    private function candidates(string $code, array $filters, int $limit, int $offset = 0, ?string $tenantId = null, ?array $columns = null)
     {
         $q = PlatformDistributorCatalog::query()
             ->where('distributor_code', $code)
@@ -266,6 +345,9 @@ class DistributorCatalogImportService
             $q->whereIn('id', array_map('strval', (array) $filters['ids']));
         }
         $q->orderBy('id');   // required for paging
+        if ($columns) {
+            $q->select($columns);   // the preview's plan reads a handful of columns, not 21,000 full rows
+        }
 
         if ($limit > 0) {
             $q->limit($limit);
@@ -457,19 +539,23 @@ class DistributorCatalogImportService
 
         $out = [];
 
-        \App\Models\CatalogMatch::query()
-            ->whereIn('status', ['auto', 'confirmed'])
-            ->where(function ($q) use ($catalogIds) {
-                $q->whereIn('row_a_id', $catalogIds)
-                  ->orWhereIn('row_b_id', $catalogIds);
-            })
-            ->select(['row_a_id', 'row_b_id'])
-            ->chunk(2000, function ($rows) use (&$out) {
-                foreach ($rows as $m) {
-                    $out[$m->row_a_id][] = $m->row_b_id;
-                    $out[$m->row_b_id][] = $m->row_a_id;
-                }
-            });
+        // a whole-catalog preview asks about 20,000+ rows: ask in slices so
+        // the IN list stays a sensible size
+        foreach (array_chunk($catalogIds, 2000) as $slice) {
+            \App\Models\CatalogMatch::query()
+                ->whereIn('status', ['auto', 'confirmed'])
+                ->where(function ($q) use ($slice) {
+                    $q->whereIn('row_a_id', $slice)
+                      ->orWhereIn('row_b_id', $slice);
+                })
+                ->select(['id', 'row_a_id', 'row_b_id'])
+                ->chunkById(2000, function ($rows) use (&$out) {
+                    foreach ($rows as $m) {
+                        $out[$m->row_a_id][] = $m->row_b_id;
+                        $out[$m->row_b_id][] = $m->row_a_id;
+                    }
+                });
+        }
 
         return $out;
     }

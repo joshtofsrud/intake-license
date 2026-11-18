@@ -1418,6 +1418,9 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::post('/attention/history/{batchId}/undo',     [TenantControllers\DistributorController::class, 'catalogUndo'])->name('attention.history.undo');
                 Route::post('/attention/history/{batchId}/undo/{itemId}', [TenantControllers\DistributorController::class, 'catalogUndoItem'])->name('attention.history.undo.item');
                 Route::post('/import/run',        [TenantControllers\DistributorController::class, 'importRun'])->name('import.run');
+                // the preview's row-by-row list, and importing one row from it
+                Route::get('/import/plan',        [TenantControllers\DistributorController::class, 'importPlan'])->name('import.plan');
+                Route::post('/import/one',        [TenantControllers\DistributorController::class, 'importOne'])->middleware('throttle:120,1')->name('import.one');
                 Route::get('/connection',         [TenantControllers\DistributorController::class, 'connection'])->name('connection');
                 Route::post('/connection/key',    [TenantControllers\DistributorController::class, 'saveKey'])->name('connection.key');
                 Route::post('/connection/toggle', [TenantControllers\DistributorController::class, 'toggleDistributor'])->name('connection.toggle');
