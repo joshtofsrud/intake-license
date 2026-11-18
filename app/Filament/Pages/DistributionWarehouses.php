@@ -43,6 +43,7 @@ class DistributionWarehouses extends Page
     {
         $this->set = WarehouseRegistry::settings();
         $this->set['shop_default'] = $this->set['shop_default'] ? '1' : '0'; // a select holds strings
+        $this->set['stale_hours'] = (string) $this->set['stale_hours']; // an input holds strings; the box showed blank
         foreach ($this->warehouses() as $w) {
             $this->wh[$w->id] = ['shown' => (bool) $w->shown_to_shops, 'drop' => (bool) $w->dropship_enabled,
                 'zip' => (string) ($w->ship_from_zip ?? ''), 'days' => (int) $w->handling_days];

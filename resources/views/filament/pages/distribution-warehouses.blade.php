@@ -37,6 +37,16 @@
   .dw-modal { position:fixed; inset:0; background:rgba(0,0,0,.55); display:flex; align-items:center; justify-content:center; z-index:60; }
   .dw-modal > div { background:var(--pop); color:var(--txt); border:1px solid var(--line2); border-radius:12px; padding:22px; width:min(440px,92vw); }
   .dw-modal p { color:var(--dim); line-height:1.55; margin:8px 0 18px; }
+  /* ⓘ tooltips: hover or keyboard focus, no browser dialog */
+  .dw-tip { position:relative; display:inline-flex; vertical-align:middle; margin-left:6px; }
+  .dw-tip > button { width:16px; height:16px; border-radius:50%; border:1px solid var(--line2); background:transparent; color:var(--faint);
+    font:600 10px/1 inherit; display:inline-flex; align-items:center; justify-content:center; cursor:help; padding:0; }
+  .dw-tip > span { position:absolute; left:50%; bottom:calc(100% + 8px); transform:translateX(-50%); width:max-content; max-width:300px;
+    background:var(--pop); color:var(--txt); border:1px solid var(--line2); border-radius:8px; padding:8px 11px; font-size:12.5px; font-weight:400;
+    line-height:1.5; text-transform:none; letter-spacing:0; text-align:left; white-space:normal; box-shadow:0 8px 24px rgba(0,0,0,.35);
+    opacity:0; visibility:hidden; transition:opacity .12s; z-index:30; pointer-events:none; }
+  .dw-tip:hover > span, .dw-tip > button:focus-visible + span { opacity:1; visibility:visible; }
+  .dw-locked { color:var(--amber); font-size:12.5px; margin:0; }
 </style>
 
 @php
@@ -50,35 +60,27 @@
 
 <div class="dw-root" style="display:flex;flex-direction:column;gap:16px"
      x-data="{ ask:false, on: $wire.entangle('set.feature_on') }" @keydown.escape.window="ask=false">
-  <p class="sub">Which supplier warehouses shops can see, and which can ship straight to a shop's customers. Warehouses appear here on their own the first time a supplier feed reports them.</p>
-
-  <div class="dw-legend">
-    <b>Feature switch</b> off means no shop sees any warehouse or dropship setting, and every online order ships from the shop's own stock. A shop's own choices are kept, not deleted.
-    <b>Shown to shops</b> lets a shop see that warehouse's stock counts. <b>Dropship</b> lets a shop choose it as a ship-from source, and can't be on unless the warehouse is shown.
-    <b>Shop overrides</b> allow or block dropshipping for one shop, whatever the default is.
-    <b>Stock count limit</b>: a supplier count older than this is treated as unknown, so nothing is offered from stale data.
-    None of this touches the register or in-store sales.
-  </div>
+  <p class="sub">Choose which distributor warehouses shops can see. New ones appear here on their own.</p>
 
   <div>
     <p class="dw-h">Feature</p>
     <div class="dw-row">
-      <div><b>Show warehouses and dropshipping to shops</b><span class="d">The master switch. Off hides the Where column, the supplier list and the dropship settings for every shop.</span></div>
+      <div><b>Show warehouse stock to shops<span class="dw-tip"><button type="button" aria-label="More about this">i</button><span>Off: shops see each distributor's total stock only, and every online order ships from the shop's own stock. Shops' own choices are kept. The register and in-store sales aren't affected.</span></span></b></div>
       <label class="dw-sw"><input type="checkbox" :checked="on" @disabled($ro) @change="if(! $event.target.checked){ $event.target.checked = true; ask = true } else { on = true }"><i></i></label>
     </div>
     <div class="dw-row">
-      <div><b>Shops with no override</b><span class="d">Whether dropshipping is on for shops you haven't set below. A shop still has to tick the warehouses it wants to use.</span></div>
+      <div><b>Dropshipping for shops<span class="dw-tip"><button type="button" aria-label="More about this">i</button><span>Lets a shop ship online orders straight from a warehouse it ticks. Applies to every shop not set under Per-shop dropshipping.</span></span></b></div>
       <select class="dw-in" wire:model="set.shop_default" @disabled($ro)><option value="0">Off, I enable it per shop</option><option value="1">On</option></select>
     </div>
     <div class="dw-row">
-      <div><b>Supplier stock counts older than</b><span class="d">Counts older than this are treated as unknown.</span></div>
+      <div><b>Treat stock as unknown after<span class="dw-tip"><button type="button" aria-label="More about this">i</button><span>A distributor count older than this isn't shown or offered, so nothing is sold from stale numbers.</span></span></b></div>
       <span><input type="number" class="dw-in" style="width:72px" min="1" max="168" wire:model="set.stale_hours" @disabled($ro)> hours</span>
     </div>
   </div>
 
   {{-- MARKER-SHIPPING-RATES: the unit each distributor's feed uses for weight and size --}}
   <div>
-    <p class="dw-h">Package data by distributor</p>
+    <p class="dw-h">Package units by distributor<span class="dw-tip"><button type="button" aria-label="More about this">i</button><span>Live shipping rates use these to turn a distributor's weight and size into pounds and inches. A shop's own weight on an item always wins. Check one item against the distributor's site before trusting a new one.</span></span></p>
     <table class="dw-tbl">
       <thead><tr><th>Distributor</th><th>Weight in the feed is in</th><th>Size in the feed is in</th></tr></thead>
       <tbody>
@@ -93,9 +95,10 @@
       @endforelse
       </tbody>
     </table>
-    <div class="dw-legend" style="border-top:0">Shops with live shipping rates use these to turn a supplier's weight and size into pounds and inches. A shop's own weight on an item always wins. Check one item against the supplier's site before trusting a new distributor; the default is pounds and inches.</div>
   </div>
 
+  {{-- the list below is locked while the switch is off; say so rather than look broken --}}
+  <p class="dw-locked" x-show="! on" x-cloak>Turn on "Show warehouse stock to shops" above to edit the warehouses below.</p>
   <div :class="on ? '' : 'dw-off'" style="display:flex;flex-direction:column;gap:14px">
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       <select class="dw-in" wire:model.live="dist"><option value="">All distributors</option>@foreach ($this->distributors() as $d)<option value="{{ $d }}">{{ $d }}</option>@endforeach</select>
@@ -108,7 +111,7 @@
       <div>
         <div class="dw-vend">{{ $code }} <small>{{ count($list) }} {{ count($list) === 1 ? 'warehouse' : 'warehouses' }}</small></div>
         <table class="dw-tbl">
-          <thead><tr><th>Warehouse</th><th>Feed code</th><th>Ships from ZIP</th><th class="n">Handling days</th><th class="n">Shops using</th><th class="c">Shown to shops</th><th class="c">Dropship</th></tr></thead>
+          <thead><tr><th>Warehouse</th><th>Feed code</th><th>Ships from ZIP</th><th class="n">Handling days</th><th class="n">Shops using</th><th class="c">Shown<span class="dw-tip"><button type="button" aria-label="More about this">i</button><span>Shops see this warehouse's stock counts on their items.</span></span></th><th class="c">Dropship<span class="dw-tip"><button type="button" aria-label="More about this">i</button><span>Shops may ship online orders from here. Needs Shown on.</span></span></th></tr></thead>
           <tbody>
           @foreach ($list as $w)
             <tr wire:key="wh-{{ $w->id }}">
@@ -127,16 +130,15 @@
     @empty
       <div class="dw-empty">
         @if ($wcount === 0)
-          No warehouses found yet. They appear after a shop's supplier sync reports stock by warehouse. To look through the stock already stored, use <b>Scan feeds for new warehouses</b>.
+          No warehouses yet. They appear after a shop's distributor sync reports stock by warehouse; <b>Scan feeds for new warehouses</b> checks what's already stored. New ones start hidden.
         @else
           No warehouses match these filters. Clear the search, or set Any status and All distributors.
         @endif
       </div>
     @endforelse
-    <div class="dw-legend" style="border-top:0">New warehouses start hidden and off until you turn them on here.</div>
 
     <div>
-      <p class="dw-h">Shop overrides</p>
+      <p class="dw-h">Per-shop dropshipping<span class="dw-tip"><button type="button" aria-label="More about this">i</button><span>Overrides the default above for one shop.</span></span></p>
       <div style="margin:8px 0"><input type="search" class="dw-in" style="width:260px" wire:model.live.debounce.300ms="shopSearch" placeholder="Find a shop"></div>
       <table class="dw-tbl">
         <thead><tr><th>Shop</th><th>Dropshipping</th><th>Warehouses they've chosen</th><th></th></tr></thead>
@@ -164,8 +166,8 @@
   {{-- in-app dialog, never a browser one --}}
   <div class="dw-modal" x-show="ask" x-cloak x-transition.opacity @click.self="ask=false">
     <div>
-      <b>Hide warehouses and dropshipping from all shops?</b>
-      <p>Every online order will ship from the shop's own stock until you turn this back on. Shops' own choices are kept. This takes effect when you press Save changes.</p>
+      <b>Hide warehouse stock from all shops?</b>
+      <p>Shops go back to each distributor's total, and online orders ship from the shop's own stock. Their choices are kept. Takes effect when you press Save changes.</p>
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button type="button" class="dw-btn g" @click="ask=false">Cancel</button>
         <button type="button" class="dw-btn" @click="on = false; ask=false">Turn off</button>
