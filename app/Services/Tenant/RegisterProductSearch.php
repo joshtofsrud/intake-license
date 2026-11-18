@@ -86,19 +86,24 @@ class RegisterProductSearch
         $vskuOf = [];
         $supStock = [];
         $supAll   = [];
+        $whLabel  = \App\Services\Distributors\WarehouseRegistry::labels(); // short names, as master admin set them
         foreach (array_chunk($ids, 1000) as $chunk) {
             DB::table('tenant_inventory_item_vendors as iv_x')
                 ->join('tenant_vendors as v_x', 'v_x.id', '=', 'iv_x.vendor_id')
                 ->whereIn('iv_x.inventory_item_id', $chunk)
                 ->get(['iv_x.inventory_item_id', 'iv_x.vendor_sku', 'v_x.name', 'iv_x.live_avail', 'iv_x.distributor_code', 'iv_x.live_warehouses'])
-                ->each(function ($r) use (&$supOf, &$vskuOf, &$supStock, &$supAll) {
+                ->each(function ($r) use (&$supOf, &$vskuOf, &$supStock, &$supAll, $whLabel) {
                     // MARKER-SUPPLY: every supplier with its warehouses, for the stock panel
                     if (trim((string) $r->name) !== '' && $r->live_avail !== null) {
                         $supAll[$r->inventory_item_id][] = [
                             'name' => (string) $r->name,
                             'code' => strtoupper((string) ($r->distributor_code ?? '')),
                             'n'    => max(0, (int) $r->live_avail),
-                            'wh'   => json_decode((string) ($r->live_warehouses ?? ''), true) ?: [],
+                            'wh'   => array_map(function ($w) use ($r, $whLabel) {
+                                if (! is_array($w)) { return $w; }
+                                $w['n'] = $whLabel[strtoupper((string) $r->distributor_code) . '|' . ($w['c'] ?? '')] ?? ($w['n'] ?? ($w['c'] ?? ''));
+                                return $w;
+                            }, json_decode((string) ($r->live_warehouses ?? ''), true) ?: []),
                         ];
                     }
                     if (trim((string) $r->name) !== '') { $supOf[$r->inventory_item_id][(string) $r->name] = true; }

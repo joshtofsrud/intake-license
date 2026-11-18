@@ -302,23 +302,29 @@ body.at-bar-open .ia-mobile-nav{display:none}
   @php
     $srStats = $lastSyncRun ? (json_decode($lastSyncRun->stats ?? '[]', true) ?: []) : [];
     $srRunning = $lastSyncRun && ! $lastSyncRun->finished_at;
+    // the nightly check logs elsewhere; whichever is newer is "last checked"
+    $nightlyNewer = $lastNightly && $lastNightly->finished_at
+        && (! $lastSyncRun || \Carbon\Carbon::parse($lastNightly->finished_at, 'UTC')->gt(\Carbon\Carbon::parse($lastSyncRun->started_at, 'UTC')));
   @endphp
+  <div data-sync-scope>
   <div class="at-sync">
     <div class="at-sync-stat">
       <div class="k">Catalog sync</div>
       <div class="v">
-        @if(!$lastSyncRun) <span class="at-dot idle"></span>Never run
+        @if(!$lastSyncRun && !$lastNightly) <span class="at-dot idle"></span>Never run
         @elseif($srRunning) <span class="at-dot run"></span>Checking now…
-        @elseif($lastSyncRun->error) <span class="at-dot bad"></span>Last check failed
+        @elseif(!$nightlyNewer && $lastSyncRun->error) <span class="at-dot bad"></span>Last check failed
         @else <span class="at-dot ok"></span>Healthy @endif
       </div>
-      <div class="d">Checks your connected distributors nightly at 5:00 am</div>
+      <div class="d">Also checked every night at {{ tlocal($nightlyAt, 'g:i a') }}</div>
     </div>
     <div class="at-sync-stat">
       <div class="k">Last checked</div>
-      <div class="v">{{ $lastSyncRun ? tlocal($lastSyncRun->started_at, 'M j, g:i a') : '—' }}</div>
+      <div class="v">{{ $nightlyNewer ? tlocal($lastNightly->finished_at, 'M j, g:i a') : ($lastSyncRun ? tlocal($lastSyncRun->started_at, 'M j, g:i a') : '—') }}</div>
       <div class="d">
-        @if($lastSyncRun && $lastSyncRun->error)
+        @if($nightlyNewer)
+          nightly check
+        @elseif($lastSyncRun && $lastSyncRun->error)
           <span style="color:#f0a3a3">{{ \Illuminate\Support\Str::limit($lastSyncRun->error, 60) }}</span>
         @elseif(!empty($srStats))
           {{ number_format($srStats['linked'] ?? 0) }} items ·
@@ -337,13 +343,17 @@ body.at-bar-open .ia-mobile-nav{display:none}
     </div>
     <div class="at-sync-act">
       <form method="POST" action="{{ route('tenant.distributors.attention.sync') }}">@csrf
-        <button class="ia-btn ia-btn--primary" style="width:100%">Check for changes now</button>
+        <button class="ia-btn ia-btn--primary" style="width:100%" data-sync-start data-sync-title="Checking all your distributors">Check for changes now</button>
       </form>
       <form method="POST" action="{{ route('tenant.distributors.attention.sync') }}">@csrf
         <input type="hidden" name="mode" value="dry">
-        <button class="ia-btn ia-btn--ghost" style="width:100%">Preview only (saves nothing)</button>
+        <button class="ia-btn ia-btn--ghost" style="width:100%" data-sync-start data-sync-title="Previewing all your distributors">Preview only (saves nothing)</button>
       </form>
     </div>
+  </div>
+  <div style="margin:-8px 0 20px">
+    @include('tenant.distributors._sync-progress', ['code' => null, 'state' => $syncProgress])
+  </div>
   </div>
 
   {{-- the counts are the filter. Reading a tile then

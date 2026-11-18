@@ -22,5 +22,7 @@ class FinishTenantDistributorSyncJob implements ShouldQueue
     public function handle(): void
     {
         DistributorSyncRuns::close($this->tenantId, $this->runId);
+        // the box's warehouse stock counts read the fresh numbers straight away
+        \Illuminate\Support\Facades\Cache::forget('wh_stock_counts:' . $this->tenantId);
     }
 }

@@ -33,6 +33,10 @@ class TenantDistributorCatalogSubscription extends Model
         'last_sync_at',
         'last_sync_status',
         'last_sync_error',
+        // set when the Distributors page first creates the row (new rows start
+        // at MSRP); without it production silently dropped the value and every
+        // new box started at MAP
+        'price_seed',
     ];
 
     protected $casts = [

@@ -220,6 +220,75 @@ class WarehouseRegistry
         }
     }
 
+    /**
+     * Turn one warehouse on or off as a place this shop ships online orders
+     * from. Its place in the order is kept; one ticked for the first time goes
+     * to the end. The order itself is set on the Online store's Fulfillment tab.
+     */
+    public static function setShopChoice(Tenant $tenant, string $wid, bool $on): bool
+    {
+        $ok = DistributionWarehouse::query()->whereKey($wid)
+            ->where('shown_to_shops', true)->where('dropship_enabled', true)->exists();
+        if (! $ok || self::access($tenant) !== 'on') return false;
+        $row = DB::table('tenant_warehouse_selections')->where('tenant_id', $tenant->id)->where('warehouse_id', $wid)->first();
+        $pos = $row ? (int) $row->priority
+            : 1 + (int) DB::table('tenant_warehouse_selections')->where('tenant_id', $tenant->id)->max('priority');
+        self::putSelection($tenant, $wid, $on, $pos);
+        Cache::forget('wh_stock_counts:' . $tenant->id);
+        return true;
+    }
+
+    /** Short names by "DIST|code", for screens that only have the feed's code (the register). */
+    public static function labels(): array
+    {
+        if (! self::ready()) return [];
+        return Cache::remember('wh_labels', 300, fn () => DistributionWarehouse::query()->get()
+            ->mapWithKeys(fn ($w) => [strtoupper($w->distributor_code) . '|' . $w->code => $w->label()])->all());
+    }
+
+    /**
+     * One distributor's warehouses for its box on the Distributors page: the
+     * short name, how many of the shop's items each has in stock, whether it
+     * counts toward the shop's stock number (the register's stars), and, for
+     * a shop that dropships, whether online orders may ship from it.
+     *
+     * With the platform switch off every warehouse found in the feed is listed,
+     * as the register's stock panel shows them all; with it on, only the ones
+     * master admin shows to shops.
+     *
+     * @param string[] $counted the shop's starred warehouse codes for this distributor (empty = all count)
+     */
+    public static function forBox(Tenant $tenant, string $code, array $counted): array
+    {
+        $code = strtoupper($code);
+        if (! self::ready()) return ['rows' => [], 'can_ship' => false];
+        $access = self::access($tenant);
+        $cfg = self::shopConfig($tenant);
+        $canShip = $access === 'on' && $cfg['dropship_on'];
+
+        $q = DistributionWarehouse::query()->where('distributor_code', $code);
+        if ($access !== 'hidden') $q->where('shown_to_shops', true);
+        $whs = $q->orderBy('name')->get();
+        $sel = DB::table('tenant_warehouse_selections')->where('tenant_id', $tenant->id)->get()->keyBy('warehouse_id');
+        $stock = self::stockCounts($tenant);
+
+        // shipping order across every distributor, as the Fulfillment tab shows it
+        $order = $canShip ? collect(self::forShop($tenant))->where('dropship', true)->where('enabled', true)->pluck('id')->values()->all() : [];
+
+        $rows = $whs->map(function ($w) use ($sel, $stock, $counted, $code, $canShip, $order) {
+            $pos = array_search($w->id, $order, true);
+            return [
+                'id' => $w->id, 'code' => (string) $w->code, 'name' => $w->label(), 'full_name' => $w->name,
+                'in_stock' => (int) ($stock[$code . '|' . $w->code] ?? 0),
+                'counts' => ! $counted || in_array((string) $w->code, $counted, true),
+                'ship' => $canShip && $w->dropship_enabled ? (bool) ($sel[$w->id]->enabled ?? false) : null,
+                'ship_pos' => $pos === false ? null : $pos + 1,
+            ];
+        })->all();
+
+        return ['rows' => $rows, 'can_ship' => $canShip, 'ship_total' => count($order)];
+    }
+
     /* ---------------- where is it, and where would it come from ---------------- */
 
     /**

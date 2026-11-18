@@ -52,6 +52,8 @@ class RunTenantDistributorSyncJob implements ShouldQueue
         DB::table('tenant_distributor_sync_runs')->insert([
             'id' => $this->runId, 'tenant_id' => $this->tenantId,
             'trigger' => $this->trigger, 'dry_run' => $this->dryRun,
+            // MARKER-SYNC-PROGRESS: which distributor box this run belongs to (null = all of them)
+            'distributor_code' => $this->onlyCode ? strtoupper($this->onlyCode) : null,
             'started_at' => now(), 'created_at' => now(), 'updated_at' => now(),
         ]);
 
@@ -68,9 +70,11 @@ class RunTenantDistributorSyncJob implements ShouldQueue
             }
 
             $plan = [];
+            $itemsTotal = 0;
             foreach ($subs as $sub) {
                 $code = strtoupper((string) $sub->distributor_code);
                 $ids  = $service->linkedPivotQuery($this->tenantId, $code)->orderBy('id')->pluck('id');
+                $itemsTotal += $ids->count();
 
                 // One slice even when nothing is linked, so a missing map or
                 // bad credentials still surface on the run as they always did.
@@ -95,7 +99,7 @@ class RunTenantDistributorSyncJob implements ShouldQueue
             }
             $jobs[] = new FinishTenantDistributorSyncJob($this->runId, $this->tenantId);
 
-            DistributorSyncRuns::merge($this->tenantId, $this->runId, ['slices_total' => $total]);
+            DistributorSyncRuns::merge($this->tenantId, $this->runId, ['slices_total' => $total, 'items_total' => $itemsTotal]);
             Bus::chain($jobs)->dispatch();
         } catch (\Throwable $e) {
             DistributorSyncRuns::close($this->tenantId, $this->runId, 'Run could not start: ' . $e->getMessage());

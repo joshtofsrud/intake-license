@@ -11,7 +11,8 @@ use Illuminate\Http\Request;
  * register's supplier stock panel. Stored on the tenant's settings as
  * preferred_warehouses = { "QBP": ["MN", …], "BTI": ["reno"] }. Only starred
  * warehouses count toward the stock chip for that distributor; a distributor
- * with none starred counts every warehouse.
+ * with none starred counts every warehouse. The same setting is the
+ * "Count in my stock" switch in each distributor box (PreferredWarehouses).
  */
 class SupplierWarehouseController extends Controller
 {
@@ -22,17 +23,7 @@ class SupplierWarehouseController extends Controller
             'warehouse'   => 'required|string|max:60',
             'on'          => 'required|boolean',
         ]);
-        $tenant = tenant();
-        $code = strtoupper(trim($data['distributor']));
-        $wh   = trim($data['warehouse']);
-
-        $settings = (array) ($tenant->settings ?? []);
-        $prefs = (array) ($settings['preferred_warehouses'] ?? []);
-        $list = array_values(array_filter((array) ($prefs[$code] ?? []), fn ($w) => (string) $w !== $wh));
-        if ($data['on']) { $list[] = $wh; }
-        if ($list) { $prefs[$code] = $list; } else { unset($prefs[$code]); }
-        $settings['preferred_warehouses'] = $prefs;
-        $tenant->update(['settings' => $settings]);
+        $prefs = \App\Support\PreferredWarehouses::star(tenant(), strtoupper(trim($data['distributor'])), trim($data['warehouse']), (bool) $data['on']);
 
         return response()->json(['ok' => true, 'preferred_warehouses' => (object) $prefs]);
     }

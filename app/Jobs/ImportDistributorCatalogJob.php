@@ -100,7 +100,9 @@ class ImportDistributorCatalogJob implements ShouldQueue, ShouldBeUnique
             // nightly or on the Refresh button. Run it now, for this one
             // distributor, so cost and stock land minutes after the import.
             if ($totals['created'] + $totals['merged'] > 0) {
-                \App\Jobs\RunTenantDistributorSyncJob::dispatch($this->tenantId, false, 'import', null, $this->code);
+                $runId = (string) \Illuminate\Support\Str::uuid();
+                \App\Support\DistributorSyncProgress::queued($this->tenantId, $runId, $this->code); // shows in the box
+                \App\Jobs\RunTenantDistributorSyncJob::dispatch($this->tenantId, false, 'import', $runId, $this->code);
             }
         } catch (\Throwable $e) {
             // reported, not just logged: master admin

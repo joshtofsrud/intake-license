@@ -25,6 +25,34 @@ class TenantDistributorSyncService
      * optionally one keyset slice of them: id > $after, id <= $upto.
      * RunTenantDistributorSyncJob plans its slices from this same query.
      */
+    /**
+     * MARKER-SYNC-PROGRESS: optional listener for live progress, set by the
+     * "Refresh" slice job so the page can show which step is running and how
+     * far along it is. Called with (phase, done, total); phase is cost, stock
+     * or items. Nothing else sets it, so the nightly command is unchanged.
+     *
+     * @var null|callable(string,int,int):void
+     */
+    private $progress = null;
+    private float $progressAt = 0.0;
+
+    public function onProgress(?callable $fn): static
+    {
+        $this->progress = $fn;
+        $this->progressAt = 0.0;
+        return $this;
+    }
+
+    /** At most about once a second, except the first and last step of a phase. */
+    private function tick(string $phase, int $done, int $total): void
+    {
+        if (! $this->progress) { return; }
+        $now = microtime(true);
+        if ($done !== 0 && $done < $total && $now - $this->progressAt < 1.0) { return; }
+        $this->progressAt = $now;
+        try { ($this->progress)($phase, $done, $total); } catch (\Throwable) { /* progress never fails a sync */ }
+    }
+
     public function linkedPivotQuery(string $tenantId, string $code, ?string $after = null, ?string $upto = null): \Illuminate\Database\Eloquent\Builder
     {
         return TenantInventoryItemVendor::query()
@@ -108,8 +136,12 @@ class TenantDistributorSyncService
         $t1 = microtime(true);
 
         $snapshots = [];
+        $itemsTotal = $pivots->count();
+        $itemsDone = 0;
+        $this->tick('items', 0, $itemsTotal);
         try {
         foreach ($pivots as $pivot) {
+            $this->tick('items', ++$itemsDone, $itemsTotal);
             $cat = $pivot->distributorCatalog;
             $item = $pivot->item;
             if (! $cat || ! $item) {
@@ -237,7 +269,11 @@ class TenantDistributorSyncService
         $cost = [];
         $errors = [];
 
+        $total = count($variantNos);
+        $done = 0;
+        $this->tick('cost', 0, $total);
         foreach (array_chunk($variantNos, 50) as $chunk) {
+            $done += count($chunk);
             try {
                 foreach ($this->productsList($adapter->prices($chunk)) as $row) {
                     $vno = $row['VariantNo'] ?? null;
@@ -252,6 +288,7 @@ class TenantDistributorSyncService
             } catch (\Throwable $e) {
                 $errors[] = 'cost fetch: ' . $e->getMessage();
             }
+            $this->tick('cost', $done, $total);
         }
 
         return [$cost, $errors];
@@ -261,7 +298,11 @@ class TenantDistributorSyncService
     private function fetchAvailability(DistributorAdapter $adapter, array $variantNos, array &$res, array &$wh = []): array
     {
         $avail = [];
+        $total = count($variantNos);
+        $done = 0;
+        $this->tick('stock', 0, $total);
         foreach (array_chunk($variantNos, 50) as $chunk) {
+            $done += count($chunk);
             try {
                 $resp = $adapter->inventory($chunk);
                 foreach ($this->normalizeInventory($resp) as $vno => $qty) {
@@ -273,6 +314,7 @@ class TenantDistributorSyncService
             } catch (\Throwable $e) {
                 $res['errors'][] = 'avail fetch: ' . $e->getMessage();
             }
+            $this->tick('stock', $done, $total);
         }
         return $avail;
     }

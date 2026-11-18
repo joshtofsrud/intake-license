@@ -1436,6 +1436,11 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::get('/connection/pricing-check',  [TenantControllers\DistributorController::class, 'pricingCheck'])->name('connection.pricing.check');
                 Route::post('/connection/pricing-sweep', [TenantControllers\DistributorController::class, 'pricingSweep'])->name('connection.pricing.sweep');
                 Route::post('/connection/refresh',[TenantControllers\DistributorController::class, 'refreshSync'])->name('connection.refresh');
+                // MARKER-SYNC-PROGRESS: the live progress line in a box and on Catalog attention
+                Route::get('/connection/progress', [TenantControllers\DistributorController::class, 'syncProgress'])->name('connection.progress');
+                // MARKER-BOX-WAREHOUSES: the Warehouses list in each box
+                Route::post('/connection/warehouse/count', [TenantControllers\DistributorController::class, 'warehouseCount'])->name('connection.warehouse.count');
+                Route::post('/connection/warehouse/ship',  [TenantControllers\DistributorController::class, 'warehouseShip'])->name('connection.warehouse.ship');
             });
 
             Route::get('/settings',             [TenantControllers\SettingsController::class, 'index'])->name('settings.index');

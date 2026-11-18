@@ -55,6 +55,11 @@ class SyncDistributorSliceJob implements ShouldQueue
             return;
         }
 
+        // MARKER-SYNC-PROGRESS: which step this slice is on, for the live line
+        \App\Support\DistributorSyncProgress::step($this->runId, $this->code, $this->slice, $this->slices, 'start', 0, 0);
+        $service->onProgress(fn (string $phase, int $done, int $total) =>
+            \App\Support\DistributorSyncProgress::step($this->runId, $this->code, $this->slice, $this->slices, $phase, $done, $total));
+
         try {
             $res = $service->sync($sub, $this->dryRun, $this->after, $this->upto);
         } catch (\Throwable $e) {
@@ -63,6 +68,8 @@ class SyncDistributorSliceJob implements ShouldQueue
             JobFailureReporter::report(self::class, $this->code . ' sync failed inside a "Sync now" run', $e,
                 ['code' => $this->code, 'slice' => $this->slice . '/' . $this->slices], $this->tenantId);
             return;
+        } finally {
+            $service->onProgress(null);
         }
 
         $res['slices_done'] = 1;

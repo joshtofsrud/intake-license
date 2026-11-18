@@ -85,6 +85,10 @@ class DistributorController extends Controller
                 ),
                 'priority'  => (int) ($sub->data_priority ?? 50),
                 'options'   => (array) ($creds['options'] ?? []),
+                // MARKER-BOX-WAREHOUSES: its warehouses, what counts, where online orders ship from
+                'wh'        => $this->boxWarehouses($tenant, $code, (array) ($creds['options'] ?? [])),
+                // MARKER-SYNC-PROGRESS: a refresh running (or just finished) for this box
+                'progress'  => \App\Support\DistributorSyncProgress::state((string) $tenant->id, $code),
                 'linked'    => TenantInventoryItemVendor::query()
                     ->where('distributor_code', $code)
                     ->whereNotNull('distributor_catalog_id')
@@ -347,7 +351,77 @@ class DistributorController extends Controller
         'JBI' => ['include_closeout'],
     ];
 
-    public function saveOption(Request $request): RedirectResponse
+    /**
+     * MARKER-BOX-WAREHOUSES: the Warehouses list in a distributor box. JBI's
+     * closeout warehouse is always listed: it only reaches the feed when the
+     * shop includes it, so its switch is that option.
+     */
+    private function boxWarehouses(\App\Models\Tenant $tenant, string $code, array $options): array
+    {
+        $box = \App\Services\Distributors\WarehouseRegistry::forBox($tenant, $code, \App\Support\PreferredWarehouses::for($tenant, $code));
+        if ($code === 'JBI') {
+            $closeoutOn = ! empty($options['include_closeout']);
+            $cc = \App\Services\Distributors\JbiClient::CLOSEOUT;
+            $found = false;
+            foreach ($box['rows'] as &$r) {
+                if ($r['code'] === $cc) { $r['closeout'] = true; $r['counts'] = $closeoutOn && $r['counts']; $found = true; }
+            }
+            unset($r);
+            if (! $found) {
+                $box['rows'][] = [
+                    'id' => null, 'code' => $cc, 'full_name' => 'JBI — ' . \App\Services\Distributors\JbiClient::WAREHOUSES[$cc][1],
+                    'name' => \App\Models\DistributionWarehouse::defaultLabel('JBI — ' . \App\Services\Distributors\JbiClient::WAREHOUSES[$cc][1], $cc),
+                    'in_stock' => 0, 'counts' => $closeoutOn, 'ship' => null, 'ship_pos' => null, 'closeout' => true,
+                ];
+            }
+        }
+        $box['closeout_on'] = $code === 'JBI' && ! empty($options['include_closeout']);
+        $box['counted'] = count(array_filter($box['rows'], fn ($r) => $r['counts']));
+        return $box;
+    }
+
+    /** "Count in my stock" for one warehouse (the register's star, from the box). */
+    public function warehouseCount(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $this->guard();
+        $data = $request->validate([
+            'distributor_code' => ['required', 'string', 'max:32'],
+            'warehouse'        => ['required', 'string', 'max:60'],
+            'on'               => ['required', 'boolean'],
+        ]);
+        $code = strtoupper($data['distributor_code']);
+        abort_unless(app(DistributorRegistry::class)->isSupported($code), 404);
+        $tenant = tenant();
+        $sub = TenantDistributorCatalogSubscription::where('tenant_id', $tenant->id)->where('distributor_code', $code)->first();
+        $box = $this->boxWarehouses($tenant, $code, (array) (((array) ($sub?->credentials_encrypted ?? []))['options'] ?? []));
+
+        // the closeout row's switch is the include option, not a star
+        $codes = array_column(array_filter($box['rows'], fn ($r) => empty($r['closeout']) || $box['closeout_on']), 'code');
+        abort_unless(in_array($data['warehouse'], array_column($box['rows'], 'code'), true), 404);
+        abort_if($code === 'JBI' && $data['warehouse'] === \App\Services\Distributors\JbiClient::CLOSEOUT, 422); // its switch is the include option
+
+        $prefs = \App\Support\PreferredWarehouses::count($tenant, $code, $data['warehouse'], (bool) $data['on'], $codes);
+        if ($prefs === null) {
+            return response()->json(['ok' => false, 'message' => 'At least one warehouse has to count. Switch another on first.'], 422);
+        }
+        return response()->json(['ok' => true]);
+    }
+
+    /** "Ship from here": may online orders ship from this warehouse. */
+    public function warehouseShip(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $this->guard();
+        $data = $request->validate([
+            'warehouse_id' => ['required', 'string', 'max:64'],
+            'on'           => ['required', 'boolean'],
+        ]);
+        $ok = \App\Services\Distributors\WarehouseRegistry::setShopChoice(tenant(), $data['warehouse_id'], (bool) $data['on']);
+        return $ok
+            ? response()->json(['ok' => true])
+            : response()->json(['ok' => false, 'message' => 'Shipping from this warehouse is not available to your shop.'], 422);
+    }
+
+    public function saveOption(Request $request): RedirectResponse|\Illuminate\Http\JsonResponse
     {
         $this->guard();
         $data = $request->validate([
@@ -365,12 +439,21 @@ class DistributorController extends Controller
         $sub->credentials_encrypted = $creds;
         $sub->save();
 
+        $msg = 'Saved.';
         if ($data['option'] === 'include_closeout') {
-            return back()->with('success', $data['value'] === '1'
-                ? 'Florida Closeout (111) stock is now counted in your JBI stock from the next refresh.'
-                : 'Florida Closeout (111) stock is left out of your JBI stock from the next refresh.');
+            // a shop that counts only some JBI warehouses: closeout joins or
+            // leaves that list with the switch
+            $cc = \App\Services\Distributors\JbiClient::CLOSEOUT;
+            if (\App\Support\PreferredWarehouses::for(tenant(), $code)) {
+                \App\Support\PreferredWarehouses::star(tenant(), $code, $cc, $data['value'] === '1');
+            }
+            $msg = $data['value'] === '1'
+                ? 'Florida Closeout stock is counted in your JBI stock from the next refresh.'
+                : 'Florida Closeout stock is left out of your JBI stock from the next refresh.';
         }
-        return back()->with('success', 'Saved.');
+        return $request->wantsJson()
+            ? response()->json(['ok' => true, 'message' => $msg])
+            : back()->with('success', $msg);
     }
 
     /** where this distributor's items sit today. */
@@ -570,26 +653,56 @@ class DistributorController extends Controller
         }
     }
 
-    // the job syncs every active subscription for the
-    // tenant, so the distributor here decides whose credentials are checked
-    // first and what the message names, not which feed runs.
-    public function refreshSync(Request $request): RedirectResponse
+    // this one distributor only: cost, stock and warehouses for its linked
+    // items. The page follows the run live (syncProgress), so the answer is a
+    // run id for the box to watch, not "give it a minute".
+    public function refreshSync(Request $request): RedirectResponse|\Illuminate\Http\JsonResponse
     {
         $this->guard();
         [$code, $label, $sub] = $this->requestedSub($request);
 
         $creds = (array) ($sub->credentials_encrypted ?? []);
-        if (! $sub->is_active) {
-            return back()->with('error', 'Turn ' . $label . ' on before refreshing it.');
-        }
-        if (blank($creds['api_key'] ?? null)) {
-            return back()->with('error', 'Connect ' . $label . ' before refreshing.');
+        $refuse = ! $sub->is_active ? 'Turn ' . $label . ' on before refreshing it.'
+            : (blank($creds['api_key'] ?? null) ? 'Connect ' . $label . ' before refreshing.' : null);
+        if ($refuse) {
+            return $request->wantsJson()
+                ? response()->json(['ok' => false, 'message' => $refuse], 422)
+                : back()->with('error', $refuse);
         }
 
-        // same logged job as Catalog attention's Check for changes now, but
-        // for this one distributor, so every sync appears in the run history
-        \App\Jobs\RunTenantDistributorSyncJob::dispatch(tenant()->id, false, 'manual', null, $code);
-        return back()->with('success', 'Refreshing ' . $label . ' cost, stock and warehouses in the background. Give it a minute.');
+        $runId = $this->startRun($code);
+        if ($request->wantsJson()) {
+            return response()->json(['ok' => true, 'run' => $runId,
+                'progress' => \App\Support\DistributorSyncProgress::state((string) tenant()->id, $code)]);
+        }
+        return back()->with('success', 'Refreshing ' . $label . ' — progress shows in its box.');
+    }
+
+    /**
+     * Queue a logged run (one distributor, or all of them when $code is null)
+     * and mark it queued so the page shows it before a worker picks it up.
+     */
+    private function startRun(?string $code, bool $dry = false, string $trigger = 'manual', int $delaySeconds = 0): string
+    {
+        $runId = (string) \Illuminate\Support\Str::uuid();
+        $tenantId = (string) tenant()->id;
+        \App\Support\DistributorSyncProgress::queued($tenantId, $runId, $code);
+        $job = \App\Jobs\RunTenantDistributorSyncJob::dispatch($tenantId, $dry, $trigger, $runId, $code);
+        if ($delaySeconds > 0) {
+            $job->delay(now()->addSeconds($delaySeconds));
+        }
+        return $runId;
+    }
+
+    /** MARKER-SYNC-PROGRESS: what a box (?code=) or Catalog attention (no code) shows now. */
+    public function syncProgress(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $this->guard();
+        $code = strtoupper(trim((string) $request->query('code', '')));
+        if ($code !== '') {
+            abort_unless(app(DistributorRegistry::class)->isSupported($code), 404);
+        }
+        return response()->json(\App\Support\DistributorSyncProgress::state((string) tenant()->id, $code ?: null));
     }
 
     public function import(\Illuminate\Http\Request $request): \Illuminate\Contracts\View\View
@@ -784,9 +897,13 @@ class DistributorController extends Controller
         }
 
         // the bulk import refreshes stock when it finishes; one item must too,
-        // or it sits with no cost or stock from this distributor until tonight
-        if (($res['created'] ?? 0) + ($res['merged'] ?? 0) > 0) {
-            \App\Jobs\RunTenantDistributorSyncJob::dispatch(tenant()->id, false, 'import', null, $code);
+        // or it sits with no cost or stock from this distributor until tonight.
+        // A refresh covers every linked item, so items imported one after
+        // another share one: it waits 30 seconds, and a refresh still waiting
+        // to start picks up the ones added meanwhile.
+        if (($res['created'] ?? 0) + ($res['merged'] ?? 0) > 0
+            && \App\Support\DistributorSyncProgress::state((string) tenant()->id, $code)['state'] !== 'queued') {
+            $this->startRun($code, false, 'import', 30);
         }
 
         $what = ($res['created'] ?? 0) > 0 ? 'created' : (($res['merged'] ?? 0) > 0 ? 'merged' : 'linked');
@@ -1044,11 +1161,23 @@ class DistributorController extends Controller
         $lastSyncRun = \Illuminate\Support\Facades\DB::table('tenant_distributor_sync_runs')
             ->where('tenant_id', $tenant->id)->orderByDesc('started_at')->first();
 
+        // the nightly check logs to its own table; without it "Last checked"
+        // showed the last button press even when last night's check ran
+        $lastNightly = null;
+        try {
+            $lastNightly = \Illuminate\Support\Facades\DB::table('distributor_sync_runs')
+                ->where('tenant_id', $tenant->id)->where('status', 'done')->orderByDesc('finished_at')
+                ->first(['finished_at', 'processed']);
+        } catch (\Throwable) { /* table not migrated yet */ }
+        $syncProgress = \App\Support\DistributorSyncProgress::state((string) $tenant->id);
+        $nightlyAt = \Carbon\Carbon::parse('06:30', config('app.timezone', 'UTC'));
+
         // shown in the page legend.
         $titleThresholdPct = (int) round(((float) config('distributors.title_change_min_ratio', 0.15)) * 100);
 
         return view('tenant.distributors.attention', compact(
-            'flags', 'counts', 'stock', 'filters', 'brandOptions', 'categoryOptions', 'lastSyncRun', 'perPage', 'titleThresholdPct'
+            'flags', 'counts', 'stock', 'filters', 'brandOptions', 'categoryOptions', 'lastSyncRun', 'perPage', 'titleThresholdPct',
+            'lastNightly', 'syncProgress', 'nightlyAt'
         ));
     }
 
@@ -1057,15 +1186,19 @@ class DistributorController extends Controller
      * Queue a tenant distributor sync (real or dry-run) and bounce back;
      * the page shows the run row when the worker finishes.
      */
-    public function attentionSync(\Illuminate\Http\Request $request): \Illuminate\Http\RedirectResponse
+    public function attentionSync(\Illuminate\Http\Request $request): \Illuminate\Http\RedirectResponse|\Illuminate\Http\JsonResponse
     {
         $this->guard();
         $tenant = tenant();
         $dry = $request->input('mode') === 'dry';
-        \App\Jobs\RunTenantDistributorSyncJob::dispatch($tenant->id, $dry, 'manual');
+        $runId = $this->startRun(null, $dry);
+        if ($request->wantsJson()) {
+            return response()->json(['ok' => true, 'run' => $runId,
+                'progress' => \App\Support\DistributorSyncProgress::state((string) $tenant->id)]);
+        }
         return back()->with('success', $dry
-            ? 'Dry run queued — refresh in a minute to see what would change.'
-            : 'Sync queued — refresh in a minute for results.');
+            ? 'Preview started — progress shows above.'
+            : 'Check started — progress shows above.');
     }
 
     /**

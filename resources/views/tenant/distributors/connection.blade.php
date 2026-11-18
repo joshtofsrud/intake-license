@@ -17,6 +17,7 @@
 .dc-input{width:100%;background:var(--ia-input-bg);border:1px solid var(--ia-border);border-radius:var(--ia-r-md);padding:9px 11px;color:var(--ia-text);font-size:13px;font-family:var(--ia-mono)}
 .dc-input:focus{outline:none;border-color:var(--ia-accent)}
 .dc-btn{display:inline-flex;align-items:center;gap:7px;padding:9px 15px;border-radius:var(--ia-r-md);font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--ia-border-strong);background:var(--ia-surface-2);color:var(--ia-text)}
+.dc-btn:disabled{opacity:.5;cursor:default}
 .dc-btn.primary{background:var(--ia-accent);color:var(--ia-accent-text);border-color:var(--ia-accent)}
 .dc-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:16px}
 .dc-stat{background:var(--ia-surface-2);border:.5px solid var(--ia-border);border-radius:var(--ia-r-md);padding:13px 14px}
@@ -29,6 +30,20 @@
 .dc-unlock{display:flex;gap:9px;align-items:flex-start;margin-bottom:9px;font-size:12.5px;color:var(--ia-text-muted)}
 .dc-unlock b{color:var(--ia-text)}
 .dc-dim{color:var(--ia-text-dim)}
+.dc-wh-t{width:100%;border-collapse:collapse;font-size:13px}
+.dc-wh-t th{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--ia-text-dim);font-weight:600;text-align:left;padding:0 10px 6px 0;white-space:nowrap}
+.dc-wh-t td{padding:8px 10px 8px 0;border-top:.5px solid var(--ia-border);vertical-align:middle}
+.dc-wh-t .n{text-align:right;font-family:var(--ia-mono);width:1%;white-space:nowrap;padding-right:22px}
+.dc-wh-t .c{width:1%;white-space:nowrap}
+.dc-wh-t td.c{display:table-cell}
+.dc-wh-sub{font-size:11.5px;color:var(--ia-text-dim);margin-top:2px;line-height:1.45}
+.dc-wh-pos{font-size:11px;color:var(--ia-text-dim);margin-left:6px;font-family:var(--ia-mono);vertical-align:middle}
+.dc-wh-t .dc-toggle{vertical-align:middle}
+.dc-wh-t .dc-toggle[disabled]{opacity:.5;cursor:wait}
+.dc-wh-msg{font-size:12px;color:var(--ia-text-dim)}
+.dc-wh-msg.err{color:#f0a3a3}
+.dc-tip{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;border:.5px solid var(--ia-border-strong);font-size:9.5px;color:var(--ia-text-dim);cursor:help;position:relative;text-transform:none;letter-spacing:0;margin-left:3px}
+.dc-tip:hover::after,.dc-tip:focus::after{content:attr(data-tip);position:absolute;top:18px;right:-8px;width:240px;padding:8px 10px;background:var(--ia-surface);border:.5px solid var(--ia-border-strong);border-radius:var(--ia-r-md);font-size:11.5px;font-weight:400;line-height:1.45;color:var(--ia-text-muted);white-space:normal;z-index:20;box-shadow:0 6px 20px rgba(0,0,0,.35)}
 </style>
 @endpush
 
@@ -56,7 +71,7 @@
   @endif
 
   @foreach ($boxes as $i => $b)
-    <div class="dc-card">
+    <div class="dc-card" data-sync-scope>
       <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap">
         <div style="display:flex;align-items:center;gap:12px">
           <form method="POST" action="{{ route('tenant.distributors.connection.toggle') }}">
@@ -160,38 +175,76 @@
         </div>
       @endif
 
-      {{-- JBI's closeout warehouse, per shop. Its own form, like pricing,
-           so it never travels through the credential form. --}}
-      @if ($b['enabled'] && strtoupper($b['code']) === 'JBI')
-        @php $closeoutOn = ! empty($b['options']['include_closeout']); @endphp
-        <div class="dc-row" style="border-top:.5px solid var(--ia-border);padding-top:16px;margin-top:14px">
-          <div class="dc-field" style="min-width:280px">
-            <label>Florida Closeout warehouse (111)</label>
-            <form method="POST" action="{{ route('tenant.distributors.connection.option') }}" style="margin:0">
-              @csrf
-              <input type="hidden" name="distributor_code" value="{{ $b['code'] }}">
-              <input type="hidden" name="option" value="include_closeout">
-              <div style="display:inline-flex;border:1px solid var(--ia-border-strong);border-radius:var(--ia-r-md);overflow:hidden">
-                @foreach (['1' => 'On', '0' => 'Off'] as $val => $lbl)
-                  <button type="submit" name="value" value="{{ $val }}"
-                          style="padding:8px 16px;font-size:13px;font-weight:600;border:0;cursor:pointer;
-                                 {{ ($closeoutOn ? '1' : '0') === $val
-                                     ? 'background:var(--ia-accent);color:var(--ia-accent-text)'
-                                     : 'background:transparent;color:var(--ia-text-dim)' }}">{{ $lbl }}</button>
-                @endforeach
-              </div>
-            </form>
-            <div style="font-size:11.5px;color:var(--ia-text-dim);margin-top:6px;line-height:1.5">
-              @if ($closeoutOn)
-                <b>On:</b> closeout stock is added to your JBI stock counts and shown as its own warehouse.
-              @else
-                <b>Off:</b> closeout stock is left out of your JBI stock counts, availability and reorder signals.
-              @endif
-              Closeout stock is limited and often end-of-line. JBI's live stock does not include
-              this warehouse, so its numbers come from JBI's stock file. Applies from the next stock refresh;
-              your own stock and prices are not affected.
-            </div>
+      {{-- MARKER-BOX-WAREHOUSES: this distributor's warehouses. "Count in my
+           stock" is the register's star; "Ship online orders" is the
+           Fulfillment tab's choice. Both save as they are switched. --}}
+      @if ($b['enabled'])
+        @php $wh = $b['wh']; @endphp
+        <div class="dc-wh" data-wh-box data-code="{{ $b['code'] }}"
+             style="border-top:.5px solid var(--ia-border);padding-top:16px;margin-top:14px">
+          <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+            <span style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ia-text-dim);font-weight:600">Warehouses</span>
+            <span class="dc-wh-msg" aria-live="polite"></span>
           </div>
+          @if (! $wh['rows'])
+            <div style="font-size:12.5px;color:var(--ia-text-dim);line-height:1.5">
+              None yet. {{ $b['label'] }} lists its warehouses with stock, so they appear here after the first
+              refresh of your linked items{{ $b['hasKey'] ? '' : ', once the account is connected' }}.
+            </div>
+          @else
+            <table class="dc-wh-t">
+              <thead><tr>
+                <th>Warehouse</th>
+                <th class="n">Your items in stock</th>
+                <th class="c">Count in my stock <span class="dc-tip" tabindex="0" data-tip="Which warehouses add up to the {{ $b['label'] }} stock number on the register and your items. The same as the stars in the register's stock panel. Your own stock and prices are not affected.">?</span></th>
+                @if ($wh['can_ship'])
+                  <th class="c">Ship online orders <span class="dc-tip" tabindex="0" data-tip="Online orders may ship straight from this warehouse. The order they are tried in is set on Online store, Fulfillment.">?</span></th>
+                @endif
+              </tr></thead>
+              <tbody>
+              @foreach ($wh['rows'] as $r)
+                <tr>
+                  <td title="{{ $r['full_name'] }}">
+                    {{ $r['name'] }}
+                    @if (! empty($r['closeout']))
+                      <div class="dc-wh-sub">Limited, often end-of-line. Counts come from JBI's stock file, applied at the next refresh.</div>
+                    @endif
+                  </td>
+                  <td class="n">{{ ! empty($r['closeout']) && ! $r['counts'] ? '—' : number_format($r['in_stock']) }}</td>
+                  <td class="c">
+                    @if (! empty($r['closeout']))
+                      <button type="button" class="dc-toggle {{ $r['counts'] ? 'on' : '' }}" data-wh-closeout
+                              aria-pressed="{{ $r['counts'] ? 'true' : 'false' }}" aria-label="Count {{ $r['name'] }} in my stock"><span></span></button>
+                    @else
+                      <button type="button" class="dc-toggle {{ $r['counts'] ? 'on' : '' }}" data-wh-count="{{ $r['code'] }}"
+                              aria-pressed="{{ $r['counts'] ? 'true' : 'false' }}" aria-label="Count {{ $r['name'] }} in my stock"><span></span></button>
+                    @endif
+                  </td>
+                  @if ($wh['can_ship'])
+                    <td class="c">
+                      @if ($r['ship'] === null)
+                        <span class="dc-dim" title="This warehouse doesn't ship to your customers.">—</span>
+                      @else
+                        <button type="button" class="dc-toggle {{ $r['ship'] ? 'on' : '' }}" data-wh-ship="{{ $r['id'] }}"
+                                aria-pressed="{{ $r['ship'] ? 'true' : 'false' }}" aria-label="Ship online orders from {{ $r['name'] }}"><span></span></button>
+                        @if ($r['ship'] && $r['ship_pos'])
+                          <span class="dc-wh-pos">{{ $r['ship_pos'] }} of {{ $wh['ship_total'] }}</span>
+                        @endif
+                      @endif
+                    </td>
+                  @endif
+                </tr>
+              @endforeach
+              </tbody>
+            </table>
+            <div style="font-size:11.5px;color:var(--ia-text-dim);margin-top:7px;line-height:1.5">
+              Switches save straight away.
+              @if ($wh['can_ship'] && \Illuminate\Support\Facades\Route::has('tenant.storefront.settings'))
+                Change the order online orders try them in on
+                <a href="{{ route('tenant.storefront.settings', ['tab' => 'ful']) }}" style="color:var(--ia-accent)">Online store, Fulfillment</a>.
+              @endif
+            </div>
+          @endif
         </div>
       @endif
 
@@ -271,12 +324,13 @@
                   formaction="{{ route('tenant.distributors.connection.test') }}">Test connection</button>
           @if ($b['enabled'] && $b['hasKey'])
             {{-- this distributor only: cost, stock and warehouses for linked items --}}
-            <button class="dc-btn" type="submit"
+            <button class="dc-btn" type="submit" data-sync-start data-sync-title="Refreshing {{ $b['label'] }}"
                     formaction="{{ route('tenant.distributors.connection.refresh') }}">Refresh stock &amp; cost</button>
           @endif
         </div>
         <div data-dc-testnote
              style="display:none;font-size:11.5px;color:var(--ia-text-dim);margin-top:9px;line-height:1.5"></div>
+        @include('tenant.distributors._sync-progress', ['code' => $b['code'], 'state' => $b['progress']])
       </form>
       @endif
     </div>
@@ -378,12 +432,58 @@
   })();
   </script>
 
+
+  {{-- MARKER-BOX-WAREHOUSES: the switches save as they flip; a refusal flips them back and says why --}}
+  <script>
+  document.addEventListener('DOMContentLoaded', function () {
+    var CSRF = @json(csrf_token());
+    var urls = {
+      count: @json(route('tenant.distributors.connection.warehouse.count')),
+      ship: @json(route('tenant.distributors.connection.warehouse.ship')),
+      option: @json(route('tenant.distributors.connection.option'))
+    };
+    document.querySelectorAll('[data-wh-box]').forEach(function (box) {
+      var code = box.getAttribute('data-code');
+      var msg = box.querySelector('.dc-wh-msg'), msgT = null;
+      function say(t, bad) {
+        msg.textContent = t; msg.classList.toggle('err', !!bad);
+        clearTimeout(msgT); msgT = setTimeout(function () { msg.textContent = ''; }, bad ? 6000 : 2500);
+      }
+      box.addEventListener('click', function (e) {
+        var b = e.target.closest('.dc-toggle');
+        if (!b || b.disabled) { return; }
+        var on = !b.classList.contains('on'), url, body;
+        if (b.hasAttribute('data-wh-count')) {
+          url = urls.count; body = { distributor_code: code, warehouse: b.getAttribute('data-wh-count'), on: on };
+        } else if (b.hasAttribute('data-wh-ship')) {
+          url = urls.ship; body = { warehouse_id: b.getAttribute('data-wh-ship'), on: on };
+        } else if (b.hasAttribute('data-wh-closeout')) {
+          url = urls.option; body = { distributor_code: code, option: 'include_closeout', value: on ? '1' : '0' };
+        } else { return; }
+        b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); b.disabled = true;
+        fetch(url, {
+          method: 'POST', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': CSRF },
+          body: JSON.stringify(body)
+        }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok && j.ok, j: j }; }); })
+          .then(function (res) {
+            b.disabled = false;
+            if (res.ok) { say(res.j.message || 'Saved'); return; }
+            b.classList.toggle('on', !on); b.setAttribute('aria-pressed', !on ? 'true' : 'false');
+            say((res.j && res.j.message) || 'Not saved. Try again.', true);
+          })
+          .catch(function () {
+            b.disabled = false; b.classList.toggle('on', !on); b.setAttribute('aria-pressed', !on ? 'true' : 'false');
+            say('Not saved. Check your connection and try again.', true);
+          });
+      });
+    });
+  });
+  </script>
   <div class="dc-card">
-    {{-- sync status + manual runs live on Catalog attention,
-         the surface staff actually watch. Connection is credentials only. --}}
     <div style="font-size:12.5px;color:var(--ia-text-muted);padding:6px 0 2px">
-      Looking for sync status or a manual refresh? That lives on
-      <a href="{{ route('tenant.distributors.attention') }}" style="color:var(--ia-accent)">Catalog attention</a> now.
+      Each box refreshes its own distributor. To check every distributor at once and review
+      what changed, use <a href="{{ route('tenant.distributors.attention') }}" style="color:var(--ia-accent)">Catalog attention</a>.
     </div>
   </div>
 

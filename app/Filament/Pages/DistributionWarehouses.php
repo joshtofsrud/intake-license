@@ -183,6 +183,7 @@ class DistributionWarehouses extends Page
                 'short_name' => trim((string) ($r['short'] ?? '')) ?: null,
             ])->save();
         }
+        \Illuminate\Support\Facades\Cache::forget('wh_labels'); // the register's short names
 
         foreach (Tenant::query()->where('is_active', true)->get() as $t) {
             $v = in_array($this->ov[$t->id] ?? 'follow', ['follow', 'allow', 'block'], true) ? $this->ov[$t->id] : 'follow';
