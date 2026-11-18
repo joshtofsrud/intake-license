@@ -1344,11 +1344,22 @@ class DistributorController extends Controller
         return back()->with('success', $msg);
     }
 
+    /**
+     * What a saved secret looks like in its field's placeholder. It used to
+     * show the first 8 and last 5 characters, so anything 13 characters or
+     * shorter (most passwords) appeared in full. Short secrets now show only
+     * that one is saved; long keys and tokens keep 4 at each end so a shop can
+     * tell which key it is.
+     */
     private function mask(?string $key): ?string
     {
         if (blank($key)) {
             return null;
         }
-        return substr($key, 0, 8) . str_repeat('•', max(0, strlen($key) - 13)) . substr($key, -5);
+        $len = mb_strlen($key);
+        if ($len < 24) {
+            return 'saved · ' . str_repeat('•', 8);
+        }
+        return mb_substr($key, 0, 4) . str_repeat('•', 12) . mb_substr($key, -4);
     }
 }
