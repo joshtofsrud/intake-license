@@ -20,7 +20,7 @@ namespace App\Support;
  *     label_map     {from: to}         rename a spec label, matched on the
  *                                      feed's own label
  *     label_words   {from: to}         rename a word inside labels ("Axel" → "Axle")
- *     label_case    sentence
+ *     label_case    sentence | caps_to_sentence (labels in capitals only)
  *     drop_labels   [..]               specs not to show
  *     ...and the value options above, applied to each spec's value.
  *
@@ -72,6 +72,10 @@ class FieldCleanup
             }
             if (($c['label_case'] ?? '') === 'sentence') {
                 $label = self::sentence($label);
+            } elseif (($c['label_case'] ?? '') === 'caps_to_sentence' && ! preg_match('/\p{Ll}/u', $label)) {
+                // a label in capitals ("REAR SHOCK", Kona) → "Rear shock";
+                // sentence keeps capitalised words as acronyms, so it can't
+                $label = mb_strtoupper(mb_substr(mb_strtolower($label), 0, 1)) . mb_substr(mb_strtolower($label), 1);
             }
             if (in_array(mb_strtolower($raw), $drop, true) || in_array(mb_strtolower($label), $drop, true)) {
                 continue;

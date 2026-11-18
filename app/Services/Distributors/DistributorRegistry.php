@@ -30,7 +30,27 @@ class DistributorRegistry
         // brings its own JBI login (dealer pricing is per account), packed
         // as JSON in api_key; see JbiClient::pack().
         'JBI' => JbiClient::class,
+        // a brand, sold direct to its dealers: catalog from Kona's public
+        // store, cost and stock from each dealer's stock file. Brand-direct,
+        // so no shop sees it until master admin switches that shop on.
+        'KONA' => KonaClient::class,
     ];
+
+    /** The adapter class for a code, or null. */
+    public function adapterClass(string $code): ?string
+    {
+        return self::ADAPTERS[strtoupper($code)] ?? null;
+    }
+
+    /**
+     * Whether the platform catalog sync needs a stored key. Kona's catalog is
+     * a public store, so it runs with none.
+     */
+    public function needsKey(string $code): bool
+    {
+        $class = $this->adapterClass($code);
+        return ! ($class && method_exists($class, 'needsKey')) || $class::needsKey();
+    }
 
     /** Marker stored in a shop's subscription when the platform login is used. */
     public const PLATFORM_MARK = 'platform';
@@ -94,6 +114,9 @@ class DistributorRegistry
     /** What master admin types in for the platform login of a distributor. */
     public function platformCredentialFields(string $code): array
     {
+        if (! $this->needsKey($code)) {
+            return [];
+        }
         if (strtoupper($code) === 'SHIMANO') {
             return [
                 ['name' => 'username', 'label' => 'SFTP username', 'type' => 'text',
@@ -167,6 +190,7 @@ class DistributorRegistry
             'QBP' => 'QBP',
             'SHIMANO' => 'Shimano',
             'JBI' => 'J&B (JBI)',
+            'KONA' => 'Kona',
             default => strtoupper($code),
         };
     }

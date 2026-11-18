@@ -30,6 +30,9 @@ class DistributorsSyncTenantCommand extends Command
             return self::FAILURE;
         }
 
+        // MARKER-BRAND-DIRECT: skip brand-direct sources a shop is not switched on for
+        $subs = $subs->filter(fn ($s) => \App\Support\BrandDirect::allows((string) $s->tenant_id, (string) $s->distributor_code))->values();
+
         if ($subs->isEmpty()) {
             $this->warn('No matching subscriptions.');
             return self::SUCCESS;

@@ -19,11 +19,14 @@ class PlatformDistributorConnection extends Model
     protected $fillable = [
         'distributor_code', 'api_key', 'region', 'auth_style', 'base_url',
         'is_active', 'last_tested_at', 'last_test_status', 'last_test_message',
+        // MARKER-BRAND-DIRECT: off for every shop until switched on per shop
+        'brand_direct',
     ];
 
     protected $casts = [
         'api_key'        => 'encrypted',
         'is_active'      => 'boolean',
+        'brand_direct'   => 'boolean',
         'last_tested_at' => 'datetime',
     ];
 

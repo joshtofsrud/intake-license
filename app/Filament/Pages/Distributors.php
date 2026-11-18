@@ -177,6 +177,7 @@ class Distributors extends Page implements HasForms
             // Default to the stored value, not to false — a connection that
             // is live must never render as switched off.
             'is_active'  => (bool) $conn->is_active,
+            'brand_direct' => (bool) ($conn->brand_direct ?? false),
         ]);
     }
 
@@ -214,7 +215,8 @@ class Distributors extends Page implements HasForms
                             ->helperText(fn () => strtoupper($this->currentCode()) === 'JBI'
                                 ? 'Optional. Turns on live stock from the inventory API; without it stock comes from inv_loc.txt. Encrypted at rest. Leave blank to keep the saved one.'
                                 : 'Encrypted at rest. Leave blank to keep the saved key.')
-                            ->visible(fn () => ! in_array(strtoupper($this->currentCode()), ['BTI', 'SHIMANO'], true))
+                            ->visible(fn () => ! in_array(strtoupper($this->currentCode()), ['BTI', 'SHIMANO'], true)
+                                && app(\App\Services\Distributors\DistributorRegistry::class)->needsKey($this->currentCode()))
                             ->columnSpanFull(),
 
                         TextInput::make('account')->label('JBI account number')
@@ -254,6 +256,11 @@ class Distributors extends Page implements HasForms
 
                         Toggle::make('is_active')->label('Is active')
                             ->columnSpanFull(),
+
+                        // MARKER-BRAND-DIRECT
+                        Toggle::make('brand_direct')->label('Brand-direct (dealers only)')
+                            ->helperText('For a brand that sells only to its own dealers. Off for every shop until you switch the shop on under Distribution › Brand suppliers. Shared parts distributors leave this off.')
+                            ->columnSpanFull(),
                     ])->columns(2),
             ])
             ->statePath('data');
@@ -282,11 +289,13 @@ class Distributors extends Page implements HasForms
         $conn->region     = $state['region'] ?? 'us';
         $conn->base_url   = $state['base_url'] ?? $conn->base_url;
         $conn->is_active  = (bool) ($state['is_active'] ?? true);
+        $conn->brand_direct = (bool) ($state['brand_direct'] ?? false);
         if ($this->usesAuthStyle($this->currentCode())) {
             $conn->auth_style = $state['auth_style'] ?? $conn->auth_style;
         }
         $conn->distributor_code = $this->currentCode();
         $conn->save();
+        \App\Support\BrandDirect::forget();
 
         Notification::make()->success()
             ->title($this->currentCode() . ' connection saved')->send();

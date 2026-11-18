@@ -49,6 +49,7 @@ class DistributorFieldMapResource extends Resource
         'pick_attribute'      => 'pick_attribute — first matching attribute by name',
         'zip_pipe'            => 'zip_pipe — two pipe strings → {Name,Value} pairs',
         'split_pipe'          => 'split_pipe — pipe string → list',
+        'fixed'               => 'fixed — the same value on every row',
     ];
 
     public static function form(Form $form): Form
@@ -200,7 +201,10 @@ class DistributorFieldMapResource extends Resource
                             Forms\Components\Select::make('cleanup.label_case')
                                 ->label('Letter case of labels')
                                 ->native(false)->placeholder('As sent')
-                                ->options(['sentence' => 'Sentence case ("Cartridge axle")']),
+                                ->options([
+                                    'sentence'         => 'Sentence case ("Cartridge axle")',
+                                    'caps_to_sentence' => 'Labels in capitals → sentence case ("REAR SHOCK" → "Rear shock")',
+                                ]),
                         ])->columns(2),
                 ]),
 
@@ -458,6 +462,9 @@ class DistributorFieldMapResource extends Resource
 
             ['split_pipe', 'One pipe string into a list.', '{"sep":"|","prefix":"…"} — prefix makes relative paths fetchable',
              'images ← image_paths'],
+
+            ['fixed', 'The same value on every row; source_path is ignored.', '{"value":"…"}',
+             'manufacturer = Kona (the feed names "Kona Bicycle Company USA")'],
         ];
 
         $out = '<div style="font-size:12px;line-height:1.5">'

@@ -61,7 +61,10 @@ class RunTenantDistributorSyncJob implements ShouldQueue
             $subs = TenantDistributorCatalogSubscription::query()
                 ->where('tenant_id', $this->tenantId)->where('is_active', true)
                 ->when($this->onlyCode, fn ($q) => $q->where('distributor_code', strtoupper((string) $this->onlyCode)))
-                ->orderBy('distributor_code')->get();
+                ->orderBy('distributor_code')->get()
+                // MARKER-BRAND-DIRECT: a brand-direct source this shop was switched off for is not refreshed
+                ->filter(fn ($s) => \App\Support\BrandDirect::allows($this->tenantId, (string) $s->distributor_code))
+                ->values();
 
             if ($subs->isEmpty()) {
                 DistributorSyncRuns::merge($this->tenantId, $this->runId, ['note' => 'no active subscriptions']);

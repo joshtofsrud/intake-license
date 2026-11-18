@@ -65,8 +65,13 @@ class AdminAccess
         if ($segment === '' ) {
             return 'dashboard';
         }
+        // every Distribution page declares the catalog area; the ones not
+        // listed here fell to owner/admin only, so catalog staff saw them in
+        // the menu and were turned away
         if ($segment === 'distributors' || $segment === 'distributor-field-maps'
-            || str_starts_with($segment, 'catalog-')) {
+            || str_starts_with($segment, 'catalog-')
+            || in_array($segment, ['distribution-warehouses', 'brand-names', 'distributor-velocity',
+                'brand-suppliers', 'tenant-brand-access', 'variant-split-rules'], true)) {
             return 'catalog';
         }
         return match ($segment) {

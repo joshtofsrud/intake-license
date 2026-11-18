@@ -37,7 +37,12 @@ class VelocityFetch
     /** Every distributor the registry supports: the one list, so a new one needs no edits here. */
     public static function codes(): array
     {
-        return app(\App\Services\Distributors\DistributorRegistry::class)->supported();
+        // a brand-direct source (Kona) has no platform-wide stock to sweep:
+        // its stock is in each dealer's own file
+        return array_values(array_filter(
+            app(\App\Services\Distributors\DistributorRegistry::class)->supported(),
+            fn ($c) => ! \App\Support\BrandDirect::is($c)
+        ));
     }
 
     /** When each distributor was last read by a sweep (from the run log). */

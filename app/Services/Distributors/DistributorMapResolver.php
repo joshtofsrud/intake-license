@@ -78,6 +78,9 @@ class DistributorMapResolver
             'pick_attribute'      => $this->pickAttribute($ctx, $row->source_path, $args),
             'zip_pipe'            => $this->zipPipe($ctx, $args),
             'split_pipe'          => $this->splitPipe($this->path($ctx, $row->source_path), $args),
+            // the same value on every row ("Kona" as the brand when the feed
+            // names the company instead)
+            'fixed'               => $args['value'] ?? null,
             default               => null,
         };
 

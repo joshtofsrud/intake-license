@@ -122,4 +122,21 @@ return [
         // about 21,600 products today; one pull takes them all
         'sync_page_size'  => (int) env('JBI_SYNC_PAGE_SIZE', 60000),
     ],
+
+    // Kona: a brand, not a distributor. The catalog (names, photos,
+    // descriptions, spec tables) is read from Kona's public Shopify store,
+    // which Kona told us is the way to get it; cost and stock come from each
+    // dealer's own stock file. No login.
+    'kona' => [
+        'name'            => 'Kona',
+        'base_url'        => env('KONA_BASE_URL', 'https://konaworld.com'),
+        'timeout'         => (int) env('KONA_TIMEOUT', 30),
+        // products per feed page (Shopify's ceiling is 250)
+        'feed_page_size'  => (int) env('KONA_FEED_PAGE_SIZE', 250),
+        'max_feed_pages'  => (int) env('KONA_MAX_FEED_PAGES', 40),
+        // pause between product pages, so the spec read is gentle on Kona's site
+        'page_delay_ms'   => (int) env('KONA_PAGE_DELAY_MS', 700),
+        'user_agent'      => env('KONA_USER_AGENT', 'IntakeCatalog/1.0 (+https://intake.works)'),
+        'sync_page_size'  => (int) env('KONA_SYNC_PAGE_SIZE', 20000),
+    ],
 ];

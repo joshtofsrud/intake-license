@@ -29,7 +29,7 @@ class DistributorsSyncCatalogCommand extends Command
             ?: config('distributors.' . strtolower($code) . '.api_key')
             ?: env($code . '_API_KEY', ''));
 
-        if ($key === '') {
+        if ($key === '' && $registry->needsKey($code)) {
             $this->error("No API key. Pass --key= or set {$code}_API_KEY in .env.");
             return self::FAILURE;
         }

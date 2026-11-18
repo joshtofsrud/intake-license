@@ -32,6 +32,9 @@ class PlatformDistributorCatalog extends Model
         'name',
         'display_name',
         'display_subtitle',
+        // the composed search blob. Missing here, production silently dropped
+        // it on every sync, so rows a sync created had none until a recompose
+        'search_text',
         'manufacturer',
         'manufacturer_raw', // MARKER-BRAND-NAMES: the distributor's own spelling
         'category',

@@ -49,7 +49,8 @@ class DistributorController extends Controller
         $registry = app(\App\Services\Distributors\DistributorRegistry::class);
 
         $boxes = [];
-        foreach ($registry->supported() as $code) {
+        // MARKER-BRAND-DIRECT: a brand-direct source shows only to shops master admin switched on
+        foreach (\App\Support\BrandDirect::visibleCodes((string) $tenant->id) as $code) {
             // a row created just by opening this page is
             // not a connection. It starts OFF and the shop turns it on.
             $sub = TenantDistributorCatalogSubscription::firstOrCreate(
@@ -149,7 +150,7 @@ class DistributorController extends Controller
         ]);
 
         $code = strtoupper($data['code']);
-        if (! in_array($code, app(\App\Services\Distributors\DistributorRegistry::class)->supported(), true)) {
+        if (! in_array($code, \App\Support\BrandDirect::visibleCodes((string) tenant()->id), true)) {
             abort(404);
         }
 
@@ -548,7 +549,7 @@ class DistributorController extends Controller
      */
     private function orderedSubs()
     {
-        $codes = app(\App\Services\Distributors\DistributorRegistry::class)->supported();
+        $codes = \App\Support\BrandDirect::visibleCodes((string) tenant()->id);
 
         return TenantDistributorCatalogSubscription::where('tenant_id', tenant()->id)
             ->whereIn('distributor_code', $codes)
@@ -596,6 +597,7 @@ class DistributorController extends Controller
         $code = strtoupper(trim((string) $request->input('distributor_code', '')));
 
         abort_unless($code !== '' && $registry->isSupported($code), 404);
+        abort_unless(\App\Support\BrandDirect::allows((string) tenant()->id, $code), 404);
 
         $sub = TenantDistributorCatalogSubscription::firstOrCreate(
             ['tenant_id' => tenant()->id, 'distributor_code' => $code],
@@ -1026,7 +1028,7 @@ class DistributorController extends Controller
      */
     private function importableCodes(): array
     {
-        $supported = app(\App\Services\Distributors\DistributorRegistry::class)->supported();
+        $supported = \App\Support\BrandDirect::visibleCodes((string) tenant()->id);
 
         // only distributors THIS shop has connected. The
         // platform catalog is shared, so without this a shop was offered

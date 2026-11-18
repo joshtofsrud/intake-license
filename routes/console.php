@@ -202,6 +202,13 @@ Schedule::command('distributors:sync-catalog JBI')
     ->withoutOverlapping()
     ->runInBackground();
 
+// MARKER-BRAND-DIRECT: Kona's catalog from its public store. A product page is
+// read again only when Kona changes that product, so the daily read is light.
+Schedule::command('distributors:sync-catalog KONA')
+    ->dailyAt('04:55')
+    ->withoutOverlapping()
+    ->runInBackground();
+
 // Reads the rows both syncs just wrote. Without this, matching sees nothing
 // new — which is exactly why 55,773 QBP rows were invisible to the importer.
 Schedule::command('catalog:index-identifiers')

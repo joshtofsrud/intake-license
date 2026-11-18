@@ -53,12 +53,12 @@ class SyncDistributorCatalogJob implements ShouldQueue, ShouldBeUnique
         $code = strtoupper($this->distributorCode);
         $conn = PlatformDistributorConnection::forCode($code);
 
-        if (! $conn->api_key) {
+        if (! $conn->api_key && $registry->needsKey($code)) {
             Log::warning("SyncDistributorCatalogJob: no platform API key for {$code}.");
             return;
         }
 
-        $adapter = $registry->make($code, ['api_key' => $conn->api_key, 'region' => $conn->region ?? 'us']);
+        $adapter = $registry->make($code, ['api_key' => (string) $conn->api_key, 'region' => $conn->region ?? 'us']);
         if ($conn->auth_style && method_exists($adapter, 'setAuthStyle')) {
             $adapter->setAuthStyle($conn->auth_style);
         }
