@@ -56,6 +56,34 @@ class StoreSiteClient implements DistributorAdapter
         return $this;
     }
 
+    /**
+     * Which route reaches a Shopify store's products: the open product list,
+     * the all-products collection, or the sitemap and each product's own data.
+     * Null when none does.
+     */
+    public function findShopifyRoute(): ?string
+    {
+        foreach (['products', 'collection'] as $route) {
+            try {
+                $res = $this->get($this->base . self::SHOPIFY_ROUTES[$route], ['limit' => 1]);
+                if (! empty($res->json('products'))) {
+                    return $route;
+                }
+            } catch (\Throwable) {
+                // try the next route
+            }
+        }
+        try {
+            $this->settings['shopify_route'] = 'sitemap';
+            $this->sitemapHandles = null;
+            if ($this->sitemapPage(1, 1)) {
+                return 'sitemap';
+            }
+        } catch (\Throwable) {
+        }
+        return null;
+    }
+
     /** The first few products of the feed, in the shape kept. */
     public function sample(int $n = 5): array
     {
@@ -172,11 +200,26 @@ class StoreSiteClient implements DistributorAdapter
         }
     }
 
+    /** The Shopify routes to a store's products, in the order they're tried. */
+    public const SHOPIFY_ROUTES = [
+        'products'   => '/products.json',
+        'collection' => '/collections/all/products.json',
+        'sitemap'    => null, // the product sitemap, then each product's own data
+    ];
+
+    /** Handles from the product sitemap, kept for the read (the sitemap route). */
+    private ?array $sitemapHandles = null;
+
     /** One page of the product feed, in one shape whatever the store. */
     private function listPage(int $page, int $per): array
     {
         if ($this->platform === 'shopify') {
-            $res = $this->get($this->base . '/products.json', ['limit' => $per, 'page' => $page]);
+            $route = (string) ($this->settings['shopify_route'] ?? 'products');
+            if ($route === 'sitemap') {
+                return $this->sitemapPage($page, min($per, 25));
+            }
+            $path = self::SHOPIFY_ROUTES[$route] ?? '/products.json';
+            $res = $this->get($this->base . $path, ['limit' => $per, 'page' => $page]);
             return array_map([self::class, 'fromShopify'], (array) ($res->json('products') ?? []));
         }
         if ($this->platform === 'woocommerce') {
@@ -185,6 +228,47 @@ class StoreSiteClient implements DistributorAdapter
             return array_map(fn ($i) => $this->fromWoo((array) $i), $items);
         }
         throw new \RuntimeException('This brand\'s store type ("' . $this->platform . '") is read by the custom-site setup, which is not built yet.');
+    }
+
+    /**
+     * A store whose product lists are hidden: its sitemap lists every product
+     * page, and each product's own data is read one at a time, with the pace.
+     */
+    private function sitemapPage(int $page, int $per): array
+    {
+        if ($this->sitemapHandles === null) {
+            $this->sitemapHandles = [];
+            $idx = $this->get($this->base . '/sitemap.xml', []);
+            foreach (BrandSiteProbe::locs($idx->body()) as $loc) {
+                if (! str_contains($loc, 'sitemap_products')) {
+                    continue;
+                }
+                foreach (BrandSiteProbe::locs($this->get($loc, [])->body()) as $u) {
+                    if (preg_match('~/products/([^/?#]+)~', $u, $m)) {
+                        $this->sitemapHandles[strtolower($m[1])] = true;
+                    }
+                }
+            }
+            $this->sitemapHandles = array_keys($this->sitemapHandles);
+        }
+        $out = [];
+        $gap = self::pace($this->code)['page_gap_s'];
+        foreach (array_slice($this->sitemapHandles, ($page - 1) * $per, $per) as $n => $h) {
+            if ($n > 0) {
+                $this->pause($gap, 0);
+            }
+            try {
+                if ($p = $this->one($h)) {
+                    $out[] = $p;
+                }
+            } catch (\Throwable $e) {
+                if ($e->getMessage() === 'Stopped from master admin.') {
+                    throw $e;
+                }
+                // a product that won't answer is skipped; the next read tries again
+            }
+        }
+        return $out;
     }
 
     private function one(string $handle): ?array

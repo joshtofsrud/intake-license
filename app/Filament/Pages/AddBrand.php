@@ -147,6 +147,7 @@ class AddBrand extends Page
                 'code' => $code, 'label' => $label, 'base_url' => $base, 'platform' => $p['platform'],
                 'settings' => json_encode(array_filter([
                     'size_option' => $this->sizeOption, 'color_option' => $this->colorOption, 'estimate' => $p['total'] ?? null,
+                    'shopify_route' => $p['route'] ?? null,
                 ], fn ($v) => $v !== '' && $v !== null)),
                 'created_by' => Auth::guard('web')->user()?->email, 'created_at' => now(), 'updated_at' => now(),
             ]);

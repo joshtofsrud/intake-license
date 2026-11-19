@@ -58,9 +58,21 @@ class BrandSiteProbe
             $this->state['name'] = self::siteName($html, $base);
 
             $platform = null;
+            $route = null;
+            // Shopify, from its feed or from its page code (a store can hide its product list)
             $shop = $this->get($base . '/products.json', ['limit' => self::SAMPLE]);
-            if ($shop && is_array($shop->json('products'))) {
+            $looksShopify = ($shop && is_array($shop->json('products'))) || preg_match('~cdn\.shopify\.com|Shopify\.shop\s*=~', $html);
+            if ($looksShopify) {
                 $platform = 'shopify';
+                $route = (new StoreSiteClient())->configure($base, 'shopify', ['label' => $this->state['name'] ?? ''])->findShopifyRoute();
+                if (! $route) {
+                    $this->state['platform'] = 'shopify';
+                    $this->step('Store type: Shopify, but its products are hidden (no product list, collection or product sitemap answers)', 'warn');
+                    $this->state['status'] = 'unsupported';
+                    $this->state['hidden'] = true;
+                    $this->save();
+                    return;
+                }
             } else {
                 $woo = $this->get($base . '/wp-json/wc/store/v1/products', ['per_page' => self::SAMPLE]);
                 if ($woo && is_array($woo->json()) && isset(($woo->json()[0] ?? [])['prices'])) {
@@ -76,14 +88,19 @@ class BrandSiteProbe
                 return;
             }
             $this->state['platform'] = $platform;
-            $this->step('Store type: ' . ($platform === 'shopify' ? 'Shopify' : 'WooCommerce') . ', with a public product feed', 'ok');
+            $this->state['route'] = $route;
+            $this->step('Store type: ' . ($platform === 'shopify' ? 'Shopify' : 'WooCommerce') . match ($route) {
+                'collection' => ', product list hidden; reading its all-products collection',
+                'sitemap' => ', product lists hidden; reading its product sitemap and each product\'s own data (slower)',
+                default => ', with a public product feed',
+            }, 'ok');
 
             if ($platform === 'shopify') {
                 $this->state['total'] = $this->countShopify($base);
             }
             $this->step('Product list: ' . ($this->state['total'] ? number_format($this->state['total']) . ' products' : 'found (count comes with the first read)'), 'ok');
 
-            $client = (new StoreSiteClient())->configure($base, $platform, ['label' => $this->state['name']]);
+            $client = (new StoreSiteClient())->configure($base, $platform, array_filter(['label' => $this->state['name'], 'shopify_route' => $route]));
             $products = $client->sample(self::SAMPLE);
             $rows = [];
             foreach ($products as $i => $p) {

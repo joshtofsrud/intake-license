@@ -80,7 +80,9 @@
             @endforelse
           </div>
           @if ($status === 'failed')<div class="ab-err">Couldn't finish: {{ $p['error'] ?? 'unknown error' }}</div>@endif
-          @if ($status === 'unsupported')
+          @if ($status === 'unsupported' && ! empty($p['hidden']))
+            <div class="ab-note" style="margin-top:10px"><b>This Shopify store hides its products</b> from every route Intake can read without a login. Nothing was saved. If the brand can turn its product list back on, or gives you a product file, it can be added then.</div>
+          @elseif ($status === 'unsupported')
             <div class="ab-note" style="margin-top:10px"><b>This site has no public product feed</b> ({{ ($p['platform'] ?? '') === 'bigcommerce' ? 'BigCommerce' : 'a custom-built site' }}).
               Intake can't add it from here yet: reading a site like this, by pointing at the parts of its pages, is the next build. Nothing was saved.</div>
           @endif
@@ -177,7 +179,7 @@
   @if ($step === 4 && $ready)
     @php $kinds = array_values(array_filter(array_map('trim', preg_split('/\r?\n/', $kindsText)))); @endphp
     <div class="ab-row"><div class="l">Brand</div><div><b>{{ $name }}</b> <span class="ab-dim">· {{ parse_url($p['base'], PHP_URL_HOST) }} · {{ $p['platform'] === 'shopify' ? 'Shopify' : 'WooCommerce' }} · code {{ $this->suggestedCode() }}</span></div><div></div></div>
-    <div class="ab-row"><div class="l">Catalog</div><div class="ab-dim">{{ ! empty($p['total']) ? number_format($p['total']) . ' products' : 'Every product in the feed' }}, read from the store's product feed, a page at a time. Size from "{{ $sizeOption ?: 'none' }}", color from "{{ $colorOption ?: 'none' }}"{{ $kinds ? ', kinds: ' . implode(', ', $kinds) : '' }}.</div><div></div></div>
+    <div class="ab-row"><div class="l">Catalog</div><div class="ab-dim">{{ ! empty($p['total']) ? number_format($p['total']) . ' products' : 'Every product in the feed' }}, read {{ match ($p['route'] ?? null) { 'collection' => 'from its all-products collection, a page at a time', 'sitemap' => 'one product at a time from its product sitemap (allow about ' . max(1, (int) ceil((($p['total'] ?? 100) * 7) / 60)) . ' minutes)', default => 'from the store\'s product feed, a page at a time' } }}. Size from "{{ $sizeOption ?: 'none' }}", color from "{{ $colorOption ?: 'none' }}"{{ $kinds ? ', kinds: ' . implode(', ', $kinds) : '' }}.</div><div></div></div>
     <div class="ab-row"><div class="l">Field map</div><div class="ab-dim">Started from what the reader writes: part number, name, description, brand, category, size, color, photos, retail price, model year. Edit it any time in Field Mapping.</div><div></div></div>
     <div class="ab-row"><div class="l">Cost and stock</div><div class="ab-dim">From the brand's stock file, loaded on its Stock file tab once you have one.</div><div></div></div>
     <div class="ab-row"><div class="l">Shops</div><div class="ab-dim">Off for every shop. Switch dealers on from the brand's Shops tab.</div><div></div></div>
