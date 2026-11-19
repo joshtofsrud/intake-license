@@ -44,7 +44,7 @@ class KonaClient implements DistributorAdapter
      * Bumped when the page reader learns a new layout, so bikes read with
      * the older reader are read again once (2: the older #kro_specs table).
      */
-    public const READER_VERSION = 3;
+    public const READER_VERSION = 4;
 
     /** Set by the Stop button; the read stops before its next request. */
     public const STOP_KEY = 'kona.catalog_stop';
@@ -417,10 +417,20 @@ class KonaClient implements DistributorAdapter
                     $saved[$h] = ['gone' => true, 'read_at' => now()->timestamp];
                 } elseif ($res->successful() && is_array($product = $res->json('product'))) {
                     $this->pause(2, 'bikes', $n, $total);
-                    $page = $this->politeGet($this->base . '/products/' . rawurlencode($h), [], 'bikes', $n, $total);
-                    $parsed = $page->successful() ? self::parsePage($page->body())
-                        : ['specs' => $saved[$h]['specs'] ?? [], 'geometry' => $saved[$h]['geometry'] ?? []];
-                    $saved[$h] = ['product' => $product] + $parsed + ['read_at' => now()->timestamp, 'v' => self::READER_VERSION];
+                    // the web page, not its data: asked for JSON, the store sends the product data
+                    // here too and the page's tables never arrive
+                    $page = $this->politeGet($this->base . '/products/' . rawurlencode($h), [], 'bikes', $n, $total, 0, 'text/html,application/xhtml+xml');
+                    if ($page->successful() && str_contains(strtolower((string) $page->header('Content-Type')), 'html') && stripos($page->body(), '<html') !== false) {
+                        $saved[$h] = ['product' => $product] + self::parsePage($page->body()) + ['read_at' => now()->timestamp, 'v' => self::READER_VERSION];
+                    } else {
+                        // the page did not load: keep what was read before, and do not mark the
+                        // bike as read with this reader, so the next read tries the page again
+                        if ($this->only) {
+                            throw new \RuntimeException('The product page for "' . $h . '" did not come back as a web page (HTTP ' . $page->status() . ', ' . ($page->header('Content-Type') ?: 'no type') . '); nothing changed.');
+                        }
+                        $saved[$h] = ['product' => $product] + array_diff_key((array) ($saved[$h] ?? []), ['product' => 1, 'gone' => 1])
+                            + ['read_at' => now()->timestamp, 'v' => (int) ($saved[$h]['v'] ?? 1)];
+                    }
                     $this->recent($h, $saved[$h]);
                     if ($this->onBike && ($bike = $this->productFor($h, $saved[$h]))) {
                         try { ($this->onBike)($bike); } catch (\Throwable) { /* written again at the end of the read */ }
@@ -721,7 +731,7 @@ class KonaClient implements DistributorAdapter
      * for as long as its Retry-After says (or 5, 15, 30, 60, 120 seconds) and
      * tries again, showing the wait on master admin's progress line.
      */
-    private function politeGet(string $url, array $query, string $phase, int $done, int $total, int $read = 0): \Illuminate\Http\Client\Response
+    private function politeGet(string $url, array $query, string $phase, int $done, int $total, int $read = 0, ?string $accept = null): \Illuminate\Http\Client\Response
     {
         $waits = [5, 15, 30, 60, 120];
         foreach ($waits as $i => $fallback) {
@@ -729,7 +739,7 @@ class KonaClient implements DistributorAdapter
             // no query array when there is none: an empty one makes the
             // HTTP client drop the query already in the URL (the sitemap's
             // ?from=…&to=…), and Kona answers 400
-            $res = $this->http()->get($url, $query ?: null);
+            $res = ($accept ? $this->http($accept) : $this->http())->get($url, $query ?: null);
             if (! in_array($res->status(), [429, 430, 503], true)) {
                 return $res;
             }
@@ -746,7 +756,7 @@ class KonaClient implements DistributorAdapter
             }
         }
         $this->stopIfAsked();
-        return $this->http()->get($url, $query ?: null);
+        return ($accept ? $this->http($accept) : $this->http())->get($url, $query ?: null);
     }
 
     private function stopIfAsked(): void
@@ -757,12 +767,12 @@ class KonaClient implements DistributorAdapter
         }
     }
 
-    private function http(): \Illuminate\Http\Client\PendingRequest
+    private function http(string $accept = 'application/json, text/html;q=0.9'): \Illuminate\Http\Client\PendingRequest
     {
         return Http::timeout($this->timeout)
             ->withHeaders([
                 'User-Agent' => (string) config('distributors.kona.user_agent', 'IntakeCatalog/1.0'),
-                'Accept'     => 'application/json, text/html;q=0.9',
+                'Accept'     => $accept,
             ]);
     }
 
