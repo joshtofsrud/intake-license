@@ -1,5 +1,5 @@
 <x-filament-panels::page>
-{{-- MARKER-BRAND-DIRECT: hairlines, no cards (the Distribution warehouses vocabulary). --}}
+{{-- MARKER-BRAND-DIRECT: hairlines, no cards (the Distribution warehouses vocabulary). MARKER-BS-TABS: one brand, five tabs. --}}
 <style>
   .bs-root { --line:rgba(255,255,255,.075); --line2:rgba(255,255,255,.14); --dim:#a3a3ab; --faint:#74747d; --txt:#fff;
     --violet:#8b5cf6; --vtext:#a78bfa; --vsoft:rgba(139,92,246,.17); --ok:#86efac; --amber:#fbbf24; --bad:#fca5a5; --pop:#18181b; font-size:14px; }
@@ -44,14 +44,42 @@
   .bs-thumb { width:56px; height:42px; object-fit:cover; border-radius:5px; background:var(--line); display:block; }
   .bs-root code { font-family:ui-monospace,Menlo,monospace; font-size:11.5px; background:var(--line); padding:1px 5px; border-radius:4px; }
   .bs-err { color:var(--bad); font-size:12.5px; margin-top:6px; }
+  /* MARKER-BS-TABS */
+  .bs-pills { display:flex; gap:8px; flex-wrap:wrap; margin:18px 0 0; }
+  .bs-pill { border:1px solid var(--line2); border-radius:99px; padding:5px 14px; font-weight:600; cursor:pointer; background:transparent; color:inherit; font:inherit; font-size:13.5px; text-decoration:none; }
+  .bs-pill.on { background:var(--vsoft); border-color:var(--violet); color:var(--vtext); }
+  .bs-pill.add { color:var(--dim); font-weight:500; border-style:dashed; }
+  .bs-head { display:flex; gap:24px; align-items:flex-start; flex-wrap:wrap; padding:16px 0; margin-top:16px; border-top:1px solid var(--line); border-bottom:1px solid var(--line); }
+  .bs-head h2 { font-size:22px; font-weight:700; margin:0; }
+  .bs-hstats { display:flex; gap:26px; margin-left:auto; flex-wrap:wrap; }
+  .bs-hstats .k { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--faint); }
+  .bs-hstats .v { font-size:18px; font-weight:700; font-variant-numeric:tabular-nums; }
+  .bs-hstats .d { font-size:12px; color:var(--dim); }
+  .bs-tabs { display:flex; gap:2px; border-bottom:1px solid var(--line2); margin:14px 0 18px; flex-wrap:wrap; }
+  .bs-tab { padding:9px 14px; color:var(--dim); font-weight:600; cursor:pointer; border:0; border-bottom:2px solid transparent; margin-bottom:-1px; background:none; font:inherit; font-size:14px; }
+  .bs-tab.on { color:var(--vtext); border-bottom-color:var(--violet); }
+  .bs-tab .n { color:var(--faint); font-weight:500; margin-left:4px; }
+  .bs-row { display:grid; grid-template-columns:190px minmax(0,1fr) auto; gap:20px; padding:14px 0; border-bottom:1px solid var(--line); align-items:start; }
+  .bs-row > .l { font-weight:600; } .bs-row > .l small { display:block; color:var(--faint); font-weight:400; font-size:12.5px; margin-top:2px; }
+  .bs-note { background:var(--vsoft); border-radius:8px; padding:10px 14px; font-size:13px; color:var(--dim); margin-bottom:6px; line-height:1.55; }
+  .bs-note b { color:var(--txt); font-weight:600; }
+  .bs-fchip { border:1px solid var(--line2); border-radius:99px; padding:3px 11px; font-size:12.5px; color:var(--dim); cursor:pointer; background:none; font:inherit; font-size:12.5px; }
+  .bs-fchip.on { border-color:var(--violet); color:var(--vtext); background:var(--vsoft); }
 </style>
 
 @php
   $codes = $this->codes();
   $ro = ! $this->canEdit();
+  $tzName = function_exists('admin_tz') ? admin_tz() : config('app.timezone', 'UTC');
+  $at = fn ($hm) => \Carbon\Carbon::parse($hm, config('app.timezone', 'UTC'))->setTimezone($tzName)->format('g:i a');
 @endphp
 
 <div class="bs-root">
+  <p class="sub">
+    Brands that sell only to their own dealers. The <b>catalog</b> (names, photos, descriptions, specs) is read from the brand once for every shop;
+    <b>cost and stock</b> come from the brand's one stock file, joined on the brand's part number. No shop sees a brand until you switch that shop on.
+  </p>
+
   @if (! $codes)
     <div class="bs-empty">
       No distributor is marked brand-direct yet. Mark one on
@@ -62,151 +90,263 @@
   @php
     $cat = $this->catalog();
     $label = $this->label();
-    $onCount = $this->onCount();
-    $ready = $this->shopSideReady();
+    $hs = $this->headerStats();
+    $brandRow = collect($this->brandRows())->firstWhere('code', $code);
   @endphp
 
-  <p class="sub">
-    Brands that sell only to their own dealers. For each brand, the <b>catalog</b> (names, photos, descriptions, specs)
-    is read here once for every shop, and <b>cost and stock</b> come from the brand's stock file, loaded here once for every shop and joined on the
-    brand's part number. No shop sees a brand until you switch that shop on.
-  </p>
-
-  {{-- every brand supplier; the one picked below is the one the rest of the page is about --}}
-  <div class="bs-sec" style="margin-top:20px">
-    <div class="bs-sh">
-      <div><h2>Brands</h2><p>Pick a brand to manage it below.</p></div>
-      <a class="bs-btn g" href="{{ \App\Filament\Pages\Distributors::getUrl() }}">Add a brand</a>
-    </div>
-    <table class="bs-tbl">
-      <tr><th>Brand</th><th class="n">Part numbers</th><th class="n">Shops on</th><th>Catalog last read</th><th>Status</th></tr>
-      @foreach ($this->brandRows() as $b)
-        <tr wire:key="brand-{{ $b['code'] }}" wire:click="$set('code', '{{ $b['code'] }}')" style="cursor:pointer;{{ $b['code'] === $code ? 'background:var(--vsoft)' : '' }}">
-          <td style="padding-left:10px"><b style="{{ $b['code'] === $code ? 'color:var(--vtext)' : '' }}">{{ $b['label'] }}</b></td>
-          <td class="n">{{ number_format($b['count']) }}</td>
-          <td class="n">{{ $b['shops'] }}</td>
-          <td class="bs-dim">{{ $b['synced'] ?? 'Never' }}</td>
-          <td>
-            @if (! $b['shop_ready'])<span class="bs-chip warn">Shop side not built</span>
-            @elseif ($b['shops'] === 0)<span class="bs-chip">No shops on</span>
-            @else<span class="bs-chip ok">Live</span>@endif
-          </td>
-        </tr>
-      @endforeach
-    </table>
-    <div class="bs-legend" style="border-top:0">
-      <b>Adding a brand:</b> its reader is built first (where its catalog and stock file come from), then it is switched to
-      Brand-direct on the Distributors page and appears in this list, off for every shop.
-    </div>
+  <div class="bs-pills">
+    @foreach ($this->brandRows() as $b)
+      <button type="button" class="bs-pill {{ $b['code'] === $code ? 'on' : '' }}" wire:click="$set('code', '{{ $b['code'] }}')">{{ $b['label'] }}</button>
+    @endforeach
+    <a class="bs-pill add" href="{{ \App\Filament\Pages\Distributors::getUrl() }}" title="A brand's reader is built first, then it is switched to Brand-direct on Distributors and appears here, off for every shop">+ Add a brand</a>
   </div>
 
-  <h2 style="font-size:22px;font-weight:700;margin:34px 0 10px">{{ $label }}</h2>
-
-  <div class="bs-legend" style="margin-top:14px">
-    <b>Who sees {{ $label }}:</b> no shop, until you switch it on for that shop under Shops below.
-    @unless ($ready)
-      <b>Not live for shops yet:</b> the shop side ({{ $label }} box and stock file upload) is the next build, so even shops switched on see nothing until it ships.
-    @endunless
-    Switching a shop off hides its box and new imports; items it already has are never removed.
-  </div>
-
-  {{-- ============ SOURCES ============ --}}
-  <div class="bs-sec" @if ($cat['live']) wire:poll.2s @endif>
-    <div class="bs-sh">
-      <div><h2>Where {{ $label }}'s data comes from</h2><p>Each source fills only its own fields.</p></div>
-      @if ($cat['live'])
-        <button type="button" class="bs-btn" style="background:#dc2626" wire:click="stopRead" wire:loading.attr="disabled" @disabled($ro || $this->stopping())>
-          {{ $this->stopping() ? 'Stopping…' : 'Stop the read' }}
-        </button>
-      @else
-        <button type="button" class="bs-btn g" wire:click="readCatalog" wire:loading.attr="disabled" @disabled($ro)>Read catalog now</button>
+  <div class="bs-head" @if ($cat['live']) wire:poll.5s @endif>
+    <div>
+      <h2>{{ $label }}
+        @if (! ($brandRow['shop_ready'] ?? true))<span class="bs-chip warn" style="vertical-align:4px">Shop side not built</span>
+        @elseif ($hs['shops'] === 0)<span class="bs-chip" style="vertical-align:4px">No shops on</span>
+        @else<span class="bs-chip ok" style="vertical-align:4px">Live</span>@endif
+      </h2>
+      <div class="bs-dim" style="margin-top:4px;font-size:13px">Catalog from {{ parse_url((string) config('distributors.' . strtolower($code) . '.base_url'), PHP_URL_HOST) ?: $label . "'s store" }} · cost and stock from {{ $label }}'s {{ \App\Services\Distributors\BrandStockFile::exportName($code) }}</div>
+    </div>
+    <div class="bs-hstats">
+      <div><div class="k">Products</div><div class="v">{{ number_format($hs['products']) }}</div><div class="d">{{ number_format($hs['parts']) }} part numbers</div></div>
+      @if ($hs['read'] !== null)
+        <div><div class="k">Read</div><div class="v">{{ number_format($hs['read']) }} / {{ number_format($hs['of']) }}</div><div class="d">{{ $cat['live'] ? 'reading now' : ($hs['read'] >= $hs['of'] ? 'all current' : 'read catalog to finish') }}</div></div>
       @endif
+      <div><div class="k">Stock file</div>
+        @if ($hs['file'])<div class="v">{{ number_format($hs['file']->row_count) }} rows</div><div class="d">loaded {{ \Carbon\Carbon::parse($hs['file']->loaded_at)->diffForHumans() }}</div>
+        @else<div class="v" style="color:var(--amber)">None</div><div class="d">no cost or stock yet</div>@endif
+      </div>
+      <div><div class="k">Shops on</div><div class="v">{{ $hs['shops'] }}</div><div class="d">of {{ $hs['eligible'] }} eligible</div></div>
     </div>
-    <table class="bs-tbl">
-      <tr><th>Source</th><th>Fills</th><th>How often</th><th>Last</th><th>Status</th></tr>
-      <tr>
-        <td><b>Catalog</b><div class="bs-faint">{{ $label }}'s store: product feed + each product page</div></td>
-        <td class="bs-dim">Name, photos, description, spec table, model year, sizes, retail price</td>
-        <td class="bs-dim">Daily, {{ \Carbon\Carbon::parse('04:55', config('app.timezone', 'UTC'))->setTimezone(function_exists('admin_tz') ? admin_tz() : config('app.timezone', 'UTC'))->format('g:i a') }}</td>
-        <td>
-          @if ($cat['synced'])
-            {{ $cat['synced']->diffForHumans() }}<div class="bs-faint">{{ number_format($cat['products']) }} {{ $cat['products'] === 1 ? 'bike' : 'bikes' }} · {{ number_format($cat['count']) }} part {{ $cat['count'] === 1 ? 'number' : 'numbers' }}</div>
-          @else
-            <span class="bs-dim">Never read</span>
-          @endif
-          @if ($cat['state'] === 'queued')
-            <div class="bs-prog">Waiting for a free worker…<div class="bs-bar ind"><i></i></div></div>
-          @elseif ($cat['state'] === 'running')
-            <div class="bs-prog">{{ $cat['line'] }}
-              <div class="bs-bar {{ $cat['pct'] === null ? 'ind' : '' }}"><i style="{{ $cat['pct'] !== null ? 'width:' . $cat['pct'] . '%' : '' }}"></i></div>
-              <span class="bs-faint">started {{ $cat['started']?->diffForHumans() }}</span>
-              @foreach (array_slice($this->recentReads(), 0, 4) as $r)
-                <div class="bs-faint" style="margin-top:3px">✓ {{ $r['title'] }} · {{ $r['sizes'] }} {{ $r['sizes'] === 1 ? 'size' : 'sizes' }} · {{ $r['specs'] }} specs · {{ $r['images'] }} photos <span style="opacity:.7">{{ \Carbon\Carbon::createFromTimestamp($r['at'])->diffForHumans() }}</span></div>
-              @endforeach
-            </div>
-          @endif
-          @foreach ($cat['errors'] as $e)<div class="bs-err">{{ \Illuminate\Support\Str::limit($e, 160) }}</div>@endforeach
-        </td>
-        <td>
-          @switch ($cat['state'])
-            @case ('running') <span class="bs-chip">Reading</span> @break
-            @case ('queued') <span class="bs-chip">Queued</span> @break
-            @case ('ok') <span class="bs-chip ok">Read</span> @break
-            @case ('partial') <span class="bs-chip warn">Read with errors</span> @break
-            @case ('failed') <span class="bs-chip bad">Failed</span> @break
-            @default <span class="bs-chip warn">Not read yet</span>
-          @endswitch
-        </td>
-      </tr>
-      <tr>
-        <td><b>Stock file</b><div class="bs-faint">{{ $label }}'s "Item Valuation Data" export, per dealer</div></td>
-        <td class="bs-dim">Dealer cost, retail, stock on hand, UPC, model year</td>
-        <td class="bs-dim">When a shop uploads one, or from a folder it sets up</td>
-        <td class="bs-dim">{{ $ready ? 'In each shop\'s ' . $label . ' box' : 'Shop side not built yet: check a file below' }}</td>
-        <td><span class="bs-chip">{{ $onCount }} {{ $onCount === 1 ? 'shop' : 'shops' }} on</span></td>
-      </tr>
-    </table>
+  </div>
+
+  @php $ptotalAll = $hs['parts']; @endphp
+  <div class="bs-tabs" role="tablist">
+    @foreach (['read' => 'Catalog read', 'stock' => 'Stock file', 'shops' => 'Shops', 'preview' => 'Preview', 'rules' => 'Clean-up rules'] as $k => $t)
+      <button type="button" role="tab" class="bs-tab {{ $tab === $k ? 'on' : '' }}" wire:click="$set('tab', '{{ $k }}')">{{ $t }}@if ($k === 'shops')<span class="n">{{ $hs['shops'] }}</span>@elseif ($k === 'preview')<span class="n">{{ number_format($ptotalAll) }}</span>@endif</button>
+    @endforeach
+  </div>
+
+  {{-- ============ CATALOG READ ============ --}}
+  @if ($tab === 'read')
+  <div @if ($cat['live']) wire:poll.2s @endif>
+    <div class="bs-note"><b>{{ $label }}'s public store, not a feed {{ $label }} sends,</b> read one product at a time. If {{ $label }} changes its site the read stops and says so here; shops keep their items, cost and stock. Nothing here changes a shop's prices or on-hand counts.</div>
+
+    <div class="bs-row">
+      <div class="l">Now<small>{{ $cat['synced'] ? 'last finished ' . $cat['synced']->diffForHumans() : 'never finished' }}</small></div>
+      <div>
+        @if ($cat['state'] === 'queued')
+          <div class="bs-prog" style="margin:0">Waiting for a free worker…<div class="bs-bar ind"><i></i></div></div>
+        @elseif ($cat['state'] === 'running')
+          <div class="bs-prog" style="margin:0"><b style="color:var(--txt)">{{ $cat['line'] }}</b>
+            <div class="bs-bar {{ $cat['pct'] === null ? 'ind' : '' }}"><i style="{{ $cat['pct'] !== null ? 'width:' . $cat['pct'] . '%' : '' }}"></i></div>
+            <span class="bs-faint">started {{ $cat['started']?->diffForHumans() }}</span>
+            @foreach (array_slice($this->recentReads(), 0, 4) as $r)
+              <div class="bs-faint" style="margin-top:3px">✓ <span style="color:var(--txt)">{{ $r['title'] }}</span> · {{ $r['sizes'] }} {{ $r['sizes'] === 1 ? 'size' : 'sizes' }} · {{ $r['specs'] }} specs · {{ $r['images'] }} photos <span style="opacity:.7">{{ \Carbon\Carbon::createFromTimestamp($r['at'])->diffForHumans() }}</span></div>
+            @endforeach
+          </div>
+        @else
+          <div>
+            @switch ($cat['state'])
+              @case ('ok') <span class="bs-chip ok">Read</span> @break
+              @case ('partial') <span class="bs-chip warn">Read with errors</span> @break
+              @case ('failed') <span class="bs-chip bad">Failed</span> @break
+              @default <span class="bs-chip warn">Not read yet</span>
+            @endswitch
+            <span class="bs-dim" style="margin-left:6px">{{ number_format($cat['products']) }} products · {{ number_format($cat['count']) }} part numbers in the catalog</span>
+          </div>
+        @endif
+        @foreach ($cat['errors'] as $e)<div class="bs-err">{{ \Illuminate\Support\Str::limit($e, 160) }}</div>@endforeach
+      </div>
+      <div>
+        @if ($cat['live'])
+          <button type="button" class="bs-btn" style="background:#dc2626" wire:click="stopRead" wire:loading.attr="disabled" @disabled($ro || $this->stopping())>{{ $this->stopping() ? 'Stopping…' : 'Stop' }}</button>
+        @else
+          <button type="button" class="bs-btn" wire:click="readCatalog" wire:loading.attr="disabled" @disabled($ro)>Read catalog now</button>
+        @endif
+      </div>
+    </div>
+
+    <div class="bs-row">
+      <div class="l">Schedule<small>a light nightly scan</small></div>
+      <div class="bs-dim">Every night at {{ $at('04:55') }} the product list is checked. Only new products, and products older than "read again after" below, are read in full; most nights that is none or a few.</div>
+      <div></div>
+    </div>
+
     @if ($pace)
       @php $ps = $this->pagesStatus(); @endphp
-      <div style="padding:12px 0;border-bottom:1px solid var(--line)">
-        <div style="display:flex;gap:18px;align-items:flex-end;flex-wrap:wrap">
-          <label class="bs-faint">One bike every<br><input type="number" min="1" max="600" class="bs-in" style="width:80px" wire:model="pace.page_gap_s" @disabled($ro)> sec</label>
-          <label class="bs-faint">Read a bike again after<br><input type="number" min="1" max="365" class="bs-in" style="width:80px" wire:model="pace.refresh_days" @disabled($ro)> days</label>
-          <button type="button" class="bs-btn g" wire:click="savePace" @disabled($ro)>Save</button>
+      <div class="bs-row">
+        <div class="l">Pace</div>
+        <div>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            One product every <input type="number" min="1" max="600" class="bs-in" style="width:76px" wire:model="pace.page_gap_s" @disabled($ro)> sec
+            <span class="bs-faint">·</span>
+            Read a product again after <input type="number" min="1" max="365" class="bs-in" style="width:76px" wire:model="pace.refresh_days" @disabled($ro)> days
+            <button type="button" class="bs-btn g" wire:click="savePace" @disabled($ro)>Save</button>
+          </div>
+          @foreach (['pace.page_gap_s', 'pace.refresh_days'] as $f)
+            @error($f)<div class="bs-err">{{ $message }}</div>@enderror
+          @endforeach
+          <div class="bs-faint" style="margin-top:6px">
+            A running read picks up a new pace at its next hand-over (within 20 minutes), or straight away if you stop and start it.
+            @if ($ps && $ps['of'] && $ps['have'] < $ps['of']) About {{ $ps['left_minutes'] }} minutes of reading left at this pace. @endif
+          </div>
         </div>
-        @foreach (['pace.page_gap_s', 'pace.refresh_days'] as $f)
-          @error($f)<div class="bs-err">{{ $message }}</div>@enderror
-        @endforeach
-        <div class="bs-faint" style="margin-top:8px">
-          How gently {{ $label }}'s site is read. The list of bikes comes from its sitemap in one request; then each bike is read
-          the way "Read this one" reads it (its data, then its page), one bike at a time. A bike already read is left alone until
-          the period above has passed. One press reads every bike that is due, handing over between background jobs as it goes.
-          @if ($ps && $ps['of'])
-            <b style="color:var(--dim)">{{ number_format($ps['have']) }} of {{ number_format($ps['of']) }} bikes read.</b>
-            @if ($ps['have'] < $ps['of']) About {{ $ps['left_minutes'] }} minutes of reading left at this pace. @endif
-          @endif
-        </div>
+        <div></div>
       </div>
     @endif
+
     @if ($this->supportsOne())
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:12px 0;border-bottom:1px solid var(--line)">
-        <span class="bs-dim" style="font-size:13px">Try one product first:</span>
-        <input type="text" class="bs-in" style="flex:1;min-width:280px" wire:model="oneBike" placeholder="{{ $this->exampleUrl() }}">
-        <button type="button" class="bs-btn g" wire:click="readOne" wire:loading.attr="disabled" @disabled($ro || $cat['live'])>Read this one</button>
+      <div class="bs-row" style="border-bottom:0">
+        <div class="l">Read one product<small>to try a page first</small></div>
+        <div><input type="text" class="bs-in" style="width:100%" wire:model="oneBike" placeholder="{{ $this->exampleUrl() }}"></div>
+        <div><button type="button" class="bs-btn g" wire:click="readOne" wire:loading.attr="disabled" @disabled($ro || $cat['live'])>Read it</button></div>
       </div>
     @endif
-    <div class="bs-legend" style="border-top:0">
-      <b>The catalog is {{ $label }}'s public store, not a feed {{ $label }} sends.</b> If they change their site the read stops and
-      this row says so; shops keep their cost and stock. A product page is read again only when {{ $label }} changes that product.
-    </div>
   </div>
+  @endif
+
+  {{-- ============ STOCK FILE (one per brand) ============ --}}
+  @if ($tab === 'stock')
+  @php
+    $bf = $this->brandFile();
+    $fresh = $check && empty($check['error']);
+    $shown = $fresh ? $check : (($bf && is_array($bf->check)) ? $bf->check : null);
+  @endphp
+  <div>
+    <div class="bs-note"><b>One file for {{ $label }}, used by every shop switched on.</b> It sets their dealer cost and {{ $label }}'s stock on the {{ $label }} items they carry. It never changes a shop's own on-hand counts or prices it set. A new file is checked first; nothing changes until you press Load.</div>
+
+    <div class="bs-row">
+      <div class="l">In use</div>
+      <div>
+        @if ($bf && $bf->loaded_at)
+          <b>{{ $bf->file_name }}</b>
+          <div class="bs-dim">{{ number_format($bf->row_count) }} rows · {{ number_format($bf->check['matched'] ?? 0) }} in the catalog · {{ number_format($bf->check['missing_count'] ?? count($bf->check['missing'] ?? [])) }} not in it · loaded {{ \Carbon\Carbon::parse($bf->loaded_at)->diffForHumans() }} by {{ $bf->source === 'ftp' ? 'FTP' : 'upload' }}</div>
+        @else
+          <span class="bs-dim">No file loaded yet, so shops' {{ $label }} items have no cost or stock.</span>
+        @endif
+        @if ($bf && $bf->last_error)
+          <div class="bs-err">Last attempt failed{{ $bf->last_attempt_at ? ' ' . \Carbon\Carbon::parse($bf->last_attempt_at)->diffForHumans() : '' }}: {{ $bf->last_error }}. The file already loaded is still in use.</div>
+        @endif
+      </div>
+      <div></div>
+    </div>
+
+    <div class="bs-row">
+      <div class="l">Load a new file<small>checked first, then loaded</small></div>
+      <div>
+        @if (! $fresh)
+          <div class="bs-drop" style="margin-top:0">
+            <input type="file" wire:model="stockFile" accept=".xlsx,.csv" @disabled($ro)>
+            <span class="bs-faint" wire:loading wire:target="stockFile">Reading the file…</span>
+            <span class="bs-faint" wire:loading.remove wire:target="stockFile">.xlsx or .csv as {{ $label }} sends it · Inventory ID, Base Price, Qty. Hard Available</span>
+          </div>
+          @error('stockFile')<div class="bs-err">{{ $message }}</div>@enderror
+          @if (! empty($check['error']))<div class="bs-err">{{ $check['error'] }}</div>@endif
+        @else
+          <b>{{ $checkName }}</b> <span class="bs-dim">· checked: {{ number_format($check['rows']) }} rows, {{ number_format($check['matched']) }} in the catalog, {{ number_format(count($check['missing'])) }} not in it. Not loaded yet.</span>
+        @endif
+      </div>
+      <div style="display:flex;gap:8px">
+        @if ($fresh)
+          @unless ($ro)<button type="button" class="bs-btn" wire:click="loadChecked" wire:loading.attr="disabled" wire:target="loadChecked">
+            <span wire:loading.remove wire:target="loadChecked">Load this file</span><span wire:loading wire:target="loadChecked">Loading…</span></button>@endunless
+          <button type="button" class="bs-btn g" wire:click="clearCheck">Cancel</button>
+        @endif
+      </div>
+    </div>
+
+    <div class="bs-row" style="{{ $ftpOpen ? '' : 'border-bottom:1px solid var(--line)' }}">
+      <div class="l">FTP folder<small>fetched nightly at {{ $at('06:10') }}</small></div>
+      <div>
+        @if ($ftpOpen)
+          <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px">
+            <input type="text" class="bs-in" wire:model="ftp.host" placeholder="Host" autocomplete="off">
+            <input type="text" class="bs-in" wire:model="ftp.user" placeholder="User" autocomplete="off">
+            <input type="password" class="bs-in" wire:model="ftp.password" autocomplete="new-password" placeholder="Password (blank keeps it)">
+            <input type="text" class="bs-in" wire:model="ftp.folder" placeholder="Folder (blank = top)" autocomplete="off">
+          </div>
+          <div class="bs-faint" style="margin-top:6px">The newest .xlsx, .csv or .txt in the folder is loaded. Stored encrypted.</div>
+        @elseif ($this->hasFtp())
+          <span class="bs-dim">Set up. The newest file in the folder is loaded each night; a file already loaded is skipped.</span>
+        @else
+          <span class="bs-dim">Not set up. Uploads above work without it.</span>
+        @endif
+      </div>
+      <div style="display:flex;gap:8px">
+        @unless ($ro)
+          @if ($ftpOpen)
+            <button type="button" class="bs-btn" wire:click="saveFtp">Save</button>
+            <button type="button" class="bs-btn g" wire:click="closeFtp">Close</button>
+          @else
+            <button type="button" class="bs-btn g" wire:click="editFtp">{{ $this->hasFtp() ? 'Edit' : 'Set up' }}</button>
+            @if ($this->hasFtp())
+              <button type="button" class="bs-btn g" wire:click="fetchStock" wire:loading.attr="disabled" wire:target="fetchStock">
+                <span wire:loading.remove wire:target="fetchStock">Fetch now</span><span wire:loading wire:target="fetchStock">Fetching…</span></button>
+            @endif
+          @endif
+        @endunless
+      </div>
+    </div>
+
+    @if ($shown)
+      @php $check = $shown; $check['missing_count'] = $check['missing_count'] ?? count($check['missing'] ?? []); @endphp
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:22px;gap:12px;flex-wrap:wrap">
+        <div><div style="font-weight:600">{{ $fresh ? 'Check of the new file' : 'Check of the file in use' }}</div>
+          <div class="bs-faint">{{ number_format($check['rows'] ?? 0) }} rows · {{ number_format($check['matched'] ?? 0) }} in the catalog · {{ number_format($check['missing_count']) }} not in it · {{ number_format($check['no_year']['count'] ?? 0) }} with no year ({{ number_format($check['no_year']['filled'] ?? 0) }} filled from the catalog)</div></div>
+        @if ($fresh && ! empty($check['missing']))<button type="button" class="bs-btn g" wire:click="downloadMissing">Download the not-found list</button>@endif
+      </div>
+      @if (isset($check['catalog']) && ! $check['catalog'])
+        <div class="bs-empty">The catalog hadn't been read, so nothing could match. <a href="#" wire:click.prevent="$set('tab','read')" style="color:var(--vtext)">Read {{ $label }}'s catalog</a>, then check the file again.</div>
+      @endif
+      @php
+        $issues = [];
+        foreach (($check['shared_upc'] ?? []) as $g) {
+          $issues[] = ['ids' => array_column($g['rows'], 'id'), 'what' => 'Same UPC ' . $g['upc'] . ' on ' . count($g['rows']) . ' part numbers', 'desc' => implode(' / ', array_column($g['rows'], 'description')), 'does' => 'Kept apart by part number; flag it to ' . $this->label()];
+        }
+        foreach (($check['dup_ids'] ?? []) as $d) {
+          $issues[] = ['ids' => [$d], 'what' => 'Part number listed twice', 'desc' => '', 'does' => 'The last row in the file wins'];
+        }
+        if (($check['no_year']['count'] ?? 0) > ($check['no_year']['filled'] ?? 0)) {
+          $issues[] = ['ids' => [], 'what' => number_format($check['no_year']['count'] - $check['no_year']['filled']) . ' rows have no model year, in the file or the catalog', 'desc' => 'e.g. ' . $check['no_year']['example'], 'does' => 'Imported without a year'];
+        }
+        foreach (array_slice(($check['price_diff'] ?? []), 0, 8) as $p) {
+          $issues[] = ['ids' => [$p['id']], 'what' => 'Retail differs: file $' . number_format($p['file'], 2) . ', store $' . number_format($p['store'], 2), 'desc' => $p['description'], 'does' => 'The file\'s retail is used for the shop'];
+        }
+      @endphp
+      @if ($issues)
+        <table class="bs-tbl" style="margin-top:6px">
+          <tr><th>Part number</th><th>{{ $label }}'s description</th><th>What's wrong</th><th>What Intake does</th></tr>
+          @foreach ($issues as $i)
+            <tr><td class="bs-mono">{!! implode('<br>', array_map('e', $i['ids'])) ?: '—' !!}</td><td class="bs-dim">{{ $i['desc'] }}</td><td>{{ $i['what'] }}</td><td class="bs-dim">{{ $i['does'] }}</td></tr>
+          @endforeach
+        </table>
+        @if (count(($check['price_diff'] ?? [])) > 8)<div class="bs-faint" style="margin-top:6px">and {{ count(($check['price_diff'] ?? [])) - 8 }} more retail differences</div>@endif
+      @endif
+
+      @if ($check['missing'])
+        <div style="margin-top:16px;font-weight:600">Not in the catalog</div>
+        <table class="bs-tbl">
+          <tr><th>Part number</th><th>Description</th><th class="n">Qty</th><th class="n">Retail</th></tr>
+          @foreach (array_slice($check['missing'], 0, 15) as $m)
+            <tr><td class="bs-mono">{{ $m['id'] }}</td><td class="bs-dim">{{ $m['description'] }}</td><td class="n">{{ $m['qty'] ?? '—' }}</td><td class="n">{{ $m['retail'] !== null ? '$' . number_format($m['retail'], 2) : '—' }}</td></tr>
+          @endforeach
+        </table>
+        @if ($check['missing_count'] > 15)<div class="bs-faint" style="margin-top:6px">and {{ $check['missing_count'] - 15 }} more{{ $fresh ? ' in the download' : '' }}</div>@endif
+      @endif
+    @endif
+  </div>
+  @endif
 
   {{-- ============ SHOPS ============ --}}
+  @if ($tab === 'shops')
   @php $shops = $this->shops(); @endphp
-  <div class="bs-sec">
-    <div class="bs-sh">
-      <div><h2>Shops</h2><p>Only shops with distributor import are listed. Switch on the ones that are {{ $label }} dealers; each switch saves straight away
-        and connects the shop: it can import from {{ $label }} at once, with nothing to set up. Cost and stock come from {{ $label }}'s stock file below.</p></div>
+  <div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px">
+      <div class="bs-dim" style="max-width:76ch">Only shops with distributor import are listed. Switching a shop on connects it: it can import {{ $label }} straight away, with nothing to set up, and its cost and stock come from the stock file. Switching off hides new imports; items it has stay.</div>
       <input type="search" class="bs-in" style="width:240px" wire:model.live.debounce.300ms="shopSearch" placeholder="Find a shop">
     </div>
     @if (! $shops)
@@ -219,192 +359,84 @@
       </div>
     @else
       <table class="bs-tbl">
-        <tr><th>Shop</th><th>{{ $label }}</th><th>Since</th></tr>
+        <tr><th>Shop</th><th>{{ $label }}</th><th>Since</th><th class="n">{{ $label }} items</th><th>Cost &amp; stock updated</th></tr>
         @foreach ($shops as $s)
           <tr wire:key="shop-{{ $s['id'] }}">
             <td>{{ $s['name'] }}</td>
             <td><label class="bs-sw"><input type="checkbox" @checked($s['on']) @disabled($ro) wire:click="toggleShop('{{ $s['id'] }}')" aria-label="{{ $label }} for {{ $s['name'] }}"><i></i></label></td>
             <td class="bs-dim">{{ $s['since'] ?? '—' }}</td>
+            <td class="n">{{ $s['items'] !== null ? number_format($s['items']) : '—' }}</td>
+            <td class="bs-dim">{{ $s['synced'] ? \Carbon\Carbon::parse($s['synced'], 'UTC')->diffForHumans() : '—' }}</td>
           </tr>
         @endforeach
       </table>
     @endif
   </div>
-
-  {{-- ============ STOCK FILE (one per brand) ============ --}}
-  <div class="bs-sec">
-    <div class="bs-sh">
-      <div><h2>{{ $label }} stock file</h2>
-        <p>One file for {{ $label }}, used by every shop switched on above: it sets their dealer cost and {{ $label }}'s stock on the {{ $label }} items they carry.
-          It never changes a shop's own on-hand counts or prices it set. Drop a new file in to check it against the catalog; nothing changes until you press Load.</p></div>
-      @if ($check && empty($check['error']))
-        <div style="display:flex;gap:8px">
-          @unless ($ro)<button type="button" class="bs-btn" wire:click="loadChecked" wire:loading.attr="disabled" wire:target="loadChecked">
-            <span wire:loading.remove wire:target="loadChecked">Load this file</span><span wire:loading wire:target="loadChecked">Loading…</span></button>@endunless
-          @if (! empty($check['missing']))<button type="button" class="bs-btn g" wire:click="downloadMissing">Download the not-found list</button>@endif
-          <button type="button" class="bs-btn g" wire:click="clearCheck">Check another file</button>
-        </div>
-      @endif
-    </div>
-
-    @php $bf = $this->brandFile(); @endphp
-    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
-      <div style="flex:1;min-width:280px">
-        @if ($bf && $bf->loaded_at)
-          In use: <b>{{ $bf->file_name }}</b> <span class="bs-dim">· {{ number_format($bf->row_count) }} rows · {{ number_format($bf->check['matched'] ?? 0) }} in the catalog · loaded {{ \Carbon\Carbon::parse($bf->loaded_at)->diffForHumans() }} ({{ $bf->source === 'ftp' ? 'FTP' : 'upload' }})</span>
-        @else
-          <span class="bs-dim">No file loaded yet, so shops' {{ $label }} items have no cost or stock.</span>
-        @endif
-        @if ($bf && $bf->last_error)
-          <div class="bs-err" style="margin-top:4px">Last attempt failed: {{ $bf->last_error }}. The file already loaded is still in use.</div>
-        @endif
-      </div>
-      @unless ($ro)
-        <button type="button" class="bs-btn g" wire:click="{{ $ftpOpen ? 'closeFtp' : 'editFtp' }}">FTP folder</button>
-        @if ($this->hasFtp())
-          <button type="button" class="bs-btn g" wire:click="fetchStock" wire:loading.attr="disabled" wire:target="fetchStock">
-            <span wire:loading.remove wire:target="fetchStock">Fetch now</span><span wire:loading wire:target="fetchStock">Fetching…</span></button>
-        @endif
-      @endunless
-    </div>
-    @if ($ftpOpen)
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px;padding:10px;background:var(--vsoft);border-radius:8px">
-        <label class="bs-faint">Host<br><input type="text" class="bs-in" wire:model="ftp.host" placeholder="ftp.example.com" autocomplete="off"></label>
-        <label class="bs-faint">User<br><input type="text" class="bs-in" wire:model="ftp.user" autocomplete="off"></label>
-        <label class="bs-faint">Password<br><input type="password" class="bs-in" wire:model="ftp.password" autocomplete="new-password" placeholder="blank keeps the saved one"></label>
-        <label class="bs-faint">Folder<br><input type="text" class="bs-in" wire:model="ftp.folder" placeholder="blank for the top folder" autocomplete="off"></label>
-        <button type="button" class="bs-btn" wire:click="saveFtp">Save</button>
-        <button type="button" class="bs-btn g" wire:click="closeFtp">Close</button>
-        <div class="bs-faint" style="width:100%">The newest .xlsx, .csv or .txt in the folder is loaded every night at 06:10. Stored encrypted.</div>
-      </div>
-    @endif
-
-    @if (! $check || ! empty($check['error']))
-      <div class="bs-drop">
-        <input type="file" wire:model="stockFile" accept=".xlsx,.csv" @disabled($ro)>
-        <span class="bs-faint" wire:loading wire:target="stockFile">Reading the file…</span>
-        <span class="bs-faint" wire:loading.remove wire:target="stockFile">.xlsx or .csv, as {{ $label }} sends it (Inventory ID, Description, Year, Qty. Hard Available, Base Price, Retail Price, UPC).</span>
-      </div>
-      @error('stockFile')<div class="bs-err">{{ $message }}</div>@enderror
-      @if (! empty($check['error']))<div class="bs-err">{{ $check['error'] }}</div>@endif
-    @else
-      <div class="bs-faint" style="margin-top:10px">{{ $checkName }}</div>
-      <div class="bs-stats">
-        <div class="bs-stat"><div class="k">Rows</div><div class="v">{{ number_format($check['rows']) }}</div><div class="d">part numbers in the file</div></div>
-        <div class="bs-stat"><div class="k">Found in the catalog</div><div class="v">{{ number_format($check['matched']) }}</div><div class="d">get photos and specs</div></div>
-        <div class="bs-stat"><div class="k">Not in the catalog</div><div class="v" style="color:{{ count($check['missing']) ? 'var(--amber)' : 'inherit' }}">{{ number_format(count($check['missing'])) }}</div><div class="d">{{ $check['catalog'] ? 'sold with the file\'s data only' : 'catalog not read yet' }}</div></div>
-        <div class="bs-stat"><div class="k">No model year</div><div class="v">{{ number_format($check['no_year']['count']) }}</div><div class="d">{{ number_format($check['no_year']['filled']) }} filled from the catalog</div></div>
-      </div>
-
-      @if (! $check['catalog'])
-        <div class="bs-empty">The catalog hasn't been read yet, so nothing can match. <a href="#" wire:click.prevent="readCatalog" style="color:var(--vtext)">Read {{ $label }}'s catalog now</a>, then check this file again.</div>
-      @endif
-
-      @php
-        $issues = [];
-        foreach ($check['shared_upc'] as $g) {
-          $issues[] = ['ids' => array_column($g['rows'], 'id'), 'what' => 'Same UPC ' . $g['upc'] . ' on ' . count($g['rows']) . ' part numbers', 'desc' => implode(' / ', array_column($g['rows'], 'description')), 'does' => 'Kept apart by part number; flag it to ' . $this->label()];
-        }
-        foreach ($check['dup_ids'] as $d) {
-          $issues[] = ['ids' => [$d], 'what' => 'Part number listed twice', 'desc' => '', 'does' => 'The last row in the file wins'];
-        }
-        if ($check['no_year']['count'] > $check['no_year']['filled']) {
-          $issues[] = ['ids' => [], 'what' => number_format($check['no_year']['count'] - $check['no_year']['filled']) . ' rows have no model year, in the file or the catalog', 'desc' => 'e.g. ' . $check['no_year']['example'], 'does' => 'Imported without a year'];
-        }
-        foreach (array_slice($check['price_diff'], 0, 8) as $p) {
-          $issues[] = ['ids' => [$p['id']], 'what' => 'Retail differs: file $' . number_format($p['file'], 2) . ', store $' . number_format($p['store'], 2), 'desc' => $p['description'], 'does' => 'The file\'s retail is used for the shop'];
-        }
-      @endphp
-      @if ($issues)
-        <table class="bs-tbl" style="margin-top:6px">
-          <tr><th>Part number</th><th>{{ $label }}'s description</th><th>What's wrong</th><th>What Intake does</th></tr>
-          @foreach ($issues as $i)
-            <tr><td class="bs-mono">{!! implode('<br>', array_map('e', $i['ids'])) ?: '—' !!}</td><td class="bs-dim">{{ $i['desc'] }}</td><td>{{ $i['what'] }}</td><td class="bs-dim">{{ $i['does'] }}</td></tr>
-          @endforeach
-        </table>
-        @if (count($check['price_diff']) > 8)<div class="bs-faint" style="margin-top:6px">and {{ count($check['price_diff']) - 8 }} more retail differences</div>@endif
-      @endif
-
-      @if ($check['missing'])
-        <div style="margin-top:16px;font-weight:600">Not in the catalog</div>
-        <table class="bs-tbl">
-          <tr><th>Part number</th><th>Description</th><th class="n">Qty</th><th class="n">Retail</th></tr>
-          @foreach (array_slice($check['missing'], 0, 15) as $m)
-            <tr><td class="bs-mono">{{ $m['id'] }}</td><td class="bs-dim">{{ $m['description'] }}</td><td class="n">{{ $m['qty'] ?? '—' }}</td><td class="n">{{ $m['retail'] !== null ? '$' . number_format($m['retail'], 2) : '—' }}</td></tr>
-          @endforeach
-        </table>
-        @if (count($check['missing']) > 15)<div class="bs-faint" style="margin-top:6px">and {{ count($check['missing']) - 15 }} more in the download</div>@endif
-      @endif
-    @endif
-  </div>
-
-  {{-- ============ RULES ============ --}}
-  @php $rules = $this->rules(); @endphp
-  <div class="bs-sec">
-    <div class="bs-sh">
-      <div><h2>Clean-up rules</h2><p>{{ $label }}'s field map: how each catalog field is filled. Edited in Field Mapping like every distributor's, never in code. Changes reach the catalog on the next read.</p></div>
-      <a class="bs-btn" href="{{ $this->fieldMapsUrl() }}">Open Field Mapping</a>
-    </div>
-    @if (! $rules)
-      <div class="bs-empty">No field map for {{ $label }} yet, so the catalog read refuses to run. <a href="{{ $this->fieldMapsUrl() }}" style="color:var(--vtext)">Add rows in Field Mapping</a>.</div>
-    @else
-      <table class="bs-tbl">
-        <tr><th>Field</th><th>From</th><th>How</th><th>Clean-up</th><th>Note</th><th></th></tr>
-        @foreach ($rules as $r)
-          <tr style="{{ $r['active'] ? '' : 'opacity:.5' }}">
-            <td><b>{{ str_replace('_', ' ', $r['field']) }}</b></td>
-            <td class="bs-mono">{{ $r['from'] }}</td>
-            <td class="bs-dim">{{ $r['how'] }}</td>
-            <td class="bs-dim">{!! $r['cleanup'] ? implode('<br>', array_map('e', $r['cleanup'])) : '—' !!}</td>
-            <td class="bs-faint">{{ $r['notes'] }}</td>
-            <td><a href="{{ $r['url'] }}" style="color:var(--vtext);font-size:12.5px">Edit</a></td>
-          </tr>
-        @endforeach
-      </table>
-    @endif
-  </div>
+  @endif
 
   {{-- ============ PREVIEW ============ --}}
-  @php $prev = $this->preview(); $ptotal = $this->previewTotal(); $ins = $this->inspected(); @endphp
-  <div class="bs-sec" @if ($cat['live']) wire:poll.5s @endif>
-    <div class="bs-sh">
-      <div><h2>Preview</h2><p>The catalog as shops will get it, after the rules above. It fills in as bikes are read. Inspect a row to see everything read for it and to open it as a shop's item page or online store page.</p></div>
-      <input type="search" class="bs-in" style="width:240px" wire:model.live.debounce.300ms="previewSearch" placeholder="Part number or model">
+  @if ($tab === 'preview')
+  @php $prev = $this->preview(); $ptotal = $this->previewTotal(); $ins = $this->inspected(); $cats = $this->previewCategories(); $topCats = array_slice($cats, 0, 6, true); @endphp
+  <div @if ($cat['live']) wire:poll.5s @endif>
+    <div class="bs-dim" style="margin-bottom:10px">The catalog as shops get it, after the clean-up rules. Inspect a row to see everything read for it and to open it as a shop's item page or online store page.</div>
+    <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        <button type="button" class="bs-fchip {{ $previewCategory === '' ? 'on' : '' }}" wire:click="$set('previewCategory','')">All {{ number_format(array_sum($cats)) }}</button>
+        @foreach ($topCats as $cname => $cn)
+          <button type="button" class="bs-fchip {{ $previewCategory === $cname ? 'on' : '' }}" wire:click="$set('previewCategory', @js($cname))">{{ $cname }} {{ number_format($cn) }}</button>
+        @endforeach
+        @if (count($cats) > count($topCats))
+          <select class="bs-in" style="padding:3px 8px;font-size:12.5px" wire:model.live="previewCategory">
+            <option value="">More categories…</option>
+            @foreach (array_slice($cats, 6, null, true) as $cname => $cn)<option value="{{ $cname }}">{{ $cname }} ({{ number_format($cn) }})</option>@endforeach
+            @if ($previewCategory !== '' && ! isset($topCats[$previewCategory]) && ! isset(array_slice($cats, 6, null, true)[$previewCategory]))<option value="{{ $previewCategory }}">{{ $previewCategory }}</option>@endif
+          </select>
+        @endif
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <button type="button" class="bs-fchip {{ $previewFilter === 'nocolor' ? 'on' : '' }}" wire:click="setPreviewFilter('nocolor')">Missing color</button>
+        <button type="button" class="bs-fchip {{ $previewFilter === 'unread' ? 'on' : '' }}" wire:click="setPreviewFilter('unread')">Not read yet</button>
+        <input type="search" class="bs-in" style="width:220px" wire:model.live.debounce.300ms="previewSearch" placeholder="Part number or model">
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px" class="bs-faint">
+      Previews open as
+      <select class="bs-in" style="padding:3px 8px;font-size:12.5px" wire:model.live="previewShop">
+        @foreach ($this->previewShops() as $s)<option value="{{ $s['id'] }}">{{ $s['name'] }}</option>@endforeach
+      </select>
     </div>
     @if (! $prev)
       <div class="bs-empty">
-        @if (trim($previewSearch) !== '')
-          Nothing matches "{{ $previewSearch }}". <a href="#" wire:click.prevent="$set('previewSearch','')" style="color:var(--vtext)">Clear</a>
+        @if (trim($previewSearch) !== '' || $previewCategory !== '' || $previewFilter !== '')
+          Nothing matches these filters. <a href="#" wire:click.prevent="$set('previewSearch',''); $set('previewCategory',''); $set('previewFilter','')" style="color:var(--vtext)">Clear them</a>
         @else
-          The catalog is empty until it's read. <a href="#" wire:click.prevent="readCatalog" style="color:var(--vtext)">Read {{ $label }}'s catalog now</a>; progress shows under Sources.
+          The catalog is empty until it's read. <a href="#" wire:click.prevent="$set('tab','read')" style="color:var(--vtext)">Go to Catalog read</a>.
         @endif
       </div>
     @else
       <table class="bs-tbl">
-        <tr><th></th><th>Part number</th><th>Title</th><th>Brand</th><th>Size</th><th>Color</th><th>Year</th><th>Category</th><th class="n">Retail</th><th class="n">Photos</th><th class="n">Specs</th><th></th></tr>
+        <tr><th></th><th>Part number</th><th>Title</th><th>Category</th><th>Size</th><th>Color</th><th>Year</th><th class="n">Retail</th><th class="n">Cost</th><th class="n">Stock</th><th class="n">Specs</th><th>Read</th><th></th></tr>
         @foreach ($prev as $p)
           <tr wire:key="pv-{{ $p['id'] }}" style="cursor:pointer;{{ $inspect === $p['id'] ? 'background:var(--vsoft)' : '' }}" wire:click="inspectRow('{{ $p['id'] }}')">
             <td>@if ($p['thumb'])<img class="bs-thumb" src="{{ $p['thumb'] }}" alt="" loading="lazy">@else<span class="bs-thumb"></span>@endif</td>
             <td class="bs-mono">{{ $p['id'] }}</td>
             <td><b>{{ $p['title'] }}</b>@unless ($p['sellable'])<div class="bs-faint">not available on {{ $label }}'s store</div>@endunless</td>
-            <td>{{ $p['brand'] ?? '—' }}</td>
-            <td>{{ $p['size'] ?? '—' }}</td>
-            <td class="bs-dim">{{ $p['color'] ?? '—' }}</td>
-            <td>{{ $p['year'] ?? '—' }}</td>
             <td class="bs-dim">{{ $p['category'] ?? '—' }}</td>
+            <td>{{ $p['size'] ?? '—' }}</td>
+            <td class="{{ $p['color'] ? '' : 'bs-dim' }}">{{ $p['color'] ?? '—' }}</td>
+            <td>{{ $p['year'] ?? '—' }}</td>
             <td class="n">{{ $p['msrp'] }}</td>
-            <td class="n">{{ $p['images'] }}</td>
+            <td class="n {{ $p['cost'] ? '' : 'bs-dim' }}">{{ $p['cost'] ?? '—' }}</td>
+            <td class="n {{ $p['qty'] !== null ? '' : 'bs-dim' }}">{{ $p['qty'] ?? '—' }}</td>
             <td class="n">{{ $p['specs'] }}</td>
+            <td>@if ($p['read'] === true)<span class="bs-chip ok">current</span>@elseif ($p['read'] === false)<span class="bs-chip warn">waiting</span>@else<span class="bs-dim">—</span>@endif</td>
             <td><span style="color:var(--vtext);font-size:12.5px">{{ $inspect === $p['id'] ? 'Close' : 'Inspect' }}</span></td>
           </tr>
           @if ($ins && $inspect === $p['id'])
-            <tr wire:key="pv-ins-{{ $p['id'] }}"><td colspan="12" style="padding:16px 0 22px;cursor:default">
+            <tr wire:key="pv-ins-{{ $p['id'] }}"><td colspan="13" style="padding:16px 0 22px;cursor:default">
               @php $iRow = $ins['row']; @endphp
               <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
-                <b>See it as a shop:</b>
-                <select class="bs-in" wire:model.live="previewShop">
-                  @foreach ($this->previewShops() as $s)<option value="{{ $s['id'] }}">{{ $s['name'] }}</option>@endforeach
-                </select>
+                <b>See it as {{ collect($this->previewShops())->firstWhere('id', $previewShop ?: ($this->previewShops()[0]['id'] ?? null))['name'] ?? 'a shop' }}:</b>
                 @if ($u = $this->previewUrl('inventory', (string) $iRow->id))<a class="bs-btn" href="{{ $u }}" target="_blank" rel="noopener">Item page preview</a>@endif
                 @if ($u = $this->previewUrl('shop', (string) $iRow->id))<a class="bs-btn g" href="{{ $u }}" target="_blank" rel="noopener">Online store preview</a>@endif
                 <span class="bs-faint">Opens on the shop's own site. Nothing is saved. The item page needs you signed in to that shop.</span>
@@ -509,6 +541,36 @@
       </div>
     @endif
   </div>
+  @endif
+
+  {{-- ============ CLEAN-UP RULES ============ --}}
+  @if ($tab === 'rules')
+  @php $rules = $this->rules(); @endphp
+  <div>
+    <div class="bs-sh">
+      <div><h2>Clean-up rules</h2><p>{{ $label }}'s field map: how each catalog field is filled. Edited in Field Mapping like every distributor's, never in code. Changes reach the catalog on the next read.</p></div>
+      <a class="bs-btn" href="{{ $this->fieldMapsUrl() }}">Open Field Mapping</a>
+    </div>
+    @if (! $rules)
+      <div class="bs-empty">No field map for {{ $label }} yet, so the catalog read refuses to run. <a href="{{ $this->fieldMapsUrl() }}" style="color:var(--vtext)">Add rows in Field Mapping</a>.</div>
+    @else
+      <table class="bs-tbl">
+        <tr><th>Field</th><th>From</th><th>How</th><th>Clean-up</th><th>Note</th><th></th></tr>
+        @foreach ($rules as $r)
+          <tr style="{{ $r['active'] ? '' : 'opacity:.5' }}">
+            <td><b>{{ str_replace('_', ' ', $r['field']) }}</b></td>
+            <td class="bs-mono">{{ $r['from'] }}</td>
+            <td class="bs-dim">{{ $r['how'] }}</td>
+            <td class="bs-dim">{!! $r['cleanup'] ? implode('<br>', array_map('e', $r['cleanup'])) : '—' !!}</td>
+            <td class="bs-faint">{{ $r['notes'] }}</td>
+            <td><a href="{{ $r['url'] }}" style="color:var(--vtext);font-size:12.5px">Edit</a></td>
+          </tr>
+        @endforeach
+      </table>
+    @endif
+  </div>
+
+  @endif
   @endif
 </div>
 </x-filament-panels::page>

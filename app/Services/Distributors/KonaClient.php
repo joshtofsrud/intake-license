@@ -198,6 +198,18 @@ class KonaClient implements DistributorAdapter
         return $this;
     }
 
+    /** Products read with the current reader (handles), for master admin's counts and filters. */
+    public static function currentHandles(): array
+    {
+        $out = [];
+        foreach (self::store() as $h => $e) {
+            if ((! empty($e['product']) || ! empty($e['gone'])) && (int) ($e['v'] ?? 1) >= self::READER_VERSION) {
+                $out[] = (string) $h;
+            }
+        }
+        return $out;
+    }
+
     /** What a stored bike holds, for master admin's Inspect panel. */
     public static function storedEntry(string $handle): ?array
     {

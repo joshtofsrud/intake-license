@@ -54,6 +54,11 @@ class BrandSuppliers extends Page
     public string $checkName = '';
     /** MARKER-BRAND-STOCK: the checked file waiting to be loaded (a stored copy), and the brand's FTP folder */
     public string $checkPath = '';
+    /** MARKER-BS-TABS: which tab is open, and the preview's filters */
+    #[\Livewire\Attributes\Url]
+    public string $tab = 'read';
+    public string $previewCategory = '';
+    public string $previewFilter = '';
     public bool $ftpOpen = false;
     public array $ftp = ['host' => '', 'user' => '', 'password' => '', 'folder' => ''];
 
@@ -70,12 +75,81 @@ class BrandSuppliers extends Page
         $this->checkName = '';
         $this->inspect = null;
         $this->previewPage = 1;
+        $this->previewCategory = '';
+        $this->previewFilter = '';
+        $this->ftpOpen = false;
         $this->loadPace();
     }
 
     public function updatedPreviewSearch(): void
     {
         $this->previewPage = 1;
+    }
+
+    public function updatedPreviewCategory(): void
+    {
+        $this->previewPage = 1;
+    }
+
+    public function updatedPreviewFilter(): void
+    {
+        $this->previewPage = 1;
+    }
+
+    public function setPreviewFilter(string $f): void
+    {
+        $this->previewFilter = $this->previewFilter === $f ? '' : $f;
+        $this->previewPage = 1;
+    }
+
+    /** Handles read with the current reader, or null when the brand's reader can't say. */
+    private function currentHandles(): ?array
+    {
+        $class = $this->adapter();
+        return $class && method_exists($class, 'currentHandles') ? $class::currentHandles() : null;
+    }
+
+    /** The header's numbers, shown on every tab. */
+    public function headerStats(): array
+    {
+        $rows = DB::table('platform_distributor_catalogs')->where('distributor_code', $this->code)->whereNull('deleted_at');
+        $products = (clone $rows)->distinct()->count('distributor_product_no');
+        $cur = $this->currentHandles();
+        $ps = $this->pagesStatus();
+        $of = max((int) ($ps['of'] ?? 0), $products);
+        $file = $this->brandFile();
+        $eligible = Tenant::query()->where('is_active', true)->get()->filter(fn (Tenant $t) => (bool) $t->distributor_sync_enabled)->count();
+        return [
+            'products' => $products, 'parts' => (clone $rows)->count(),
+            'read' => $cur !== null ? min(count($cur), $of) : null, 'of' => $of,
+            'file' => $file && $file->loaded_at ? $file : null,
+            'shops' => $this->onCount(), 'eligible' => $eligible,
+        ];
+    }
+
+    /** Top-level categories in this brand's catalog ("Bikes" for "Bikes > Gravel"), biggest first. */
+    public function previewCategories(): array
+    {
+        return DB::table('platform_distributor_catalogs')->where('distributor_code', $this->code)->whereNull('deleted_at')
+            ->selectRaw("COALESCE(NULLIF(TRIM(SUBSTRING_INDEX(category_path, ' > ', 1)), ''), '(none)') as c, COUNT(*) as n")->groupBy('c')->orderByDesc('n')
+            ->pluck('n', 'c')->all();
+    }
+
+    private function previewQuery()
+    {
+        $q = trim($this->previewSearch);
+        $query = DB::table('platform_distributor_catalogs as pdc')
+            ->where('pdc.distributor_code', $this->code)->whereNull('pdc.deleted_at')
+            ->when($q !== '', fn ($w) => $w->where(fn ($x) => $x->where('pdc.distributor_variant_no', 'like', '%' . $q . '%')
+                ->orWhere('pdc.display_name', 'like', '%' . $q . '%')->orWhere('pdc.name', 'like', '%' . $q . '%')))
+            ->when($this->previewCategory !== '', fn ($w) => $this->previewCategory === '(none)'
+                ? $w->where(fn ($x) => $x->whereNull('pdc.category_path')->orWhere('pdc.category_path', ''))
+                : $w->where(fn ($x) => $x->where('pdc.category_path', $this->previewCategory)->orWhere('pdc.category_path', 'like', str_replace(['%', '_'], ['\\%', '\\_'], $this->previewCategory) . ' > %')))
+            ->when($this->previewFilter === 'nocolor', fn ($w) => $w->where(fn ($x) => $x->whereNull('pdc.color')->orWhere('pdc.color', '')));
+        if ($this->previewFilter === 'unread' && ($cur = $this->currentHandles()) !== null) {
+            $query->whereNotIn('pdc.distributor_product_no', $cur ?: ['']);
+        }
+        return $query;
     }
 
     private function adapter(): ?string
@@ -116,7 +190,12 @@ class BrandSuppliers extends Page
         if (! $class || ! defined($class . '::PAGES_KEY')) {
             return null;
         }
-        $st = Cache::get($class::PAGES_KEY);
+        $st = (array) Cache::get($class::PAGES_KEY);
+        // counted live from what has been read, not left over from the last finished read
+        if (method_exists($class, 'currentHandles')) {
+            $st['have'] = count($class::currentHandles());
+            $st['of'] = max((int) ($st['of'] ?? 0), (int) $st['have']);
+        }
         $gap = (int) ($this->pace['page_gap_s'] ?? 0) + 4; // the gap, plus the bike's two requests and the pause between them
         $left = isset($st['of'], $st['have']) ? max(0, $st['of'] - $st['have']) : null;
         return [
@@ -201,11 +280,12 @@ class BrandSuppliers extends Page
                 $line = $this->label() . '\'s site asked us to slow down · waiting ' . (int) $prog['wait'] . ' seconds, then trying again (' . (int) $prog['attempt'] . ' of ' . (int) $prog['of'] . ')';
                 $pct = null;
             } elseif ($phase === 'sitemap') {
-                $line = 'Reading ' . $this->label() . '\'s sitemap (the list of bikes)';
+                $line = 'Reading ' . $this->label() . '\'s product list';
                 $pct = 2;
             } elseif ($phase === 'bikes') {
-                $line = 'Reading bikes one at a time · ' . number_format((int) $prog['done']) . ' of ' . number_format((int) $prog['total']) . ' due'
-                    . ' · ' . (int) ($this->pace['page_gap_s'] ?? 0) . ' seconds apart';
+                $gap = (int) ($this->pace['page_gap_s'] ?? 0);
+                $line = 'Reading products one at a time · ' . number_format((int) $prog['done']) . ' of ' . number_format((int) $prog['total']) . ' due'
+                    . ' · ' . $gap . ' ' . ($gap === 1 ? 'second' : 'seconds') . ' apart';
                 $pct = $prog['total'] ? (int) round(3 + 72 * $prog['done'] / max(1, $prog['total'])) : 3;
             } else {
                 $line = 'Working…';
@@ -331,6 +411,11 @@ class BrandSuppliers extends Page
                 'id' => (string) $t->id, 'name' => (string) $t->name,
                 'on' => isset($on[(string) $t->id]),
                 'since' => isset($on[(string) $t->id]) ? \Carbon\Carbon::parse($on[(string) $t->id])->format('M j, Y') : null,
+                'items' => isset($on[(string) $t->id]) ? DB::table('tenant_inventory_item_vendors as v')
+                    ->join('tenant_inventory_items as i', 'i.id', '=', 'v.inventory_item_id')
+                    ->where('i.tenant_id', $t->id)->where('v.distributor_code', $this->code)->whereNotNull('v.distributor_catalog_id')->count() : null,
+                'synced' => isset($on[(string) $t->id]) ? DB::table('tenant_distributor_catalog_subscriptions')->where('tenant_id', $t->id)
+                    ->where('distributor_code', $this->code)->value('last_sync_at') : null,
             ])
             ->sortByDesc('on')->values()->all();
     }
@@ -565,15 +650,19 @@ class BrandSuppliers extends Page
 
     public function preview(): array
     {
-        $q = trim($this->previewSearch);
-        return DB::table('platform_distributor_catalogs')
-            ->where('distributor_code', $this->code)->whereNull('deleted_at')
-            ->when($q !== '', fn ($w) => $w->where(fn ($x) => $x->where('distributor_variant_no', 'like', '%' . $q . '%')
-                ->orWhere('display_name', 'like', '%' . $q . '%')->orWhere('name', 'like', '%' . $q . '%')))
-            ->orderBy('name')->orderBy('distributor_variant_no')
+        $cur = $this->currentHandles();
+        $cur = $cur !== null ? array_flip($cur) : null;
+        return $this->previewQuery()
+            ->leftJoin('tenant_brand_stock as tbs', function ($j) {
+                $j->on('tbs.variant_no', '=', 'pdc.distributor_variant_no')
+                  ->where('tbs.tenant_id', \App\Services\Distributors\BrandStockStore::BRAND)
+                  ->where('tbs.distributor_code', $this->code);
+            })
+            ->orderBy('pdc.name')->orderBy('pdc.distributor_variant_no')
             ->offset(($this->previewPage - 1) * 25)->limit(25)
-            ->get(['distributor_variant_no', 'display_name', 'name', 'manufacturer', 'size', 'color', 'category_path', 'msrp_cents', 'images', 'attributes', 'is_sellable', 'last_synced_at'])
-            ->map(function ($r) {
+            ->get(['pdc.distributor_variant_no', 'pdc.distributor_product_no', 'pdc.display_name', 'pdc.name', 'pdc.size', 'pdc.color', 'pdc.category_path',
+                'pdc.msrp_cents', 'pdc.images', 'pdc.attributes', 'pdc.is_sellable', 'tbs.cost_cents', 'tbs.qty', 'tbs.model_year'])
+            ->map(function ($r) use ($cur) {
                 $attrs = json_decode((string) $r->attributes, true) ?: [];
                 $year = null;
                 foreach ($attrs as $a) {
@@ -583,23 +672,20 @@ class BrandSuppliers extends Page
                 }
                 $imgs = json_decode((string) $r->images, true) ?: [];
                 return [
-                    'id' => $r->distributor_variant_no, 'title' => $r->display_name ?: $r->name, 'brand' => $r->manufacturer,
+                    'id' => $r->distributor_variant_no, 'title' => $r->display_name ?: $r->name,
                     'size' => $r->size, 'color' => $r->color, 'category' => $r->category_path,
                     'msrp' => $r->msrp_cents !== null ? '$' . number_format($r->msrp_cents / 100, 2) : '—',
-                    'images' => count($imgs), 'thumb' => is_string($imgs[0] ?? null) ? $imgs[0] : null,
-                    'specs' => count($attrs), 'year' => $year, 'sellable' => (bool) $r->is_sellable,
+                    'cost' => $r->cost_cents !== null ? '$' . number_format($r->cost_cents / 100, 2) : null,
+                    'qty' => $r->qty, 'images' => count($imgs), 'thumb' => is_string($imgs[0] ?? null) ? $imgs[0] : null,
+                    'specs' => count($attrs), 'year' => $year ?: $r->model_year, 'sellable' => $r->is_sellable === null || (bool) $r->is_sellable,
+                    'read' => $cur === null ? null : isset($cur[(string) $r->distributor_product_no]),
                 ];
             })->all();
     }
 
     public function previewTotal(): int
     {
-        $q = trim($this->previewSearch);
-        return DB::table('platform_distributor_catalogs')
-            ->where('distributor_code', $this->code)->whereNull('deleted_at')
-            ->when($q !== '', fn ($w) => $w->where(fn ($x) => $x->where('distributor_variant_no', 'like', '%' . $q . '%')
-                ->orWhere('display_name', 'like', '%' . $q . '%')->orWhere('name', 'like', '%' . $q . '%')))
-            ->count();
+        return $this->previewQuery()->count();
     }
 
     public function previewPageTo(int $page): void
