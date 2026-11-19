@@ -209,6 +209,14 @@ Schedule::command('distributors:sync-catalog KONA')
     ->withoutOverlapping()
     ->runInBackground();
 
+// Titles page index: every distributor's categories, counts and title health,
+// after the catalog reads above. Never scheduled before, so the page showed only
+// the distributors it had been run for by hand.
+Schedule::command('catalog:scan-titles')
+    ->dailyAt('05:15')
+    ->withoutOverlapping()
+    ->runInBackground();
+
 // Reads the rows both syncs just wrote. Without this, matching sees nothing
 // new — which is exactly why 55,773 QBP rows were invisible to the importer.
 Schedule::command('catalog:index-identifiers')

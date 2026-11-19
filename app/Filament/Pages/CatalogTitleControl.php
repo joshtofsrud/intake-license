@@ -128,11 +128,20 @@ class CatalogTitleControl extends Page
 
     // ------------------------------------------------------------- the ladder
 
-    /** Distributor codes that have scopes, for the defaults block. */
+    /**
+     * Every distributor, for the defaults block: each one Intake supports,
+     * plus any with scanned categories. Listing only scanned ones hid every
+     * distributor the title scan had not reached yet.
+     */
     public function getDistributorsProperty(): array
     {
-        return CatalogTitleScope::query()->select('distributor_code')->distinct()
-            ->orderBy('distributor_code')->pluck('distributor_code')->all();
+        $codes = array_merge(
+            app(\App\Services\Distributors\DistributorRegistry::class)->supported(),
+            CatalogTitleScope::query()->select('distributor_code')->distinct()->pluck('distributor_code')->all()
+        );
+        $codes = array_values(array_unique(array_map('strtoupper', $codes)));
+        sort($codes);
+        return $codes;
     }
 
     /**

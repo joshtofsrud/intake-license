@@ -106,8 +106,9 @@
         <button type="button"
                 class="tc-lvl {{ $level === 'dist' && $distributor === $code ? 'on' : '' }}"
                 wire:click="selectDistributor('{{ $code }}')">
-          <div class="n"><span class="tc-step">2</span> {{ $code }} · any category</div>
-          <span class="s">Overrides global for {{ $code }} · <b>{{ number_format($deps[$code] ?? 0) }}</b> categories inherit from here</span>
+          @php $dl = app(\App\Services\Distributors\DistributorRegistry::class)->label($code); @endphp
+          <div class="n"><span class="tc-step">2</span> {{ $dl }} · any category</div>
+          <span class="s">Overrides global for {{ $dl }} · @if (isset($deps[$code]) || \App\Models\CatalogTitleScope::where('distributor_code', $code)->exists())<b>{{ number_format($deps[$code] ?? 0) }}</b> categories inherit from here @else categories not scanned yet (nightly at 05:15) @endif</span>
         </button>
       @endforeach
     </div>
@@ -119,7 +120,7 @@
         <select wire:model.live="queueDistributor" class="fi-input" style="font-size:11.5px;padding:4px 8px;border-radius:6px;background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.12);color:inherit">
           <option value="">All</option>
           @foreach ($this->distributors as $code)
-            <option value="{{ $code }}">{{ $code }}</option>
+            <option value="{{ $code }}">{{ app(\App\Services\Distributors\DistributorRegistry::class)->label($code) }}</option>
           @endforeach
         </select>
         <input type="text" wire:model.live.debounce.400ms="search" placeholder="Find category…"
