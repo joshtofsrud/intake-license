@@ -46,6 +46,8 @@ class SyncDistributorCatalogJob implements ShouldQueue, ShouldBeUnique
     public function __construct(
         public string $distributorCode = 'HLC',
         public bool $delta = false,
+        // a few products only (Kona: handles), for trying one before the whole catalog
+        public array $only = [],
     ) {}
 
     public function handle(DistributorRegistry $registry, DistributorCatalogSyncService $sync): void
@@ -61,6 +63,9 @@ class SyncDistributorCatalogJob implements ShouldQueue, ShouldBeUnique
         $adapter = $registry->make($code, ['api_key' => (string) $conn->api_key, 'region' => $conn->region ?? 'us']);
         if ($conn->auth_style && method_exists($adapter, 'setAuthStyle')) {
             $adapter->setAuthStyle($conn->auth_style);
+        }
+        if ($this->only && method_exists($adapter, 'only')) {
+            $adapter->only($this->only);
         }
 
         $since = null;

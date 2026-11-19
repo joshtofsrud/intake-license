@@ -40,6 +40,7 @@ class BrandSuppliers extends Page
     public string $code = '';
     public string $shopSearch = '';
     public string $previewSearch = '';
+    public string $oneBike = '';
     /** @var \Livewire\Features\SupportFileUploads\TemporaryUploadedFile|null */
     public $stockFile = null;
     public ?array $check = null;
@@ -163,10 +164,72 @@ class BrandSuppliers extends Page
         if ($this->code === '') {
             return;
         }
+        $this->clearStop();
         Cache::put('brand_suppliers.queued.' . $this->code, now()->timestamp, now()->addHour());
         SyncDistributorCatalogJob::dispatch($this->code);
         Notification::make()->success()->title('Reading ' . $this->label() . '\'s catalog')
             ->body('Progress shows in the Sources row.')->send();
+    }
+
+    /** Stop a catalog read: it stops before its next request to the brand's site. */
+    public function stopRead(): void
+    {
+        abort_unless($this->canEdit(), 403);
+        $key = $this->stopKey();
+        if (! $key) {
+            return;
+        }
+        Cache::put($key, true, now()->addHours(2));
+        Cache::forget('brand_suppliers.queued.' . $this->code);
+        Notification::make()->success()->title('Stopping the ' . $this->label() . ' read')
+            ->body('It stops before its next request to ' . $this->label() . '\'s site. Pages already read are kept.')->send();
+    }
+
+    private function stopKey(): ?string
+    {
+        $class = app(DistributorRegistry::class)->adapterClass($this->code);
+        return $class && defined($class . '::STOP_KEY') ? $class::STOP_KEY : null;
+    }
+
+    private function clearStop(): void
+    {
+        if ($key = $this->stopKey()) {
+            Cache::forget($key);
+        }
+    }
+
+    public function stopping(): bool
+    {
+        $key = $this->stopKey();
+        return $key !== null && (bool) Cache::get($key);
+    }
+
+    /** Read one product (a handle or its page URL) before reading them all. */
+    public function readOne(): void
+    {
+        abort_unless($this->canEdit(), 403);
+        $h = trim($this->oneBike);
+        if ($h === '') {
+            Notification::make()->warning()->title('Paste a product page address first')
+                ->body('For example ' . $this->exampleUrl())->send();
+            return;
+        }
+        $this->clearStop();
+        Cache::put('brand_suppliers.queued.' . $this->code, now()->timestamp, now()->addHour());
+        SyncDistributorCatalogJob::dispatch($this->code, false, [$h]);
+        Notification::make()->success()->title('Reading one ' . $this->label() . ' product')
+            ->body('Progress shows in the Sources row; it lands in the Preview when done.')->send();
+    }
+
+    public function supportsOne(): bool
+    {
+        $class = app(DistributorRegistry::class)->adapterClass($this->code);
+        return $class !== null && method_exists($class, 'only');
+    }
+
+    public function exampleUrl(): string
+    {
+        return rtrim((string) config('distributors.' . strtolower($this->code) . '.base_url', ''), '/') . '/products/rove-al-b37-gn';
     }
 
     // -------------------------------------------------------------- shops

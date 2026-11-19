@@ -33,13 +33,36 @@ class KonaClient implements DistributorAdapter
     /** Live progress of a catalog read, for master admin's Brand suppliers page. */
     public const PROGRESS_KEY = 'kona.catalog_read';
 
+    /** Set by the Stop button; the read stops before its next request. */
+    public const STOP_KEY = 'kona.catalog_stop';
+
     private string $base;
     private int $timeout;
+
+    /** @var string[] when set, only these products are read (handles), straight from their own pages */
+    private array $only = [];
 
     public function __construct(string $apiKey = '', string $region = 'us')
     {
         $this->base    = rtrim((string) config('distributors.kona.base_url', 'https://konaworld.com'), '/');
         $this->timeout = (int) config('distributors.kona.timeout', 30);
+    }
+
+    /**
+     * Read only these products: a handle ("rove-al-b37-gn") or a product
+     * page URL each. The product list is skipped, so this is one or two
+     * requests per bike: the way to try one bike first.
+     */
+    public function only(array $handlesOrUrls): static
+    {
+        $this->only = array_values(array_filter(array_map(function ($h) {
+            $h = trim((string) $h);
+            if (preg_match('~/products/([^/?#]+)~', $h, $m)) {
+                $h = $m[1];
+            }
+            return strtolower(trim($h, '/ '));
+        }, $handlesOrUrls)));
+        return $this;
     }
 
     public function code(): string { return self::CODE; }
@@ -260,6 +283,20 @@ class KonaClient implements DistributorAdapter
      */
     private function feed(bool $fresh = false): array
     {
+        if ($this->only) {
+            $out = [];
+            foreach ($this->only as $i => $handle) {
+                $this->progress('feed', $i + 1, count($this->only));
+                $res = $this->politeGet($this->base . '/products/' . rawurlencode($handle) . '.json', [], 'feed', $i + 1, count($this->only));
+                if (! $res->successful()) {
+                    throw new \RuntimeException('Kona\'s store answered HTTP ' . $res->status() . ' for "' . $handle . '".');
+                }
+                if (is_array($p = $res->json('product'))) {
+                    $out[] = $p;
+                }
+            }
+            return $out;
+        }
         if (! $fresh && is_array($c = Cache::get('kona.feed'))) {
             return $c;
         }
@@ -326,7 +363,11 @@ class KonaClient implements DistributorAdapter
                         $this->savePages($file, $saved);
                     }
                 }
-            } catch (\Throwable) {
+            } catch (\Throwable $e) {
+                if ($e->getMessage() === 'Stopped from master admin.') {
+                    $this->savePages($file, $saved);
+                    throw $e;
+                }
                 // keep the last good copy; the next read tries again
             }
             if ($delay > 0) {
@@ -416,6 +457,7 @@ class KonaClient implements DistributorAdapter
     {
         $waits = [5, 15, 30, 60, 120];
         foreach ($waits as $i => $fallback) {
+            $this->stopIfAsked();
             $res = $this->http()->get($url, $query);
             if (! in_array($res->status(), [429, 430, 503], true)) {
                 return $res;
@@ -426,9 +468,22 @@ class KonaClient implements DistributorAdapter
                 'phase' => 'wait', 'wait' => $wait, 'attempt' => $i + 1, 'of' => count($waits),
                 'was' => $phase, 'done' => $done, 'total' => $total, 'read' => $read, 'at' => now()->timestamp,
             ], now()->addHours(2));
-            sleep($wait);
+            // wait in short steps so Stop is honoured during a long wait
+            for ($t = 0; $t < $wait; $t++) {
+                $this->stopIfAsked();
+                sleep(1);
+            }
         }
+        $this->stopIfAsked();
         return $this->http()->get($url, $query);
+    }
+
+    private function stopIfAsked(): void
+    {
+        if (Cache::get(self::STOP_KEY)) {
+            $this->progress('done', 0, 0);
+            throw new \RuntimeException('Stopped from master admin.');
+        }
     }
 
     private function http(): \Illuminate\Http\Client\PendingRequest

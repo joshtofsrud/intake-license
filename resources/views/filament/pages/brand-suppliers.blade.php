@@ -114,9 +114,13 @@
   <div class="bs-sec" @if ($cat['live']) wire:poll.2s @endif>
     <div class="bs-sh">
       <div><h2>Where {{ $label }}'s data comes from</h2><p>Each source fills only its own fields.</p></div>
-      <button type="button" class="bs-btn g" wire:click="readCatalog" wire:loading.attr="disabled" @disabled($ro || $cat['live'])>
-        {{ $cat['live'] ? 'Reading…' : 'Read catalog now' }}
-      </button>
+      @if ($cat['live'])
+        <button type="button" class="bs-btn" style="background:#dc2626" wire:click="stopRead" wire:loading.attr="disabled" @disabled($ro || $this->stopping())>
+          {{ $this->stopping() ? 'Stopping…' : 'Stop the read' }}
+        </button>
+      @else
+        <button type="button" class="bs-btn g" wire:click="readCatalog" wire:loading.attr="disabled" @disabled($ro)>Read catalog now</button>
+      @endif
     </div>
     <table class="bs-tbl">
       <tr><th>Source</th><th>Fills</th><th>How often</th><th>Last</th><th>Status</th></tr>
@@ -159,6 +163,13 @@
         <td><span class="bs-chip">{{ $onCount }} {{ $onCount === 1 ? 'shop' : 'shops' }} on</span></td>
       </tr>
     </table>
+    @if ($this->supportsOne())
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:12px 0;border-bottom:1px solid var(--line)">
+        <span class="bs-dim" style="font-size:13px">Try one product first:</span>
+        <input type="text" class="bs-in" style="flex:1;min-width:280px" wire:model="oneBike" placeholder="{{ $this->exampleUrl() }}">
+        <button type="button" class="bs-btn g" wire:click="readOne" wire:loading.attr="disabled" @disabled($ro || $cat['live'])>Read this one</button>
+      </div>
+    @endif
     <div class="bs-legend" style="border-top:0">
       <b>The catalog is {{ $label }}'s public store, not a feed {{ $label }} sends.</b> If they change their site the read stops and
       this row says so; shops keep their cost and stock. A product page is read again only when {{ $label }} changes that product.
