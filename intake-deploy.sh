@@ -98,7 +98,13 @@ echo "==> migrations (additive only — see the header)"
 sudo -u www-data php artisan migrate --force
 
 echo "==> caches"
-sudo -u www-data php artisan optimize:clear
+# compiled files only. optimize:clear also empties the app cache, which holds
+# live state (a running check's progress, Stop requests, read progress) and
+# wiped it on every deploy.
+sudo -u www-data php artisan config:clear
+sudo -u www-data php artisan route:clear
+sudo -u www-data php artisan view:clear
+sudo -u www-data php artisan event:clear
 sudo -u www-data php artisan optimize
 
 echo "==> smoke test before going live"
