@@ -23,7 +23,9 @@
   .bs-btn[disabled] { opacity:.5; cursor:default; }
   .bs-chip { display:inline-block; white-space:nowrap; font-size:11.5px; font-weight:600; padding:1px 8px; border-radius:99px; background:var(--vsoft); color:var(--vtext); }
   .bs-chip.ok { background:rgba(74,222,128,.12); color:var(--ok); } .bs-chip.warn { background:rgba(251,191,36,.12); color:var(--amber); } .bs-chip.bad { background:rgba(248,113,113,.12); color:var(--bad); }
-  .bs-in { background:transparent; border:1px solid var(--line2); border-radius:7px; padding:6px 10px; font:inherit; font-size:13px; color:inherit; }
+  /* selects: one arrow only (the panel already draws one; never tiled) */
+  .bs-root select.bs-in { background-repeat:no-repeat; background-position:right 8px center; background-size:14px; padding-right:30px; }
+  .bs-in { background-color:transparent; border:1px solid var(--line2); border-radius:7px; padding:6px 10px; font:inherit; font-size:13px; color:inherit; }
   .bs-sw { position:relative; width:40px; height:22px; flex:none; display:inline-block; vertical-align:middle; }
   .bs-sw input { opacity:0; width:100%; height:100%; position:absolute; inset:0; margin:0; cursor:pointer; z-index:2; }
   .bs-sw i { position:absolute; inset:0; border-radius:99px; background:var(--line2); transition:background .12s; }
