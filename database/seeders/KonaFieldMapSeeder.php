@@ -26,6 +26,8 @@ class KonaFieldMapSeeder extends Seeder
             'size'       => ['replace' => [['pattern' => '^(\d{2})$', 'with' => '$1cm']], 'blank_values' => ['Default Title']],
             // the store's product type is singular ("Bike")
             'category'      => ['value_map' => ['Bike' => 'Bikes']],
+            // "Matte Midnight w/ Blue-Grey Decals" is "Matte Midnight"; the full paint name stays in the specs
+            'color'         => ['replace' => [['pattern' => '\s*w/\s+.*\bdecals?\s*$', 'with' => '']]],
             'category_path' => ['replace' => [['pattern' => '^Bike(?= >|$)', 'with' => 'Bikes']]],
         ];
     }
