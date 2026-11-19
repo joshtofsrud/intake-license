@@ -90,6 +90,7 @@ class TenantDistributorSyncService
         }
 
         $tenantId = (string) $sub->tenant_id;
+        $this->stockTenant = $tenantId;
         $res = [
             'tenant_id' => $tenantId, 'code' => $code, 'linked' => 0,
             'cost_updated' => 0, 'avail_updated' => 0, 'seeded_price' => 0,
@@ -120,7 +121,7 @@ class TenantDistributorSyncService
         [$costByVariant, $costErrors] = $this->fetchCosts($adapter, $code, $upcs, $mpns, $variantNos);
         $res['errors'] = array_merge($res['errors'], $costErrors);
         $whByVariant = []; // MARKER-SUPPLY: per-warehouse stock, beside the total
-        $availByVariant = $this->fetchAvailability($adapter, $variantNos, $res, $whByVariant);
+        $availByVariant = $this->fetchAvailability($adapter, $code, $variantNos, $res, $whByVariant);
         // MARKER-DISTRIBUTION-WAREHOUSES: register any warehouse the feed reported (new ones start hidden and off)
         try {
             $seenWh = [];
@@ -260,8 +261,23 @@ class TenantDistributorSyncService
      *
      * @return array{0: array<string,int|null>, 1: array<string>}
      */
+    /** tenant whose dealer stock file answers cost and stock for a brand-direct code */
+    private string $stockTenant = '';
+
     private function fetchCosts(DistributorAdapter $adapter, string $code, array $upcs, array $mpns, array $variantNos): array
     {
+        // MARKER-BRAND-STOCK: a brand sold direct has no live price feed; the
+        // shop's own stock file is the source of its cost
+        if (\App\Support\BrandDirect::is($code)) {
+            $this->tick('cost', 0, count($variantNos));
+            $cost = [];
+            foreach (BrandStockStore::costs($this->stockTenant, $code, $variantNos) as $vno => $c) {
+                $cost[$vno] = $c;
+            }
+            $this->tick('cost', count($variantNos), count($variantNos));
+            return [$cost, []];
+        }
+
         // HLC's prices() endpoint (Catalog/Products/Prices) honours the SKU
         // filter — unlike products() — and returns per-variant Prices[]. Run each
         // row through the same field-map resolver tier-1 uses, so cost (Base /
@@ -295,8 +311,15 @@ class TenantDistributorSyncService
     }
 
     /** @return array<string,int> variant_no => available qty (best-effort parse) */
-    private function fetchAvailability(DistributorAdapter $adapter, array $variantNos, array &$res, array &$wh = []): array
+    private function fetchAvailability(DistributorAdapter $adapter, string $code, array $variantNos, array &$res, array &$wh = []): array
     {
+        // MARKER-BRAND-STOCK: quantity comes from the shop's stock file
+        if (\App\Support\BrandDirect::is($code)) {
+            $this->tick('stock', 0, count($variantNos));
+            $a = BrandStockStore::stock($this->stockTenant, $code, $variantNos);
+            $this->tick('stock', count($variantNos), count($variantNos));
+            return $a;
+        }
         $avail = [];
         $total = count($variantNos);
         $done = 0;

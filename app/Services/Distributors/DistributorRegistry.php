@@ -62,7 +62,8 @@ class DistributorRegistry
      */
     public function platformSupplied(string $code): bool
     {
-        return strtoupper($code) === 'SHIMANO';
+        // Kona has no shop login either: the shop brings a stock file
+        return in_array(strtoupper($code), ['SHIMANO', 'KONA'], true);
     }
 
     /**

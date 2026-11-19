@@ -245,12 +245,16 @@
         </div>
       @endif
 
+      @if (! empty($b['stock']))
+        @include('tenant.distributors._stock-file')
+      @endif
+
       <form method="POST" action="{{ route('tenant.distributors.connection.key') }}" style="margin-top:14px">
         @csrf
         <input type="hidden" name="distributor_code" value="{{ $b['code'] }}">
 
         <div class="dc-row">
-          @if (! empty($b['platformSupplied']))
+          @if (! empty($b['platformSupplied']) && empty($b['stock']))
             <div class="dc-field" style="min-width:280px">
               <div style="font-size:12.5px;line-height:1.55;color:var(--ia-text-dim)">
                 Intake holds the {{ $b['label'] }} login for every shop, so there is

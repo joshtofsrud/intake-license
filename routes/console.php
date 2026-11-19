@@ -224,6 +224,12 @@ Schedule::command('catalog:match')
     ->withoutOverlapping()
     ->runInBackground();
 
+// MARKER-BRAND-STOCK: shops' Kona stock files from their FTP folders, ahead of the per-shop sync below
+Schedule::command('distributors:kona-stock-fetch')
+    ->dailyAt('06:10')
+    ->withoutOverlapping()
+    ->runInBackground();
+
 // Moved from 05:00 to 06:30: per-tenant cost and stock should land after
 // matching, so a newly linked source is priced on the same night it links.
 Schedule::command('distributors:sync-tenant --all')

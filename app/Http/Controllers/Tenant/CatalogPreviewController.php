@@ -71,6 +71,12 @@ class CatalogPreviewController extends Controller
             . 'Preview from master admin: ' . e($cat->display_name ?: $cat->name) . ' (' . e($cat->distributor_variant_no) . ') as ' . e($tenant->name) . ' would get it'
             . ($merged ? ', added to an item the shop already has' : '')
             . '. Nothing was saved; buttons on this page do nothing useful here.</div>';
+        // a bike read before the reader learned geometry, sizing and story has none of them to show
+        $raw = (array) ($cat->source_raw ?? []);
+        if (empty($raw['geometry_all']) && empty($raw['sizing']) && empty($raw['story'])) {
+            $banner .= '<div style="position:sticky;top:38px;z-index:99998;background:#b45309;color:#fff;font:600 13px/1.4 system-ui,sans-serif;padding:8px 16px;text-align:center">'
+                . 'This bike has no geometry, sizing chart or story stored yet: it was read before those were added, or its page has none. Read it again from Brand suppliers (Read one bike), then reload this preview.</div>';
+        }
         $html = preg_replace('~<body([^>]*)>~i', '<body$1>' . $banner, $html, 1) ?? $html;
 
         return response($html)->header('X-Robots-Tag', 'noindex, nofollow');

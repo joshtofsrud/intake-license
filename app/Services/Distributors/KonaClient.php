@@ -92,11 +92,10 @@ class KonaClient implements DistributorAdapter
     public static function needsKey(): bool { return false; }
 
     /**
-     * Whether shops can use this source yet. The shop side (stock file in the
-     * Kona box) is a later build, so shops switched on in master admin do not
-     * see a Kona box until it ships.
+     * Whether shops can use this source. The shop's Kona box (stock file upload
+     * and FTP folder) is built, so shops switched on in master admin see it.
      */
-    public static function shopSideReady(): bool { return false; }
+    public static function shopSideReady(): bool { return true; }
 
     public function testConnection(): array
     {

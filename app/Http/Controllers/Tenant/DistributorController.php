@@ -84,6 +84,12 @@ class DistributorController extends Controller
                 'hints'     => $registry->credentialHints(
                     $code, $creds['api_key'] ?? null, fn ($v) => $this->mask($v)
                 ),
+                // MARKER-BRAND-STOCK: the shop's stock file and FTP folder (brand-direct sources)
+                'stock'     => \App\Support\BrandDirect::is($code) ? [
+                    'file' => \App\Services\Distributors\BrandStockStore::file((string) $tenant->id, $code),
+                    'ftp'  => \Illuminate\Support\Arr::except((array) (((array) ($sub->credentials_encrypted ?? []))['stock_ftp'] ?? []), ['password']),
+                    'ftpPass' => filled((((array) ($sub->credentials_encrypted ?? []))['stock_ftp'] ?? [])['password'] ?? null),
+                ] : null,
                 'priority'  => (int) ($sub->data_priority ?? 50),
                 'options'   => (array) ($creds['options'] ?? []),
                 // MARKER-BOX-WAREHOUSES: its warehouses, what counts, where online orders ship from
@@ -181,6 +187,82 @@ class DistributorController extends Controller
         return back()->with('success', $on
             ? $code . ' turned on. Add your account key to unlock your cost and availability.'
             : $code . ' turned off. Your key is kept — turn it back on any time.');
+    }
+
+    // ------------------------------------------------ MARKER-BRAND-STOCK
+
+    private function stockSub(Request $request): TenantDistributorCatalogSubscription
+    {
+        $this->guard();
+        $code = strtoupper((string) $request->input('code', 'KONA'));
+        abort_unless(\App\Support\BrandDirect::is($code) && in_array($code, \App\Support\BrandDirect::visibleCodes((string) tenant()->id), true), 404);
+
+        return TenantDistributorCatalogSubscription::firstOrCreate(
+            ['tenant_id' => tenant()->id, 'distributor_code' => $code], ['is_active' => false, 'price_seed' => 'msrp']);
+    }
+
+    private function afterStockLoad(TenantDistributorCatalogSubscription $sub): void
+    {
+        // costs and stock reach the shop's linked items through the usual per-shop sync
+        if ($sub->is_active) {
+            $this->startRun((string) $sub->distributor_code);
+        }
+    }
+
+    /** The shop uploads its Kona stock file. */
+    public function stockUpload(Request $request): RedirectResponse
+    {
+        $sub = $this->stockSub($request);
+        $request->validate(['file' => ['required', 'file', 'max:20480']]);
+        $f = $request->file('file');
+        if (! in_array(strtolower($f->getClientOriginalExtension()), ['xlsx', 'csv', 'txt'], true)) {
+            return back()->withErrors(['file' => 'Use the .xlsx or .csv file exported from Kona.']);
+        }
+        try {
+            $r = \App\Services\Distributors\KonaStockLoader::load((string) tenant()->id, $f->getRealPath(), $f->getClientOriginalName(), 'upload');
+        } catch (\Throwable $e) {
+            \App\Services\Distributors\BrandStockStore::failed((string) tenant()->id, (string) $sub->distributor_code, $e->getMessage());
+            return back()->withErrors(['file' => $e->getMessage()]);
+        }
+        $this->afterStockLoad($sub);
+        return back()->with('success', 'Stock file loaded: ' . number_format($r['rows']) . ' rows, ' . number_format($r['check']['matched']) . ' in the Kona catalog.' . ($sub->is_active ? ' Updating your items now.' : ' Turn Kona on to use it.'));
+    }
+
+    /** The shop's FTP folder for the stock file. A blank password keeps the saved one. */
+    public function stockFtpSave(Request $request): RedirectResponse
+    {
+        $sub = $this->stockSub($request);
+        $d = $request->validate([
+            'host' => ['nullable', 'string', 'max:190'], 'user' => ['nullable', 'string', 'max:128'],
+            'password' => ['nullable', 'string', 'max:255'], 'folder' => ['nullable', 'string', 'max:190'],
+        ]);
+        $creds = (array) ($sub->credentials_encrypted ?? []);
+        $old = (array) ($creds['stock_ftp'] ?? []);
+        $creds['stock_ftp'] = [
+            'host' => trim((string) ($d['host'] ?? '')), 'user' => trim((string) ($d['user'] ?? '')),
+            'password' => trim((string) ($d['password'] ?? '')) ?: (string) ($old['password'] ?? ''),
+            'folder' => trim((string) ($d['folder'] ?? '')),
+        ];
+        $sub->credentials_encrypted = $creds;
+        $sub->save();
+        return back()->with('success', 'FTP folder saved. Use Fetch now to try it; it is also checked every night.');
+    }
+
+    /** Fetch the newest file from the shop's FTP folder now. */
+    public function stockFetch(Request $request): RedirectResponse
+    {
+        $sub = $this->stockSub($request);
+        try {
+            $r = \App\Services\Distributors\KonaStockLoader::fetch($sub);
+        } catch (\Throwable $e) {
+            \App\Services\Distributors\BrandStockStore::failed((string) tenant()->id, (string) $sub->distributor_code, $e->getMessage());
+            return back()->withErrors(['file' => $e->getMessage()]);
+        }
+        if ($r === null) {
+            return back()->with('success', 'Nothing new: the newest file in the folder is the one already loaded.');
+        }
+        $this->afterStockLoad($sub);
+        return back()->with('success', 'Loaded ' . $r['file'] . ': ' . number_format($r['rows']) . ' rows.' . ($sub->is_active ? ' Updating your items now.' : ''));
     }
 
     public function saveKey(Request $request): RedirectResponse
