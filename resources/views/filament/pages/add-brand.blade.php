@@ -46,7 +46,9 @@
   $running = in_array($status, ['queued', 'running'], true);
 @endphp
 
-<div class="ab-root" @if ($running) wire:poll.1500ms="refreshProbe" @endif>
+<div class="ab-root">
+  {{-- a poll element of its own, keyed to the check: an attribute added to an element already on the page never starts polling --}}
+  @if ($running)<div wire:key="ab-poll-{{ $token }}" wire:poll.1500ms="refreshProbe"></div>@endif
   <div class="ab-faint" style="margin-bottom:4px"><a href="{{ \App\Filament\Pages\BrandSuppliers::getUrl() }}" style="color:var(--vtext)">Brand suppliers</a> › Add a brand</div>
   <p class="sub">Give Intake the brand's website. It works out how the site is built, samples a few products and shows you what it can read before anything is saved. The brand starts off for every shop.</p>
 

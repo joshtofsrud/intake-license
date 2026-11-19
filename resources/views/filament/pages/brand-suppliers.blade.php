@@ -103,7 +103,9 @@
     @unless ($ro)<a class="bs-pill add" href="{{ \App\Filament\Pages\AddBrand::getUrl() }}">+ Add a brand</a>@endunless
   </div>
 
-  <div class="bs-head" @if ($cat['live']) wire:poll.5s @endif>
+  {{-- live refresh while a read runs: its own keyed element, so it starts the moment a read does (an attribute added to an element already on the page never starts polling) --}}
+  @if ($cat['live'])<div wire:key="bs-poll-{{ $code }}-{{ $tab }}" wire:poll.{{ $tab === 'read' ? '2s' : '5s' }}></div>@endif
+  <div class="bs-head">
     <div>
       <h2>{{ $label }}
         @if (! ($brandRow['shop_ready'] ?? true))<span class="bs-chip warn" style="vertical-align:4px">Shop side not built</span>
@@ -134,7 +136,7 @@
 
   {{-- ============ CATALOG READ ============ --}}
   @if ($tab === 'read')
-  <div @if ($cat['live']) wire:poll.2s @endif>
+  <div>
     <div class="bs-note"><b>{{ $label }}'s public store, not a feed {{ $label }} sends,</b> read one product at a time. If {{ $label }} changes its site the read stops and says so here; shops keep their items, cost and stock. Nothing here changes a shop's prices or on-hand counts.</div>
 
     <div class="bs-row">
@@ -402,7 +404,7 @@
   {{-- ============ PREVIEW ============ --}}
   @if ($tab === 'preview')
   @php $prev = $this->preview(); $ptotal = $this->previewTotal(); $ins = $this->inspected(); $cats = $this->previewCategories(); $topCats = array_slice($cats, 0, 6, true); @endphp
-  <div @if ($cat['live']) wire:poll.5s @endif>
+  <div>
     <div class="bs-dim" style="margin-bottom:10px">The catalog as shops get it, after the clean-up rules. Inspect a row to see everything read for it and to open it as a shop's item page or online store page.</div>
     <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
