@@ -79,6 +79,16 @@
   .spg-show .pdx-geo th, .spg-show .pdx-geo td { padding: 7px 8px; text-align: right; border-bottom: 1px solid color-mix(in srgb, var(--p-text) 6%, transparent); }
   .spg-show .pdx-geo td:first-child, .spg-show .pdx-geo th:first-child { text-align: left; padding-left: 0; opacity: .75; }
   .spg-show .pdx-geo .u { font-size: 11px; opacity: .6; }
+  .spg-show .pdx-lead { font-size: 15px; line-height: 1.6; max-width: 680px; margin: 0 0 16px; opacity: .85; }
+  .spg-show .pdx-fit tr.on td { background: color-mix(in srgb, var(--acc) 14%, transparent); font-weight: 650; }
+  .spg-show .pdx-fit th, .spg-show .pdx-fit td { text-align: center; }
+  .spg-show .pdx-story { max-width: 860px; }
+  .spg-show .pdx-story p { font-size: 15px; line-height: 1.65; opacity: .8; margin: 0 0 14px; }
+  .spg-show .pdx-story h4 { font-size: 16px; font-weight: 800; margin: 22px 0 8px; }
+  .spg-show .pdx-story .imgs { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin: 0 0 18px; }
+  .spg-show .pdx-story figure { margin: 0; }
+  .spg-show .pdx-story img { width: 100%; aspect-ratio: 3/2; object-fit: cover; border-radius: var(--s-r); background: var(--s-photo); display: block; }
+  .spg-show .pdx-story figcaption { font-size: 12.5px; opacity: .6; margin-top: 7px; }
   .spg-show .pdx-geo .on { background: color-mix(in srgb, var(--acc) 14%, transparent); font-weight: 700; opacity: 1; }
   .spg-show .idline { font-size: 12px; opacity: .45; margin-top: 18px; font-family: ui-monospace, monospace; }
 
@@ -111,10 +121,11 @@
       <h1>{{ $item->name }}</h1>
       @if($item->display_subtitle)<div class="subt">{{ $item->display_subtitle }}</div>@endif
 
+      @if(!empty($pd['fit']['range']) && empty($pdSizes))<div class="subt">Size {{ $pd['size'] }} · fits riders about {{ $pd['fit']['range'] }}</div>@endif
       {{-- MARKER-PRODUCT-DETAILS: the other sizes of this model that are for sale here --}}
       @if(!empty($pdSizes))
         <div class="szrow">
-          <div class="szlab"><span>Size: <b>{{ $pd['size'] }}</b></span></div>
+          <div class="szlab"><span>Size: <b>{{ $pd['size'] }}</b></span>@if(!empty($pd['fit']['range']))<span style="opacity:.6;margin-left:10px">fits riders about {{ $pd['fit']['range'] }}</span>@endif</div>
           <div class="szs">
             @foreach($pdSizes as $z)
               <a @if($z['href']) href="{{ $z['href'] }}" @endif class="sz{{ $z['current'] ? ' on' : '' }}"><b>{{ $z['size'] }}</b><span class="{{ ($z['stock'] ?? 0) > 0 ? 'in' : '' }}">{{ ($z['stock'] ?? 0) > 0 ? 'In stock' : 'Special order' }}</span></a>
@@ -207,7 +218,9 @@
   @php
     $pdSpecs = ! empty($pd['specs']);
     $pdGeo = ! empty($pd['geometry']['rows']);
-    $pdTabs = array_filter(['specs' => $pdSpecs ? 'Specs' : null, 'geometry' => $pdGeo ? 'Geometry' : null]);
+    $pdFit = ! empty($pd['fit']);
+    $pdStory = ! empty($pd['story']);
+    $pdTabs = array_filter(['specs' => $pdSpecs ? 'Specs' : null, 'geometry' => $pdGeo ? 'Geometry' : null, 'fit' => $pdFit ? 'Sizing' : null, 'story' => $pdStory ? ($pd['story']['title'] ?: 'Story') : null]);
     $pdFirst = array_key_first($pdTabs);
   @endphp
   @if($pdTabs)
@@ -243,6 +256,31 @@
         @endforeach
       </table>
       <p class="pdx-note">Your size, {{ $pd['size'] }}, is highlighted.</p>
+    </div>
+    @endif
+    @if($pdFit)
+    <div class="pdx-p" data-p="fit" @if($pdFirst !== 'fit') hidden @endif>
+      @if($pd['fit']['range'])<p class="pdx-lead">The {{ $pd['size'] }} fits riders about <b>{{ $pd['fit']['range'] }}</b>. Not sure, or between sizes? Ask us and we'll help you choose.</p>@endif
+      <table class="pdx-geo pdx-fit">
+        <tr><th style="text-align:left">Height</th><th>Metric</th><th>Inseam</th><th>Inseam metric</th><th>Size</th></tr>
+        @foreach($pd['fit']['rows'] as $r)
+          <tr class="{{ $r['fits'] ? 'on' : '' }}"><td style="text-align:left">{{ $r['height_in'] }}</td><td>{{ $r['height_cm'] }}</td><td>{{ $r['inseam_in'] }}</td><td>{{ $r['inseam_cm'] }}</td><td>{{ $r['size'] }}</td></tr>
+        @endforeach
+      </table>
+      <p class="pdx-note">Highlighted rows are where the {{ $pd['size'] }} fits.</p>
+    </div>
+    @endif
+    @if($pdStory)
+    <div class="pdx-p" data-p="story" @if($pdFirst !== 'story') hidden @endif>
+      <div class="pdx-story">
+      @foreach($pd['story']['blocks'] as $b)
+        @if($b['t'] === 'p')<p>{{ $b['text'] }}</p>
+        @elseif($b['t'] === 'h')<h4>{{ $b['text'] }}</h4>
+        @else
+          <div class="imgs">@foreach($b['items'] as $im)<figure><img src="{{ $im['src'] }}" alt="" loading="lazy">@if($im['caption'] !== '')<figcaption>{{ $im['caption'] }}</figcaption>@endif</figure>@endforeach</div>
+        @endif
+      @endforeach
+      </div>
     </div>
     @endif
   </section>

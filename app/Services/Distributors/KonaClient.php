@@ -44,7 +44,7 @@ class KonaClient implements DistributorAdapter
      * Bumped when the page reader learns a new layout, so bikes read with
      * the older reader are read again once (2: the older #kro_specs table).
      */
-    public const READER_VERSION = 2;
+    public const READER_VERSION = 3;
 
     /** Set by the Stop button; the read stops before its next request. */
     public const STOP_KEY = 'kona.catalog_stop';
@@ -266,6 +266,8 @@ class KonaClient implements DistributorAdapter
             'specs'            => $specs,
             'geometry'         => $geo,
             'geometry_all'     => (array) ($page['geometry'] ?? []),
+            'sizing'           => self::sizingFor((array) ($page['sizing_tables'] ?? []), (string) ($p['title'] ?? '')),
+            'story'            => $page['story'] ?? null,
             'paint_color'      => $this->spec($specs, 'paint color'),
             'url'              => $this->base . '/products/' . ($p['handle'] ?? ''),
             'DateLastModified' => $p['updated_at'] ?? null,
@@ -533,7 +535,7 @@ class KonaClient implements DistributorAdapter
      */
     public static function parsePage(string $html): array
     {
-        $out = ['specs' => [], 'geometry' => []];
+        $out = ['specs' => [], 'geometry' => [], 'sizing_tables' => [], 'story' => null];
         if (trim($html) === '') {
             return $out;
         }
@@ -594,7 +596,118 @@ class KonaClient implements DistributorAdapter
                 }
             }
         }
+
+        // MARKER-PRODUCT-DETAILS: Kona's shared sizing chart (one table per riding style, a column
+        // per model family) and the bike's story section (heading, text, captioned photos).
+        $cls = fn ($c) => 'contains(concat(" ", normalize-space(@class), " "), " ' . $c . ' ")';
+        foreach ($xp->query('//table[' . $cls('sizing_chart') . ']') ?: [] as $tbl) {
+            $title = $xp->query('ancestor::div[starts-with(@class,"bike_sizing_chart")][1]/h4', $tbl);
+            $heads = [];
+            foreach ($xp->query('.//thead//th', $tbl) ?: [] as $th) {
+                $heads[] = $clean($th->textContent);
+            }
+            $rows = [];
+            foreach ($xp->query('.//tbody//tr', $tbl) ?: [] as $tr) {
+                $cells = [];
+                foreach ($xp->query('./td', $tr) ?: [] as $td) {
+                    $cells[] = $clean($td->textContent);
+                }
+                if ($cells) {
+                    $rows[] = $cells;
+                }
+            }
+            if ($heads && $rows) {
+                $out['sizing_tables'][] = ['title' => $title && $title->length ? $clean($title->item(0)->textContent) : '', 'heads' => $heads, 'rows' => $rows];
+            }
+        }
+
+        $page = $xp->query('//div[' . $cls('tech-page') . ']')->item(0);
+        if ($page) {
+            $heading = $xp->query('//p[' . $cls('techtitle') . ']')->item(0);
+            $blocks = [];
+            $img = function ($node) use ($xp, $clean) {
+                $src = $node->getAttribute('src');
+                if ($src === '' || ! str_starts_with($src, 'https://')) {
+                    return null;
+                }
+                $cap = $xp->query('following-sibling::p[contains(@class,"tech-caption")][1]', $node);
+                return ['src' => $src, 'caption' => $cap && $cap->length ? $clean($cap->item(0)->textContent) : ''];
+            };
+            foreach ($page->childNodes as $n) {
+                if (! $n instanceof \DOMElement) {
+                    continue;
+                }
+                $tag = strtolower($n->nodeName);
+                if ($tag === 'p' && $clean($n->textContent) !== '') {
+                    $blocks[] = ['t' => 'p', 'text' => $clean($n->textContent)];
+                } elseif (in_array($tag, ['h2', 'h3', 'h4', 'h5'], true) && $clean($n->textContent) !== '') {
+                    $blocks[] = ['t' => 'h', 'text' => $clean($n->textContent)];
+                } elseif ($tag === 'img' && ($i = $img($n))) {
+                    $blocks[] = ['t' => 'imgs', 'items' => [$i]];
+                } elseif ($tag === 'div') {
+                    foreach ($xp->query('.//div[' . $cls('tech-row') . ']|.//p[' . $cls('fw') . ']', $n) ?: [] as $row) {
+                        if (strtolower($row->nodeName) === 'p') {
+                            $blocks[] = ['t' => 'p', 'text' => $clean($row->textContent)];
+                            continue;
+                        }
+                        $items = [];
+                        foreach ($xp->query('.//img', $row) ?: [] as $im) {
+                            if ($i = $img($im)) {
+                                $items[] = $i;
+                            }
+                        }
+                        if ($items) {
+                            $blocks[] = ['t' => 'imgs', 'items' => $items];
+                        }
+                    }
+                }
+            }
+            if ($blocks) {
+                $out['story'] = ['title' => $heading ? $clean($heading->textContent) : '', 'blocks' => $blocks];
+            }
+        }
+
         return $out;
+    }
+
+
+    /**
+     * Kona's sizing chart has a column per model family ("Rove", "Libre",
+     * "Sutra/Ouroboros"). The column for this bike is the one whose name its
+     * title starts with, kept with the four height and inseam columns. A
+     * bike no column fits gets nothing: a wrong column would be worse.
+     *
+     * @return array{table: string, model: string, rows: array}|null
+     */
+    public static function sizingFor(array $tables, string $title): ?array
+    {
+        $norm = fn ($x) => preg_replace('/[^a-z0-9]+/', '', strtolower($x));
+        $me = $norm($title);
+        $best = null;
+        foreach ($tables as $t) {
+            foreach ($t['heads'] as $ci => $head) {
+                if ($ci < 4) {
+                    continue;
+                }
+                foreach (explode('/', $head) as $tok) {
+                    $tok = $norm($tok);
+                    // "Dews" is the column for the Dew, Dew-E and the like: a plural column matches its singular too
+                    foreach (array_unique([$tok, rtrim($tok, 's')]) as $try) {
+                        if (strlen($try) >= 3 && str_starts_with($me, $try) && (! $best || strlen($try) > $best['len'])) {
+                            $best = ['len' => strlen($try), 't' => $t, 'ci' => $ci, 'head' => $head];
+                        }
+                    }
+                }
+            }
+        }
+        if (! $best) {
+            return null;
+        }
+        $rows = [];
+        foreach ($best['t']['rows'] as $r) {
+            $rows[] = ['height_in' => $r[0] ?? '', 'height_cm' => $r[1] ?? '', 'inseam_in' => $r[2] ?? '', 'inseam_cm' => $r[3] ?? '', 'size' => $r[$best['ci']] ?? ''];
+        }
+        return ['table' => (string) $best['t']['title'], 'model' => (string) $best['head'], 'rows' => $rows];
     }
 
     /**

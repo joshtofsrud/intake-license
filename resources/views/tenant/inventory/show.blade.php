@@ -476,8 +476,8 @@
     @endif
 
     {{-- Specs. MARKER-PRODUCT-DETAILS: tabs for specs, geometry and the other sizes; each tab only when this item has the data --}}
-    @php $pd = \App\Support\ProductDetails::for($item); $hasSpecs = ! empty($pd['specs']); $hasGeo = ! empty($pd['geometry']['rows']); $hasSizes = ! empty($pd['sizes']); @endphp
-    @if($hasSpecs || $hasGeo || $hasSizes || $catDesc)
+    @php $pd = \App\Support\ProductDetails::for($item); $hasSpecs = ! empty($pd['specs']); $hasGeo = ! empty($pd['geometry']['rows']); $hasSizes = ! empty($pd['sizes']); $hasFit = ! empty($pd['fit']); $hasStory = ! empty($pd['story']); @endphp
+    @if($hasSpecs || $hasGeo || $hasSizes || $hasFit || $hasStory || $catDesc)
     <div class="ia-card" id="pd-card">
       <div class="ia-card-head">
         <span class="ia-card-title">Specs</span>
@@ -485,7 +485,7 @@
       </div>
       <div class="ia-card-body">
         @if($catDesc)<div class="ia-desc" style="margin-bottom:14px">{!! \App\Support\DescriptionHtml::render($catDesc) !!}</div>@endif
-        @php $tabs = array_filter(['specs' => $hasSpecs ? 'Specs' : null, 'geometry' => $hasGeo ? 'Geometry' : null, 'sizes' => $hasSizes ? 'Sizes' : null]); $firstTab = array_key_first($tabs); @endphp
+        @php $tabs = array_filter(['specs' => $hasSpecs ? 'Specs' : null, 'geometry' => $hasGeo ? 'Geometry' : null, 'sizes' => $hasSizes ? 'Sizes' : null, 'fit' => $hasFit ? 'Sizing' : null, 'story' => $hasStory ? ($pd['story']['title'] ?: 'Story') : null]); $firstTab = array_key_first($tabs); @endphp
         @if($tabs)
         @if(count($tabs) > 1)
         <div class="pd-tabs" role="tablist">
@@ -540,6 +540,29 @@
           <div class="pd-note">The other sizes of this model and what you have of each.</div>
         </div>
         @endif
+        @if($hasFit)
+        <div data-pd-panel="fit" @if($firstTab !== 'fit') hidden @endif>
+          @if($pd['fit']['range'])<div class="pd-note" style="margin:0 0 10px">The {{ $pd['size'] }} fits riders about <b>{{ $pd['fit']['range'] }}</b>. Brand's chart for the {{ $pd['fit']['model'] }}.</div>@endif
+          <table class="pd-geo">
+            <tr><th style="text-align:left">Height</th><th>Metric</th><th>Inseam</th><th>Inseam metric</th><th>Size</th></tr>
+            @foreach($pd['fit']['rows'] as $r)
+              <tr class="{{ $r['fits'] ? 'pd-fit' : '' }}"><td style="text-align:left">{{ $r['height_in'] }}</td><td>{{ $r['height_cm'] }}</td><td>{{ $r['inseam_in'] }}</td><td>{{ $r['inseam_cm'] }}</td><td>{{ $r['size'] }}</td></tr>
+            @endforeach
+          </table>
+          <div class="pd-note">Highlighted rows are where the {{ $pd['size'] }} fits.</div>
+        </div>
+        @endif
+        @if($hasStory)
+        <div data-pd-panel="story" @if($firstTab !== 'story') hidden @endif>
+          @foreach($pd['story']['blocks'] as $b)
+            @if($b['t'] === 'p')<p class="pd-story-p">{{ $b['text'] }}</p>
+            @elseif($b['t'] === 'h')<div class="pd-story-h">{{ $b['text'] }}</div>
+            @else
+              <div class="pd-story-imgs">@foreach($b['items'] as $im)<figure><img src="{{ $im['src'] }}" alt="" loading="lazy">@if($im['caption'] !== '')<figcaption>{{ $im['caption'] }}</figcaption>@endif</figure>@endforeach</div>
+            @endif
+          @endforeach
+        </div>
+        @endif
         @endif
       </div>
     </div>
@@ -561,6 +584,12 @@
       .pd-geo td:first-child,.pd-geo th:first-child{text-align:left;color:var(--ia-text-muted);padding-left:0}
       .pd-geo .on{background:var(--ia-hover);color:var(--ia-text);font-weight:600}
       .pd-u{font-size:11px;color:var(--ia-text-dim)}
+      .pd-geo tr.pd-fit td{background:var(--ia-hover);color:var(--ia-text);font-weight:600}
+      .pd-story-p{font-size:13.5px;line-height:1.6;color:var(--ia-text-muted);margin:0 0 12px;max-width:720px}
+      .pd-story-h{font-size:14px;font-weight:600;margin:14px 0 6px}
+      .pd-story-imgs{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin:0 0 12px;max-width:720px}
+      .pd-story-imgs figure{margin:0}.pd-story-imgs img{width:100%;aspect-ratio:3/2;object-fit:cover;border-radius:8px;background:#f3f3f1;display:block}
+      .pd-story-imgs figcaption{font-size:11.5px;color:var(--ia-text-dim);margin-top:4px}
       .pd-sizes{display:flex;flex-wrap:wrap;gap:6px}
       .pd-chip{display:inline-flex;flex-direction:column;gap:1px;padding:6px 11px;border-radius:8px;border:.5px solid var(--ia-border-strong);font-size:13px;font-weight:600;color:var(--ia-text);text-decoration:none;min-width:64px}
       .pd-chip b{font-size:11px;font-weight:500;color:var(--ia-text-muted)}

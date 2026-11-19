@@ -20,7 +20,7 @@ class ProductDetails
     public static function for(TenantInventoryItem $item): array
     {
         $cat = $item->distributorCatalog;
-        $empty = ['specs' => [], 'geometry' => ['sizes' => [], 'rows' => []], 'sizes' => [], 'size' => '', 'has' => false];
+        $empty = ['specs' => [], 'geometry' => ['sizes' => [], 'rows' => []], 'sizes' => [], 'size' => '', 'sizeKey' => '', 'fit' => null, 'story' => null, 'has' => false];
         if (! $cat) {
             return $empty;
         }
@@ -34,9 +34,78 @@ class ProductDetails
             'sizes'    => count($sizes) > 1 ? $sizes : [],
             'size'     => $size,
             'sizeKey'  => self::key($size),
+            'fit'      => self::fit((array) ($raw['sizing'] ?? []), $size),
+            'story'    => self::story($raw['story'] ?? null),
         ];
-        $out['has'] = $out['specs'] || $out['geometry']['rows'] || $out['sizes'];
+        $out['has'] = $out['specs'] || $out['geometry']['rows'] || $out['sizes'] || $out['fit'] || $out['story'];
         return $out;
+    }
+
+
+    /**
+     * The brand's sizing chart for this model, with the rows this size fits.
+     * [model, range ("5'6"–6'2""), rows[height_in, height_cm, inseam_in, inseam_cm, size, fits]].
+     * Null when the brand sent no chart for the model.
+     */
+    public static function fit(array $sizing, string $size): ?array
+    {
+        if (empty($sizing['rows'])) {
+            return null;
+        }
+        $key = self::key($size);
+        $letters = ['xs' => 'xs', 's' => 'small', 'sm' => 'small', 'm' => 'medium', 'md' => 'medium', 'l' => 'large', 'lg' => 'large', 'xl' => 'xl', 'xxl' => 'xxl'];
+        $me = strtolower($key);
+        $rows = [];
+        $fitting = [];
+        foreach ($sizing['rows'] as $i => $r) {
+            $fits = false;
+            foreach (preg_split('/\s*,\s*/', (string) ($r['size'] ?? '')) as $tok) {
+                $tok = strtolower(trim($tok));
+                if (preg_match('/^(\d{2,3})(?:\s*-\s*(\d{2,3}))?\s*(?:cm)?$/', $tok, $m) && ctype_digit($key)) {
+                    $a = (int) $m[1];
+                    $b = isset($m[2]) && $m[2] !== '' ? (int) $m[2] : $a;
+                    $fits = $fits || ((int) $key >= $a && (int) $key <= $b);
+                } elseif ($tok !== '' && isset($letters[$me]) && $tok === $letters[$me]) {
+                    $fits = true;
+                }
+            }
+            $rows[] = $r + ['fits' => $fits];
+            if ($fits) {
+                $fitting[] = $i;
+            }
+        }
+        $range = null;
+        if ($fitting) {
+            $first = preg_split('/\s*[-–]\s*/u', (string) $rows[$fitting[0]]['height_in']);
+            $last  = preg_split('/\s*[-–]\s*/u', (string) $rows[end($fitting)]['height_in']);
+            if (! empty($first[0]) && ! empty(end($last))) {
+                $range = $first[0] . '–' . end($last);
+            }
+        }
+        return ['model' => (string) ($sizing['model'] ?? ''), 'range' => $range, 'rows' => $rows];
+    }
+
+    /** The brand's story section: [title, blocks] where a block is text, a heading, or one to three captioned photos. */
+    public static function story($story): ?array
+    {
+        if (! is_array($story) || empty($story['blocks'])) {
+            return null;
+        }
+        $blocks = [];
+        foreach ($story['blocks'] as $b) {
+            if (! is_array($b)) {
+                continue;
+            }
+            if (($b['t'] ?? '') === 'imgs') {
+                $items = array_values(array_filter((array) ($b['items'] ?? []), fn ($i) => is_array($i) && str_starts_with((string) ($i['src'] ?? ''), 'https://')));
+                if ($items) {
+                    $blocks[] = ['t' => 'imgs', 'items' => $items];
+                }
+            } elseif (in_array($b['t'] ?? '', ['p', 'h'], true) && trim((string) ($b['text'] ?? '')) !== '') {
+                $blocks[] = ['t' => $b['t'], 'text' => trim((string) $b['text'])];
+            }
+        }
+        return $blocks ? ['title' => trim((string) ($story['title'] ?? '')), 'blocks' => $blocks] : null;
     }
 
     /** "54cm" and "54" are the same size: geometry tables say 54, the catalog says 54cm. */
