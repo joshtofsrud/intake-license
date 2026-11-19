@@ -41,6 +41,8 @@ class BrandSuppliers extends Page
     public string $shopSearch = '';
     public string $previewSearch = '';
     public string $oneBike = '';
+    /** how gently the brand's site is read (Kona: list gap, page gap, pages per run, refresh days) */
+    public array $pace = [];
     /** @var \Livewire\Features\SupportFileUploads\TemporaryUploadedFile|null */
     public $stockFile = null;
     public ?array $check = null;
@@ -50,6 +52,62 @@ class BrandSuppliers extends Page
     {
         $codes = $this->codes();
         $this->code = $codes[0] ?? '';
+        $this->loadPace();
+    }
+
+    public function updatedCode(): void
+    {
+        $this->check = null;
+        $this->checkName = '';
+        $this->loadPace();
+    }
+
+    private function adapter(): ?string
+    {
+        return app(DistributorRegistry::class)->adapterClass($this->code);
+    }
+
+    private function loadPace(): void
+    {
+        $class = $this->adapter();
+        $this->pace = $class && method_exists($class, 'pace') ? array_map('strval', $class::pace()) : [];
+    }
+
+    public function savePace(): void
+    {
+        abort_unless($this->canEdit(), 403);
+        if (! $this->pace) {
+            return;
+        }
+        $this->validate([
+            'pace.list_gap_s'    => ['required', 'integer', 'min:1', 'max:600'],
+            'pace.page_gap_s'    => ['required', 'integer', 'min:1', 'max:600'],
+            'pace.pages_per_run' => ['required', 'integer', 'min:1', 'max:1000'],
+            'pace.refresh_days'  => ['required', 'integer', 'min:1', 'max:365'],
+        ]);
+        $ps = \App\Models\PlatformSettings::current();
+        $ds = (array) ($ps->distribution_settings ?? []);
+        $ds['brand_read'][$this->code] = array_map('intval', $this->pace);
+        $ps->distribution_settings = $ds;
+        $ps->save();
+        \App\Models\PlatformSettings::forget();
+        $this->loadPace();
+        Notification::make()->success()->title('Saved')->body('Used from the next read of ' . $this->label() . '\'s site.')->send();
+    }
+
+    /** How many bikes have a current spec page, and what one run takes. */
+    public function pagesStatus(): ?array
+    {
+        $class = $this->adapter();
+        if (! $class || ! defined($class . '::PAGES_KEY')) {
+            return null;
+        }
+        $st = Cache::get($class::PAGES_KEY);
+        $p = array_map('intval', $this->pace);
+        return [
+            'have' => $st['have'] ?? null, 'of' => $st['of'] ?? null,
+            'run_minutes' => (int) ceil(((int) ($p['pages_per_run'] ?? 0) * ((int) ($p['page_gap_s'] ?? 0) + 1) + 5 * (int) ($p['list_gap_s'] ?? 0)) / 60),
+        ];
     }
 
     public function canEdit(): bool
@@ -86,12 +144,6 @@ class BrandSuppliers extends Page
     public function label(?string $code = null): string
     {
         return app(DistributorRegistry::class)->label($code ?: $this->code);
-    }
-
-    public function updatedCode(): void
-    {
-        $this->check = null;
-        $this->checkName = '';
     }
 
     // ------------------------------------------------------------ catalog
@@ -137,8 +189,8 @@ class BrandSuppliers extends Page
                 $line = 'Reading ' . $this->label() . '\'s product list · page ' . (int) $prog['done'];
                 $pct = 3;
             } elseif ($phase === 'pages') {
-                $line = 'Reading spec tables · ' . number_format((int) $prog['done']) . ' of ' . number_format((int) $prog['total']) . ' bikes'
-                    . ((int) ($prog['read'] ?? 0) > 0 ? ' · ' . number_format((int) $prog['read']) . ' pages changed and were read' : ' · unchanged pages are skipped');
+                $line = 'Reading product pages (spec tables) · ' . number_format((int) $prog['done']) . ' of ' . number_format((int) $prog['total']) . ' this read'
+                    . ' · ' . (int) ($this->pace['page_gap_s'] ?? 0) . ' seconds apart';
                 $pct = $prog['total'] ? (int) round(5 + 70 * $prog['done'] / max(1, $prog['total'])) : 5;
             } else {
                 $line = 'Working…';

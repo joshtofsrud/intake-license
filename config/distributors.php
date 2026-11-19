@@ -135,8 +135,12 @@ return [
         // the first thing it throttles)
         'feed_page_size'  => (int) env('KONA_FEED_PAGE_SIZE', 100),
         'max_feed_pages'  => (int) env('KONA_MAX_FEED_PAGES', 40),
-        // pause between product pages, so the spec read is gentle on Kona's site
-        'page_delay_ms'   => (int) env('KONA_PAGE_DELAY_MS', 1500),
+        // defaults for how gently Kona's store is read; master admin
+        // (Brand suppliers) overrides them
+        'list_gap_s'      => (int) env('KONA_LIST_GAP_S', 30),
+        'page_gap_s'      => (int) env('KONA_PAGE_GAP_S', 10),
+        'pages_per_run'   => (int) env('KONA_PAGES_PER_RUN', 100),
+        'refresh_days'    => (int) env('KONA_REFRESH_DAYS', 30),
         'user_agent'      => env('KONA_USER_AGENT', 'IntakeCatalog/1.0 (+https://intake.works)'),
         'sync_page_size'  => (int) env('KONA_SYNC_PAGE_SIZE', 20000),
     ],

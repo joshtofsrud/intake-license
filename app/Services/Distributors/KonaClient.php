@@ -13,8 +13,9 @@ use Illuminate\Support\Facades\Http;
  *              published bike with one variant per size (sku = Kona's part
  *              number, the same as the dealer stock file's Inventory ID),
  *              the photos and the description. The spec table and geometry
- *              are only on each product page, so those pages are read too,
- *              and kept until the product's updated_at changes.
+ *              are only on each product page, so those pages are read too:
+ *              each once, then again after a refresh period, a limited number
+ *              per run and spaced out (see pace(), set in master admin).
  *   stock      each dealer's own stock file (cost, stock, UPC, year). That is
  *              the shop side and is not read here.
  *
@@ -32,6 +33,9 @@ class KonaClient implements DistributorAdapter
 
     /** Live progress of a catalog read, for master admin's Brand suppliers page. */
     public const PROGRESS_KEY = 'kona.catalog_read';
+
+    /** How many bikes have a current spec page, for master admin. */
+    public const PAGES_KEY = 'kona.pages_progress';
 
     /** Set by the Stop button; the read stops before its next request. */
     public const STOP_KEY = 'kona.catalog_stop';
@@ -294,6 +298,9 @@ class KonaClient implements DistributorAdapter
                 if (is_array($p = $res->json('product'))) {
                     $out[] = $p;
                 }
+                if ($i < count($this->only) - 1) {
+                    $this->pause(self::pace()['page_gap_s'], 'feed', $i + 1, count($this->only));
+                }
             }
             return $out;
         }
@@ -317,7 +324,7 @@ class KonaClient implements DistributorAdapter
             if (count($batch) < $size) {
                 break;
             }
-            usleep(max(0, (int) config('distributors.kona.page_delay_ms', 700)) * 1000);
+            $this->pause(self::pace()['list_gap_s'], 'feed', $page, 0);
         }
         Cache::put('kona.feed', $all, now()->addHour());
         return $all;
@@ -325,9 +332,10 @@ class KonaClient implements DistributorAdapter
 
     /**
      * Spec table and geometry for each product, read from its page. A page is
-     * read again only when Kona's updated_at for that product has changed;
-     * the rest come from the saved copy. A page that fails keeps its last
-     * good copy.
+     * read once and kept; it is read again after the refresh period. Each run
+     * reads at most pages_per_run, spaced page_gap_s apart, so the first full
+     * pass spreads over several runs. A page that fails keeps its last good
+     * copy.
      *
      * @return array<string,array{specs:array,geometry:array}>
      */
@@ -335,31 +343,39 @@ class KonaClient implements DistributorAdapter
     {
         $file  = storage_path('app/distributors/kona-pages.json');
         $saved = is_file($file) ? (json_decode((string) file_get_contents($file), true) ?: []) : [];
-        $delay = max(0, (int) config('distributors.kona.page_delay_ms', 700));
+        $pace  = self::pace();
 
-        $total = count($feed);
-        $done  = 0;
-        $read  = 0;
+        // Kona's store bumps every product's updated_at constantly, so it
+        // can't say what changed. A page is read once, then again only after
+        // the refresh period; never-read bikes go first, then the oldest.
+        // "Read this one" always reads its bike's page.
+        $due = [];
+        $fresh = now()->subDays($pace['refresh_days'])->timestamp;
         foreach ($feed as $p) {
-            $done++;
             $handle = (string) ($p['handle'] ?? '');
             if ($handle === '') {
                 continue;
             }
-            $stamp = (string) ($p['updated_at'] ?? '');
-            if (isset($saved[$handle]) && ($saved[$handle]['updated_at'] ?? null) === $stamp) {
-                continue;
+            $readAt = (int) ($saved[$handle]['read_at'] ?? 0);
+            if ($this->only || $readAt < $fresh) {
+                $due[$handle] = $readAt;
             }
-            $this->progress('pages', $done, $total, $read);
+        }
+        asort($due);
+        $todo = array_slice(array_keys($due), 0, $this->only ? count($due) : $pace['pages_per_run']);
+
+        $total = count($todo);
+        $read  = 0;
+        foreach ($todo as $n => $handle) {
+            $this->progress('pages', $n, $total, $read);
             try {
-                $res = $this->politeGet($this->base . '/products/' . rawurlencode($handle), [], 'pages', $done, $total, $read);
+                $res = $this->politeGet($this->base . '/products/' . rawurlencode($handle), [], 'pages', $n, $total, $read);
                 if ($res->successful()) {
-                    $parsed = self::parsePage($res->body());
-                    $saved[$handle] = $parsed + ['updated_at' => $stamp];
+                    $saved[$handle] = self::parsePage($res->body()) + ['read_at' => now()->timestamp];
                     $read++;
                     // saved as it goes, so a read that is stopped part way
                     // does not have to fetch these pages again
-                    if ($read % 25 === 0) {
+                    if ($read % 10 === 0) {
                         $this->savePages($file, $saved);
                     }
                 }
@@ -370,14 +386,49 @@ class KonaClient implements DistributorAdapter
                 }
                 // keep the last good copy; the next read tries again
             }
-            if ($delay > 0) {
-                usleep($delay * 1000);
+            if ($n < $total - 1) {
+                $this->pause($pace['page_gap_s'], 'pages', $n + 1, $total, $read);
             }
         }
         $this->progress('pages', $total, $total, $read);
-
         $this->savePages($file, $saved);
+
+        // for master admin: how far the spec pages have got
+        $have = 0;
+        foreach ($feed as $p) {
+            if ((int) ($saved[(string) ($p['handle'] ?? '')]['read_at'] ?? 0) >= $fresh) {
+                $have++;
+            }
+        }
+        Cache::put(self::PAGES_KEY, ['have' => $have, 'of' => count($feed), 'at' => now()->timestamp], now()->addDays(60));
         return $saved;
+    }
+
+    /** Wait between requests, in one-second steps so Stop is honoured. */
+    private function pause(int $seconds, string $phase, int $done, int $total, int $read = 0): void
+    {
+        for ($t = 0; $t < $seconds; $t++) {
+            $this->stopIfAsked();
+            sleep(1);
+        }
+    }
+
+    /**
+     * How gently the store is read: set in master admin (Brand suppliers),
+     * falling back to config.
+     *
+     * @return array{list_gap_s:int,page_gap_s:int,pages_per_run:int,refresh_days:int}
+     */
+    public static function pace(): array
+    {
+        $saved = (array) ((\App\Models\PlatformSettings::current()->distribution_settings ?? [])['brand_read'][self::CODE] ?? []);
+        $num = fn ($k, $def, $min, $max) => max($min, min($max, (int) ($saved[$k] ?? config('distributors.kona.' . $k, $def))));
+        return [
+            'list_gap_s'    => $num('list_gap_s', 30, 1, 600),
+            'page_gap_s'    => $num('page_gap_s', 10, 1, 600),
+            'pages_per_run' => $num('pages_per_run', 100, 1, 1000),
+            'refresh_days'  => $num('refresh_days', 30, 1, 365),
+        ];
     }
 
     private function savePages(string $file, array $saved): void

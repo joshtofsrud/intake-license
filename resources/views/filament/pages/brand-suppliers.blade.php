@@ -163,6 +163,30 @@
         <td><span class="bs-chip">{{ $onCount }} {{ $onCount === 1 ? 'shop' : 'shops' }} on</span></td>
       </tr>
     </table>
+    @if ($pace)
+      @php $ps = $this->pagesStatus(); @endphp
+      <div style="padding:12px 0;border-bottom:1px solid var(--line)">
+        <div style="display:flex;gap:18px;align-items:flex-end;flex-wrap:wrap">
+          <label class="bs-faint">Between list requests<br><input type="number" min="1" max="600" class="bs-in" style="width:80px" wire:model="pace.list_gap_s" @disabled($ro)> sec</label>
+          <label class="bs-faint">Between product pages<br><input type="number" min="1" max="600" class="bs-in" style="width:80px" wire:model="pace.page_gap_s" @disabled($ro)> sec</label>
+          <label class="bs-faint">Product pages per read<br><input type="number" min="1" max="1000" class="bs-in" style="width:80px" wire:model="pace.pages_per_run" @disabled($ro)></label>
+          <label class="bs-faint">Read a page again after<br><input type="number" min="1" max="365" class="bs-in" style="width:80px" wire:model="pace.refresh_days" @disabled($ro)> days</label>
+          <button type="button" class="bs-btn g" wire:click="savePace" @disabled($ro)>Save</button>
+        </div>
+        @foreach (['pace.list_gap_s', 'pace.page_gap_s', 'pace.pages_per_run', 'pace.refresh_days'] as $f)
+          @error($f)<div class="bs-err">{{ $message }}</div>@enderror
+        @endforeach
+        <div class="bs-faint" style="margin-top:8px">
+          How gently {{ $label }}'s site is read. The bike list takes a few requests; each bike's page (its spec table) is read once,
+          then again after the period above, a limited number per read, never-read bikes first. A read takes up to about
+          {{ $ps['run_minutes'] ?? '—' }} minutes.
+          @if ($ps && $ps['of'])
+            <b style="color:var(--dim)">Spec pages: {{ number_format($ps['have']) }} of {{ number_format($ps['of']) }} bikes read.</b>
+            @if ($ps['have'] < $ps['of']) Press Read catalog now again (or let tonight's read run) to continue. @endif
+          @endif
+        </div>
+      </div>
+    @endif
     @if ($this->supportsOne())
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:12px 0;border-bottom:1px solid var(--line)">
         <span class="bs-dim" style="font-size:13px">Try one product first:</span>
