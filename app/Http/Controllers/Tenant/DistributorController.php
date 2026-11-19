@@ -87,7 +87,7 @@ class DistributorController extends Controller
                 // MARKER-BRAND-STOCK: a brand sold direct is switched on and supplied by Intake;
                 // the shop sees when its cost and stock were last loaded, nothing to manage
                 'managed'   => \App\Support\BrandDirect::is($code),
-                'stock'     => \App\Support\BrandDirect::is($code) ? \App\Services\Distributors\BrandStockStore::file((string) $tenant->id, $code) : null,
+                'stock'     => \App\Support\BrandDirect::is($code) ? \App\Services\Distributors\BrandStockStore::file(\App\Services\Distributors\BrandStockStore::BRAND, $code) : null,
                 'priority'  => (int) ($sub->data_priority ?? 50),
                 'options'   => (array) ($creds['options'] ?? []),
                 // MARKER-BOX-WAREHOUSES: its warehouses, what counts, where online orders ship from

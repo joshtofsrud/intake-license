@@ -90,7 +90,6 @@ class TenantDistributorSyncService
         }
 
         $tenantId = (string) $sub->tenant_id;
-        $this->stockTenant = $tenantId;
         $res = [
             'tenant_id' => $tenantId, 'code' => $code, 'linked' => 0,
             'cost_updated' => 0, 'avail_updated' => 0, 'seeded_price' => 0,
@@ -261,17 +260,14 @@ class TenantDistributorSyncService
      *
      * @return array{0: array<string,int|null>, 1: array<string>}
      */
-    /** tenant whose dealer stock file answers cost and stock for a brand-direct code */
-    private string $stockTenant = '';
-
     private function fetchCosts(DistributorAdapter $adapter, string $code, array $upcs, array $mpns, array $variantNos): array
     {
         // MARKER-BRAND-STOCK: a brand sold direct has no live price feed; the
-        // shop's own stock file is the source of its cost
+        // brand's stock file is the source of dealer cost
         if (\App\Support\BrandDirect::is($code)) {
             $this->tick('cost', 0, count($variantNos));
             $cost = [];
-            foreach (BrandStockStore::costs($this->stockTenant, $code, $variantNos) as $vno => $c) {
+            foreach (BrandStockStore::costs(BrandStockStore::BRAND, $code, $variantNos) as $vno => $c) {
                 $cost[$vno] = $c;
             }
             $this->tick('cost', count($variantNos), count($variantNos));
@@ -313,10 +309,10 @@ class TenantDistributorSyncService
     /** @return array<string,int> variant_no => available qty (best-effort parse) */
     private function fetchAvailability(DistributorAdapter $adapter, string $code, array $variantNos, array &$res, array &$wh = []): array
     {
-        // MARKER-BRAND-STOCK: quantity comes from the shop's stock file
+        // MARKER-BRAND-STOCK: quantity comes from the brand's stock file
         if (\App\Support\BrandDirect::is($code)) {
             $this->tick('stock', 0, count($variantNos));
-            $a = BrandStockStore::stock($this->stockTenant, $code, $variantNos);
+            $a = BrandStockStore::stock(BrandStockStore::BRAND, $code, $variantNos);
             $this->tick('stock', count($variantNos), count($variantNos));
             return $a;
         }

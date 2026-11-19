@@ -5,12 +5,15 @@ namespace App\Services\Distributors;
 use Illuminate\Support\Facades\DB;
 
 /**
- * MARKER-BRAND-STOCK: a shop's dealer stock file for a brand-direct supplier,
- * held as rows so the per-shop sync can read cost and quantity from it the
+ * MARKER-BRAND-STOCK: a brand-direct supplier's dealer stock file, one per
+ * brand (tenant key BRAND), held as rows so the per-shop sync can read cost and quantity from it the
  * way it reads them from a distributor's live feed.
  */
 class BrandStockStore
 {
+    /** One file per brand, shared by every shop switched on for it: stored under this key, not a shop. */
+    public const BRAND = '*';
+
     /**
      * Replace the shop's file with these rows (from BrandStockFile::read).
      *

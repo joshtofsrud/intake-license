@@ -21,12 +21,15 @@ class PlatformDistributorConnection extends Model
         'is_active', 'last_tested_at', 'last_test_status', 'last_test_message',
         // MARKER-BRAND-DIRECT: off for every shop until switched on per shop
         'brand_direct',
+        // MARKER-BRAND-STOCK: the brand's stock file FTP folder
+        'stock_ftp',
     ];
 
     protected $casts = [
         'api_key'        => 'encrypted',
         'is_active'      => 'boolean',
         'brand_direct'   => 'boolean',
+        'stock_ftp'      => 'encrypted:array',
         'last_tested_at' => 'datetime',
     ];
 

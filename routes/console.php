@@ -232,7 +232,7 @@ Schedule::command('catalog:match')
     ->withoutOverlapping()
     ->runInBackground();
 
-// MARKER-BRAND-STOCK: shops' stock files for brands sold direct, from their FTP folders, ahead of the per-shop sync below
+// MARKER-BRAND-STOCK: each brand's stock file from its FTP folder, ahead of the per-shop sync below
 Schedule::command('distributors:brand-stock-fetch')
     ->dailyAt('06:10')
     ->withoutOverlapping()

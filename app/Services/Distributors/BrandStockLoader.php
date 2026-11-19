@@ -2,19 +2,23 @@
 
 namespace App\Services\Distributors;
 
+use App\Models\PlatformDistributorConnection;
 use App\Models\Tenant\TenantDistributorCatalogSubscription;
+use App\Support\BrandDirect;
 use RuntimeException;
 
 /**
- * MARKER-BRAND-STOCK: loads a shop's stock file for a brand-direct supplier, from an upload or from
- * the shop's FTP folder, checks it against the catalog and stores it. Costs
- * and quantities then reach the shop's items through the normal per-shop sync.
+ * MARKER-BRAND-STOCK: loads a brand-direct supplier's stock file, one per
+ * brand, from an upload or the brand's FTP folder. It is checked against the
+ * catalog and stored; every shop switched on for the brand then gets its cost
+ * and stock from it through the shop's usual sync.
  */
 class BrandStockLoader
 {
-    /** @return array{rows:int,check:array} */
-    public static function load(string $tenantId, string $code, string $path, string $name, string $source, ?int $modified = null): array
+    /** @return array{rows:int,check:array,shops:int} */
+    public static function load(string $code, string $path, string $name, string $source, ?int $modified = null): array
     {
+        $code = strtoupper($code);
         $read = BrandStockFile::read($path, $name, $code);
         if ($read['missing']) {
             $names = BrandStockFile::fieldLabels();
@@ -24,34 +28,52 @@ class BrandStockLoader
             throw new RuntimeException('The file has no rows with an Inventory ID.');
         }
         $check = BrandStockFile::check($read['rows'], $code);
-        BrandStockStore::replace($tenantId, $code, $read['rows'], $name, $source, $check, $modified);
-        return ['rows' => count($read['rows']), 'check' => $check];
+        BrandStockStore::replace(BrandStockStore::BRAND, $code, $read['rows'], $name, $source, $check, $modified);
+        return ['rows' => count($read['rows']), 'check' => $check, 'shops' => self::syncShops($code)];
     }
 
-    /** The shop's FTP settings, or null when not filled in. */
-    public static function ftp(TenantDistributorCatalogSubscription $sub): ?array
+    /** Every switched-on shop's items take the new cost and stock. Returns how many shops. */
+    public static function syncShops(string $code): int
     {
-        $f = (array) (((array) ($sub->credentials_encrypted ?? []))['stock_ftp'] ?? []);
+        $code = strtoupper($code);
+        $n = 0;
+        foreach (array_keys(BrandDirect::shopsFor($code)) as $tenantId) {
+            $active = TenantDistributorCatalogSubscription::where('tenant_id', $tenantId)->where('distributor_code', $code)->where('is_active', true)->exists();
+            if (! $active) {
+                continue;
+            }
+            $runId = (string) \Illuminate\Support\Str::uuid();
+            \App\Support\DistributorSyncProgress::queued((string) $tenantId, $runId, $code);
+            \App\Jobs\RunTenantDistributorSyncJob::dispatch((string) $tenantId, false, 'stock_file', $runId, $code);
+            $n++;
+        }
+        return $n;
+    }
+
+    /** The brand's FTP folder, or null when not filled in. */
+    public static function ftp(string $code): ?array
+    {
+        $f = (array) (PlatformDistributorConnection::where('distributor_code', strtoupper($code))->first()?->stock_ftp ?? []);
         return ($f['host'] ?? '') !== '' && ($f['user'] ?? '') !== '' ? $f : null;
     }
 
     /**
-     * Take the newest .xlsx/.csv/.txt from the shop's folder and load it.
+     * Take the newest .xlsx/.csv/.txt from the brand's folder and load it.
      * Returns null when that file is already the one loaded.
      *
-     * @return array{rows:int,check:array,file:string}|null
+     * @return array{rows:int,check:array,shops:int,file:string}|null
      */
-    public static function fetch(TenantDistributorCatalogSubscription $sub): ?array
+    public static function fetch(string $code): ?array
     {
-        $tenantId = (string) $sub->tenant_id;
-        $f = self::ftp($sub);
+        $code = strtoupper($code);
+        $f = self::ftp($code);
         if (! $f) {
             throw new RuntimeException('Add the FTP host, user and password first.');
         }
         if (! function_exists('ftp_connect')) {
             throw new RuntimeException('FTP is not available on this server.');
         }
-        $conn = @ftp_ssl_connect((string) $f['host'], (int) ($f['port'] ?? 21), 20) ?: @ftp_connect((string) $f['host'], (int) ($f['port'] ?? 21), 20);
+        $conn = @ftp_ssl_connect((string) $f['host'], 21, 20) ?: @ftp_connect((string) $f['host'], 21, 20);
         if (! $conn) {
             throw new RuntimeException('Could not reach ' . $f['host'] . '.');
         }
@@ -61,7 +83,7 @@ class BrandStockLoader
                 throw new RuntimeException('The FTP login was refused. Check the user and password.');
             }
             ftp_pasv($conn, true);
-            $dir = trim((string) ($f['folder'] ?? ''), " ");
+            $dir = trim((string) ($f['folder'] ?? ''));
             $names = @ftp_nlist($conn, $dir === '' ? '.' : $dir);
             if ($names === false) {
                 throw new RuntimeException('Could not list the folder' . ($dir !== '' ? ' ' . $dir : '') . '.');
@@ -72,8 +94,7 @@ class BrandStockLoader
                 if (! preg_match('/\.(xlsx|csv|txt)$/i', $n)) {
                     continue;
                 }
-                $t = @ftp_mdtm($conn, $n);
-                $t = $t > 0 ? $t : 0;
+                $t = max(0, (int) @ftp_mdtm($conn, $n));
                 if ($t >= $bestTime) {
                     $best = $n;
                     $bestTime = $t;
@@ -82,18 +103,17 @@ class BrandStockLoader
             if ($best === null) {
                 throw new RuntimeException('No .xlsx, .csv or .txt file in the folder.');
             }
-            $file = BrandStockStore::file($tenantId, (string) $sub->distributor_code);
+            $file = BrandStockStore::file(BrandStockStore::BRAND, $code);
             $base = basename($best);
             if ($file && $file->file_name === $base && $bestTime > 0 && $file->file_modified_at && strtotime((string) $file->file_modified_at) >= $bestTime) {
-                BrandStockStore::touchAttempt($tenantId, (string) $sub->distributor_code);
+                BrandStockStore::touchAttempt(BrandStockStore::BRAND, $code);
                 return null;
             }
-            $tmp = tempnam(sys_get_temp_dir(), 'kona') . '.' . strtolower(pathinfo($base, PATHINFO_EXTENSION));
+            $tmp = tempnam(sys_get_temp_dir(), 'brandstock') . '.' . strtolower(pathinfo($base, PATHINFO_EXTENSION));
             if (! @ftp_get($conn, $tmp, $best, FTP_BINARY)) {
                 throw new RuntimeException('Could not download ' . $base . '.');
             }
-            $r = self::load($tenantId, (string) $sub->distributor_code, $tmp, $base, 'ftp', $bestTime > 0 ? $bestTime : null);
-            return $r + ['file' => $base];
+            return self::load($code, $tmp, $base, 'ftp', $bestTime > 0 ? $bestTime : null) + ['file' => $base];
         } finally {
             @ftp_close($conn);
             if ($tmp && is_file($tmp)) {
