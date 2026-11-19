@@ -61,7 +61,16 @@ class StorefrontSettingsController extends Controller
             })->all(),
         ];
 
+        // MARKER-POS-CONNECT: the Shop POS tab
+        $posConn = \App\Models\Tenant\TenantPosConnection::where('tenant_id', $tenant->id)->with('connectedByUser')->first();
+        $pos = [
+            'conn'      => $posConn,
+            'label'     => $posConn ? \App\Models\PlatformPosAdapter::forCode($posConn->adapter_code)->displayLabel() : null,
+            'available' => app(\App\Services\Pos\Adapters\PosAdapterRegistry::class)->available(),
+        ];
+
         return view('tenant.storefront.settings', [
+            'pos' => $pos,
             'ship' => $ship,
             'cfg' => [
                 'enabled'             => (bool) ($s['enabled'] ?? true),

@@ -174,6 +174,10 @@
 
   @if(session('success'))<div class="ec-ok">{{ session('success') }}</div>@endif
   @if(session('error'))<div class="ec-err">{{ session('error') }}</div>@endif
+  {{-- MARKER-POS-CONNECT: the POS sends the shop back here with the outcome --}}
+  @if(request('pos') === 'connected')<div class="ec-ok">Your POS is connected. Its locations and payment types are listed under Shop POS.</div>@endif
+  @if(request('pos') === 'checkfailed')<div class="ec-err">Your POS approved Intake, but reading it failed. Details are under Shop POS.</div>@endif
+  @if(request('pos_error'))<div class="ec-err">{{ \Illuminate\Support\Str::limit((string) request('pos_error'), 220) }}</div>@endif
   @if($errors->any())<div class="ec-err">{{ $errors->first() }}</div>@endif
 
   <div class="ec-tabs" id="tabs">
@@ -185,6 +189,8 @@
     <button type="button" class="ec-tab {{ $tab === 'pay' || $tab === 'payments' ? 'on' : '' }}" data-p="pay">Payments</button>
     <button type="button" class="ec-tab {{ $tab === 'msg' ? 'on' : '' }}" data-p="msg">Messages</button>
     <button type="button" class="ec-tab {{ in_array($tab, ['goo','google']) ? 'on' : '' }}" data-p="goo">Google</button>
+    {{-- MARKER-POS-CONNECT --}}
+    <button type="button" class="ec-tab {{ $tab === 'pos' ? 'on' : '' }}" data-p="pos">Shop POS @if($pos['conn'])<span class="pip {{ $pos['conn']->status === 'connected' ? '' : 'warn' }}">{{ $pos['conn']->status === 'connected' ? 'connected' : 'needs attention' }}</span>@endif</button>
     <button type="button" class="ec-tab {{ $tab === 'gen' || $tab === 'general' ? 'on' : '' }}" data-p="gen">General</button>
   </div>
 
@@ -629,6 +635,74 @@
   </section>
 
   {{-- ============ GENERAL ============ --}}
+  {{-- MARKER-POS-CONNECT: the shop's own POS --}}
+  <section class="ec-panel {{ $tab === 'pos' ? 'on' : '' }}" id="p-pos">
+    <div class="av-legend" style="max-width:760px;margin-bottom:18px">
+      <b>What this does today:</b> Intake can read your POS account name, its locations and its payment types — nothing more.
+      Nothing syncs yet: stock, prices, customers and orders are not exchanged, and Intake never writes to your POS.
+      Disconnecting deletes Intake's access; you can also remove Intake from your POS's own settings.
+    </div>
+
+    @php $pc = $pos['conn']; @endphp
+    @if($pc)
+      <div class="ec-sec">
+        <h3>{{ $pos['label'] }}</h3>
+        <div class="ec-row">
+          <div>
+            <div class="t">{{ $pc->external_account_name ?: 'POS account' }} @if($pc->status === 'connected')<span class="src-badge src-shop" style="margin-left:6px">Connected</span>@else<span class="src-badge src-out" style="margin-left:6px">Needs attention</span>@endif</div>
+            <div class="d">
+              Connected {{ $pc->connected_at?->diffForHumans() }}@if($pc->connectedByUser) by {{ $pc->connectedByUser->name }}@endif.
+              Last checked {{ $pc->last_checked_at ? $pc->last_checked_at->diffForHumans() : 'never' }}.
+            </div>
+            @if($pc->last_error)<div class="d" style="color:#A32D2D">{{ $pc->last_error }}</div>@endif
+          </div>
+          <div class="ctl">
+            <form method="POST" action="{{ route('tenant.storefront.pos.check') }}">@csrf<button class="ia-btn ia-btn--secondary ia-btn--sm" type="submit">Check connection</button></form>
+            <form method="POST" action="{{ route('tenant.storefront.pos.disconnect') }}">@csrf<button class="ia-btn ia-btn--secondary ia-btn--sm" type="submit" data-confirm="Disconnect your POS? Intake's access is deleted. You can connect again any time.">Disconnect</button></form>
+            @if($pc->status !== 'connected')
+              <form method="POST" action="{{ route('tenant.storefront.pos.connect', $pc->adapter_code) }}">@csrf<button class="ia-btn ia-btn--primary ia-btn--sm" type="submit">Reconnect</button></form>
+            @endif
+          </div>
+        </div>
+      </div>
+
+      <div class="ec-sec">
+        <h3>Locations in your POS</h3>
+        @if(count($pc->locations ?? []))
+          <div class="dw-chips">@foreach($pc->locations as $l)<span class="dw-chip">{{ $l['name'] }}</span>@endforeach</div>
+          <p class="ec-note" style="margin-top:8px">Choosing which location supplies the online store comes with stock sync.</p>
+        @else
+          <p class="ec-note">None found. Click <b>Check connection</b> to read them again.</p>
+        @endif
+      </div>
+
+      <div class="ec-sec">
+        <h3>Payment types in your POS</h3>
+        @if(count($pc->payment_types ?? []))
+          <div class="dw-chips">@foreach($pc->payment_types as $t)<span class="dw-chip">{{ $t['name'] }}</span>@endforeach</div>
+        @else
+          <p class="ec-note">None found. Click <b>Check connection</b> to read them again.</p>
+        @endif
+        <p class="ec-note" style="margin-top:8px">Online orders will be recorded in your POS with a payment type of their own, so web sales stay separate from the till. Add one named <b>Intake Online</b> in your POS now; you'll pick it here when order sync arrives.</p>
+      </div>
+    @elseif(count($pos['available']))
+      <div class="ec-sec">
+        <h3>Connect your POS</h3>
+        @foreach($pos['available'] as $a)
+          <div class="ec-row">
+            <div><div class="t">{{ $a->displayLabel() }}</div><div class="d">You'll sign in to your POS and approve Intake, then come straight back here.</div></div>
+            <div class="ctl"><form method="POST" action="{{ route('tenant.storefront.pos.connect', $a->code) }}">@csrf<button class="ia-btn ia-btn--primary ia-btn--sm" type="submit">Connect</button></form></div>
+          </div>
+        @endforeach
+      </div>
+    @else
+      <div class="ec-sec">
+        <h3>Connect your POS</h3>
+        <p class="ec-note">No POS connections are switched on for your account yet. Reach out to Intake support and we'll turn on the one you use.</p>
+      </div>
+    @endif
+  </section>
+
   <section class="ec-panel {{ in_array($tab, ['gen','general']) ? 'on' : '' }}" id="p-gen">
     <form method="POST" action="{{ route('tenant.storefront.settings.update') }}">
       @csrf <input type="hidden" name="section" value="general">

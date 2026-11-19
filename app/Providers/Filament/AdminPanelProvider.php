@@ -108,6 +108,7 @@ class AdminPanelProvider extends PanelProvider
                 // custom dashboard replaces Pages\Dashboard
                 \App\Filament\Pages\PlatformDashboard::class,
                 \App\Filament\Pages\Distributors::class, // HLC distributor hub
+                \App\Filament\Pages\PosAdapters::class, // MARKER-POS-CONNECT
                 // explicit registration; no route without this line.
                 \App\Filament\Pages\TenantBrandAccess::class,
                 // MARKER-DASH-DEFAULT: explicit registration; no route without this line.
