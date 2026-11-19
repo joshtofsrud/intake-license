@@ -379,6 +379,10 @@
 <footer class="{{ $instId }} p-footer {{ $customClass }}" @if($anchorId) id="{{ $anchorId }}" @endif>
   @php
     $ctaOn      = (bool) ($c['cta_band'] ?? false);
+    // MARKER-FOOTER-CTA-PRODUCT: off for the online store's product pages when the shop switched that off
+    if ($ctaOn && array_key_exists('cta_on_product', $c) && ! $c['cta_on_product'] && request()->routeIs('tenant.shop.show', 'tenant.shop.catalog_preview')) {
+        $ctaOn = false;
+    }
     $ctaEyebrow = trim($c['cta_eyebrow'] ?? '');
     $ctaHeading = trim($c['cta_heading'] ?? '');
     $ctaHl      = trim($c['cta_highlight'] ?? '');

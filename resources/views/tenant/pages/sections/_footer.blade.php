@@ -56,6 +56,11 @@
       <input type="checkbox" data-field="cta_band" value="1" {{ $get('cta_band') ? 'checked' : '' }}>
       <span>Show a call-to-action band above the footer</span>
     </label>
+    {{-- MARKER-FOOTER-CTA-PRODUCT: on unless switched off; the online store's product pages can drop the band --}}
+    <label class="pb2-checkbox-row">
+      <input type="checkbox" data-field="cta_on_product" value="1" {{ ($get('cta_on_product') === null || $get('cta_on_product') === '' || $get('cta_on_product')) ? 'checked' : '' }}>
+      <span>Also show it on online store product pages</span>
+    </label>
     <div class="pb2-field" style="margin-top:10px">
       <label class="pb2-field-label">Eyebrow <span class="pb2-field-hint">small line above the heading</span></label>
       <input type="text" class="pb2-input" data-field="cta_eyebrow" value="{{ $get('cta_eyebrow') }}" placeholder="Ready when you are">

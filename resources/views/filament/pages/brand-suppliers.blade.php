@@ -419,6 +419,35 @@
                         <tr style="{{ strtoupper((string) ($v['sku'] ?? '')) === $inspect ? 'background:var(--vsoft)' : '' }}"><td class="bs-mono">{{ $v['sku'] ?? '' }}</td><td>{{ trim(implode(' / ', array_filter([$v['option1'] ?? null, $v['option2'] ?? null, $v['option3'] ?? null]))) }}</td><td class="n">{{ isset($v['price']) ? '$' . $v['price'] : '—' }}</td><td>{{ ! empty($v['available']) ? 'yes' : 'no' }}</td></tr>
                       @endforeach
                     </table>
+                    @php
+                      $iSizing = (! empty($raw['sizing_tables']) && class_exists(\App\Services\Distributors\KonaClient::class)) ? \App\Services\Distributors\KonaClient::sizingFor((array) $raw['sizing_tables'], (string) ($rp['title'] ?? '')) : null;
+                      $iFit = $iSizing ? \App\Support\ProductDetails::fit($iSizing, (string) $iRow->size) : null;
+                      $iStory = \App\Support\ProductDetails::story($raw['story'] ?? null);
+                    @endphp
+                    <div class="bs-faint" style="font-weight:600;margin:12px 0 4px">SIZING CHART</div>
+                    @if ($iFit)
+                      <div class="bs-dim" style="margin-bottom:4px">Column "{{ $iFit['model'] }}"@if ($iFit['range']) · {{ $iRow->size }} fits about {{ $iFit['range'] }}@endif</div>
+                      <table class="bs-tbl">
+                        <tr><th>Height</th><th>Metric</th><th>Inseam</th><th>Size</th></tr>
+                        @foreach ($iFit['rows'] as $fr)
+                          <tr style="{{ $fr['fits'] ? 'background:var(--vsoft)' : '' }}"><td>{{ $fr['height_in'] }}</td><td>{{ $fr['height_cm'] }}</td><td>{{ $fr['inseam_in'] }}</td><td>{{ $fr['size'] }}</td></tr>
+                        @endforeach
+                      </table>
+                    @else
+                      <div class="bs-dim">{{ empty($raw['sizing_tables']) ? 'Not read yet. It comes with the next read of this bike.' : 'No column of Kona\'s chart matches this model, so no Sizing tab is shown.' }}</div>
+                    @endif
+                    <div class="bs-faint" style="font-weight:600;margin:12px 0 4px">STORY{{ $iStory && $iStory['title'] ? ': ' . strtoupper($iStory['title']) : '' }}</div>
+                    @if ($iStory)
+                      @foreach ($iStory['blocks'] as $sb)
+                        @if ($sb['t'] === 'imgs')
+                          <div style="display:flex;gap:6px;flex-wrap:wrap;margin:4px 0">@foreach ($sb['items'] as $si)<div style="width:150px"><img src="{{ $si['src'] }}" alt="" loading="lazy" style="width:150px;height:100px;object-fit:cover;border-radius:6px"><div class="bs-faint" style="font-size:11px">{{ $si['caption'] }}</div></div>@endforeach</div>
+                        @else
+                          <div class="{{ $sb['t'] === 'h' ? '' : 'bs-dim' }}" style="margin:3px 0;{{ $sb['t'] === 'h' ? 'font-weight:600' : '' }}">{{ \Illuminate\Support\Str::limit($sb['text'], 220) }}</div>
+                        @endif
+                      @endforeach
+                    @else
+                      <div class="bs-dim">{{ array_key_exists('story', $raw) ? 'Kona\'s page has no story section for this bike.' : 'Not read yet. It comes with the next read of this bike.' }}</div>
+                    @endif
                     @if (! empty($raw['geometry']))
                       <div class="bs-faint" style="font-weight:600;margin:12px 0 4px">GEOMETRY</div>
                       @php $gsizes = array_keys(reset($raw['geometry']) ?: []); @endphp

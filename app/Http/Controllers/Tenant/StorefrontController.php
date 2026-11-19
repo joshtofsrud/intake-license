@@ -287,6 +287,9 @@ class StorefrontController extends Controller
             foreach ($pd['sizes'] as $z) {
                 if ($z['current']) {
                     $pdSizes[] = $z + ['href' => null];
+                } elseif (request()->attributes->get('catalog_preview')) {
+                    // master admin's preview: the shop hasn't imported the other sizes, so show them as it would offer them
+                    $pdSizes[] = $z + ['href' => null];
                 } elseif ($z['item_id'] && isset($online[$z['item_id']])) {
                     $pdSizes[] = $z + ['href' => '/shop/' . \App\Support\ItemSeo::param((string) $z['item_id'], (string) $online[$z['item_id']])];
                 }

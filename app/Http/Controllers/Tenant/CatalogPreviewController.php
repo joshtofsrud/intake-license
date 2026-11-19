@@ -58,6 +58,7 @@ class CatalogPreviewController extends Controller
                 TenantInventoryItem::query()->whereKey($itemId)->update(['show_online' => true, 'is_active' => true]);
             }
 
+            request()->attributes->set('catalog_preview', true);
             $response = $render((string) $itemId);
             $html = $response instanceof \Illuminate\Contracts\View\View ? $response->render()
                 : (method_exists($response, 'getContent') ? $response->getContent() : (string) $response);
