@@ -10,6 +10,16 @@
     'stock_desc' => 'Stock high → low',
     'brand_asc'  => 'Brand A–Z',
     'brand_desc' => 'Brand Z–A',
+    'price_asc'  => 'Price low → high',
+    'price_desc' => 'Price high → low',
+    'cost_asc'   => 'Cost low → high',
+    'cost_desc'  => 'Cost high → low',
+    'upc_asc'    => 'UPC A–Z',
+    'upc_desc'   => 'UPC Z–A',
+    'size_asc'   => 'Size A–Z',
+    'size_desc'  => 'Size Z–A',
+    'color_asc'  => 'Color A–Z',
+    'color_desc' => 'Color Z–A',
   ];
   $stockLabels = [
     ''     => 'All stock levels',
@@ -392,6 +402,9 @@
 
 @push('styles')
 <style>
+  .inv-th-sort{color:inherit;text-decoration:none;cursor:pointer;white-space:nowrap}
+  .inv-th-sort:hover{color:var(--ia-text)}
+  .inv-th-sort.on{color:var(--ia-accent)}
   .inv-pager{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 14px}
   /* MARKER-PAGER-RULES: no rules; the table's own rounded box separates them */
   .inv-pager--mobile{justify-content:center}
@@ -666,13 +679,25 @@
           <th style="width:4px;padding:0"></th>
             {{-- matches the cell added to item-card. --}}
             <th style="width:30px"><input type="checkbox" id="inv-pick-all" title="Select every item on this page" onchange="invPickAll(this)"></th>{{-- MARKER-LABELS --}}
-          <th>Item</th>
-          <th>UPC</th>
-          @if($showColor ?? false)<th>Color</th>@endif
-          @if($showSize ?? false)<th>Size</th>@endif
-          <th style="text-align:right">{{ ($isMultiLocation ?? false) && ($currentLocation->name ?? null) ? 'Stock at ' . $currentLocation->name : 'Stock' }}</th>
-          <th style="text-align:right">Price</th>
-          <th style="text-align:right">Cost</th>
+          @php
+            // MARKER-INV-SORT: a header sorts by its column; pressed again it reverses
+            $sortTh = function (string $key, string $label, bool $right = false) use ($sort, $qs) {
+                $on = str_starts_with((string) $sort, $key . '_');
+                $next = $on && str_ends_with((string) $sort, '_asc') ? $key . '_desc' : $key . '_asc';
+                parse_str($qs(null), $q);
+                $q['sort'] = $next;
+                unset($q['page']);
+                $arrow = $on ? (str_ends_with((string) $sort, '_asc') ? ' ↑' : ' ↓') : '';
+                return '<th' . ($right ? ' style="text-align:right"' : '') . '><a class="inv-th-sort' . ($on ? ' on' : '') . '" href="?' . e(http_build_query($q)) . '" title="Sort by ' . e(strtolower($label)) . '">' . e($label) . $arrow . '</a></th>';
+            };
+          @endphp
+          {!! $sortTh('name', 'Item') !!}
+          {!! $sortTh('upc', 'UPC') !!}
+          @if($showColor ?? false){!! $sortTh('color', 'Color') !!}@endif
+          @if($showSize ?? false){!! $sortTh('size', 'Size') !!}@endif
+          {!! $sortTh('stock', ($isMultiLocation ?? false) && ($currentLocation->name ?? null) ? 'Stock at ' . $currentLocation->name : 'Stock', true) !!}
+          {!! $sortTh('price', 'Price', true) !!}
+          {!! $sortTh('cost', 'Cost', true) !!}
         </tr>
       </thead>
       <tbody>

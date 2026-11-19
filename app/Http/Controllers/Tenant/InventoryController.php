@@ -280,6 +280,28 @@ class InventoryController extends Controller
                 case 'sku_desc':  $q->orderBy('sku', 'desc'); break;
                 case 'stock_asc': $q->orderBy('computed_stock_count', 'asc'); break;
                 case 'stock_desc':$q->orderBy('computed_stock_count', 'desc'); break;
+                // MARKER-INV-SORT: price and cost as the list shows them (the shop's own
+                // number first); items with none sort last either way
+                case 'price_asc':
+                case 'price_desc':
+                    $e = 'COALESCE(shop_sell_price_cents, catalog_msrp_cents)';
+                    $q->orderByRaw("{$e} IS NULL")->orderByRaw($e . ($sort === 'price_asc' ? ' asc' : ' desc'))->orderBy('name');
+                    break;
+                case 'cost_asc':
+                case 'cost_desc':
+                    $e = 'COALESCE(received_cost_cents, shop_cost_cents, catalog_cost_cents)';
+                    $q->orderByRaw("{$e} IS NULL")->orderByRaw($e . ($sort === 'cost_asc' ? ' asc' : ' desc'))->orderBy('name');
+                    break;
+                case 'upc_asc':
+                case 'upc_desc':
+                case 'size_asc':
+                case 'size_desc':
+                case 'color_asc':
+                case 'color_desc':
+                    [$col, $dir] = explode('_', $sort);
+                    $col = $col === 'upc' ? 'catalog_upc' : $col;
+                    $q->orderByRaw("NULLIF({$col}, '') IS NULL")->orderBy($col, $dir)->orderBy('name');
+                    break;
                 case 'name_asc':
                 default:
                     // while searching, best match first.

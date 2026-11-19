@@ -22,7 +22,8 @@ class KonaFieldMapSeeder extends Seeder
             // Kona's spec labels are in capitals ("REAR SHOCK"); "n/a" means none
             'attributes' => ['label_case' => 'caps_to_sentence', 'blank_values' => ['n/a', 'na', '-']],
             // drop-bar sizes arrive as bare numbers ("48"); they are centimetres
-            'size'       => ['replace' => [['pattern' => '^(\d{2})$', 'with' => '$1cm']]],
+            // "Default Title" is the store's placeholder for a product with one option, not a size
+            'size'       => ['replace' => [['pattern' => '^(\d{2})$', 'with' => '$1cm']], 'blank_values' => ['Default Title']],
             // the store's product type is singular ("Bike")
             'category'      => ['value_map' => ['Bike' => 'Bikes']],
             'category_path' => ['replace' => [['pattern' => '^Bike(?= >|$)', 'with' => 'Bikes']]],
