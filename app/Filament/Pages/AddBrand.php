@@ -67,6 +67,9 @@ class AddBrand extends Page
             $this->addError('url', 'That isn\'t a web address.');
             return;
         }
+        if ($this->token !== '') {
+            BrandSiteProbe::cancel($this->token); // "Look again" replaces the earlier check, never stacks behind it
+        }
         $this->token = (string) Str::uuid();
         Cache::put(BrandSiteProbe::key($this->token), ['status' => 'queued', 'steps' => [], 'started' => now()->timestamp], now()->addHours(6));
         ProbeBrandSiteJob::dispatch($this->token, $this->url);

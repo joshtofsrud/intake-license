@@ -30,6 +30,10 @@ class StoreSiteClient implements DistributorAdapter
     private array $only = [];
     /** @var callable|null */
     private $onBike = null;
+    /** @var callable|null told (seconds, status) before each wait the store asks for */
+    private $onWait = null;
+    /** a time (unix) after which no more waiting: the store kept asking us to slow down */
+    private ?int $deadline = null;
 
     public function __construct(string $apiKey = '', string $region = 'us')
     {
@@ -61,15 +65,18 @@ class StoreSiteClient implements DistributorAdapter
      * the all-products collection, or the sitemap and each product's own data.
      * Null when none does.
      */
-    public function findShopifyRoute(): ?string
+    public function findShopifyRoute(bool $skipOpenList = false): ?string
     {
-        foreach (['products', 'collection'] as $route) {
+        foreach ($skipOpenList ? ['collection'] : ['products', 'collection'] as $route) {
             try {
                 $res = $this->get($this->base . self::SHOPIFY_ROUTES[$route], ['limit' => 1]);
                 if (! empty($res->json('products'))) {
                     return $route;
                 }
-            } catch (\Throwable) {
+            } catch (\Throwable $e) {
+                if ($this->deadline !== null && str_contains($e->getMessage(), 'slow down')) {
+                    throw $e; // out of time: say so rather than trying more routes
+                }
                 // try the next route
             }
         }
@@ -134,6 +141,14 @@ class StoreSiteClient implements DistributorAdapter
     }
 
     public function hasMore(): bool { return false; }
+
+    /** For a short-lived caller (Add a brand's check): say when waiting, and stop waiting at a deadline. */
+    public function patience(?callable $onWait, ?int $deadline): static
+    {
+        $this->onWait = $onWait;
+        $this->deadline = $deadline;
+        return $this;
+    }
 
     public function testConnection(): array
     {
@@ -500,6 +515,12 @@ class StoreSiteClient implements DistributorAdapter
             }
             $after = (int) $res->header('Retry-After');
             $w = max(1, min(300, $after > 0 ? $after : $wait));
+            if ($this->deadline !== null && time() + $w > $this->deadline) {
+                throw new \RuntimeException(parse_url($url, PHP_URL_HOST) . ' kept asking us to slow down (HTTP ' . $res->status() . '); try again in a few minutes.');
+            }
+            if ($this->onWait) {
+                ($this->onWait)($w, $res->status());
+            }
             Cache::put(self::key('progress', $this->code), ['phase' => 'wait', 'wait' => $w, 'attempt' => $i + 1, 'of' => 4, 'at' => now()->timestamp], now()->addHours(2));
             for ($t = 0; $t < $w; $t++) {
                 $this->stopIfAsked();

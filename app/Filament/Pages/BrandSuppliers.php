@@ -432,7 +432,7 @@ class BrandSuppliers extends Page
         $this->clearStop();
         $this->clearProgress();
         Cache::put('brand_suppliers.queued.' . $this->code, now()->timestamp, now()->addHour());
-        SyncDistributorCatalogJob::dispatch($this->code, false, [$h]);
+        SyncDistributorCatalogJob::dispatch($this->code, false, [$h])->onQueue('interactive'); // MARKER-INTERACTIVE-QUEUE
         Notification::make()->success()->title('Reading one ' . $this->label() . ' product')
             ->body('Progress shows in the Sources row; it lands in the Preview when done.')->send();
     }

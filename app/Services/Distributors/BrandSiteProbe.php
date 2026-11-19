@@ -14,14 +14,42 @@ use Illuminate\Support\Facades\Http;
 class BrandSiteProbe
 {
     public const SAMPLE = 5;
+    /** The whole check finishes inside this, well under its job's time limit, and says why if it can't. */
+    public const BUDGET_SECONDS = 600;
 
     private string $key;
     private array $state;
+    private int $deadline;
+    private float $lastRequest = 0.0;
 
     public function __construct(private string $token)
     {
         $this->key = self::key($token);
-        $this->state = ['status' => 'running', 'steps' => [], 'started' => now()->timestamp];
+        $prev = (array) (Cache::get($this->key) ?? []);
+        $this->state = ['status' => 'running', 'steps' => [], 'started' => (int) ($prev['started'] ?? now()->timestamp), 'began' => now()->timestamp];
+        $this->deadline = time() + self::BUDGET_SECONDS;
+    }
+
+    /** "Look again" replaced this check. */
+    public static function cancel(string $token): void
+    {
+        $s = Cache::get(self::key($token));
+        if (is_array($s) && in_array($s['status'] ?? '', ['queued', 'running'], true)) {
+            $s['status'] = 'cancelled';
+            Cache::put(self::key($token), $s, now()->addHours(6));
+        }
+    }
+
+    /** The job died (its time limit, a crash): say so on the page rather than leave it hanging. */
+    public static function markFailed(string $token, string $why): void
+    {
+        $s = (array) (Cache::get(self::key($token)) ?? []);
+        if (($s['status'] ?? '') === 'cancelled') {
+            return;
+        }
+        $s['status'] = 'failed';
+        $s['error'] = $why;
+        Cache::put(self::key($token), $s, now()->addHours(6));
     }
 
     public static function key(string $token): string
@@ -46,8 +74,12 @@ class BrandSiteProbe
 
     public function run(string $url): void
     {
+        if ((Cache::get($this->key)['status'] ?? '') === 'cancelled') {
+            return; // "Look again" replaced it before a worker got to it
+        }
         $base = self::normalize($url);
         $this->state['base'] = $base;
+        $this->save();
         try {
             if ($base === '') {
                 throw new \RuntimeException('That isn\'t a web address.');
@@ -64,7 +96,9 @@ class BrandSiteProbe
             $looksShopify = ($shop && is_array($shop->json('products'))) || preg_match('~cdn\.shopify\.com|Shopify\.shop\s*=~', $html);
             if ($looksShopify) {
                 $platform = 'shopify';
-                $route = (new StoreSiteClient())->configure($base, 'shopify', ['label' => $this->state['name'] ?? ''])->findShopifyRoute();
+                $openList = $shop ? (array) ($shop->json('products') ?? []) : [];
+                $route = $openList ? 'products'
+                    : $this->client($base, 'shopify', [])->findShopifyRoute(true);
                 if (! $route) {
                     $this->state['platform'] = 'shopify';
                     $this->step('Store type: Shopify, but its products are hidden (no product list, collection or product sitemap answers)', 'warn');
@@ -100,7 +134,7 @@ class BrandSiteProbe
             }
             $this->step('Product list: ' . ($this->state['total'] ? number_format($this->state['total']) . ' products' : 'found (count comes with the first read)'), 'ok');
 
-            $client = (new StoreSiteClient())->configure($base, $platform, array_filter(['label' => $this->state['name'], 'shopify_route' => $route]));
+            $client = $this->client($base, $platform, array_filter(['shopify_route' => $route]));
             $products = $client->sample(self::SAMPLE);
             $rows = [];
             foreach ($products as $i => $p) {
@@ -123,10 +157,21 @@ class BrandSiteProbe
             $this->state['status'] = 'done';
             $this->step('Done. Nothing has been saved.', 'ok');
         } catch (\Throwable $e) {
+            if ($e->getMessage() === 'cancelled') {
+                return;
+            }
             $this->state['status'] = 'failed';
             $this->state['error'] = $e->getMessage();
             $this->save();
         }
+    }
+
+    /** The store reader, told to report its waits here and to give up at this check's deadline. */
+    private function client(string $base, string $platform, array $settings): StoreSiteClient
+    {
+        $host = (string) parse_url($base, PHP_URL_HOST);
+        return (new StoreSiteClient())->configure($base, $platform, ['label' => $this->state['name'] ?? $host] + $settings)
+            ->patience(fn (int $w, int $status) => $this->step($host . ' asked us to slow down (HTTP ' . $status . '); trying again in ' . $w . ' seconds', 'warn'), $this->deadline);
     }
 
     /** For each field, on how many sampled products it was found, and an example. */
@@ -229,19 +274,44 @@ class BrandSiteProbe
         return array_map(fn ($u) => html_entity_decode($u, ENT_QUOTES | ENT_XML1), $m[1] ?? []);
     }
 
+    /**
+     * One request, politely: at least a second after the last one, and when
+     * the store asks us to slow down, wait what it asks (a line on the page
+     * says so) and try once more, within the check's deadline.
+     */
     private function get(string $url, array $query = [], string $accept = 'application/json'): ?\Illuminate\Http\Client\Response
     {
-        try {
-            $res = Http::timeout(20)->withHeaders(['User-Agent' => (string) config('distributors.brand_reader.user_agent', 'IntakeCatalog/1.0'), 'Accept' => $accept])
-                ->get($url, $query ?: null);
-            return $res->successful() ? $res : null;
-        } catch (\Throwable) {
-            return null;
+        for ($try = 0; $try < 2; $try++) {
+            $gap = 1.0 - (microtime(true) - $this->lastRequest);
+            if ($gap > 0) {
+                usleep((int) ($gap * 1e6));
+            }
+            $this->lastRequest = microtime(true);
+            try {
+                $res = Http::timeout(20)->connectTimeout(10)
+                    ->withHeaders(['User-Agent' => (string) config('distributors.brand_reader.user_agent', 'IntakeCatalog/1.0'), 'Accept' => $accept])
+                    ->get($url, $query ?: null);
+            } catch (\Throwable) {
+                return null;
+            }
+            if (! in_array($res->status(), [429, 430, 503], true)) {
+                return $res->successful() ? $res : null;
+            }
+            $w = max(2, min(30, (int) $res->header('Retry-After') ?: 10));
+            if ($try === 1 || time() + $w > $this->deadline) {
+                throw new \RuntimeException(parse_url($url, PHP_URL_HOST) . ' kept asking us to slow down (HTTP ' . $res->status() . '); try again in a few minutes.');
+            }
+            $this->step(parse_url($url, PHP_URL_HOST) . ' asked us to slow down (HTTP ' . $res->status() . '); trying again in ' . $w . ' seconds', 'warn');
+            sleep($w);
         }
+        return null;
     }
 
     private function step(string $text, string $tone = ''): void
     {
+        if ((Cache::get($this->key)['status'] ?? '') === 'cancelled') {
+            throw new \RuntimeException('cancelled');
+        }
         $this->state['steps'][] = ['text' => $text, 'tone' => $tone, 'at' => now()->timestamp];
         $this->save();
     }

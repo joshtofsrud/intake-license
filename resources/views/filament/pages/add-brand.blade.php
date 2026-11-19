@@ -75,11 +75,20 @@
         <div>
           @if ($running)<div class="ab-bar"><i></i></div>@endif
           <div class="ab-feed">
+            @php $waited = now()->timestamp - (int) ($p['started'] ?? now()->timestamp); @endphp
             @forelse ($p['steps'] ?? [] as $s)
               <div>{!! $s['tone'] === 'warn' ? '<span style="color:var(--amber)">!</span>' : '✓' !!} {{ $s['text'] }}</div>
             @empty
-              <div>Waiting for a free worker…</div>
+              @if ($status === 'queued')
+                <div>Waiting for the check worker to pick this up… {{ $waited }}s</div>
+                @if ($waited > 45)
+                  <div class="ab-err" style="color:var(--amber)">No worker has picked this up yet. Checks run on their own worker (supervisor program intake-worker-interactive); if it isn't running, nothing starts.</div>
+                @endif
+              @elseif ($status === 'running')
+                <div>Starting…</div>
+              @endif
             @endforelse
+            @if ($running && ! empty($p['steps']))<div class="ab-faint" style="margin-top:4px">Running for {{ now()->timestamp - (int) ($p['began'] ?? $p['started'] ?? now()->timestamp) }}s; a check stops by itself after {{ intdiv(\App\Services\Distributors\BrandSiteProbe::BUDGET_SECONDS, 60) }} minutes and says why.</div>@endif
           </div>
           @if ($status === 'failed')<div class="ab-err">Couldn't finish: {{ $p['error'] ?? 'unknown error' }}</div>@endif
           @if ($status === 'unsupported' && ! empty($p['hidden']))
