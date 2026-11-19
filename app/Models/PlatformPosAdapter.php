@@ -16,7 +16,7 @@ class PlatformPosAdapter extends Model
 
     protected $fillable = [
         'code', 'label', 'is_active', 'client_id', 'client_secret',
-        'scopes', 'authorize_url', 'token_url', 'api_base',
+        'scopes', 'authorize_url', 'token_url', 'api_base', 'redirect_uri', // MARKER-POS-CALLBACK
     ];
 
     protected $casts = [
@@ -45,6 +45,17 @@ class PlatformPosAdapter extends Model
     {
         return filled($this->client_id) && filled($this->client_secret)
             && filled($this->authorize_url) && filled($this->token_url) && filled($this->api_base);
+    }
+
+    /** MARKER-POS-CALLBACK: the saved callback URL, or Intake's one generic POS callback. */
+    public function callbackUrl(): string
+    {
+        return filled($this->redirect_uri) ? $this->redirect_uri : static::defaultCallbackUrl();
+    }
+
+    public static function defaultCallbackUrl(): string
+    {
+        return 'https://app.' . config('intake.domain', 'intake.works') . '/integrations/pos/callback';
     }
 
     public function displayLabel(): string

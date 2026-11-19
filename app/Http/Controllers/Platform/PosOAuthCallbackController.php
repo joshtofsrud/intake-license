@@ -15,10 +15,11 @@ use Throwable;
  */
 class PosOAuthCallbackController extends Controller
 {
-    public function __invoke(Request $request, string $adapter, PosConnectionService $svc)
+    public function __invoke(Request $request, PosConnectionService $svc, ?string $adapter = null)
     {
         $pending = $svc->claim((string) $request->query('state', ''));
-        if (! $pending || $pending['code'] !== strtolower($adapter)) {
+        // MARKER-POS-CALLBACK: the POS is known from the saved state; a code in the path is only checked when present
+        if (! $pending || ($adapter !== null && $pending['code'] !== strtolower($adapter))) {
             return response()->view('platform.pos-connect-expired', [], 410);
         }
 
@@ -31,7 +32,7 @@ class PosOAuthCallbackController extends Controller
         try {
             $conn = $svc->complete($pending, (string) $request->query('code', ''));
         } catch (Throwable $e) {
-            \App\Support\JobFailureReporter::report(self::class, 'POS connect failed', $e, ['adapter' => $adapter], $pending['tenant_id']);
+            \App\Support\JobFailureReporter::report(self::class, 'POS connect failed', $e, ['adapter' => $pending['code']], $pending['tenant_id']);
 
             return $back('pos_error', Str::limit($e->getMessage(), 200));
         }

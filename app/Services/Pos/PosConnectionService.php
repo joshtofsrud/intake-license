@@ -27,10 +27,10 @@ class PosConnectionService
 
     public function __construct(private PosAdapterRegistry $registry) {}
 
-    /** The one callback URL every shop returns to; registered with the POS. */
+    /** The callback URL registered with this POS — a master-admin setting (MARKER-POS-CALLBACK). */
     public static function callbackUrl(string $code): string
     {
-        return 'https://app.' . config('intake.domain', 'intake.works') . '/integrations/pos/callback/' . $code;
+        return \App\Models\PlatformPosAdapter::forCode($code)->callbackUrl();
     }
 
     /** Start a connection: remember who asked, return where to send them. */

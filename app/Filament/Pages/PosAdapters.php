@@ -5,8 +5,6 @@ namespace App\Filament\Pages;
 use App\Models\PlatformPosAdapter;
 use App\Models\Tenant\TenantPosConnection;
 use App\Services\Pos\Adapters\PosAdapterRegistry;
-use App\Services\Pos\PosConnectionService;
-use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
@@ -53,6 +51,7 @@ class PosAdapters extends Page implements HasForms
                 'authorize_url' => $row->authorize_url,
                 'token_url'     => $row->token_url,
                 'api_base'      => $row->api_base,
+                'redirect_uri'  => $row->redirect_uri,
             ];
         }
         $this->form->fill($fill);
@@ -76,8 +75,10 @@ class PosAdapters extends Page implements HasForms
                         ->helperText('Off hides the Connect button for every shop. Shops already connected stay connected.')
                         ->columnSpanFull(),
                     TextInput::make('label')->label('Name shown to shops')->required()->maxLength(120),
-                    Placeholder::make('callback')->label('Callback / redirect URI (register this with the POS)')
-                        ->content(new HtmlString('<code style="user-select:all">' . e(PosConnectionService::callbackUrl($code)) . '</code>')),
+                    // MARKER-POS-CALLBACK
+                    TextInput::make('redirect_uri')->label('Callback URL (register this exact value with the POS)')->url()->maxLength(300)
+                        ->placeholder(PlatformPosAdapter::defaultCallbackUrl())
+                        ->helperText('Blank uses ' . PlatformPosAdapter::defaultCallbackUrl() . '. Must match the POS registration exactly and point at an address Intake answers on.'),
                     TextInput::make('client_id')->label('Client ID')->maxLength(500),
                     TextInput::make('client_secret')->label('Client secret')->password()->revealable()
                         ->placeholder(filled($row->client_secret) ? 'Saved — leave blank to keep' : 'Not set'),
@@ -106,6 +107,7 @@ class PosAdapters extends Page implements HasForms
                 'authorize_url' => $in['authorize_url'] ?? null,
                 'token_url'     => $in['token_url'] ?? null,
                 'api_base'      => $in['api_base'] ?? null,
+                'redirect_uri'  => $in['redirect_uri'] ?? null,
             ]);
             if (filled($in['client_secret'] ?? null)) {
                 $row->client_secret = $in['client_secret'];

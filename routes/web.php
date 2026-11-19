@@ -199,7 +199,7 @@ Route::domain('app.' . $domain)->middleware(\App\Http\Middleware\SeoSignals::cla
     Route::get('/signup/payment',  [Platform\OnboardingController::class, 'paymentStep'])->name('platform.signup.payment');
     Route::post('/signup/complete', [Platform\OnboardingController::class, 'completeSignup'])->name('platform.signup.complete');
     // MARKER-POS-CONNECT: the one OAuth return point for every shop's POS connection
-    Route::get('/integrations/pos/callback/{adapter}', Platform\PosOAuthCallbackController::class)->where('adapter', '[a-z0-9-]+')->middleware('throttle:30,1')->name('platform.pos.callback');
+    Route::get('/integrations/pos/callback/{adapter?}', Platform\PosOAuthCallbackController::class)->where('adapter', '[a-z0-9-]+')->middleware('throttle:30,1')->name('platform.pos.callback');
     Route::post('/subdomain/check', [Platform\OnboardingController::class, 'checkSubdomain'])->name('platform.subdomain.check');
 
     Route::get('/login',    [Platform\OnboardingController::class, 'login'])->name('platform.login');
