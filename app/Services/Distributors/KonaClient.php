@@ -536,7 +536,10 @@ class KonaClient implements DistributorAdapter
         $waits = [5, 15, 30, 60, 120];
         foreach ($waits as $i => $fallback) {
             $this->stopIfAsked();
-            $res = $this->http()->get($url, $query);
+            // no query array when there is none: an empty one makes the
+            // HTTP client drop the query already in the URL (the sitemap's
+            // ?from=…&to=…), and Kona answers 400
+            $res = $this->http()->get($url, $query ?: null);
             if (! in_array($res->status(), [429, 430, 503], true)) {
                 return $res;
             }
@@ -553,7 +556,7 @@ class KonaClient implements DistributorAdapter
             }
         }
         $this->stopIfAsked();
-        return $this->http()->get($url, $query);
+        return $this->http()->get($url, $query ?: null);
     }
 
     private function stopIfAsked(): void

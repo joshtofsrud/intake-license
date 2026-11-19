@@ -130,7 +130,7 @@
         <td class="bs-dim">Daily, {{ \Carbon\Carbon::parse('04:55', config('app.timezone', 'UTC'))->setTimezone(function_exists('admin_tz') ? admin_tz() : config('app.timezone', 'UTC'))->format('g:i a') }}</td>
         <td>
           @if ($cat['synced'])
-            {{ $cat['synced']->diffForHumans() }}<div class="bs-faint">{{ number_format($cat['products']) }} bikes · {{ number_format($cat['count']) }} part numbers</div>
+            {{ $cat['synced']->diffForHumans() }}<div class="bs-faint">{{ number_format($cat['products']) }} {{ $cat['products'] === 1 ? 'bike' : 'bikes' }} · {{ number_format($cat['count']) }} part {{ $cat['count'] === 1 ? 'number' : 'numbers' }}</div>
           @else
             <span class="bs-dim">Never read</span>
           @endif
