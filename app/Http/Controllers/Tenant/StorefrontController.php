@@ -249,6 +249,15 @@ class StorefrontController extends Controller
             return redirect('/shop/' . $canonicalParam . ($qs ? '?' . $qs : ''), 301);
         }
 
+        return $this->renderItem($item);
+    }
+
+    /**
+     * The item page for one item. Also used by master admin's catalog
+     * preview (CatalogPreviewController), so the preview is this page.
+     */
+    public function renderItem($item)
+    {
         $cat = $item->distributorCatalog;
 
         // was passing $cat?->tenant_id, but

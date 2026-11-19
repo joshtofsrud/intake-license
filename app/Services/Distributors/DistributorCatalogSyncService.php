@@ -22,6 +22,9 @@ class DistributorCatalogSyncService
     /** @var array<string,bool> */
     private array $brandSwitches = [];
 
+    /** which distributor's brand switches writeProduct() has loaded */
+    private ?string $brandLoadedFor = null;
+
     public function __construct(
         private readonly DistributorMapResolver $resolver,
         private readonly CatalogTitleComposer $composer,
@@ -434,6 +437,36 @@ class DistributorCatalogSyncService
 
         $this->recordState($code, $res);
         return $res;
+    }
+
+    /**
+     * Write one product (Brand, Name, Variants[]) into the catalog straight
+     * away, through the same field map, brand switch and title rules as a
+     * full sync. A reader that goes one product at a time (Kona) calls this
+     * as each one is read, so the catalog fills while the read runs.
+     *
+     * @return int variants written
+     */
+    public function writeProduct(string $code, string $name, array $product): int
+    {
+        $code = strtoupper($code);
+        if ($this->brandLoadedFor !== $code) {
+            $this->loadBrandControl($code);
+            $this->brandLoadedFor = $code;
+        }
+        $res = ['map_vanished' => 0, 'msrp_vanished' => 0, 'errors' => []];
+        $written = 0;
+        foreach ($this->gateBrand($code, (string) ($product['Brand'] ?? 'Unknown'), [$product]) as $p) {
+            foreach (($p['Variants'] ?? []) as $variant) {
+                try {
+                    $this->upsertVariant($code, $name, $variant, $p, $res);
+                    $written++;
+                } catch (\Throwable) {
+                    // reported by the full write at the end of the read
+                }
+            }
+        }
+        return $written;
     }
 
     private function extractProducts(mixed $batch): array

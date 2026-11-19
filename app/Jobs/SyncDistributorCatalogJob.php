@@ -67,6 +67,11 @@ class SyncDistributorCatalogJob implements ShouldQueue, ShouldBeUnique
         if ($this->only && method_exists($adapter, 'only')) {
             $adapter->only($this->only);
         }
+        // a reader that goes one product at a time writes each into the
+        // catalog as it is read, so the catalog fills while the read runs
+        if (method_exists($adapter, 'onBike')) {
+            $adapter->onBike(fn (array $product) => $sync->writeProduct($code, $adapter->name(), $product));
+        }
 
         $since = null;
         if ($this->delta) {

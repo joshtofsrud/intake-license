@@ -262,6 +262,8 @@ $tenantRoutes = function () {
     Route::get('/shop/search/click',      [TenantControllers\StorefrontController::class, 'searchClick'])->middleware('throttle:120,1')->name('tenant.shop.search.click');
     Route::get('/shop/search/promo/{id}', [TenantControllers\StorefrontController::class, 'promoClick'])->whereUuid('id')->name('tenant.shop.search.promo');
     Route::get('/shop/quick/{id}',        [TenantControllers\StorefrontController::class, 'quick'])->whereUuid('id')->name('tenant.shop.quick');
+    // MARKER-CATALOG-PREVIEW: master admin's signed preview of one catalog row (nothing saved)
+    Route::get('/shop/catalog-preview/{catalogId}', [TenantControllers\CatalogPreviewController::class, 'shop'])->middleware('throttle:30,1')->name('tenant.shop.catalog_preview');
     Route::get('/shop/{id}',             [TenantControllers\StorefrontController::class, 'show'])->name('tenant.shop.show');
     // Online Retail Wave 3: cart
     Route::get('/cart',                  [TenantControllers\CartController::class, 'show'])->name('tenant.cart.show');
@@ -987,6 +989,8 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             // Inventory (POS Phase 1) — gated by `retail` capability via FeatureAccessService
             Route::prefix('inventory')->name('inventory.')->group(function () {
                 Route::get('/',                  [TenantControllers\InventoryController::class, 'index'])->name('index');
+                // MARKER-CATALOG-PREVIEW: master admin's signed preview of one catalog row (nothing saved)
+                Route::get('/catalog-preview/{catalogId}', [TenantControllers\CatalogPreviewController::class, 'inventory'])->middleware('throttle:30,1')->name('catalog_preview');
                 // must precede /{id} below.
                 Route::get('/reports',           [TenantControllers\InventoryReportController::class, 'index'])->name('reports');
                 Route::get('/create',            [TenantControllers\InventoryController::class, 'create'])->name('create');

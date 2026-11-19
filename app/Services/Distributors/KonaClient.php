@@ -37,6 +37,9 @@ class KonaClient implements DistributorAdapter
     /** How many bikes have a current spec page, for master admin. */
     public const PAGES_KEY = 'kona.pages_progress';
 
+    /** The last few bikes read. */
+    public const RECENT_KEY = 'kona.recent_bikes';
+
     /**
      * Bumped when the page reader learns a new layout, so bikes read with
      * the older reader are read again once (2: the older #kro_specs table).
@@ -54,6 +57,9 @@ class KonaClient implements DistributorAdapter
 
     /** Set when a read stopped at its time limit with bikes still to read. */
     private bool $more = false;
+
+    /** @var null|callable(array):void */
+    private $onBike = null;
 
     public function __construct(string $apiKey = '', string $region = 'us')
     {
@@ -146,27 +152,51 @@ class KonaClient implements DistributorAdapter
 
         $out = [];
         foreach ($handles as $handle) {
-            $entry = $saved[$handle] ?? null;
-            if (! $entry || empty($entry['product']) || ! empty($entry['gone'])) {
-                continue;
-            }
-            $p = $entry['product'];
-            $rows = [];
-            foreach ((array) ($p['variants'] ?? []) as $v) {
-                $sku = strtoupper(trim((string) ($v['sku'] ?? '')));
-                if ($sku === '' || ($parts && ! isset($parts[$sku]))) {
-                    continue;
-                }
-                $rows[] = $this->row($p, $v, $entry);
-            }
-            if ($rows) {
-                $out[] = ['Brand' => 'Kona', 'product_code' => $handle, 'Name' => (string) ($p['title'] ?? ''), 'Variants' => $rows];
+            if ($p = $this->productFor($handle, $saved[$handle] ?? null, $parts)) {
+                $out[] = $p;
             }
         }
         if (! $this->more) {
             $this->progress('done', count($out), count($out));
         }
         return ['Products' => $out, 'Failures' => []];
+    }
+
+    /**
+     * One stored bike in the shape the catalog sync writes (Brand, Name,
+     * Variants[] with one row per size), or null when it has nothing to write.
+     */
+    private function productFor(string $handle, ?array $entry, array $parts = []): ?array
+    {
+        if (! $entry || empty($entry['product']) || ! empty($entry['gone'])) {
+            return null;
+        }
+        $p = $entry['product'];
+        $rows = [];
+        foreach ((array) ($p['variants'] ?? []) as $v) {
+            $sku = strtoupper(trim((string) ($v['sku'] ?? '')));
+            if ($sku === '' || ($parts && ! isset($parts[$sku]))) {
+                continue;
+            }
+            $rows[] = $this->row($p, $v, $entry);
+        }
+        return $rows ? ['Brand' => 'Kona', 'product_code' => $handle, 'Name' => (string) ($p['title'] ?? ''), 'Variants' => $rows] : null;
+    }
+
+    /**
+     * Called with each bike as soon as it is read (the job writes it into the
+     * catalog there and then), so master admin sees the catalog fill live.
+     */
+    public function onBike(?callable $fn): static
+    {
+        $this->onBike = $fn;
+        return $this;
+    }
+
+    /** What a stored bike holds, for master admin's Inspect panel. */
+    public static function storedEntry(string $handle): ?array
+    {
+        return self::store()[strtolower($handle)] ?? null;
     }
 
     /** True when the last products() stopped at its time limit with bikes still to read. */
@@ -383,6 +413,10 @@ class KonaClient implements DistributorAdapter
                     $parsed = $page->successful() ? self::parsePage($page->body())
                         : ['specs' => $saved[$h]['specs'] ?? [], 'geometry' => $saved[$h]['geometry'] ?? []];
                     $saved[$h] = ['product' => $product] + $parsed + ['read_at' => now()->timestamp, 'v' => self::READER_VERSION];
+                    $this->recent($h, $saved[$h]);
+                    if ($this->onBike && ($bike = $this->productFor($h, $saved[$h]))) {
+                        try { ($this->onBike)($bike); } catch (\Throwable) { /* written again at the end of the read */ }
+                    }
                 } elseif ($this->only) {
                     throw new \RuntimeException('Kona\'s store answered HTTP ' . $res->status() . ' for "' . $h . '".');
                 }
@@ -405,6 +439,21 @@ class KonaClient implements DistributorAdapter
             Cache::put(self::PAGES_KEY, ['have' => $this->have($saved, $handles, $fresh), 'of' => count($handles), 'at' => now()->timestamp], now()->addDays(60));
         }
         return $saved;
+    }
+
+    /** The last few bikes read, for the live line in master admin. */
+    private function recent(string $handle, array $entry): void
+    {
+        $list = (array) Cache::get(self::RECENT_KEY, []);
+        array_unshift($list, [
+            'handle' => $handle,
+            'title'  => (string) ($entry['product']['title'] ?? $handle),
+            'sizes'  => count((array) ($entry['product']['variants'] ?? [])),
+            'specs'  => count((array) ($entry['specs'] ?? [])),
+            'images' => count((array) ($entry['product']['images'] ?? [])),
+            'at'     => now()->timestamp,
+        ]);
+        Cache::put(self::RECENT_KEY, array_slice($list, 0, 6), now()->addDay());
     }
 
     private function have(array $saved, array $handles, int $fresh): int

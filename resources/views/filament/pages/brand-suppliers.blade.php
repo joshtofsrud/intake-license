@@ -140,6 +140,9 @@
             <div class="bs-prog">{{ $cat['line'] }}
               <div class="bs-bar {{ $cat['pct'] === null ? 'ind' : '' }}"><i style="{{ $cat['pct'] !== null ? 'width:' . $cat['pct'] . '%' : '' }}"></i></div>
               <span class="bs-faint">started {{ $cat['started']?->diffForHumans() }}</span>
+              @foreach (array_slice($this->recentReads(), 0, 4) as $r)
+                <div class="bs-faint" style="margin-top:3px">✓ {{ $r['title'] }} · {{ $r['sizes'] }} {{ $r['sizes'] === 1 ? 'size' : 'sizes' }} · {{ $r['specs'] }} specs · {{ $r['images'] }} photos <span style="opacity:.7">{{ \Carbon\Carbon::createFromTimestamp($r['at'])->diffForHumans() }}</span></div>
+              @endforeach
             </div>
           @endif
           @foreach ($cat['errors'] as $e)<div class="bs-err">{{ \Illuminate\Support\Str::limit($e, 160) }}</div>@endforeach
@@ -326,10 +329,10 @@
   </div>
 
   {{-- ============ PREVIEW ============ --}}
-  @php $prev = $this->preview(); @endphp
-  <div class="bs-sec">
+  @php $prev = $this->preview(); $ptotal = $this->previewTotal(); $ins = $this->inspected(); @endphp
+  <div class="bs-sec" @if ($cat['live']) wire:poll.5s @endif>
     <div class="bs-sh">
-      <div><h2>Preview</h2><p>The catalog as shops will get it, after the rules above.</p></div>
+      <div><h2>Preview</h2><p>The catalog as shops will get it, after the rules above. It fills in as bikes are read. Inspect a row to see everything read for it and to open it as a shop's item page or online store page.</p></div>
       <input type="search" class="bs-in" style="width:240px" wire:model.live.debounce.300ms="previewSearch" placeholder="Part number or model">
     </div>
     @if (! $prev)
@@ -342,9 +345,9 @@
       </div>
     @else
       <table class="bs-tbl">
-        <tr><th></th><th>Part number</th><th>Title</th><th>Brand</th><th>Size</th><th>Color</th><th>Year</th><th>Category</th><th class="n">Retail</th><th class="n">Photos</th><th class="n">Specs</th></tr>
+        <tr><th></th><th>Part number</th><th>Title</th><th>Brand</th><th>Size</th><th>Color</th><th>Year</th><th>Category</th><th class="n">Retail</th><th class="n">Photos</th><th class="n">Specs</th><th></th></tr>
         @foreach ($prev as $p)
-          <tr>
+          <tr wire:key="pv-{{ $p['id'] }}" style="cursor:pointer;{{ $inspect === $p['id'] ? 'background:var(--vsoft)' : '' }}" wire:click="inspectRow('{{ $p['id'] }}')">
             <td>@if ($p['thumb'])<img class="bs-thumb" src="{{ $p['thumb'] }}" alt="" loading="lazy">@else<span class="bs-thumb"></span>@endif</td>
             <td class="bs-mono">{{ $p['id'] }}</td>
             <td><b>{{ $p['title'] }}</b>@unless ($p['sellable'])<div class="bs-faint">not available on {{ $label }}'s store</div>@endunless</td>
@@ -356,10 +359,89 @@
             <td class="n">{{ $p['msrp'] }}</td>
             <td class="n">{{ $p['images'] }}</td>
             <td class="n">{{ $p['specs'] }}</td>
+            <td><span style="color:var(--vtext);font-size:12.5px">{{ $inspect === $p['id'] ? 'Close' : 'Inspect' }}</span></td>
           </tr>
+          @if ($ins && $inspect === $p['id'])
+            <tr wire:key="pv-ins-{{ $p['id'] }}"><td colspan="12" style="padding:16px 0 22px;cursor:default">
+              @php $iRow = $ins['row']; @endphp
+              <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+                <b>See it as a shop:</b>
+                <select class="bs-in" wire:model.live="previewShop">
+                  @foreach ($this->previewShops() as $s)<option value="{{ $s['id'] }}">{{ $s['name'] }}</option>@endforeach
+                </select>
+                @if ($u = $this->previewUrl('inventory', (string) $iRow->id))<a class="bs-btn" href="{{ $u }}" target="_blank" rel="noopener">Item page preview</a>@endif
+                @if ($u = $this->previewUrl('shop', (string) $iRow->id))<a class="bs-btn g" href="{{ $u }}" target="_blank" rel="noopener">Online store preview</a>@endif
+                <span class="bs-faint">Opens on the shop's own site. Nothing is saved. The item page needs you signed in to that shop.</span>
+              </div>
+
+              <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:28px">
+                <div>
+                  <div class="bs-faint" style="font-weight:600;margin-bottom:4px">IN INTAKE'S CATALOG</div>
+                  <table class="bs-tbl">
+                    @foreach ($ins['catalog'] as [$k, $v])
+                      <tr><td class="bs-faint" style="width:110px">{{ $k }}</td><td style="white-space:pre-line">{{ \Illuminate\Support\Str::limit($v, 600) }}</td></tr>
+                    @endforeach
+                  </table>
+                  <div class="bs-faint" style="font-weight:600;margin:14px 0 4px">SPECS ({{ count($ins['specs']) }})</div>
+                  <table class="bs-tbl">
+                    @forelse ($ins['specs'] as $a)
+                      <tr><td class="bs-faint" style="width:140px">{{ $a['Name'] ?? '' }}</td><td>{{ $a['Value'] ?? '' }}</td></tr>
+                    @empty
+                      <tr><td class="bs-dim">No specs. The product page had no spec table, or it hasn't been read yet.</td></tr>
+                    @endforelse
+                  </table>
+                </div>
+                <div>
+                  <div class="bs-faint" style="font-weight:600;margin-bottom:6px">PHOTOS ({{ count($ins['images']) }})</div>
+                  <div style="display:flex;flex-wrap:wrap;gap:6px">
+                    @foreach (array_slice($ins['images'], 0, 12) as $img)
+                      <a href="{{ $img }}" target="_blank" rel="noopener"><img src="{{ $img }}" alt="" loading="lazy" style="width:120px;height:90px;object-fit:cover;border-radius:6px;background:var(--line)"></a>
+                    @endforeach
+                  </div>
+                  @php $raw = $ins['raw']; @endphp
+                  <div class="bs-faint" style="font-weight:600;margin:14px 0 4px">AS {{ strtoupper($label) }}'S SITE GAVE IT</div>
+                  @if (! $raw || empty($raw['product']))
+                    <div class="bs-dim">Nothing saved for this product yet.</div>
+                  @else
+                    @php $rp = $raw['product']; @endphp
+                    <table class="bs-tbl">
+                      <tr><td class="bs-faint" style="width:110px">Title</td><td>{{ $rp['title'] ?? '' }}</td></tr>
+                      <tr><td class="bs-faint">Address</td><td><a href="{{ rtrim((string) config('distributors.' . strtolower($code) . '.base_url'), '/') . '/products/' . ($rp['handle'] ?? '') }}" target="_blank" rel="noopener" style="color:var(--vtext)">{{ $rp['handle'] ?? '' }}</a></td></tr>
+                      <tr><td class="bs-faint">Vendor</td><td>{{ $rp['vendor'] ?? '' }}</td></tr>
+                      <tr><td class="bs-faint">Type</td><td>{{ $rp['product_type'] ?? '' }}</td></tr>
+                      <tr><td class="bs-faint">Tags</td><td>{{ implode(', ', (array) ($rp['tags'] ?? [])) }}</td></tr>
+                      <tr><td class="bs-faint">Read</td><td>{{ isset($raw['read_at']) ? \Carbon\Carbon::createFromTimestamp($raw['read_at'])->diffForHumans() : '—' }}</td></tr>
+                    </table>
+                    <div class="bs-faint" style="font-weight:600;margin:12px 0 4px">SIZES</div>
+                    <table class="bs-tbl">
+                      <tr><th>Part number</th><th>Option</th><th class="n">Price</th><th>Available</th></tr>
+                      @foreach ((array) ($rp['variants'] ?? []) as $v)
+                        <tr style="{{ strtoupper((string) ($v['sku'] ?? '')) === $inspect ? 'background:var(--vsoft)' : '' }}"><td class="bs-mono">{{ $v['sku'] ?? '' }}</td><td>{{ trim(implode(' / ', array_filter([$v['option1'] ?? null, $v['option2'] ?? null, $v['option3'] ?? null]))) }}</td><td class="n">{{ isset($v['price']) ? '$' . $v['price'] : '—' }}</td><td>{{ ! empty($v['available']) ? 'yes' : 'no' }}</td></tr>
+                      @endforeach
+                    </table>
+                    @if (! empty($raw['geometry']))
+                      <div class="bs-faint" style="font-weight:600;margin:12px 0 4px">GEOMETRY</div>
+                      @php $gsizes = array_keys(reset($raw['geometry']) ?: []); @endphp
+                      <table class="bs-tbl">
+                        <tr><th></th>@foreach ($gsizes as $gs)<th class="n">{{ $gs }}</th>@endforeach</tr>
+                        @foreach ($raw['geometry'] as $gl => $gv)
+                          <tr><td class="bs-faint">{{ $gl }}</td>@foreach ($gsizes as $gs)<td class="n">{{ $gv[$gs] ?? '' }}</td>@endforeach</tr>
+                        @endforeach
+                      </table>
+                    @endif
+                  @endif
+                </div>
+              </div>
+            </td></tr>
+          @endif
         @endforeach
       </table>
-      @if (count($prev) === 25)<div class="bs-faint" style="margin-top:6px">First 25 shown. Search for a part number or model to find others.</div>@endif
+      @php $pages = (int) ceil($ptotal / 25); @endphp
+      <div style="display:flex;gap:10px;align-items:center;margin-top:8px" class="bs-faint">
+        {{ number_format(($previewPage - 1) * 25 + 1) }}–{{ number_format(min($ptotal, $previewPage * 25)) }} of {{ number_format($ptotal) }}
+        @if ($previewPage > 1)<button type="button" class="bs-btn g" style="padding:4px 10px" wire:click="previewPageTo({{ $previewPage - 1 }})">Previous</button>@endif
+        @if ($previewPage < $pages)<button type="button" class="bs-btn g" style="padding:4px 10px" wire:click="previewPageTo({{ $previewPage + 1 }})">Next</button>@endif
+      </div>
     @endif
   </div>
   @endif

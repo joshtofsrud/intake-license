@@ -41,6 +41,11 @@ class BrandSuppliers extends Page
     public string $shopSearch = '';
     public string $previewSearch = '';
     public string $oneBike = '';
+    /** the catalog row open in the Inspect panel (its part number) */
+    public ?string $inspect = null;
+    /** the shop the Intake previews are shown as */
+    public string $previewShop = '';
+    public int $previewPage = 1;
     /** how gently the brand's site is read (Kona: list gap, page gap, pages per run, refresh days) */
     public array $pace = [];
     /** @var \Livewire\Features\SupportFileUploads\TemporaryUploadedFile|null */
@@ -59,7 +64,14 @@ class BrandSuppliers extends Page
     {
         $this->check = null;
         $this->checkName = '';
+        $this->inspect = null;
+        $this->previewPage = 1;
         $this->loadPace();
+    }
+
+    public function updatedPreviewSearch(): void
+    {
+        $this->previewPage = 1;
     }
 
     private function adapter(): ?string
@@ -441,7 +453,8 @@ class BrandSuppliers extends Page
             ->where('distributor_code', $this->code)->whereNull('deleted_at')
             ->when($q !== '', fn ($w) => $w->where(fn ($x) => $x->where('distributor_variant_no', 'like', '%' . $q . '%')
                 ->orWhere('display_name', 'like', '%' . $q . '%')->orWhere('name', 'like', '%' . $q . '%')))
-            ->orderBy('name')->orderBy('distributor_variant_no')->limit(25)
+            ->orderBy('name')->orderBy('distributor_variant_no')
+            ->offset(($this->previewPage - 1) * 25)->limit(25)
             ->get(['distributor_variant_no', 'display_name', 'name', 'manufacturer', 'size', 'color', 'category_path', 'msrp_cents', 'images', 'attributes', 'is_sellable', 'last_synced_at'])
             ->map(function ($r) {
                 $attrs = json_decode((string) $r->attributes, true) ?: [];
@@ -460,6 +473,91 @@ class BrandSuppliers extends Page
                     'specs' => count($attrs), 'year' => $year, 'sellable' => (bool) $r->is_sellable,
                 ];
             })->all();
+    }
+
+    public function previewTotal(): int
+    {
+        $q = trim($this->previewSearch);
+        return DB::table('platform_distributor_catalogs')
+            ->where('distributor_code', $this->code)->whereNull('deleted_at')
+            ->when($q !== '', fn ($w) => $w->where(fn ($x) => $x->where('distributor_variant_no', 'like', '%' . $q . '%')
+                ->orWhere('display_name', 'like', '%' . $q . '%')->orWhere('name', 'like', '%' . $q . '%')))
+            ->count();
+    }
+
+    public function previewPageTo(int $page): void
+    {
+        $this->previewPage = max(1, $page);
+    }
+
+    // ------------------------------------------------------------ inspect
+
+    public function inspectRow(string $variantNo): void
+    {
+        $this->inspect = $this->inspect === $variantNo ? null : $variantNo;
+    }
+
+    /**
+     * Everything about one row: what the brand's site gave us, what the
+     * catalog made of it, and links to see it as a shop would.
+     */
+    public function inspected(): ?array
+    {
+        if (! $this->inspect) {
+            return null;
+        }
+        $row = DB::table('platform_distributor_catalogs')
+            ->where('distributor_code', $this->code)->where('distributor_variant_no', $this->inspect)->first();
+        if (! $row) {
+            return null;
+        }
+        $raw = null;
+        $class = $this->adapter();
+        if ($class && method_exists($class, 'storedEntry') && $row->distributor_product_no) {
+            $raw = $class::storedEntry((string) $row->distributor_product_no);
+        }
+        $catalog = [];
+        foreach (['distributor_variant_no' => 'Part number', 'distributor_product_no' => 'Product', 'display_name' => 'Title',
+            'display_subtitle' => 'Subtitle', 'name' => 'Model', 'manufacturer' => 'Brand', 'size' => 'Size', 'color' => 'Color',
+            'category_path' => 'Category', 'msrp_cents' => 'Retail', 'upc' => 'UPC', 'is_sellable' => 'Available', 'description' => 'Description',
+            'last_synced_at' => 'Written'] as $col => $label) {
+            $v = $row->{$col} ?? null;
+            if ($col === 'msrp_cents' && $v !== null) $v = '$' . number_format($v / 100, 2);
+            if ($col === 'is_sellable') $v = $v ? 'yes' : 'no';
+            $catalog[] = [$label, ($v === null || $v === '') ? '—' : (string) $v];
+        }
+        return [
+            'row'     => $row,
+            'catalog' => $catalog,
+            'specs'   => json_decode((string) $row->attributes, true) ?: [],
+            'images'  => array_values(array_filter((array) (json_decode((string) $row->images, true) ?: []), 'is_string')),
+            'raw'     => $raw,
+        ];
+    }
+
+    /** Shops the previews can be shown as: switched-on shops first. */
+    public function previewShops(): array
+    {
+        $search = $this->shopSearch;
+        $this->shopSearch = ''; // the Shops search box doesn't narrow this list
+        $shops = $this->shops();
+        $this->shopSearch = $search;
+        return array_map(fn ($s) => ['id' => $s['id'], 'name' => $s['name'] . ($s['on'] ? '' : ' (not switched on)')], $shops);
+    }
+
+    public function previewUrl(string $kind, string $catalogId): ?string
+    {
+        $shops = $this->previewShops();
+        $id = $this->previewShop !== '' ? $this->previewShop : ($shops[0]['id'] ?? null);
+        $t = $id ? Tenant::find($id) : null;
+        return $t ? \App\Support\CatalogPreviewLink::url($t, $kind, $catalogId) : null;
+    }
+
+    /** The last few products read, for the live line. */
+    public function recentReads(): array
+    {
+        $class = $this->adapter();
+        return $class && defined($class . '::RECENT_KEY') ? (array) Cache::get($class::RECENT_KEY, []) : [];
     }
 
     public function fieldMapsUrl(): string
