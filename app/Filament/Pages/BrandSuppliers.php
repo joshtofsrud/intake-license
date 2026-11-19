@@ -63,6 +63,25 @@ class BrandSuppliers extends Page
         return array_values(array_filter(BrandDirect::codes(), fn ($c) => in_array($c, $supported, true)));
     }
 
+    /** One row per brand supplier, for the list at the top. */
+    public function brandRows(): array
+    {
+        $out = [];
+        foreach ($this->codes() as $c) {
+            $synced = DB::table('distributor_sync_state')->where('distributor_code', $c)
+                ->where('source_ref', 'catalog')->value('last_synced_at');
+            $out[] = [
+                'code'   => $c,
+                'label'  => $this->label($c),
+                'count'  => DB::table('platform_distributor_catalogs')->where('distributor_code', $c)->whereNull('deleted_at')->count(),
+                'shops'  => count(BrandDirect::shopsFor($c)),
+                'synced' => $synced ? \Carbon\Carbon::parse($synced, 'UTC')->diffForHumans() : null,
+                'shop_ready' => BrandDirect::shopSideReady($c),
+            ];
+        }
+        return $out;
+    }
+
     public function label(?string $code = null): string
     {
         return app(DistributorRegistry::class)->label($code ?: $this->code);
@@ -92,7 +111,7 @@ class BrandSuppliers extends Page
 
         $lastRun = $state?->last_run_at ? \Carbon\Carbon::parse($state->last_run_at, 'UTC') : null;
         $running = ($state?->last_status === 'running' && $lastRun && $lastRun->gt(now()->subMinutes(15)))
-            || ($prog && ($prog['phase'] ?? '') !== 'done' && ($prog['at'] ?? 0) > now()->subMinutes(5)->timestamp);
+            || ($prog && ($prog['phase'] ?? '') !== 'done' && ($prog['at'] ?? 0) > now()->subMinutes(7)->timestamp);
         $queued = ! $running && $queuedAt && (! $lastRun || $lastRun->timestamp < $queuedAt);
 
         // what the read is doing right now
@@ -103,6 +122,9 @@ class BrandSuppliers extends Page
             if ($state?->last_status === 'running' && ($phase === 'done' || $phase === '' || ($prog['at'] ?? 0) < ($lastRun?->timestamp ?? 0) - 5)) {
                 $line = 'Writing to the catalog · ' . number_format((int) $state->last_count) . ' part numbers so far';
                 $pct = $count > 0 ? min(99, (int) round(100 * $state->last_count / max($count, 1))) : null;
+            } elseif ($phase === 'wait') {
+                $line = $this->label() . '\'s site asked us to slow down · waiting ' . (int) $prog['wait'] . ' seconds, then trying again (' . (int) $prog['attempt'] . ' of ' . (int) $prog['of'] . ')';
+                $pct = null;
             } elseif ($phase === 'feed') {
                 $line = 'Reading ' . $this->label() . '\'s product list · page ' . (int) $prog['done'];
                 $pct = 3;

@@ -59,7 +59,7 @@ class KonaClient implements DistributorAdapter
     public function testConnection(): array
     {
         try {
-            $res = $this->http()->get($this->base . '/products.json', ['limit' => 1]);
+            $res = $this->politeGet($this->base . '/products.json', ['limit' => 1], 'test', 0, 0);
         } catch (\Throwable $e) {
             return ['ok' => false, 'status' => null, 'auth' => false, 'body' => 'Kona\'s site did not answer: ' . $e->getMessage()];
         }
@@ -268,7 +268,7 @@ class KonaClient implements DistributorAdapter
         $all  = [];
         for ($page = 1; $page <= $max; $page++) {
             $this->progress('feed', $page, 0);
-            $res = $this->http()->get($this->base . '/products.json', ['limit' => $size, 'page' => $page]);
+            $res = $this->politeGet($this->base . '/products.json', ['limit' => $size, 'page' => $page], 'feed', $page, 0);
             if (! $res->successful()) {
                 throw new \RuntimeException('Kona\'s product feed answered HTTP ' . $res->status() . ' on page ' . $page . '.');
             }
@@ -280,6 +280,7 @@ class KonaClient implements DistributorAdapter
             if (count($batch) < $size) {
                 break;
             }
+            usleep(max(0, (int) config('distributors.kona.page_delay_ms', 700)) * 1000);
         }
         Cache::put('kona.feed', $all, now()->addHour());
         return $all;
@@ -314,7 +315,7 @@ class KonaClient implements DistributorAdapter
             }
             $this->progress('pages', $done, $total, $read);
             try {
-                $res = $this->http()->get($this->base . '/products/' . rawurlencode($handle));
+                $res = $this->politeGet($this->base . '/products/' . rawurlencode($handle), [], 'pages', $done, $total, $read);
                 if ($res->successful()) {
                     $parsed = self::parsePage($res->body());
                     $saved[$handle] = $parsed + ['updated_at' => $stamp];
@@ -405,10 +406,34 @@ class KonaClient implements DistributorAdapter
         return $out;
     }
 
+    /**
+     * A GET that slows down when Kona's store asks it to. Shopify answers 429
+     * (too many requests) to readers that go faster than it likes; this waits
+     * for as long as its Retry-After says (or 5, 15, 30, 60, 120 seconds) and
+     * tries again, showing the wait on master admin's progress line.
+     */
+    private function politeGet(string $url, array $query, string $phase, int $done, int $total, int $read = 0): \Illuminate\Http\Client\Response
+    {
+        $waits = [5, 15, 30, 60, 120];
+        foreach ($waits as $i => $fallback) {
+            $res = $this->http()->get($url, $query);
+            if (! in_array($res->status(), [429, 430, 503], true)) {
+                return $res;
+            }
+            $after = (int) $res->header('Retry-After');
+            $wait = max(1, min(300, $after > 0 ? $after : $fallback));
+            Cache::put(self::PROGRESS_KEY, [
+                'phase' => 'wait', 'wait' => $wait, 'attempt' => $i + 1, 'of' => count($waits),
+                'was' => $phase, 'done' => $done, 'total' => $total, 'read' => $read, 'at' => now()->timestamp,
+            ], now()->addHours(2));
+            sleep($wait);
+        }
+        return $this->http()->get($url, $query);
+    }
+
     private function http(): \Illuminate\Http\Client\PendingRequest
     {
         return Http::timeout($this->timeout)
-            ->retry(2, 1500, throw: false)
             ->withHeaders([
                 'User-Agent' => (string) config('distributors.kona.user_agent', 'IntakeCatalog/1.0'),
                 'Accept'     => 'application/json, text/html;q=0.9',

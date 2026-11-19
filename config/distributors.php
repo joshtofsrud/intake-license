@@ -131,11 +131,12 @@ return [
         'name'            => 'Kona',
         'base_url'        => env('KONA_BASE_URL', 'https://konaworld.com'),
         'timeout'         => (int) env('KONA_TIMEOUT', 30),
-        // products per feed page (Shopify's ceiling is 250)
-        'feed_page_size'  => (int) env('KONA_FEED_PAGE_SIZE', 250),
+        // products per feed page (Shopify allows 250, but large pages are
+        // the first thing it throttles)
+        'feed_page_size'  => (int) env('KONA_FEED_PAGE_SIZE', 100),
         'max_feed_pages'  => (int) env('KONA_MAX_FEED_PAGES', 40),
         // pause between product pages, so the spec read is gentle on Kona's site
-        'page_delay_ms'   => (int) env('KONA_PAGE_DELAY_MS', 700),
+        'page_delay_ms'   => (int) env('KONA_PAGE_DELAY_MS', 1500),
         'user_agent'      => env('KONA_USER_AGENT', 'IntakeCatalog/1.0 (+https://intake.works)'),
         'sync_page_size'  => (int) env('KONA_SYNC_PAGE_SIZE', 20000),
     ],

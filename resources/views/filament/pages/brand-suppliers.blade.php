@@ -66,18 +66,41 @@
     $ready = $this->shopSideReady();
   @endphp
 
-  <div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap">
-    <p class="sub">
-      Brands that sell only to their own dealers. Two sources are joined on {{ $label }}'s part number:
-      the <b>catalog</b> (names, photos, descriptions, specs) is read here once for every shop, and
-      <b>cost and stock</b> come from each dealer's own stock file, because the cost is that dealer's price.
-    </p>
-    @if (count($codes) > 1)
-      <select class="bs-in" wire:model.live="code">
-        @foreach ($codes as $c)<option value="{{ $c }}">{{ $this->label($c) }}</option>@endforeach
-      </select>
-    @endif
+  <p class="sub">
+    Brands that sell only to their own dealers. For each brand, the <b>catalog</b> (names, photos, descriptions, specs)
+    is read here once for every shop, and <b>cost and stock</b> come from each dealer's own stock file, joined on the
+    brand's part number. No shop sees a brand until you switch that shop on.
+  </p>
+
+  {{-- every brand supplier; the one picked below is the one the rest of the page is about --}}
+  <div class="bs-sec" style="margin-top:20px">
+    <div class="bs-sh">
+      <div><h2>Brands</h2><p>Pick a brand to manage it below.</p></div>
+      <a class="bs-btn g" href="{{ \App\Filament\Pages\Distributors::getUrl() }}">Add a brand</a>
+    </div>
+    <table class="bs-tbl">
+      <tr><th>Brand</th><th class="n">Part numbers</th><th class="n">Shops on</th><th>Catalog last read</th><th>Status</th></tr>
+      @foreach ($this->brandRows() as $b)
+        <tr wire:key="brand-{{ $b['code'] }}" wire:click="$set('code', '{{ $b['code'] }}')" style="cursor:pointer;{{ $b['code'] === $code ? 'background:var(--vsoft)' : '' }}">
+          <td style="padding-left:10px"><b style="{{ $b['code'] === $code ? 'color:var(--vtext)' : '' }}">{{ $b['label'] }}</b></td>
+          <td class="n">{{ number_format($b['count']) }}</td>
+          <td class="n">{{ $b['shops'] }}</td>
+          <td class="bs-dim">{{ $b['synced'] ?? 'Never' }}</td>
+          <td>
+            @if (! $b['shop_ready'])<span class="bs-chip warn">Shop side not built</span>
+            @elseif ($b['shops'] === 0)<span class="bs-chip">No shops on</span>
+            @else<span class="bs-chip ok">Live</span>@endif
+          </td>
+        </tr>
+      @endforeach
+    </table>
+    <div class="bs-legend" style="border-top:0">
+      <b>Adding a brand:</b> its reader is built first (where its catalog and stock file come from), then it is switched to
+      Brand-direct on the Distributors page and appears in this list, off for every shop.
+    </div>
   </div>
+
+  <h2 style="font-size:22px;font-weight:700;margin:34px 0 10px">{{ $label }}</h2>
 
   <div class="bs-legend" style="margin-top:14px">
     <b>Who sees {{ $label }}:</b> no shop, until you switch it on for that shop under Shops below.
