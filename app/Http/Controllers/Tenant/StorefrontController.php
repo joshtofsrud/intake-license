@@ -278,6 +278,24 @@ class StorefrontController extends Controller
             ->map(fn ($a) => ['name' => $a['Name'], 'value' => $a['Value']])
             ->values()->all();
 
+        // MARKER-PRODUCT-DETAILS: specs in groups, geometry, and the other sizes that are for sale here
+        $pd = \App\Support\ProductDetails::for($item);
+        $pdSizes = [];
+        if (! empty($pd['sizes'])) {
+            $ids = array_values(array_filter(array_column($pd['sizes'], 'item_id')));
+            $online = $ids ? \App\Services\Tenant\OnlineItems::query(tenant())->whereIn('id', $ids)->pluck('name', 'id')->all() : [];
+            foreach ($pd['sizes'] as $z) {
+                if ($z['current']) {
+                    $pdSizes[] = $z + ['href' => null];
+                } elseif ($z['item_id'] && isset($online[$z['item_id']])) {
+                    $pdSizes[] = $z + ['href' => '/shop/' . \App\Support\ItemSeo::param((string) $z['item_id'], (string) $online[$z['item_id']])];
+                }
+            }
+            if (count($pdSizes) < 2) {
+                $pdSizes = [];
+            }
+        }
+
         return \App\Services\Tenant\SiteChromeService::render(tenant(), 'shop_show', [
             'shopItem' => $item, // collision-proof alias
             'cartCount' => \App\Services\Tenant\CartService::forTenant(tenant())->itemCount(),
@@ -285,6 +303,8 @@ class StorefrontController extends Controller
             'item'   => $item,
             'images' => $images,
             'attrs'  => $attrs,
+            'pd'     => $pd,
+            'pdSizes' => $pdSizes,
             'brand'  => $item->shop_brand ?: $cat?->manufacturer,
             'shareOn' => (bool) (tenant()->settings['storefront']['share_on'] ?? true), // MARKER-ITEM-SEO
         ], $this->seoMeta($item, $images, $item->shop_brand ?: $cat?->manufacturer));

@@ -54,6 +54,32 @@
   .spg-show .specs .row { display: flex; gap: 18px; padding: 9px 0; border-top: 1px solid color-mix(in srgb, var(--p-text) 5%, transparent); font-size: 13.5px; }
   .spg-show .specs .row:first-of-type { border-top: 0; }
   .spg-show .specs .k { flex: none; width: 42%; opacity: .55; }
+
+  /* MARKER-PRODUCT-DETAILS */
+  .spg-show .szrow { margin: 18px 0 6px; }
+  .spg-show .szlab { font-size: 13.5px; margin-bottom: 8px; }
+  .spg-show .szs { display: grid; grid-template-columns: repeat(auto-fit, minmax(64px, 1fr)); gap: 6px; }
+  .spg-show .sz { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 9px 2px; border: 1.5px solid color-mix(in srgb, var(--p-text) 14%, transparent); border-radius: 10px; text-decoration: none; color: inherit; background: var(--s-card); }
+  .spg-show .sz b { font-size: 15px; }
+  .spg-show .sz span { font-size: 10.5px; opacity: .6; white-space: nowrap; }
+  .spg-show .sz span.in { color: var(--s-ok); opacity: 1; }
+  .spg-show .sz.on { border-color: var(--s-ink, var(--p-text)); box-shadow: inset 0 0 0 1px var(--s-ink, var(--p-text)); }
+  .spg-show .pdx { margin-top: 48px; }
+  .spg-show .pdx-h { font-size: 20px; font-weight: 800; margin: 0 0 18px; }
+  .spg-show .pdx-bar { display: flex; gap: 4px; border-bottom: 1.5px solid color-mix(in srgb, var(--p-text) 9%, transparent); margin-bottom: 24px; overflow-x: auto; scrollbar-width: none; }
+  .spg-show .pdx-tb { font: inherit; font-size: 15px; font-weight: 650; padding: 12px 18px; border: 0; background: none; color: inherit; opacity: .55; cursor: pointer; border-bottom: 2.5px solid transparent; margin-bottom: -1.5px; white-space: nowrap; }
+  .spg-show .pdx-tb.on { opacity: 1; border-bottom-color: var(--s-ink, var(--p-text)); }
+  .spg-show .pdx-cols { columns: 2 300px; column-gap: 48px; }
+  .spg-show .pdx-g { break-inside: avoid; margin: 0 0 18px; }
+  .spg-show .pdx-g h3 { font-size: 11.5px; text-transform: uppercase; letter-spacing: .08em; opacity: .45; font-weight: 700; margin: 0 0 2px; }
+  .spg-show .pdx-g .row { display: flex; gap: 18px; padding: 8px 0; border-bottom: 1px solid color-mix(in srgb, var(--p-text) 6%, transparent); font-size: 13.5px; }
+  .spg-show .pdx-g .k { flex: none; width: 38%; opacity: .55; }
+  .spg-show .pdx-note { font-size: 12.5px; opacity: .55; margin-top: 10px; }
+  .spg-show .pdx-geo { width: 100%; max-width: 760px; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+  .spg-show .pdx-geo th, .spg-show .pdx-geo td { padding: 7px 8px; text-align: right; border-bottom: 1px solid color-mix(in srgb, var(--p-text) 6%, transparent); }
+  .spg-show .pdx-geo td:first-child, .spg-show .pdx-geo th:first-child { text-align: left; padding-left: 0; opacity: .75; }
+  .spg-show .pdx-geo .u { font-size: 11px; opacity: .6; }
+  .spg-show .pdx-geo .on { background: color-mix(in srgb, var(--acc) 14%, transparent); font-weight: 700; opacity: 1; }
   .spg-show .idline { font-size: 12px; opacity: .45; margin-top: 18px; font-family: ui-monospace, monospace; }
 
 </style>
@@ -84,6 +110,18 @@
       @if($brand)<div class="brand">{{ $brand }}</div>@endif
       <h1>{{ $item->name }}</h1>
       @if($item->display_subtitle)<div class="subt">{{ $item->display_subtitle }}</div>@endif
+
+      {{-- MARKER-PRODUCT-DETAILS: the other sizes of this model that are for sale here --}}
+      @if(!empty($pdSizes))
+        <div class="szrow">
+          <div class="szlab"><span>Size: <b>{{ $pd['size'] }}</b></span></div>
+          <div class="szs">
+            @foreach($pdSizes as $z)
+              <a @if($z['href']) href="{{ $z['href'] }}" @endif class="sz{{ $z['current'] ? ' on' : '' }}"><b>{{ $z['size'] }}</b><span class="{{ ($z['stock'] ?? 0) > 0 ? 'in' : '' }}">{{ ($z['stock'] ?? 0) > 0 ? 'In stock' : 'Special order' }}</span></a>
+            @endforeach
+          </div>
+        </div>
+      @endif
 
       {{-- MARKER-SHOP-SEARCH-V2: a was price above the price shows crossed out --}}
       @php $wasC = ($item->compare_at_cents && $item->effectiveSellPriceCents() !== null && $item->compare_at_cents > $item->effectiveSellPriceCents()) ? $item->compare_at_cents : null; @endphp
@@ -161,18 +199,64 @@
 
       @if($item->description)<div class="desc">{{ $item->description }}</div>@endif
 
-      @if(!empty($attrs))
-        <div class="specs">
-          <h2>Specs</h2>
-          @foreach($attrs as $a)
-            <div class="row"><span class="k">{{ $a['name'] }}</span><span>{{ $a['value'] }}</span></div>
-          @endforeach
-        </div>
-      @endif
-
       <div class="idline">{{ $item->sku }}@if($item->catalog_upc) · UPC {{ $item->catalog_upc }}@endif</div>
     </div>
   </div>
+
+  {{-- MARKER-PRODUCT-DETAILS: specs, geometry and sizes in tabs; a tab only when this item has the data --}}
+  @php
+    $pdSpecs = ! empty($pd['specs']);
+    $pdGeo = ! empty($pd['geometry']['rows']);
+    $pdTabs = array_filter(['specs' => $pdSpecs ? 'Specs' : null, 'geometry' => $pdGeo ? 'Geometry' : null]);
+    $pdFirst = array_key_first($pdTabs);
+  @endphp
+  @if($pdTabs)
+  <section class="pdx" id="pdx">
+    @if(count($pdTabs) > 1)
+    <div class="pdx-bar" role="tablist">
+      @foreach($pdTabs as $k => $label)<button type="button" class="pdx-tb{{ $k === $pdFirst ? ' on' : '' }}" data-t="{{ $k }}">{{ $label }}</button>@endforeach
+    </div>
+    @else
+    <h2 class="pdx-h">{{ reset($pdTabs) }}</h2>
+    @endif
+    @if($pdSpecs)
+    <div class="pdx-p" data-p="specs" @if($pdFirst !== 'specs') hidden @endif>
+      <div class="pdx-cols">
+        @foreach($pd['specs'] as $g)
+          <div class="pdx-g">
+            @if($g['group'])<h3>{{ $g['group'] }}</h3>@endif
+            @foreach($g['rows'] as $r)<div class="row"><span class="k">{{ $r['label'] }}</span><span>{{ $r['value'] }}</span></div>@endforeach
+          </div>
+        @endforeach
+      </div>
+      @if(collect($pd['specs'])->pluck('rows')->flatten(1)->contains(fn ($r) => $r['all']))
+        <p class="pdx-note">Parts that change by frame size are shown for this size ({{ $pd['size'] }}).</p>
+      @endif
+    </div>
+    @endif
+    @if($pdGeo)
+    <div class="pdx-p" data-p="geometry" @if($pdFirst !== 'geometry') hidden @endif>
+      <table class="pdx-geo">
+        <tr><th></th>@foreach($pd['geometry']['sizes'] as $z)<th class="{{ (string) $z === (string) $pd['sizeKey'] ? 'on' : '' }}">{{ $z }}</th>@endforeach</tr>
+        @foreach($pd['geometry']['rows'] as $i => $r)
+          <tr><td>{{ $r['label'] }} <span class="u">{{ $r['unit'] }}</span></td>@foreach($pd['geometry']['sizes'] as $z)<td class="{{ (string) $z === (string) $pd['sizeKey'] ? 'on' : '' }}">{{ $r['values'][$z] ?? '' }}</td>@endforeach</tr>
+        @endforeach
+      </table>
+      <p class="pdx-note">Your size, {{ $pd['size'] }}, is highlighted.</p>
+    </div>
+    @endif
+  </section>
+  <script>
+    (function () {
+      var r = document.getElementById('pdx'); if (!r) return;
+      r.addEventListener('click', function (e) {
+        var b = e.target.closest('.pdx-tb'); if (!b) return;
+        r.querySelectorAll('.pdx-tb').forEach(function (x) { x.classList.toggle('on', x === b); });
+        r.querySelectorAll('.pdx-p').forEach(function (p) { p.hidden = p.getAttribute('data-p') !== b.getAttribute('data-t'); });
+      });
+    })();
+  </script>
+  @endif
 
   </div>
 </div>

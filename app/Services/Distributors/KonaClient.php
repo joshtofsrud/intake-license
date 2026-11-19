@@ -265,6 +265,7 @@ class KonaClient implements DistributorAdapter
             'images'           => array_values(array_filter(array_map(fn ($i) => (string) ($i['src'] ?? ''), (array) ($p['images'] ?? [])))),
             'specs'            => $specs,
             'geometry'         => $geo,
+            'geometry_all'     => (array) ($page['geometry'] ?? []),
             'paint_color'      => $this->spec($specs, 'paint color'),
             'url'              => $this->base . '/products/' . ($p['handle'] ?? ''),
             'DateLastModified' => $p['updated_at'] ?? null,

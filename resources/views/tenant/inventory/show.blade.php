@@ -475,26 +475,103 @@
     </div>
     @endif
 
-    {{-- Specs --}}
-    @if($specRows->isNotEmpty() || $catDesc)
-    <div class="ia-card">
+    {{-- Specs. MARKER-PRODUCT-DETAILS: tabs for specs, geometry and the other sizes; each tab only when this item has the data --}}
+    @php $pd = \App\Support\ProductDetails::for($item); $hasSpecs = ! empty($pd['specs']); $hasGeo = ! empty($pd['geometry']['rows']); $hasSizes = ! empty($pd['sizes']); @endphp
+    @if($hasSpecs || $hasGeo || $hasSizes || $catDesc)
+    <div class="ia-card" id="pd-card">
       <div class="ia-card-head">
         <span class="ia-card-title">Specs</span>
         <span style="font-size:12px;color:var(--ia-text-muted);margin-left:8px">from {{ $item->distributorCatalog?->distributor_name ?? 'distributor' }}</span>
       </div>
       <div class="ia-card-body">
-        {{-- MARKER-ITEM-DESC: paragraphs, a bold headline and feature lines kept,
-             instead of one run-together block. Escaped inside DescriptionHtml. --}}
-        @if($catDesc)<div class="ia-desc">{!! \App\Support\DescriptionHtml::render($catDesc) !!}</div>@endif
-        @if($specRows->isNotEmpty())
-          <table class="ia-key-value">
-            @foreach($specRows as $a)
-              <tr><td>{{ $a['Name'] }}</td><td>{{ $a['Value'] }}</td></tr>
+        @if($catDesc)<div class="ia-desc" style="margin-bottom:14px">{!! \App\Support\DescriptionHtml::render($catDesc) !!}</div>@endif
+        @php $tabs = array_filter(['specs' => $hasSpecs ? 'Specs' : null, 'geometry' => $hasGeo ? 'Geometry' : null, 'sizes' => $hasSizes ? 'Sizes' : null]); $firstTab = array_key_first($tabs); @endphp
+        @if($tabs)
+        @if(count($tabs) > 1)
+        <div class="pd-tabs" role="tablist">
+          @foreach($tabs as $k => $label)
+            <button type="button" class="pd-tab{{ $k === $firstTab ? ' is-on' : '' }}" data-pd-tab="{{ $k }}">{{ $label }}</button>
+          @endforeach
+        </div>
+        @endif
+        @if($hasSpecs)
+        <div data-pd-panel="specs" @if($firstTab !== 'specs') hidden @endif>
+          <div class="pd-cols">
+          @foreach($pd['specs'] as $g)
+            <div class="pd-grp">
+              @if($g['group'])<div class="pd-gh">{{ $g['group'] }}</div>@endif
+              <table class="pd-tbl">
+                @foreach($g['rows'] as $r)
+                  <tr><td>{{ $r['label'] }}</td><td>{{ $r['value'] }}@if($r['all'])<div class="pd-all" title="Listed by size">All sizes: {{ $r['all'] }}</div>@endif</td></tr>
+                @endforeach
+              </table>
+            </div>
+          @endforeach
+          </div>
+          @if(collect($pd['specs'])->pluck('rows')->flatten(1)->contains(fn ($r) => $r['all']))
+            <div class="pd-note">Parts listed by size show this item's size ({{ $pd['size'] }}), with every size underneath.</div>
+          @endif
+        </div>
+        @endif
+        @if($hasGeo)
+        <div data-pd-panel="geometry" @if($firstTab !== 'geometry') hidden @endif>
+          <table class="pd-geo">
+            <tr><th></th>@foreach($pd['geometry']['sizes'] as $z)<th class="{{ (string) $z === (string) $pd['sizeKey'] ? 'on' : '' }}">{{ $z }}</th>@endforeach</tr>
+            @foreach($pd['geometry']['rows'] as $r)
+              <tr><td>{{ $r['label'] }} <span class="pd-u">{{ $r['unit'] }}</span></td>@foreach($pd['geometry']['sizes'] as $z)<td class="{{ (string) $z === (string) $pd['sizeKey'] ? 'on' : '' }}">{{ $r['values'][$z] ?? '' }}</td>@endforeach</tr>
             @endforeach
           </table>
+          <div class="pd-note">This item is the {{ $pd['size'] }}, highlighted.</div>
+        </div>
+        @endif
+        @if($hasSizes)
+        <div data-pd-panel="sizes" @if($firstTab !== 'sizes') hidden @endif>
+          <div class="pd-sizes">
+            @foreach($pd['sizes'] as $z)
+              @if($z['current'])
+                <span class="pd-chip on">{{ $z['size'] }}<b>this item · {{ $z['stock'] ?? 0 }}</b></span>
+              @elseif($z['item_id'])
+                <a class="pd-chip{{ ($z['stock'] ?? 0) < 1 ? ' out' : '' }}" href="{{ route('tenant.inventory.show', $z['item_id']) }}">{{ $z['size'] }}<b>{{ (int) $z['stock'] }} in stock</b></a>
+              @else
+                <span class="pd-chip none">{{ $z['size'] }}<b>not in inventory</b></span>
+              @endif
+            @endforeach
+          </div>
+          <div class="pd-note">The other sizes of this model and what you have of each.</div>
+        </div>
+        @endif
         @endif
       </div>
     </div>
+    <style>
+      .pd-tabs{display:flex;gap:4px;border-bottom:.5px solid var(--ia-border);margin:0 0 14px}
+      .pd-tab{background:none;border:0;border-bottom:2px solid transparent;color:var(--ia-text-muted);font:inherit;font-size:13px;padding:7px 10px;cursor:pointer;margin-bottom:-.5px}
+      .pd-tab.is-on{color:var(--ia-text);border-bottom-color:var(--ia-accent)}
+      .pd-cols{columns:2 280px;column-gap:28px}
+      .pd-grp{break-inside:avoid;margin:0 0 16px}
+      .pd-gh{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ia-text-dim);font-weight:600;margin:0 0 4px}
+      .pd-tbl{width:100%;border-collapse:collapse;font-size:13px}
+      .pd-tbl td{padding:5px 0;border-bottom:.5px solid var(--ia-border);vertical-align:top}
+      .pd-tbl td:first-child{color:var(--ia-text-muted);width:118px;padding-right:10px}
+      .pd-all,.pd-note{font-size:11.5px;color:var(--ia-text-dim);margin-top:2px;line-height:1.5}
+      .pd-note{margin-top:10px}
+      .pd-geo{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+      .pd-geo th,.pd-geo td{padding:6px 8px;border-bottom:.5px solid var(--ia-border);text-align:right}
+      .pd-geo th{font-size:12px;color:var(--ia-text-muted);font-weight:600}
+      .pd-geo td:first-child,.pd-geo th:first-child{text-align:left;color:var(--ia-text-muted);padding-left:0}
+      .pd-geo .on{background:var(--ia-hover);color:var(--ia-text);font-weight:600}
+      .pd-u{font-size:11px;color:var(--ia-text-dim)}
+      .pd-sizes{display:flex;flex-wrap:wrap;gap:6px}
+      .pd-chip{display:inline-flex;flex-direction:column;gap:1px;padding:6px 11px;border-radius:8px;border:.5px solid var(--ia-border-strong);font-size:13px;font-weight:600;color:var(--ia-text);text-decoration:none;min-width:64px}
+      .pd-chip b{font-size:11px;font-weight:500;color:var(--ia-text-muted)}
+      .pd-chip.on{border-color:var(--ia-accent);box-shadow:inset 0 0 0 1px var(--ia-accent)}
+      .pd-chip.out b{color:#e0a458}
+      .pd-chip.none{border-style:dashed;color:var(--ia-text-muted)}
+      a.pd-chip:hover{background:var(--ia-hover)}
+    </style>
+    <script>
+      (function(){var c=document.getElementById('pd-card');if(!c)return;c.addEventListener('click',function(e){var b=e.target.closest('[data-pd-tab]');if(!b)return;var t=b.getAttribute('data-pd-tab');c.querySelectorAll('[data-pd-tab]').forEach(function(x){x.classList.toggle('is-on',x===b)});c.querySelectorAll('[data-pd-panel]').forEach(function(p){p.hidden=p.getAttribute('data-pd-panel')!==t});});})();
+    </script>
     @endif
 
     {{-- Pricing & catalog (consolidated: catalog / yours / effective) --}}
