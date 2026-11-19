@@ -1427,10 +1427,6 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::post('/import/one',        [TenantControllers\DistributorController::class, 'importOne'])->middleware('throttle:120,1')->name('import.one');
                 Route::get('/connection',         [TenantControllers\DistributorController::class, 'connection'])->name('connection');
                 Route::post('/connection/key',    [TenantControllers\DistributorController::class, 'saveKey'])->name('connection.key');
-                // MARKER-BRAND-STOCK: a brand-direct supplier's stock file (upload, FTP folder, fetch now)
-                Route::post('/connection/stock',       [TenantControllers\DistributorController::class, 'stockUpload'])->name('connection.stock');
-                Route::post('/connection/stock/ftp',   [TenantControllers\DistributorController::class, 'stockFtpSave'])->name('connection.stock.ftp');
-                Route::post('/connection/stock/fetch', [TenantControllers\DistributorController::class, 'stockFetch'])->name('connection.stock.fetch');
                 Route::post('/connection/toggle', [TenantControllers\DistributorController::class, 'toggleDistributor'])->name('connection.toggle');
                 // its own route so a reorder never
                 // travels through the credential form, where a blank field

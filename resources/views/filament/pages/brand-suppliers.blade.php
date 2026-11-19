@@ -205,7 +205,9 @@
   @php $shops = $this->shops(); @endphp
   <div class="bs-sec">
     <div class="bs-sh">
-      <div><h2>Shops</h2><p>Only shops with distributor import are listed. Switch on the ones that are {{ $label }} dealers; each switch saves straight away.</p></div>
+      <div><h2>Shops</h2><p>Only shops with distributor import are listed. Switch on the ones that are {{ $label }} dealers; each switch saves straight away
+        and connects the shop: it can import from {{ $label }} at once, with nothing to set up. Each dealer's cost and {{ $label }}'s stock come from that dealer's
+        stock file, loaded here (upload, or an FTP folder fetched every night at 06:10). Shops never see or manage the file.</p></div>
       <input type="search" class="bs-in" style="width:240px" wire:model.live.debounce.300ms="shopSearch" placeholder="Find a shop">
     </div>
     @if (! $shops)
@@ -218,13 +220,56 @@
       </div>
     @else
       <table class="bs-tbl">
-        <tr><th>Shop</th><th>{{ $label }}</th><th>Since</th></tr>
+        <tr><th>Shop</th><th>{{ $label }}</th><th>Since</th><th>Cost &amp; stock file</th><th></th></tr>
         @foreach ($shops as $s)
+          @php $sf = $s['file']; @endphp
           <tr wire:key="shop-{{ $s['id'] }}">
             <td>{{ $s['name'] }}</td>
             <td><label class="bs-sw"><input type="checkbox" @checked($s['on']) @disabled($ro) wire:click="toggleShop('{{ $s['id'] }}')" aria-label="{{ $label }} for {{ $s['name'] }}"><i></i></label></td>
             <td class="bs-dim">{{ $s['since'] ?? '—' }}</td>
+            <td>
+              @if (! $s['on'])
+                <span class="bs-faint">Switch on first</span>
+              @elseif ($sf && $sf->loaded_at)
+                {{ $sf->file_name }} <span class="bs-dim">· {{ number_format($sf->row_count) }} rows · {{ number_format($sf->check['matched'] ?? 0) }} in catalog · {{ \Carbon\Carbon::parse($sf->loaded_at)->diffForHumans() }} ({{ $sf->source === 'ftp' ? 'FTP' : 'upload' }})</span>
+              @else
+                <span class="bs-dim">No file yet: their {{ $label }} items have no cost or stock</span>
+              @endif
+              @if ($s['on'] && $sf && $sf->last_error)
+                <div style="color:#dc2626;font-size:12px;margin-top:2px">Last attempt failed: {{ $sf->last_error }}. The file already loaded is still in use.</div>
+              @endif
+            </td>
+            <td style="white-space:nowrap;text-align:right">
+              @if ($s['on'] && ! $ro)
+                <label class="bs-btn g" style="cursor:pointer;display:inline-block">
+                  <span wire:loading.remove wire:target="shopFiles.{{ $s['id'] }}">Upload file</span>
+                  <span wire:loading wire:target="shopFiles.{{ $s['id'] }}">Loading…</span>
+                  <input type="file" accept=".xlsx,.csv,.txt" style="display:none" wire:model="shopFiles.{{ $s['id'] }}">
+                </label>
+                <button type="button" class="bs-btn g" wire:click="editFtp('{{ $s['id'] }}')">FTP folder</button>
+                @if ($s['ftp'])
+                  <button type="button" class="bs-btn g" wire:click="fetchStock('{{ $s['id'] }}')" wire:loading.attr="disabled" wire:target="fetchStock('{{ $s['id'] }}')">
+                    <span wire:loading.remove wire:target="fetchStock('{{ $s['id'] }}')">Fetch now</span><span wire:loading wire:target="fetchStock('{{ $s['id'] }}')">Fetching…</span>
+                  </button>
+                @endif
+              @endif
+            </td>
           </tr>
+          @if ($ftpFor === $s['id'])
+            <tr wire:key="ftp-{{ $s['id'] }}">
+              <td colspan="5" style="background:var(--vsoft)">
+                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+                  <label class="bs-faint">Host<br><input type="text" class="bs-in" wire:model="ftp.host" placeholder="ftp.example.com" autocomplete="off"></label>
+                  <label class="bs-faint">User<br><input type="text" class="bs-in" wire:model="ftp.user" autocomplete="off"></label>
+                  <label class="bs-faint">Password<br><input type="password" class="bs-in" wire:model="ftp.password" autocomplete="new-password" placeholder="blank keeps the saved one"></label>
+                  <label class="bs-faint">Folder<br><input type="text" class="bs-in" wire:model="ftp.folder" placeholder="blank for the top folder" autocomplete="off"></label>
+                  <button type="button" class="bs-btn" wire:click="saveFtp">Save</button>
+                  <button type="button" class="bs-btn g" wire:click="closeFtp">Close</button>
+                </div>
+                <div class="bs-faint" style="margin-top:6px">The newest .xlsx, .csv or .txt in the folder is loaded. Stored encrypted.</div>
+              </td>
+            </tr>
+          @endif
         @endforeach
       </table>
     @endif

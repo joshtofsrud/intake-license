@@ -52,6 +52,11 @@ class BrandSuppliers extends Page
     public $stockFile = null;
     public ?array $check = null;
     public string $checkName = '';
+    /** MARKER-BRAND-STOCK: a shop's stock file, keyed by tenant id */
+    public array $shopFiles = [];
+    /** the shop whose FTP folder is open for editing, and its fields */
+    public ?string $ftpFor = null;
+    public array $ftp = ['host' => '', 'user' => '', 'password' => '', 'folder' => ''];
 
     public function mount(): void
     {
@@ -326,6 +331,8 @@ class BrandSuppliers extends Page
             ->map(fn (Tenant $t) => [
                 'id' => (string) $t->id, 'name' => (string) $t->name,
                 'on' => isset($on[(string) $t->id]),
+                'file' => isset($on[(string) $t->id]) ? \App\Services\Distributors\BrandStockStore::file((string) $t->id, $this->code) : null,
+                'ftp' => isset($on[(string) $t->id]) && ($sub = $this->shopSub((string) $t->id, false)) ? \App\Services\Distributors\BrandStockLoader::ftp($sub) !== null : false,
                 'since' => isset($on[(string) $t->id]) ? \Carbon\Carbon::parse($on[(string) $t->id])->format('M j, Y') : null,
             ])
             ->sortByDesc('on')->values()->all();
@@ -346,14 +353,127 @@ class BrandSuppliers extends Page
         $on = ! isset(BrandDirect::shopsFor($this->code)[$tenantId]);
         $by = Auth::guard('web')->user()?->email;
         BrandDirect::set($tenantId, $this->code, $on, $by);
+        // switching a shop on is what connects it: its feed is on, nothing for the shop to do
+        $sub = $this->shopSub($tenantId);
+        $creds = (array) ($sub->credentials_encrypted ?? []);
+        if ($on) {
+            $creds['api_key'] = DistributorRegistry::PLATFORM_MARK;
+            $creds['region'] = $creds['region'] ?? 'us';
+        }
+        $sub->credentials_encrypted = $creds;
+        $sub->is_active = $on;
+        $sub->save();
 
         $ready = BrandDirect::shopSideReady($this->code);
         Notification::make()->success()
             ->title($this->label() . ($on ? ' switched on for ' : ' switched off for ') . $t->name)
             ->body($on
-                ? ($ready ? 'They see it on their Distributors page now.' : 'They will see it once the shop side of ' . $this->label() . ' ships.')
+                ? ($ready ? 'They can import from it now. Load their stock file in their row for their cost and stock.' : 'They will see it once the shop side of ' . $this->label() . ' ships.')
                 : 'Their box and new imports are hidden. Items they already have stay.')
             ->send();
+    }
+
+    // ------------------------------------- MARKER-BRAND-STOCK: each shop's stock file
+
+    private function shopSub(string $tenantId, bool $create = true): ?\App\Models\Tenant\TenantDistributorCatalogSubscription
+    {
+        $key = ['tenant_id' => $tenantId, 'distributor_code' => $this->code];
+        return $create
+            ? \App\Models\Tenant\TenantDistributorCatalogSubscription::firstOrCreate($key, ['is_active' => false, 'price_seed' => 'msrp'])
+            : \App\Models\Tenant\TenantDistributorCatalogSubscription::where($key)->first();
+    }
+
+    private function afterLoad(string $tenantId): void
+    {
+        // costs and stock reach the shop's linked items through its usual sync
+        $sub = $this->shopSub($tenantId, false);
+        if ($sub && $sub->is_active) {
+            $runId = (string) \Illuminate\Support\Str::uuid();
+            \App\Support\DistributorSyncProgress::queued($tenantId, $runId, $this->code);
+            \App\Jobs\RunTenantDistributorSyncJob::dispatch($tenantId, false, 'stock_file', $runId, $this->code);
+        }
+    }
+
+    public function updatedShopFiles($file, $tenantId): void
+    {
+        abort_unless($this->canEdit(), 403);
+        $t = Tenant::find($tenantId);
+        if (! $t || ! isset(BrandDirect::shopsFor($this->code)[(string) $tenantId]) || ! $file) {
+            unset($this->shopFiles[$tenantId]);
+            return;
+        }
+        $name = (string) $file->getClientOriginalName();
+        try {
+            if (! in_array(strtolower(pathinfo($name, PATHINFO_EXTENSION)), ['xlsx', 'csv', 'txt'], true)) {
+                throw new \RuntimeException('Use the .xlsx or .csv file as ' . $this->label() . ' sends it.');
+            }
+            $r = \App\Services\Distributors\BrandStockLoader::load((string) $tenantId, $this->code, $file->getRealPath(), $name, 'upload');
+        } catch (\Throwable $e) {
+            \App\Services\Distributors\BrandStockStore::failed((string) $tenantId, $this->code, $e->getMessage());
+            Notification::make()->danger()->title('Not loaded for ' . $t->name)->body($e->getMessage())->send();
+            unset($this->shopFiles[$tenantId]);
+            return;
+        }
+        unset($this->shopFiles[$tenantId]);
+        $this->afterLoad((string) $tenantId);
+        Notification::make()->success()->title('Stock file loaded for ' . $t->name)
+            ->body(number_format($r['rows']) . ' rows, ' . number_format($r['check']['matched']) . ' in the catalog. Their items are being updated.')->send();
+    }
+
+    public function editFtp(string $tenantId): void
+    {
+        abort_unless($this->canEdit(), 403);
+        $f = (array) (((array) ($this->shopSub($tenantId)->credentials_encrypted ?? []))['stock_ftp'] ?? []);
+        $this->ftpFor = $tenantId;
+        $this->ftp = ['host' => (string) ($f['host'] ?? ''), 'user' => (string) ($f['user'] ?? ''), 'password' => '', 'folder' => (string) ($f['folder'] ?? '')];
+    }
+
+    public function closeFtp(): void
+    {
+        $this->ftpFor = null;
+    }
+
+    /** A blank password keeps the saved one. */
+    public function saveFtp(): void
+    {
+        abort_unless($this->canEdit(), 403);
+        if (! $this->ftpFor) {
+            return;
+        }
+        $this->validate(['ftp.host' => ['nullable', 'string', 'max:190'], 'ftp.user' => ['nullable', 'string', 'max:128'],
+            'ftp.password' => ['nullable', 'string', 'max:255'], 'ftp.folder' => ['nullable', 'string', 'max:190']]);
+        $sub = $this->shopSub($this->ftpFor);
+        $creds = (array) ($sub->credentials_encrypted ?? []);
+        $old = (array) ($creds['stock_ftp'] ?? []);
+        $creds['stock_ftp'] = [
+            'host' => trim((string) $this->ftp['host']), 'user' => trim((string) $this->ftp['user']),
+            'password' => trim((string) $this->ftp['password']) ?: (string) ($old['password'] ?? ''),
+            'folder' => trim((string) $this->ftp['folder']),
+        ];
+        $sub->credentials_encrypted = $creds;
+        $sub->save();
+        $this->ftp['password'] = '';
+        Notification::make()->success()->title('FTP folder saved')->body('Fetched every night at 06:10. Use Fetch now to try it.')->send();
+    }
+
+    public function fetchStock(string $tenantId): void
+    {
+        abort_unless($this->canEdit(), 403);
+        $sub = $this->shopSub($tenantId, false);
+        $name = (string) Tenant::find($tenantId)?->name;
+        try {
+            $r = $sub ? \App\Services\Distributors\BrandStockLoader::fetch($sub) : throw new \RuntimeException('Add the FTP folder first.');
+        } catch (\Throwable $e) {
+            \App\Services\Distributors\BrandStockStore::failed($tenantId, $this->code, $e->getMessage());
+            Notification::make()->danger()->title('Fetch failed for ' . $name)->body($e->getMessage())->send();
+            return;
+        }
+        if ($r === null) {
+            Notification::make()->success()->title('Nothing new for ' . $name)->body('The newest file in the folder is the one already loaded.')->send();
+            return;
+        }
+        $this->afterLoad($tenantId);
+        Notification::make()->success()->title('Loaded ' . $r['file'] . ' for ' . $name)->body(number_format($r['rows']) . ' rows. Their items are being updated.')->send();
     }
 
     public function shopSideReady(): bool

@@ -74,6 +74,9 @@
     <div class="dc-card" data-sync-scope>
       <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap">
         <div style="display:flex;align-items:center;gap:12px">
+          @if (! empty($b['managed']))
+            <span class="dc-toggle {{ $b['enabled'] ? 'on' : '' }}" style="cursor:default" title="Switched on by Intake"><span></span></span>
+          @else
           <form method="POST" action="{{ route('tenant.distributors.connection.toggle') }}">
             @csrf
             <input type="hidden" name="code" value="{{ $b['code'] }}">
@@ -81,10 +84,13 @@
             <button type="submit" class="dc-toggle {{ $b['enabled'] ? 'on' : '' }}"
                     title="{{ $b['enabled'] ? 'Turn off' : 'Turn on' }}"><span></span></button>
           </form>
+          @endif
           <div>
             <h2 class="dc-h" style="margin:0">{{ $b['label'] }}</h2>
             <p class="dc-sub" style="margin-bottom:0">
-              @if($b['enabled'])
+              @if (! empty($b['managed']))
+                {{ $b['enabled'] ? 'Switched on for your shop by Intake.' : 'Off. Intake switches this on for its dealers.' }}
+              @elseif($b['enabled'])
                 Stored encrypted. Used only for your shop's cost &amp; availability.
               @else
                 Turn on to import from the {{ $b['label'] }} catalog and add your account key.
@@ -245,7 +251,7 @@
         </div>
       @endif
 
-      @if (! empty($b['stock']))
+      @if (! empty($b['managed']))
         @include('tenant.distributors._stock-file')
       @endif
 
@@ -254,7 +260,7 @@
         <input type="hidden" name="distributor_code" value="{{ $b['code'] }}">
 
         <div class="dc-row">
-          @if (! empty($b['platformSupplied']) && empty($b['stock']))
+          @if (! empty($b['platformSupplied']) && empty($b['managed']))
             <div class="dc-field" style="min-width:280px">
               <div style="font-size:12.5px;line-height:1.55;color:var(--ia-text-dim)">
                 Intake holds the {{ $b['label'] }} login for every shop, so there is
@@ -275,12 +281,14 @@
                      placeholder="{{ $b['hints'][$f['name']] ?? ('paste your ' . $b['label'] . ' ' . strtolower($f['label'])) }}">
             </div>
           @endforeach
+          @if (empty($b['managed']))
           <div class="dc-field" style="max-width:180px">
             <label>Account #</label>
             <input class="dc-input" type="text" name="account_number"
                    value="{{ $b['sub']->account_number }}"
                    placeholder="{{ strtoupper($b['code']) === 'JBI' ? 'needed for live stock' : 'optional' }}">
           </div>
+          @endif
         </div>
 
         {{-- which vendor is this distributor --}}
@@ -310,7 +318,7 @@
           </div>
         </div>
 
-        @if ($b['hasKey'])
+        @if ($b['hasKey'] && empty($b['managed']))
           <div style="font-size:11.5px;color:var(--ia-text-dim);margin-bottom:10px">
             Leave a field blank to keep the value already saved for it.
           </div>
@@ -320,9 +328,11 @@
              reads as a hung page. Say what's happening and why. --}}
         <div style="display:flex;gap:10px;margin-top:4px;flex-wrap:wrap;align-items:center">
           <button class="dc-btn primary" type="submit" data-dc-save>Save</button>
+          @if (empty($b['managed']))
           <button class="dc-btn" type="submit" data-dc-test
                   data-dc-slow="{{ strtoupper($b['code']) === 'BTI' ? '1' : '0' }}"
                   formaction="{{ route('tenant.distributors.connection.test') }}">Test connection</button>
+          @endif
           @if ($b['enabled'] && $b['hasKey'])
             {{-- this distributor only: cost, stock and warehouses for linked items --}}
             <button class="dc-btn" type="submit" data-sync-start data-sync-title="Refreshing {{ $b['label'] }}"

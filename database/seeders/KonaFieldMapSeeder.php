@@ -53,7 +53,8 @@ class KonaFieldMapSeeder extends Seeder
             // money: the store shows retail. Dealer cost comes from each shop's stock file.
             ['msrp_cents', 'retail', 'direct', ['cast' => 'cents'], null, 'retail price on Kona\'s store'],
 
-            ['is_sellable', 'available', 'bool', null, null, 'available on Kona\'s store'],
+            // no is_sellable: "available" on the brand's own web store means it has stock
+            // to sell to the public, not whether a dealer can order it
         ];
 
         $now = now();
