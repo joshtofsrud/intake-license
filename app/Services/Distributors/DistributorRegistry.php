@@ -39,7 +39,9 @@ class DistributorRegistry
     /** The adapter class for a code, or null. */
     public function adapterClass(string $code): ?string
     {
-        return self::ADAPTERS[strtoupper($code)] ?? null;
+        // MARKER-BRAND-BUILDER: a brand added from master admin is read by the general store reader
+        return self::ADAPTERS[strtoupper($code)]
+            ?? (\App\Support\BrandSources::get($code) ? StoreSiteClient::class : null);
     }
 
     /**
@@ -192,7 +194,7 @@ class DistributorRegistry
             'SHIMANO' => 'Shimano',
             'JBI' => 'J&B (JBI)',
             'KONA' => 'Kona',
-            default => strtoupper($code),
+            default => (string) (\App\Support\BrandSources::get($code)->label ?? strtoupper($code)),
         };
     }
 
@@ -321,12 +323,18 @@ class DistributorRegistry
     /** @return array<int,string> supported distributor codes */
     public function supported(): array
     {
-        return array_keys(self::ADAPTERS);
+        return array_values(array_unique(array_merge(array_keys(self::ADAPTERS), array_keys(\App\Support\BrandSources::all()))));
     }
 
     public function isSupported(string $code): bool
     {
-        return isset(self::ADAPTERS[strtoupper($code)]);
+        return isset(self::ADAPTERS[strtoupper($code)]) || \App\Support\BrandSources::get($code) !== null;
+    }
+
+    /** Whether a code is already taken, by a built-in distributor or an added brand. */
+    public function taken(string $code): bool
+    {
+        return $this->isSupported($code);
     }
 
     /**
@@ -337,7 +345,7 @@ class DistributorRegistry
     public function make(string $code, array $credentials): DistributorAdapter
     {
         $code = strtoupper($code);
-        $class = self::ADAPTERS[$code] ?? null;
+        $class = $this->adapterClass($code);
 
         if ($class === null) {
             throw new InvalidArgumentException("No distributor adapter registered for code [{$code}].");
@@ -357,6 +365,9 @@ class DistributorRegistry
         // Every current adapter shares the (apiKey, region) constructor shape.
         // If a future distributor needs a different signature, branch here.
         $adapter = new $class($apiKey, $region);
+        if (method_exists($adapter, 'forCode')) {
+            $adapter->forCode($code);
+        }
 
         // shop-level settings that are not credentials (JBI: the account
         // number on the subscription and the shop's closeout switch)

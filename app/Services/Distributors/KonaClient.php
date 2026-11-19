@@ -86,6 +86,16 @@ class KonaClient implements DistributorAdapter
 
     public function code(): string { return self::CODE; }
 
+    /** The cache keys this reader uses, by name, as every brand reader offers them. */
+    public static function key(string $what, ?string $code = null): string
+    {
+        return match ($what) {
+            'progress' => self::PROGRESS_KEY, 'pages' => self::PAGES_KEY,
+            'recent' => self::RECENT_KEY, 'stop' => self::STOP_KEY,
+            default => 'kona.' . $what,
+        };
+    }
+
     public function name(): string { return 'Kona'; }
 
     /** No login: the catalog is public. */

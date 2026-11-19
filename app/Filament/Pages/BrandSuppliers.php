@@ -37,6 +37,7 @@ class BrandSuppliers extends Page
     protected static ?string $slug            = 'brand-suppliers';
     protected static string  $view            = 'filament.pages.brand-suppliers';
 
+    #[\Livewire\Attributes\Url]
     public string $code = '';
     public string $shopSearch = '';
     public string $previewSearch = '';
@@ -67,7 +68,8 @@ class BrandSuppliers extends Page
     public function mount(): void
     {
         $codes = $this->codes();
-        $this->code = $codes[0] ?? '';
+        // a brand named in the address (after Add a brand) opens straight away
+        $this->code = in_array(strtoupper($this->code), $codes, true) ? strtoupper($this->code) : ($codes[0] ?? '');
         $this->loadPace();
         $this->loadKinds();
     }
@@ -110,7 +112,7 @@ class BrandSuppliers extends Page
     private function currentHandles(): ?array
     {
         $class = $this->adapter();
-        return $class && method_exists($class, 'currentHandles') ? $class::currentHandles() : null;
+        return $class && method_exists($class, 'currentHandles') ? $class::currentHandles($this->code) : null;
     }
 
     /** The header's numbers, shown on every tab. */
@@ -161,10 +163,17 @@ class BrandSuppliers extends Page
         return app(DistributorRegistry::class)->adapterClass($this->code);
     }
 
+    /** A brand reader's cache key ('progress', 'pages', 'recent', 'stop'), or null when it keeps none. */
+    private function readerKey(string $what): ?string
+    {
+        $class = $this->adapter();
+        return $class && method_exists($class, 'key') ? $class::key($what, $this->code) : null;
+    }
+
     private function loadPace(): void
     {
         $class = $this->adapter();
-        $this->pace = $class && method_exists($class, 'pace') ? array_map('strval', $class::pace()) : [];
+        $this->pace = $class && method_exists($class, 'pace') ? array_map('strval', $class::pace($this->code)) : [];
     }
 
     private function loadKinds(): void
@@ -187,7 +196,7 @@ class BrandSuppliers extends Page
             return [];
         }
         $mine = array_map('mb_strtolower', \App\Support\BrandKinds::for($this->code));
-        return array_slice(array_filter($class::tagCounts(), fn ($n, $t) => ! in_array(mb_strtolower((string) $t), $mine, true), ARRAY_FILTER_USE_BOTH), 0, 40, true);
+        return array_slice(array_filter($class::tagCounts($this->code), fn ($n, $t) => ! in_array(mb_strtolower((string) $t), $mine, true), ARRAY_FILTER_USE_BOTH), 0, 40, true);
     }
 
     public function saveKinds(): void
@@ -229,13 +238,13 @@ class BrandSuppliers extends Page
     public function pagesStatus(): ?array
     {
         $class = $this->adapter();
-        if (! $class || ! defined($class . '::PAGES_KEY')) {
+        if (! $class || ! ($pk = $this->readerKey('pages'))) {
             return null;
         }
-        $st = (array) Cache::get($class::PAGES_KEY);
+        $st = (array) Cache::get($pk);
         // counted live from what has been read, not left over from the last finished read
         if (method_exists($class, 'currentHandles')) {
-            $st['have'] = count($class::currentHandles());
+            $st['have'] = count($class::currentHandles($this->code));
             $st['of'] = max((int) ($st['of'] ?? 0), (int) $st['have']);
         }
         $gap = (int) ($this->pace['page_gap_s'] ?? 0) + 4; // the gap, plus the bike's two requests and the pause between them
@@ -296,7 +305,7 @@ class BrandSuppliers extends Page
 
         $queuedAt = Cache::get('brand_suppliers.queued.' . $code);
         $class = app(DistributorRegistry::class)->adapterClass($code);
-        $prog = $class && defined($class . '::PROGRESS_KEY') ? Cache::get($class::PROGRESS_KEY) : null;
+        $prog = ($pk = $this->readerKey('progress')) ? Cache::get($pk) : null;
 
         $lastRun = $state?->last_run_at ? \Carbon\Carbon::parse($state->last_run_at, 'UTC') : null;
         // the run log is the truth: a read marks itself running when it
@@ -385,15 +394,15 @@ class BrandSuppliers extends Page
     private function stopKey(): ?string
     {
         $class = app(DistributorRegistry::class)->adapterClass($this->code);
-        return $class && defined($class . '::STOP_KEY') ? $class::STOP_KEY : null;
+        return $this->readerKey('stop');
     }
 
     /** A new read starts with a clean progress note, not the last one's. */
     private function clearProgress(): void
     {
         $class = app(DistributorRegistry::class)->adapterClass($this->code);
-        if ($class && defined($class . '::PROGRESS_KEY')) {
-            Cache::forget($class::PROGRESS_KEY);
+        if ($pk = $this->readerKey('progress')) {
+            Cache::forget($pk);
         }
     }
 
@@ -436,7 +445,16 @@ class BrandSuppliers extends Page
 
     public function exampleUrl(): string
     {
-        return rtrim((string) config('distributors.' . strtolower($this->code) . '.base_url', ''), '/') . '/products/rove-al-b37-gn';
+        // a real product of this brand as the example, not one brand's product written into the page
+        $h = DB::table('platform_distributor_catalogs')->where('distributor_code', $this->code)->whereNotNull('distributor_product_no')->value('distributor_product_no');
+        return $this->baseUrl() . '/products/' . ($h ?: 'product-name');
+    }
+
+    /** The brand's store address: an added brand's own setting, else the built-in reader's config. */
+    public function baseUrl(): string
+    {
+        $src = \App\Support\BrandSources::get($this->code);
+        return rtrim((string) ($src->base_url ?? config('distributors.' . strtolower($this->code) . '.base_url', '')), '/');
     }
 
     // -------------------------------------------------------------- shops
@@ -759,7 +777,7 @@ class BrandSuppliers extends Page
         $raw = null;
         $class = $this->adapter();
         if ($class && method_exists($class, 'storedEntry') && $row->distributor_product_no) {
-            $raw = $class::storedEntry((string) $row->distributor_product_no);
+            $raw = $class::storedEntry((string) $row->distributor_product_no, $this->code);
         }
         $catalog = [];
         foreach (['distributor_variant_no' => 'Part number', 'distributor_product_no' => 'Product', 'display_name' => 'Title',
@@ -802,7 +820,7 @@ class BrandSuppliers extends Page
     public function recentReads(): array
     {
         $class = $this->adapter();
-        return $class && defined($class . '::RECENT_KEY') ? (array) Cache::get($class::RECENT_KEY, []) : [];
+        return ($rk = $this->readerKey('recent')) ? (array) Cache::get($rk, []) : [];
     }
 
     public function fieldMapsUrl(): string

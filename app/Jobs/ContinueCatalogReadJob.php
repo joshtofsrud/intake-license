@@ -27,7 +27,7 @@ class ContinueCatalogReadJob implements ShouldQueue
     {
         $code = strtoupper($this->distributorCode);
         $class = $registry->adapterClass($code);
-        if ($class && defined($class . '::STOP_KEY') && Cache::get($class::STOP_KEY)) {
+        if ($class && method_exists($class, 'key') && Cache::get($class::key('stop', $code))) {
             return;
         }
         Cache::put('brand_suppliers.queued.' . $code, now()->timestamp, now()->addHour());

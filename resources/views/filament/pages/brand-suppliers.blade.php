@@ -86,7 +86,7 @@
     <div class="bs-empty">
       No distributor is marked brand-direct yet. Mark one on
       <a href="{{ \App\Filament\Pages\Distributors::getUrl() }}" style="color:var(--vtext)">Distributors</a>
-      (Brand-direct, dealers only) and it appears here.
+      (Brand-direct, dealers only) and it appears here, or <a href="{{ \App\Filament\Pages\AddBrand::getUrl() }}" style="color:var(--vtext)">add a brand from its website</a>.
     </div>
   @else
   @php
@@ -100,7 +100,7 @@
     @foreach ($this->brandRows() as $b)
       <button type="button" class="bs-pill {{ $b['code'] === $code ? 'on' : '' }}" wire:click="$set('code', '{{ $b['code'] }}')">{{ $b['label'] }}</button>
     @endforeach
-    <a class="bs-pill add" href="{{ \App\Filament\Pages\Distributors::getUrl() }}" title="A brand's reader is built first, then it is switched to Brand-direct on Distributors and appears here, off for every shop">+ Add a brand</a>
+    @unless ($ro)<a class="bs-pill add" href="{{ \App\Filament\Pages\AddBrand::getUrl() }}">+ Add a brand</a>@endunless
   </div>
 
   <div class="bs-head" @if ($cat['live']) wire:poll.5s @endif>
@@ -110,7 +110,7 @@
         @elseif ($hs['shops'] === 0)<span class="bs-chip" style="vertical-align:4px">No shops on</span>
         @else<span class="bs-chip ok" style="vertical-align:4px">Live</span>@endif
       </h2>
-      <div class="bs-dim" style="margin-top:4px;font-size:13px">Catalog from {{ parse_url((string) config('distributors.' . strtolower($code) . '.base_url'), PHP_URL_HOST) ?: $label . "'s store" }} · cost and stock from {{ $label }}'s {{ \App\Services\Distributors\BrandStockFile::exportName($code) }}</div>
+      <div class="bs-dim" style="margin-top:4px;font-size:13px">Catalog from {{ parse_url($this->baseUrl(), PHP_URL_HOST) ?: $label . "'s store" }} · cost and stock from {{ $label }}'s {{ \App\Services\Distributors\BrandStockFile::exportName($code) }}</div>
     </div>
     <div class="bs-hstats">
       <div><div class="k">Products</div><div class="v">{{ number_format($hs['products']) }}</div><div class="d">{{ number_format($hs['parts']) }} part numbers</div></div>
@@ -499,7 +499,7 @@
                     @php $rp = $raw['product']; @endphp
                     <table class="bs-tbl">
                       <tr><td class="bs-faint" style="width:110px">Title</td><td>{{ $rp['title'] ?? '' }}</td></tr>
-                      <tr><td class="bs-faint">Address</td><td><a href="{{ rtrim((string) config('distributors.' . strtolower($code) . '.base_url'), '/') . '/products/' . ($rp['handle'] ?? '') }}" target="_blank" rel="noopener" style="color:var(--vtext)">{{ $rp['handle'] ?? '' }}</a></td></tr>
+                      <tr><td class="bs-faint">Address</td><td><a href="{{ $this->baseUrl() . '/products/' . ($rp['handle'] ?? '') }}" target="_blank" rel="noopener" style="color:var(--vtext)">{{ $rp['handle'] ?? '' }}</a></td></tr>
                       <tr><td class="bs-faint">Vendor</td><td>{{ $rp['vendor'] ?? '' }}</td></tr>
                       <tr><td class="bs-faint">Type</td><td>{{ $rp['product_type'] ?? '' }}</td></tr>
                       <tr><td class="bs-faint">Tags</td><td>{{ implode(', ', (array) ($rp['tags'] ?? [])) }}</td></tr>
