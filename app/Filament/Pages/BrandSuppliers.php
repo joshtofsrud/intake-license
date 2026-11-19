@@ -111,9 +111,16 @@ class BrandSuppliers extends Page
         $prog = $class && defined($class . '::PROGRESS_KEY') ? Cache::get($class::PROGRESS_KEY) : null;
 
         $lastRun = $state?->last_run_at ? \Carbon\Carbon::parse($state->last_run_at, 'UTC') : null;
-        $running = ($state?->last_status === 'running' && $lastRun && $lastRun->gt(now()->subMinutes(15)))
-            || ($prog && ($prog['phase'] ?? '') !== 'done' && ($prog['at'] ?? 0) > now()->subMinutes(7)->timestamp);
-        $queued = ! $running && $queuedAt && (! $lastRun || $lastRun->timestamp < $queuedAt);
+        // the run log is the truth: a read marks itself running when it
+        // starts and records ok/partial/failed when it ends, however it ends.
+        // The progress note only says what a running read is doing; it is
+        // left behind when a read fails, so it must never decide "running".
+        // 45 minutes covers the longest read (every product page); a worker
+        // killed mid-read leaves "running", which this lets go of.
+        $running = $state?->last_status === 'running' && $lastRun && $lastRun->gt(now()->subMinutes(45));
+        // a press that no worker picked up in 10 minutes is not shown as waiting forever
+        $queued = ! $running && $queuedAt && $queuedAt > now()->subMinutes(10)->timestamp
+            && (! $lastRun || $lastRun->timestamp < $queuedAt);
 
         // what the read is doing right now
         $line = null;
@@ -165,6 +172,7 @@ class BrandSuppliers extends Page
             return;
         }
         $this->clearStop();
+        $this->clearProgress();
         Cache::put('brand_suppliers.queued.' . $this->code, now()->timestamp, now()->addHour());
         SyncDistributorCatalogJob::dispatch($this->code);
         Notification::make()->success()->title('Reading ' . $this->label() . '\'s catalog')
@@ -191,6 +199,15 @@ class BrandSuppliers extends Page
         return $class && defined($class . '::STOP_KEY') ? $class::STOP_KEY : null;
     }
 
+    /** A new read starts with a clean progress note, not the last one's. */
+    private function clearProgress(): void
+    {
+        $class = app(DistributorRegistry::class)->adapterClass($this->code);
+        if ($class && defined($class . '::PROGRESS_KEY')) {
+            Cache::forget($class::PROGRESS_KEY);
+        }
+    }
+
     private function clearStop(): void
     {
         if ($key = $this->stopKey()) {
@@ -215,6 +232,7 @@ class BrandSuppliers extends Page
             return;
         }
         $this->clearStop();
+        $this->clearProgress();
         Cache::put('brand_suppliers.queued.' . $this->code, now()->timestamp, now()->addHour());
         SyncDistributorCatalogJob::dispatch($this->code, false, [$h]);
         Notification::make()->success()->title('Reading one ' . $this->label() . ' product')
