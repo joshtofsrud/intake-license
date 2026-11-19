@@ -131,16 +131,13 @@ return [
         'name'            => 'Kona',
         'base_url'        => env('KONA_BASE_URL', 'https://konaworld.com'),
         'timeout'         => (int) env('KONA_TIMEOUT', 30),
-        // products per feed page (Shopify allows 250, but large pages are
-        // the first thing it throttles)
-        'feed_page_size'  => (int) env('KONA_FEED_PAGE_SIZE', 100),
-        'max_feed_pages'  => (int) env('KONA_MAX_FEED_PAGES', 40),
-        // defaults for how gently Kona's store is read; master admin
-        // (Brand suppliers) overrides them
-        'list_gap_s'      => (int) env('KONA_LIST_GAP_S', 30),
+        // how gently Kona's store is read; master admin (Brand suppliers)
+        // overrides the first two. One bike (its data, then its page) every
+        // page_gap_s; a bike is read again after refresh_days.
         'page_gap_s'      => (int) env('KONA_PAGE_GAP_S', 10),
-        'pages_per_run'   => (int) env('KONA_PAGES_PER_RUN', 100),
         'refresh_days'    => (int) env('KONA_REFRESH_DAYS', 30),
+        // a read hands over to a fresh job after this long (jobs stop at 30)
+        'job_minutes'     => (int) env('KONA_JOB_MINUTES', 20),
         'user_agent'      => env('KONA_USER_AGENT', 'IntakeCatalog/1.0 (+https://intake.works)'),
         'sync_page_size'  => (int) env('KONA_SYNC_PAGE_SIZE', 20000),
     ],

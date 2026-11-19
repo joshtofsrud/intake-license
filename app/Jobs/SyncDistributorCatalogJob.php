@@ -83,6 +83,13 @@ class SyncDistributorCatalogJob implements ShouldQueue, ShouldBeUnique
             // MARKER-SYNC-REINDEX: index and match now, so today's imports can
             // see this distributor's part numbers and barcodes across catalogs.
             RefreshCatalogMatchesJob::dispatch($code);
+
+            // a read that stopped at its time limit with more to read hands
+            // over to a fresh job (Kona: one bike at a time takes hours)
+            if (method_exists($adapter, 'hasMore') && $adapter->hasMore()) {
+                \Illuminate\Support\Facades\Cache::put('brand_suppliers.queued.' . $code, now()->timestamp, now()->addHour());
+                ContinueCatalogReadJob::dispatch($code)->delay(now()->addSeconds(15));
+            }
         } catch (\Throwable $e) {
             DB::table('distributor_sync_state')->updateOrInsert(
                 ['distributor_code' => $code, 'source_ref' => 'catalog'],

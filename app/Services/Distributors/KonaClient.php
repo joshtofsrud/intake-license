@@ -46,6 +46,9 @@ class KonaClient implements DistributorAdapter
     /** @var string[] when set, only these products are read (handles), straight from their own pages */
     private array $only = [];
 
+    /** Set when a read stopped at its time limit with bikes still to read. */
+    private bool $more = false;
+
     public function __construct(string $apiKey = '', string $region = 'us')
     {
         $this->base    = rtrim((string) config('distributors.kona.base_url', 'https://konaworld.com'), '/');
@@ -86,15 +89,14 @@ class KonaClient implements DistributorAdapter
     public function testConnection(): array
     {
         try {
-            $res = $this->politeGet($this->base . '/products.json', ['limit' => 1], 'test', 0, 0);
+            $res = $this->politeGet($this->base . '/sitemap.xml', [], 'test', 0, 0);
         } catch (\Throwable $e) {
             return ['ok' => false, 'status' => null, 'auth' => false, 'body' => 'Kona\'s site did not answer: ' . $e->getMessage()];
         }
-        $n = count((array) ($res->json('products') ?? []));
-        $ok = $res->successful() && $n > 0;
+        $ok = $res->successful() && str_contains($res->body(), 'sitemap_products');
         return [
             'ok' => $ok, 'status' => $res->status(), 'auth' => false,
-            'body' => $ok ? 'Kona\'s product feed answered.' : 'Kona\'s product feed answered HTTP ' . $res->status() . ' with no products.',
+            'body' => $ok ? 'Kona\'s sitemap answered.' : 'Kona\'s sitemap answered HTTP ' . $res->status() . '.',
         ];
     }
 
@@ -106,7 +108,7 @@ class KonaClient implements DistributorAdapter
     public function categories(): array
     {
         $out = [];
-        foreach ($this->feed() as $p) {
+        foreach ($this->stored() as $p) {
             $c = $this->categoryTag($p);
             if ($c !== '') {
                 $out[$c] = ['id' => $c, 'name' => $c];
@@ -117,51 +119,54 @@ class KonaClient implements DistributorAdapter
     }
 
     /**
-     * Every published Kona bike, one variant per size. Filters (upcs,
-     * vendorParts) narrow to matching part numbers without reading pages for
-     * the rest.
+     * Every Kona bike, one variant per size.
+     *
+     * The bike list is Kona's sitemap (one light request). Each bike is then
+     * read the way "Read this one" reads it: its own product data, then its
+     * page for the spec table, one bike every page_gap_s seconds. A bike is
+     * read once and again after refresh_days; Kona's store bumps every
+     * product's change date constantly, so that date says nothing. The bulk
+     * product list (/products.json) is never used: Kona throttles it.
+     *
+     * A read stops after job_minutes and sets hasMore(); the job then hands
+     * over to a fresh one that carries on (SyncDistributorCatalogJob).
      */
     public function products(array $opts = []): array
     {
         $parts = array_flip(array_map(fn ($p) => strtoupper(trim((string) $p)), $opts['vendorParts'] ?? []));
 
-        $feed = $this->feed(true);
-        if ($parts) {
-            $feed = array_values(array_filter($feed, function ($p) use ($parts) {
-                foreach ((array) ($p['variants'] ?? []) as $v) {
-                    if (isset($parts[strtoupper((string) ($v['sku'] ?? ''))])) {
-                        return true;
-                    }
-                }
-                return false;
-            }));
-        }
-
-        $pages = $this->pages($feed);
+        $handles = $this->only ?: $this->sitemapHandles();
+        $saved   = $this->readBikes($handles);
 
         $out = [];
-        foreach ($feed as $p) {
-            $handle = (string) ($p['handle'] ?? '');
-            $page   = $pages[$handle] ?? ['specs' => [], 'geometry' => []];
-            $rows   = [];
+        foreach ($handles as $handle) {
+            $entry = $saved[$handle] ?? null;
+            if (! $entry || empty($entry['product']) || ! empty($entry['gone'])) {
+                continue;
+            }
+            $p = $entry['product'];
+            $rows = [];
             foreach ((array) ($p['variants'] ?? []) as $v) {
                 $sku = strtoupper(trim((string) ($v['sku'] ?? '')));
                 if ($sku === '' || ($parts && ! isset($parts[$sku]))) {
                     continue;
                 }
-                $rows[] = $this->row($p, $v, $page);
+                $rows[] = $this->row($p, $v, $entry);
             }
             if ($rows) {
-                $out[] = [
-                    'Brand'        => 'Kona',
-                    'product_code' => $handle,
-                    'Name'         => (string) ($p['title'] ?? ''),
-                    'Variants'     => $rows,
-                ];
+                $out[] = ['Brand' => 'Kona', 'product_code' => $handle, 'Name' => (string) ($p['title'] ?? ''), 'Variants' => $rows];
             }
         }
-        $this->progress('done', count($out), count($out));
+        if (! $this->more) {
+            $this->progress('done', count($out), count($out));
+        }
         return ['Products' => $out, 'Failures' => []];
+    }
+
+    /** True when the last products() stopped at its time limit with bikes still to read. */
+    public function hasMore(): bool
+    {
+        return $this->more;
     }
 
     /** Cost and stock come from each dealer's stock file (shop side). */
@@ -173,7 +178,7 @@ class KonaClient implements DistributorAdapter
     {
         $want = array_flip(array_map(fn ($s) => strtoupper((string) $s), $skus));
         $out = [];
-        foreach ($this->feed() as $p) {
+        foreach ($this->stored() as $p) {
             $imgs = array_values(array_filter(array_map(fn ($i) => (string) ($i['src'] ?? ''), (array) ($p['images'] ?? []))));
             foreach ((array) ($p['variants'] ?? []) as $v) {
                 $sku = strtoupper((string) ($v['sku'] ?? ''));
@@ -281,127 +286,146 @@ class KonaClient implements DistributorAdapter
     // ------------------------------------------------------------- reading
 
     /**
-     * The whole product list from /products.json, page by page. Kept for an
-     * hour so the image and category reads don't fetch it again; a catalog
-     * sync always reads it fresh.
+     * Every product handle in Kona's sitemap (the index, then each product
+     * sitemap it lists): one or two requests for the whole list.
+     *
+     * @return string[]
      */
-    private function feed(bool $fresh = false): array
+    private function sitemapHandles(): array
     {
-        if ($this->only) {
-            $out = [];
-            foreach ($this->only as $i => $handle) {
-                $this->progress('feed', $i + 1, count($this->only));
-                $res = $this->politeGet($this->base . '/products/' . rawurlencode($handle) . '.json', [], 'feed', $i + 1, count($this->only));
-                if (! $res->successful()) {
-                    throw new \RuntimeException('Kona\'s store answered HTTP ' . $res->status() . ' for "' . $handle . '".');
-                }
-                if (is_array($p = $res->json('product'))) {
-                    $out[] = $p;
-                }
-                if ($i < count($this->only) - 1) {
-                    $this->pause(self::pace()['page_gap_s'], 'feed', $i + 1, count($this->only));
-                }
+        $this->progress('sitemap', 0, 0);
+        $index = $this->politeGet($this->base . '/sitemap.xml', [], 'sitemap', 0, 0);
+        if (! $index->successful()) {
+            throw new \RuntimeException('Kona\'s sitemap answered HTTP ' . $index->status() . '.');
+        }
+        $maps = [];
+        foreach (self::locs($index->body()) as $loc) {
+            if (str_contains($loc, 'sitemap_products')) {
+                $maps[] = $loc;
             }
-            return $out;
         }
-        if (! $fresh && is_array($c = Cache::get('kona.feed'))) {
-            return $c;
-        }
-        $size = max(1, min(250, (int) config('distributors.kona.feed_page_size', 250)));
-        $max  = max(1, (int) config('distributors.kona.max_feed_pages', 40));
-        $all  = [];
-        for ($page = 1; $page <= $max; $page++) {
-            $this->progress('feed', $page, 0);
-            $res = $this->politeGet($this->base . '/products.json', ['limit' => $size, 'page' => $page], 'feed', $page, 0);
+        $handles = [];
+        foreach ($maps as $n => $map) {
+            if ($n > 0) {
+                $this->pause(self::pace()['page_gap_s'], 'sitemap', $n, count($maps));
+            }
+            $res = $this->politeGet($map, [], 'sitemap', $n + 1, count($maps));
             if (! $res->successful()) {
-                throw new \RuntimeException('Kona\'s product feed answered HTTP ' . $res->status() . ' on page ' . $page . '.');
+                throw new \RuntimeException('Kona\'s product sitemap answered HTTP ' . $res->status() . '.');
             }
-            $batch = (array) ($res->json('products') ?? []);
-            if (! $batch) {
-                break;
+            foreach (self::locs($res->body()) as $loc) {
+                if (preg_match('~/products/([^/?#]+)~', $loc, $m)) {
+                    $handles[strtolower($m[1])] = true;
+                }
             }
-            array_push($all, ...$batch);
-            if (count($batch) < $size) {
-                break;
-            }
-            $this->pause(self::pace()['list_gap_s'], 'feed', $page, 0);
         }
-        Cache::put('kona.feed', $all, now()->addHour());
-        return $all;
+        if (! $handles) {
+            throw new \RuntimeException('Kona\'s sitemap listed no products.');
+        }
+        return array_keys($handles);
+    }
+
+    /** The <loc> values of a sitemap. */
+    public static function locs(string $xml): array
+    {
+        preg_match_all('~<loc>\s*([^<\s]+)\s*</loc>~i', $xml, $m);
+        return array_map(fn ($u) => html_entity_decode($u, ENT_QUOTES | ENT_XML1), $m[1] ?? []);
     }
 
     /**
-     * Spec table and geometry for each product, read from its page. A page is
-     * read once and kept; it is read again after the refresh period. Each run
-     * reads at most pages_per_run, spaced page_gap_s apart, so the first full
-     * pass spreads over several runs. A page that fails keeps its last good
-     * copy.
+     * Read the bikes that are due: never read first, then the oldest past
+     * refresh_days ("Read this one" reads its bikes whatever their age). Each
+     * bike is its product data, a short pause, then its page. Saved as it
+     * goes, so a stopped or handed-over read never repeats a bike.
      *
-     * @return array<string,array{specs:array,geometry:array}>
+     * @return array<string,array{product?:array,specs?:array,geometry?:array,read_at?:int,gone?:bool}>
      */
-    private function pages(array $feed): array
+    private function readBikes(array $handles): array
     {
-        $file  = storage_path('app/distributors/kona-pages.json');
-        $saved = is_file($file) ? (json_decode((string) file_get_contents($file), true) ?: []) : [];
+        $file  = self::storeFile();
+        $saved = self::store();
         $pace  = self::pace();
-
-        // Kona's store bumps every product's updated_at constantly, so it
-        // can't say what changed. A page is read once, then again only after
-        // the refresh period; never-read bikes go first, then the oldest.
-        // "Read this one" always reads its bike's page.
-        $due = [];
         $fresh = now()->subDays($pace['refresh_days'])->timestamp;
-        foreach ($feed as $p) {
-            $handle = (string) ($p['handle'] ?? '');
-            if ($handle === '') {
-                continue;
-            }
-            $readAt = (int) ($saved[$handle]['read_at'] ?? 0);
-            if ($this->only || $readAt < $fresh) {
-                $due[$handle] = $readAt;
+        $deadline = $this->only ? PHP_INT_MAX : time() + (int) round(60 * max(0.01, (float) config('distributors.kona.job_minutes', 20)));
+
+        $due = [];
+        foreach ($handles as $h) {
+            $at = (int) ($saved[$h]['read_at'] ?? 0);
+            if ($this->only || empty($saved[$h]['product']) && empty($saved[$h]['gone']) || $at < $fresh) {
+                $due[$h] = $at;
             }
         }
         asort($due);
-        $todo = array_slice(array_keys($due), 0, $this->only ? count($due) : $pace['pages_per_run']);
+        $due = array_keys($due);
+        $total = count($due);
 
-        $total = count($todo);
-        $read  = 0;
-        foreach ($todo as $n => $handle) {
-            $this->progress('pages', $n, $total, $read);
+        foreach ($due as $n => $h) {
+            if (time() >= $deadline) {
+                $this->more = true;
+                break;
+            }
+            $this->progress('bikes', $n, $total, $this->have($saved, $handles, $fresh));
             try {
-                $res = $this->politeGet($this->base . '/products/' . rawurlencode($handle), [], 'pages', $n, $total, $read);
-                if ($res->successful()) {
-                    $saved[$handle] = self::parsePage($res->body()) + ['read_at' => now()->timestamp];
-                    $read++;
-                    // saved as it goes, so a read that is stopped part way
-                    // does not have to fetch these pages again
-                    if ($read % 10 === 0) {
-                        $this->savePages($file, $saved);
-                    }
+                $res = $this->politeGet($this->base . '/products/' . rawurlencode($h) . '.json', [], 'bikes', $n, $total);
+                if ($res->status() === 404) {
+                    // listed in the sitemap but no longer published
+                    $saved[$h] = ['gone' => true, 'read_at' => now()->timestamp];
+                } elseif ($res->successful() && is_array($product = $res->json('product'))) {
+                    $this->pause(2, 'bikes', $n, $total);
+                    $page = $this->politeGet($this->base . '/products/' . rawurlencode($h), [], 'bikes', $n, $total);
+                    $parsed = $page->successful() ? self::parsePage($page->body())
+                        : ['specs' => $saved[$h]['specs'] ?? [], 'geometry' => $saved[$h]['geometry'] ?? []];
+                    $saved[$h] = ['product' => $product] + $parsed + ['read_at' => now()->timestamp];
+                } elseif ($this->only) {
+                    throw new \RuntimeException('Kona\'s store answered HTTP ' . $res->status() . ' for "' . $h . '".');
                 }
             } catch (\Throwable $e) {
-                if ($e->getMessage() === 'Stopped from master admin.') {
-                    $this->savePages($file, $saved);
+                if ($e->getMessage() === 'Stopped from master admin.' || $this->only) {
+                    $this->saveStore($file, $saved);
                     throw $e;
                 }
-                // keep the last good copy; the next read tries again
+                // this bike keeps its last good copy; the next read tries again
+            }
+            if (($n + 1) % 5 === 0) {
+                $this->saveStore($file, $saved);
             }
             if ($n < $total - 1) {
-                $this->pause($pace['page_gap_s'], 'pages', $n + 1, $total, $read);
+                $this->pause($pace['page_gap_s'], 'bikes', $n + 1, $total);
             }
         }
-        $this->progress('pages', $total, $total, $read);
-        $this->savePages($file, $saved);
-
-        // for master admin: how far the spec pages have got
-        $have = 0;
-        foreach ($feed as $p) {
-            if ((int) ($saved[(string) ($p['handle'] ?? '')]['read_at'] ?? 0) >= $fresh) {
-                $have++;
-            }
+        $this->saveStore($file, $saved);
+        if (! $this->only) {
+            Cache::put(self::PAGES_KEY, ['have' => $this->have($saved, $handles, $fresh), 'of' => count($handles), 'at' => now()->timestamp], now()->addDays(60));
         }
-        Cache::put(self::PAGES_KEY, ['have' => $have, 'of' => count($feed), 'at' => now()->timestamp], now()->addDays(60));
         return $saved;
+    }
+
+    private function have(array $saved, array $handles, int $fresh): int
+    {
+        $n = 0;
+        foreach ($handles as $h) {
+            if ((int) ($saved[$h]['read_at'] ?? 0) >= $fresh) {
+                $n++;
+            }
+        }
+        return $n;
+    }
+
+    /** Products read so far, without touching Kona's site. */
+    private function stored(): array
+    {
+        return array_values(array_filter(array_map(fn ($e) => $e['product'] ?? null, self::store())));
+    }
+
+    private static function storeFile(): string
+    {
+        return storage_path('app/distributors/kona-bikes.json');
+    }
+
+    private static function store(): array
+    {
+        $f = self::storeFile();
+        return is_file($f) ? (json_decode((string) file_get_contents($f), true) ?: []) : [];
     }
 
     /** Wait between requests, in one-second steps so Stop is honoured. */
@@ -417,22 +441,25 @@ class KonaClient implements DistributorAdapter
      * How gently the store is read: set in master admin (Brand suppliers),
      * falling back to config.
      *
-     * @return array{list_gap_s:int,page_gap_s:int,pages_per_run:int,refresh_days:int}
+     * @return array{page_gap_s:int,refresh_days:int}
      */
     public static function pace(): array
     {
         $saved = (array) ((\App\Models\PlatformSettings::current()->distribution_settings ?? [])['brand_read'][self::CODE] ?? []);
         $num = fn ($k, $def, $min, $max) => max($min, min($max, (int) ($saved[$k] ?? config('distributors.kona.' . $k, $def))));
         return [
-            'list_gap_s'    => $num('list_gap_s', 30, 1, 600),
             'page_gap_s'    => $num('page_gap_s', 10, 1, 600),
-            'pages_per_run' => $num('pages_per_run', 100, 1, 1000),
             'refresh_days'  => $num('refresh_days', 30, 1, 365),
         ];
     }
 
-    private function savePages(string $file, array $saved): void
+    private function saveStore(string $file, array $saved): void
     {
+        // the page cache of the first reader, replaced by this store
+        $old = storage_path('app/distributors/kona-pages.json');
+        if (is_file($old)) {
+            @unlink($old);
+        }
         if (! is_dir(dirname($file))) {
             @mkdir(dirname($file), 0775, true);
         }

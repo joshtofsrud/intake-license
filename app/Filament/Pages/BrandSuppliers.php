@@ -80,9 +80,7 @@ class BrandSuppliers extends Page
             return;
         }
         $this->validate([
-            'pace.list_gap_s'    => ['required', 'integer', 'min:1', 'max:600'],
             'pace.page_gap_s'    => ['required', 'integer', 'min:1', 'max:600'],
-            'pace.pages_per_run' => ['required', 'integer', 'min:1', 'max:1000'],
             'pace.refresh_days'  => ['required', 'integer', 'min:1', 'max:365'],
         ]);
         $ps = \App\Models\PlatformSettings::current();
@@ -103,10 +101,11 @@ class BrandSuppliers extends Page
             return null;
         }
         $st = Cache::get($class::PAGES_KEY);
-        $p = array_map('intval', $this->pace);
+        $gap = (int) ($this->pace['page_gap_s'] ?? 0) + 4; // the gap, plus the bike's two requests and the pause between them
+        $left = isset($st['of'], $st['have']) ? max(0, $st['of'] - $st['have']) : null;
         return [
             'have' => $st['have'] ?? null, 'of' => $st['of'] ?? null,
-            'run_minutes' => (int) ceil(((int) ($p['pages_per_run'] ?? 0) * ((int) ($p['page_gap_s'] ?? 0) + 1) + 5 * (int) ($p['list_gap_s'] ?? 0)) / 60),
+            'left_minutes' => $left !== null ? (int) ceil($left * $gap / 60) : null,
         ];
     }
 
@@ -185,13 +184,13 @@ class BrandSuppliers extends Page
             } elseif ($phase === 'wait') {
                 $line = $this->label() . '\'s site asked us to slow down · waiting ' . (int) $prog['wait'] . ' seconds, then trying again (' . (int) $prog['attempt'] . ' of ' . (int) $prog['of'] . ')';
                 $pct = null;
-            } elseif ($phase === 'feed') {
-                $line = 'Reading ' . $this->label() . '\'s product list · page ' . (int) $prog['done'];
-                $pct = 3;
-            } elseif ($phase === 'pages') {
-                $line = 'Reading product pages (spec tables) · ' . number_format((int) $prog['done']) . ' of ' . number_format((int) $prog['total']) . ' this read'
+            } elseif ($phase === 'sitemap') {
+                $line = 'Reading ' . $this->label() . '\'s sitemap (the list of bikes)';
+                $pct = 2;
+            } elseif ($phase === 'bikes') {
+                $line = 'Reading bikes one at a time · ' . number_format((int) $prog['done']) . ' of ' . number_format((int) $prog['total']) . ' due'
                     . ' · ' . (int) ($this->pace['page_gap_s'] ?? 0) . ' seconds apart';
-                $pct = $prog['total'] ? (int) round(5 + 70 * $prog['done'] / max(1, $prog['total'])) : 5;
+                $pct = $prog['total'] ? (int) round(3 + 72 * $prog['done'] / max(1, $prog['total'])) : 3;
             } else {
                 $line = 'Working…';
             }
