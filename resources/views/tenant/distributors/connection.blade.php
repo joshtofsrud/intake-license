@@ -324,6 +324,18 @@
           </div>
         @endif
 
+        @if ($b['enabled'] && empty($b['managed']))
+          {{-- MARKER-SUPPLY-RUN: what this box's cost and stock come from --}}
+          @php $sr = $b['supplyRun'] ?? null; @endphp
+          <div style="font-size:11.5px;color:var(--ia-text-dim);margin:0 0 10px;line-height:1.5">
+            Cost and stock come from Intake's shared {{ $b['label'] }} run, fetched once for every shop
+            @if ($sr && $sr->status === 'done') (last run finished {{ \Carbon\Carbon::parse($sr->finished_at)->diffForHumans() }}, {{ number_format($sr->linked) }} part numbers)
+            @elseif ($sr && $sr->status === 'running') (a run is going now: {{ number_format($sr->processed) }} of {{ number_format($sr->linked) }} part numbers)
+            @else (no run yet; the first is tonight) @endif.
+            Refresh copies the latest run into your items; part numbers no run has seen yet are fetched straight away. Your received cost on an item always wins.
+          </div>
+        @endif
+
         {{-- a 30s form post with no feedback
              reads as a hung page. Say what's happening and why. --}}
         <div style="display:flex;gap:10px;margin-top:4px;flex-wrap:wrap;align-items:center">

@@ -74,7 +74,9 @@ class TenantDistributorSyncService
         }
 
         $adapter = $this->registry->forSubscription($sub);
-        if ($adapter === null) {
+        // MARKER-SUPPLY-RUN: a shop without its own login still copies the shared run
+        $shared = ! \App\Support\BrandDirect::is($code) && \Illuminate\Support\Facades\DB::table('distributor_supply')->where('distributor_code', $code)->exists();
+        if ($adapter === null && ! $shared) {
             // no credentials is a setting, not a fault.
             // Throwing failed the nightly sync and reported an error every
             // night (demo's HLC row). Say so on the subscription and stop.
@@ -117,10 +119,28 @@ class TenantDistributorSyncService
 
         // MARKER-SYNC-RUNS: time the distributor calls and the writes apart (fetch_seconds / write_seconds in the result)
         $t0 = microtime(true);
-        [$costByVariant, $costErrors] = $this->fetchCosts($adapter, $code, $upcs, $mpns, $variantNos);
-        $res['errors'] = array_merge($res['errors'], $costErrors);
         $whByVariant = []; // MARKER-SUPPLY: per-warehouse stock, beside the total
-        $availByVariant = $this->fetchAvailability($adapter, $code, $variantNos, $res, $whByVariant);
+        if (\App\Support\BrandDirect::is($code)) {
+            [$costByVariant, $costErrors] = $this->fetchCosts($adapter, $code, $upcs, $mpns, $variantNos);
+            $res['errors'] = array_merge($res['errors'], $costErrors);
+            $availByVariant = $this->fetchAvailability($adapter, $code, $variantNos, $res, $whByVariant);
+        } else {
+            // MARKER-SUPPLY-RUN: copy from the shared run; fetch only part numbers no run has seen yet
+            $supply = DistributorSupply::read($code, $variantNos);
+            $missing = array_values(array_diff($variantNos, array_keys($supply)));
+            $res['from_run'] = count($supply);
+            $res['fetched_now'] = 0;
+            if ($missing && ($fill = $adapter ?? DistributorSupply::adapterFor($code)[0] ?? null)) {
+                $got = $this->fetchSupply($fill, $code, $missing);
+                $res['errors'] = array_merge($res['errors'], $got['errors']);
+                DistributorSupply::store($code, $missing, $got);
+                $supply += DistributorSupply::read($code, $missing);
+                $res['fetched_now'] = count($missing);
+            }
+            $costByVariant = array_map(fn ($r) => $r['cost'], $supply);
+            $availByVariant = array_filter(array_map(fn ($r) => $r['avail'], $supply), fn ($v) => $v !== null);
+            $whByVariant = array_filter(array_map(fn ($r) => $r['warehouses'], $supply), fn ($v) => $v !== null);
+        }
         // MARKER-DISTRIBUTION-WAREHOUSES: register any warehouse the feed reported (new ones start hidden and off)
         try {
             $seenWh = [];
@@ -136,6 +156,8 @@ class TenantDistributorSyncService
         $t1 = microtime(true);
 
         $snapshots = [];
+        $touched = [];
+        $touchedItems = [];
         $itemsTotal = $pivots->count();
         $itemsDone = 0;
         $this->tick('items', 0, $itemsTotal);
@@ -160,18 +182,27 @@ class TenantDistributorSyncService
                 if (isset($whByVariant[$vno])) {
                     $pivot->live_warehouses = $whByVariant[$vno]; // MARKER-SUPPLY
                 }
-                $pivot->live_checked_at = now();
-                $pivot->save();
+                // MARKER-SUPPLY-RUN: an unchanged row only has its checked time moved, in one query below
+                if ($pivot->isDirty()) {
+                    $pivot->live_checked_at = now();
+                    $pivot->save();
+                } else {
+                    $touched[] = $pivot->getKey();
+                }
 
                 // stamp the item so "Last synced" is honest
                 // and cost/margin surfaces (item page, register modal, reports
                 // via effectiveCostCents) see the synced cost. Never clobber a
                 // known cost with null when HLC omits one.
-                $item->catalog_synced_at = now();
                 if ($newCost !== null) {
                     $item->catalog_cost_cents = $newCost;
                 }
-                $item->saveQuietly();
+                if ($item->isDirty()) {
+                    $item->catalog_synced_at = now();
+                    $item->saveQuietly();
+                } else {
+                    $touchedItems[] = $item->getKey();
+                }
             }
             if ($newCost !== null) {
                 $res['cost_updated']++;
@@ -218,6 +249,12 @@ class TenantDistributorSyncService
             $this->reconcile($tenantId, $item, $cat, $prevCost, $newCost, $inStock, $isDescriptiveSource, $dryRun, $res);
         }
         } finally {
+            foreach (array_chunk($touched, 1000) as $ids) {
+                TenantInventoryItemVendor::query()->whereKey($ids)->update(['live_checked_at' => now()]);
+            }
+            foreach (array_chunk($touchedItems, 1000) as $ids) {
+                TenantInventoryItem::query()->whereKey($ids)->update(['catalog_synced_at' => now()]);
+            }
             foreach (array_chunk($snapshots, 1000) as $batch) {
                 \Illuminate\Support\Facades\DB::table('distributor_availability_snapshots')->upsert(
                     $batch,
@@ -229,7 +266,7 @@ class TenantDistributorSyncService
             // MARKER-VELOCITY: the same readings feed the per-item running
             // summary and the 60-day change history. A failure here is
             // reported but never fails the shop's sync.
-            if ($snapshots) {
+            if ($snapshots && \App\Support\BrandDirect::is($code)) {
                 try {
                     $today = now()->toDateString();
                     $readings = [];
@@ -260,6 +297,22 @@ class TenantDistributorSyncService
      *
      * @return array{0: array<string,int|null>, 1: array<string>}
      */
+    /**
+     * MARKER-SUPPLY-RUN: cost, stock and warehouse stock for these part numbers,
+     * from the distributor. Used by the shared run, and by a shop's refresh for
+     * part numbers no run has seen yet.
+     *
+     * @return array{cost: array<string,?int>, avail: array<string,int>, wh: array<string,array>, errors: string[]}
+     */
+    public function fetchSupply(DistributorAdapter $adapter, string $code, array $variantNos): array
+    {
+        [$cost, $errors] = $this->fetchCosts($adapter, $code, [], [], $variantNos);
+        $res = ['errors' => []];
+        $wh = [];
+        $avail = $this->fetchAvailability($adapter, $code, $variantNos, $res, $wh);
+        return ['cost' => $cost, 'avail' => $avail, 'wh' => $wh, 'errors' => array_merge($errors, $res['errors'])];
+    }
+
     private function fetchCosts(DistributorAdapter $adapter, string $code, array $upcs, array $mpns, array $variantNos): array
     {
         // MARKER-BRAND-STOCK: a brand sold direct has no live price feed; the

@@ -94,6 +94,8 @@ class DistributorController extends Controller
                 'wh'        => $this->boxWarehouses($tenant, $code, (array) ($creds['options'] ?? [])),
                 // MARKER-SYNC-PROGRESS: a refresh running (or just finished) for this box
                 'progress'  => \App\Support\DistributorSyncProgress::state((string) $tenant->id, $code),
+                // MARKER-SUPPLY-RUN: the shared run this shop copies from
+                'supplyRun' => \App\Support\BrandDirect::is($code) ? null : \App\Services\Distributors\DistributorSupply::lastRun($code),
                 'linked'    => TenantInventoryItemVendor::query()
                     ->where('distributor_code', $code)
                     ->whereNotNull('distributor_catalog_id')

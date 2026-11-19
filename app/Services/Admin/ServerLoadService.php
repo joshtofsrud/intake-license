@@ -231,13 +231,14 @@ class ServerLoadService
                 ->orderByRaw("r.status = 'running' DESC")->orderByDesc('r.started_at')
                 ->limit(12)
                 ->get(['r.status', 'r.distributor_code', 'r.linked', 'r.processed', 'r.fetch_seconds', 'r.write_seconds',
-                       'r.error', 'r.started_at', 'r.finished_at', 't.name as tenant']);
+                       'r.error', 'r.started_at', 'r.finished_at', 'r.subscription_id', 't.name as tenant']);
             return $rows->map(function ($r) {
                 $start = $r->started_at ? \Carbon\Carbon::parse($r->started_at) : null;
                 $end   = $r->finished_at ? \Carbon\Carbon::parse($r->finished_at) : now();
                 $mins  = $start ? max(1, $start->diffInSeconds($end)) / 60 : null;
                 return [
-                    'tenant'      => $r->tenant ?: 'Unknown shop',
+                    // MARKER-SUPPLY-RUN: a distributor's shared run serves every shop
+                    'tenant'      => $r->subscription_id === 'supply' ? 'All shops (one run)' : ($r->tenant ?: 'Unknown shop'),
                     'distributor' => $r->distributor_code,
                     'status'      => $r->status,
                     'linked'      => (int) $r->linked,

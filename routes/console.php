@@ -238,6 +238,13 @@ Schedule::command('distributors:brand-stock-fetch')
     ->withoutOverlapping()
     ->runInBackground();
 
+// MARKER-SUPPLY-RUN: each distributor's cost and stock, fetched once for every
+// shop, early enough to finish before the shops copy it at 06:30.
+Schedule::command('distributors:supply-run')
+    ->dailyAt('00:15')
+    ->withoutOverlapping()
+    ->runInBackground();
+
 // Moved from 05:00 to 06:30: per-tenant cost and stock should land after
 // matching, so a newly linked source is priced on the same night it links.
 Schedule::command('distributors:sync-tenant --all')
