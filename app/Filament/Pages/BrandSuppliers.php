@@ -59,6 +59,8 @@ class BrandSuppliers extends Page
     public string $tab = 'read';
     public string $previewCategory = '';
     public string $previewFilter = '';
+    /** MARKER-BRAND-KINDS: the brand's kinds, one per line, in the order they win */
+    public string $kindsText = '';
     public bool $ftpOpen = false;
     public array $ftp = ['host' => '', 'user' => '', 'password' => '', 'folder' => ''];
 
@@ -67,6 +69,7 @@ class BrandSuppliers extends Page
         $codes = $this->codes();
         $this->code = $codes[0] ?? '';
         $this->loadPace();
+        $this->loadKinds();
     }
 
     public function updatedCode(): void
@@ -79,6 +82,7 @@ class BrandSuppliers extends Page
         $this->previewFilter = '';
         $this->ftpOpen = false;
         $this->loadPace();
+        $this->loadKinds();
     }
 
     public function updatedPreviewSearch(): void
@@ -161,6 +165,44 @@ class BrandSuppliers extends Page
     {
         $class = $this->adapter();
         $this->pace = $class && method_exists($class, 'pace') ? array_map('strval', $class::pace()) : [];
+    }
+
+    private function loadKinds(): void
+    {
+        $this->kindsText = implode("\n", \App\Support\BrandKinds::for($this->code));
+    }
+
+    /** Whether this brand's reader takes its kinds from tags. */
+    public function usesKinds(): bool
+    {
+        $class = $this->adapter();
+        return $class && method_exists($class, 'tagCounts');
+    }
+
+    /** Tags the brand's products carry that aren't kinds yet, most used first. */
+    public function otherTags(): array
+    {
+        $class = $this->adapter();
+        if (! $class || ! method_exists($class, 'tagCounts')) {
+            return [];
+        }
+        $mine = array_map('mb_strtolower', \App\Support\BrandKinds::for($this->code));
+        return array_slice(array_filter($class::tagCounts(), fn ($n, $t) => ! in_array(mb_strtolower((string) $t), $mine, true), ARRAY_FILTER_USE_BOTH), 0, 40, true);
+    }
+
+    public function saveKinds(): void
+    {
+        abort_unless($this->canEdit(), 403);
+        \App\Support\BrandKinds::set($this->code, preg_split('/\r?\n/', $this->kindsText));
+        $this->loadKinds();
+        Notification::make()->success()->title('Kinds saved')
+            ->body('Every ' . $this->label() . ' product is re-sorted on the next read. Press Read catalog now to apply it straight away; products already read are not fetched again.')->send();
+    }
+
+    public function addKind(string $tag): void
+    {
+        abort_unless($this->canEdit(), 403);
+        $this->kindsText = rtrim($this->kindsText) . ($this->kindsText !== '' ? "\n" : '') . $tag;
     }
 
     public function savePace(): void

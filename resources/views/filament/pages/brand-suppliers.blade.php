@@ -201,6 +201,29 @@
       </div>
     @endif
 
+    @if ($this->usesKinds())
+      <div class="bs-row">
+        <div class="l">Kinds<small>the category under the product type</small></div>
+        <div>
+          <textarea class="bs-in" rows="7" style="width:100%;max-width:420px;font-size:13px" wire:model="kindsText" @disabled($ro) placeholder="One tag per line, for example Mountain Full Suspension"></textarea>
+          <div class="bs-faint" style="margin-top:4px">
+            The tags {{ $label }} uses to say what kind of product it is, one per line. A product gets the first one it carries, so put the most specific first
+            ("Mountain Full Suspension" above "Mountain"). Becomes for example "Bikes &gt; Mountain Full Suspension". Products with none stay under their product type.
+            To rename a kind, use the category clean-up rule.
+          </div>
+          @if ($other = $this->otherTags())
+            <div class="bs-faint" style="margin-top:8px">Other tags {{ $label }}'s products carry (click to add):</div>
+            <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:4px">
+              @foreach ($other as $t => $n)
+                <button type="button" class="bs-fchip" wire:click="addKind(@js((string) $t))" @disabled($ro)>{{ $t }} <span style="opacity:.6">{{ $n }}</span></button>
+              @endforeach
+            </div>
+          @endif
+        </div>
+        <div><button type="button" class="bs-btn g" wire:click="saveKinds" @disabled($ro)>Save</button></div>
+      </div>
+    @endif
+
     @if ($this->supportsOne())
       <div class="bs-row" style="border-bottom:0">
         <div class="l">Read one product<small>to try a page first</small></div>

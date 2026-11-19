@@ -277,7 +277,7 @@ class KonaClient implements DistributorAdapter
             'product_type'     => $type,
             'category'         => $tag !== '' ? $tag : $type,
             'category_path'    => trim($type . ($tag !== '' ? ' > ' . $tag : ''), ' >'),
-            'tags'             => array_values((array) ($p['tags'] ?? [])),
+            'tags'             => self::tags($p),
             'model_year'       => $year,
             'images'           => array_values(array_filter(array_map(fn ($i) => (string) ($i['src'] ?? ''), (array) ($p['images'] ?? [])))),
             'specs'            => $specs,
@@ -294,7 +294,7 @@ class KonaClient implements DistributorAdapter
     /** "2027a" in the tags is the model year. */
     private function year(array $p): ?int
     {
-        foreach ((array) ($p['tags'] ?? []) as $t) {
+        foreach (self::tags($p) as $t) {
             if (preg_match('/^(20\d{2})[a-z]?$/i', trim((string) $t), $m)) {
                 return (int) $m[1];
             }
@@ -303,24 +303,46 @@ class KonaClient implements DistributorAdapter
     }
 
     /**
-     * Kona's riding category ("Drop Bar / Gravel") among the tags: the first
-     * that is not the year, not the product type, not the model family and
-     * not one of the store's own markers. The field map can rename it.
+     * A product's tags as a list. The store's product list gives them as a
+     * list; one product's own data gives them as one comma-separated line.
+     */
+    public static function tags(array $p): array
+    {
+        $t = $p['tags'] ?? [];
+        $list = is_array($t) ? $t : explode(',', (string) $t);
+        return array_values(array_filter(array_map(fn ($x) => trim((string) $x), $list), fn ($x) => $x !== ''));
+    }
+
+    /**
+     * The kind of product ("Mountain Full Suspension"): the first tag, in the
+     * order set on Brand suppliers, that the product carries. A setting, not a
+     * guess: the store's tags also hold its own markers ("PRE-SYNC", "Tariff").
      */
     private function categoryTag(array $p): string
     {
-        $type   = mb_strtolower(trim((string) ($p['product_type'] ?? '')));
-        $family = mb_strtolower(strtok(trim((string) ($p['title'] ?? '')), ' ') ?: '');
-        foreach ((array) ($p['tags'] ?? []) as $t) {
-            $t = trim((string) $t);
-            $l = mb_strtolower($t);
-            if ($t === '' || preg_match('/^20\d{2}[a-z]?$/i', $t)) continue;
-            if ($l === $type || $l === $type . 's' || rtrim($l, 's') === $type) continue;
-            if ($family !== '' && $l === $family) continue;
-            if (str_contains($l, 'product')) continue;
-            return $t;
+        $have = [];
+        foreach (self::tags($p) as $t) {
+            $have[mb_strtolower($t)] = $t;
+        }
+        foreach (\App\Support\BrandKinds::for(self::CODE) as $kind) {
+            if (isset($have[mb_strtolower($kind)])) {
+                return $have[mb_strtolower($kind)];
+            }
         }
         return '';
+    }
+
+    /** Every tag the stored products carry, with how many products carry it, for master admin. */
+    public static function tagCounts(): array
+    {
+        $n = [];
+        foreach (self::store() as $e) {
+            foreach (self::tags((array) ($e['product'] ?? [])) as $t) {
+                $n[$t] = ($n[$t] ?? 0) + 1;
+            }
+        }
+        arsort($n);
+        return $n;
     }
 
     private function spec(array $specs, string $label): ?string
