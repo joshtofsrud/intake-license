@@ -8,7 +8,7 @@
   <div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ia-text-dim);font-weight:600;margin-bottom:8px">Your {{ $b['label'] }} stock file</div>
   <div style="font-size:12.5px;line-height:1.55;color:var(--ia-text-dim);margin-bottom:12px">
     {{ $b['label'] }} sells to you direct, so your cost and stock come from the file {{ $b['label'] }} gives you
-    (the Item Valuation export: Inventory ID, Base Price, Qty. Hard Available). Upload it here, or point us at the FTP folder it is dropped in.
+    (the {{ \App\Services\Distributors\BrandStockFile::exportName($b['code']) }}: Inventory ID, Base Price, Qty. Hard Available). Upload it here, or point us at the FTP folder it is dropped in.
     The file sets <b>your cost</b> and <b>quantity at {{ $b['label'] }}</b> for items you carry from {{ $b['label'] }}. It never changes your own on-hand counts, prices you set, or items from other suppliers.
   </div>
 

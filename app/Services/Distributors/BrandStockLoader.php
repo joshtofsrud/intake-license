@@ -6,27 +6,25 @@ use App\Models\Tenant\TenantDistributorCatalogSubscription;
 use RuntimeException;
 
 /**
- * MARKER-BRAND-STOCK: loads a shop's Kona stock file, from an upload or from
+ * MARKER-BRAND-STOCK: loads a shop's stock file for a brand-direct supplier, from an upload or from
  * the shop's FTP folder, checks it against the catalog and stores it. Costs
  * and quantities then reach the shop's items through the normal per-shop sync.
  */
-class KonaStockLoader
+class BrandStockLoader
 {
-    public const CODE = 'KONA';
-
     /** @return array{rows:int,check:array} */
-    public static function load(string $tenantId, string $path, string $name, string $source, ?int $modified = null): array
+    public static function load(string $tenantId, string $code, string $path, string $name, string $source, ?int $modified = null): array
     {
-        $read = KonaStockFile::read($path, $name);
+        $read = BrandStockFile::read($path, $name, $code);
         if ($read['missing']) {
-            $names = ['id' => 'Inventory ID', 'cost' => 'Base Price', 'qty' => 'Qty. Hard Available'];
-            throw new RuntimeException('The file is missing the column' . (count($read['missing']) > 1 ? 's' : '') . ' ' . implode(', ', array_map(fn ($k) => $names[$k] ?? $k, $read['missing'])) . '. Is this the Item Valuation export?');
+            $names = BrandStockFile::fieldLabels();
+            throw new RuntimeException('The file is missing the column' . (count($read['missing']) > 1 ? 's' : '') . ' ' . implode(', ', array_map(fn ($k) => $names[$k] ?? $k, $read['missing'])) . '. Is this the ' . BrandStockFile::exportName($code) . '?');
         }
         if (! $read['rows']) {
             throw new RuntimeException('The file has no rows with an Inventory ID.');
         }
-        $check = KonaStockFile::check($read['rows'], self::CODE);
-        BrandStockStore::replace($tenantId, self::CODE, $read['rows'], $name, $source, $check, $modified);
+        $check = BrandStockFile::check($read['rows'], $code);
+        BrandStockStore::replace($tenantId, $code, $read['rows'], $name, $source, $check, $modified);
         return ['rows' => count($read['rows']), 'check' => $check];
     }
 
@@ -84,17 +82,17 @@ class KonaStockLoader
             if ($best === null) {
                 throw new RuntimeException('No .xlsx, .csv or .txt file in the folder.');
             }
-            $file = BrandStockStore::file($tenantId, self::CODE);
+            $file = BrandStockStore::file($tenantId, (string) $sub->distributor_code);
             $base = basename($best);
             if ($file && $file->file_name === $base && $bestTime > 0 && $file->file_modified_at && strtotime((string) $file->file_modified_at) >= $bestTime) {
-                BrandStockStore::touchAttempt($tenantId, self::CODE);
+                BrandStockStore::touchAttempt($tenantId, (string) $sub->distributor_code);
                 return null;
             }
             $tmp = tempnam(sys_get_temp_dir(), 'kona') . '.' . strtolower(pathinfo($base, PATHINFO_EXTENSION));
             if (! @ftp_get($conn, $tmp, $best, FTP_BINARY)) {
                 throw new RuntimeException('Could not download ' . $base . '.');
             }
-            $r = self::load($tenantId, $tmp, $base, 'ftp', $bestTime > 0 ? $bestTime : null);
+            $r = self::load($tenantId, (string) $sub->distributor_code, $tmp, $base, 'ftp', $bestTime > 0 ? $bestTime : null);
             return $r + ['file' => $base];
         } finally {
             @ftp_close($conn);

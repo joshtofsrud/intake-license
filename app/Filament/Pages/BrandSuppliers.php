@@ -5,7 +5,7 @@ namespace App\Filament\Pages;
 use App\Jobs\SyncDistributorCatalogJob;
 use App\Models\Tenant;
 use App\Services\Distributors\DistributorRegistry;
-use App\Services\Distributors\KonaStockFile;
+use App\Services\Distributors\BrandStockFile;
 use App\Support\AdminAccess;
 use App\Support\BrandDirect;
 use Filament\Notifications\Notification;
@@ -369,19 +369,17 @@ class BrandSuppliers extends Page
         $this->validate(['stockFile' => ['file', 'max:20480', 'mimes:xlsx,csv,txt']]);
         $name = (string) $this->stockFile->getClientOriginalName();
         try {
-            $read = KonaStockFile::read($this->stockFile->getRealPath(), $name);
+            $read = BrandStockFile::read($this->stockFile->getRealPath(), $name, $this->code);
         } catch (\Throwable $e) {
             $this->check = ['error' => 'Could not read that file: ' . $e->getMessage()];
             return;
         }
         if ($read['missing']) {
-            $this->check = ['error' => 'That file has no ' . implode(', ', array_map(fn ($m) => match ($m) {
-                'id' => 'Inventory ID', 'cost' => 'Base Price', 'qty' => 'Qty. Hard Available', default => $m,
-            }, $read['missing'])) . ' column. Kona\'s "Item Valuation Data" export has them.'];
+            $this->check = ['error' => 'That file has no ' . implode(', ', array_map(fn ($m) => BrandStockFile::fieldLabels()[$m] ?? $m, $read['missing'])) . ' column. The ' . BrandStockFile::exportName($this->code) . ' has them.'];
             return;
         }
         $this->checkName = $name;
-        $this->check = KonaStockFile::check($read['rows'], $this->code);
+        $this->check = BrandStockFile::check($read['rows'], $this->code);
         $this->stockFile = null;
     }
 

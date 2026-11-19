@@ -194,7 +194,7 @@ class DistributorController extends Controller
     private function stockSub(Request $request): TenantDistributorCatalogSubscription
     {
         $this->guard();
-        $code = strtoupper((string) $request->input('code', 'KONA'));
+        $code = strtoupper((string) $request->input('code', ''));
         abort_unless(\App\Support\BrandDirect::is($code) && in_array($code, \App\Support\BrandDirect::visibleCodes((string) tenant()->id), true), 404);
 
         return TenantDistributorCatalogSubscription::firstOrCreate(
@@ -209,23 +209,23 @@ class DistributorController extends Controller
         }
     }
 
-    /** The shop uploads its Kona stock file. */
+    /** The shop uploads its stock file for a brand sold direct. */
     public function stockUpload(Request $request): RedirectResponse
     {
         $sub = $this->stockSub($request);
         $request->validate(['file' => ['required', 'file', 'max:20480']]);
         $f = $request->file('file');
         if (! in_array(strtolower($f->getClientOriginalExtension()), ['xlsx', 'csv', 'txt'], true)) {
-            return back()->withErrors(['file' => 'Use the .xlsx or .csv file exported from Kona.']);
+            return back()->withErrors(['file' => 'Use the .xlsx or .csv file exported from ' . app(DistributorRegistry::class)->label((string) $sub->distributor_code) . '.']);
         }
         try {
-            $r = \App\Services\Distributors\KonaStockLoader::load((string) tenant()->id, $f->getRealPath(), $f->getClientOriginalName(), 'upload');
+            $r = \App\Services\Distributors\BrandStockLoader::load((string) tenant()->id, (string) $sub->distributor_code, $f->getRealPath(), $f->getClientOriginalName(), 'upload');
         } catch (\Throwable $e) {
             \App\Services\Distributors\BrandStockStore::failed((string) tenant()->id, (string) $sub->distributor_code, $e->getMessage());
             return back()->withErrors(['file' => $e->getMessage()]);
         }
         $this->afterStockLoad($sub);
-        return back()->with('success', 'Stock file loaded: ' . number_format($r['rows']) . ' rows, ' . number_format($r['check']['matched']) . ' in the Kona catalog.' . ($sub->is_active ? ' Updating your items now.' : ' Turn Kona on to use it.'));
+        return back()->with('success', 'Stock file loaded: ' . number_format($r['rows']) . ' rows, ' . number_format($r['check']['matched']) . ' in the ' . app(DistributorRegistry::class)->label((string) $sub->distributor_code) . ' catalog.' . ($sub->is_active ? ' Updating your items now.' : ' Turn it on to use it.'));
     }
 
     /** The shop's FTP folder for the stock file. A blank password keeps the saved one. */
@@ -253,7 +253,7 @@ class DistributorController extends Controller
     {
         $sub = $this->stockSub($request);
         try {
-            $r = \App\Services\Distributors\KonaStockLoader::fetch($sub);
+            $r = \App\Services\Distributors\BrandStockLoader::fetch($sub);
         } catch (\Throwable $e) {
             \App\Services\Distributors\BrandStockStore::failed((string) tenant()->id, (string) $sub->distributor_code, $e->getMessage());
             return back()->withErrors(['file' => $e->getMessage()]);

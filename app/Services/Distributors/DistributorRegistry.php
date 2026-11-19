@@ -62,8 +62,8 @@ class DistributorRegistry
      */
     public function platformSupplied(string $code): bool
     {
-        // Kona has no shop login either: the shop brings a stock file
-        return in_array(strtoupper($code), ['SHIMANO', 'KONA'], true);
+        // a brand sold direct has no shop login either: the shop brings a stock file
+        return strtoupper($code) === 'SHIMANO' || \App\Support\BrandDirect::is($code);
     }
 
     /**

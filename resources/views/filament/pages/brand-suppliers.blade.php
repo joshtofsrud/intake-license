@@ -267,7 +267,7 @@
       @php
         $issues = [];
         foreach ($check['shared_upc'] as $g) {
-          $issues[] = ['ids' => array_column($g['rows'], 'id'), 'what' => 'Same UPC ' . $g['upc'] . ' on ' . count($g['rows']) . ' part numbers', 'desc' => implode(' / ', array_column($g['rows'], 'description')), 'does' => 'Kept apart by part number; flag it to Kona'];
+          $issues[] = ['ids' => array_column($g['rows'], 'id'), 'what' => 'Same UPC ' . $g['upc'] . ' on ' . count($g['rows']) . ' part numbers', 'desc' => implode(' / ', array_column($g['rows'], 'description')), 'does' => 'Kept apart by part number; flag it to ' . $this->label()];
         }
         foreach ($check['dup_ids'] as $d) {
           $issues[] = ['ids' => [$d], 'what' => 'Part number listed twice', 'desc' => '', 'does' => 'The last row in the file wins'];
@@ -420,7 +420,7 @@
                       @endforeach
                     </table>
                     @php
-                      $iSizing = (! empty($raw['sizing_tables']) && class_exists(\App\Services\Distributors\KonaClient::class)) ? \App\Services\Distributors\KonaClient::sizingFor((array) $raw['sizing_tables'], (string) ($rp['title'] ?? '')) : null;
+                      $iSizing = (! empty($raw['sizing_tables']) && ($iCls = app(\App\Services\Distributors\DistributorRegistry::class)->adapterClass($this->code)) && method_exists($iCls, 'sizingFor')) ? $iCls::sizingFor((array) $raw['sizing_tables'], (string) ($rp['title'] ?? '')) : null;
                       $iFit = $iSizing ? \App\Support\ProductDetails::fit($iSizing, (string) $iRow->size) : null;
                       $iStory = \App\Support\ProductDetails::story($raw['story'] ?? null);
                     @endphp
@@ -434,7 +434,7 @@
                         @endforeach
                       </table>
                     @else
-                      <div class="bs-dim">{{ empty($raw['sizing_tables']) ? 'Not read yet. It comes with the next read of this bike.' : 'No column of Kona\'s chart matches this model, so no Sizing tab is shown.' }}</div>
+                      <div class="bs-dim">{{ empty($raw['sizing_tables']) ? 'Not read yet. It comes with the next read of this bike.' : 'No column of ' . $this->label() . '\'s chart matches this model, so no Sizing tab is shown.' }}</div>
                     @endif
                     <div class="bs-faint" style="font-weight:600;margin:12px 0 4px">STORY{{ $iStory && $iStory['title'] ? ': ' . strtoupper($iStory['title']) : '' }}</div>
                     @if ($iStory)
@@ -446,7 +446,7 @@
                         @endif
                       @endforeach
                     @else
-                      <div class="bs-dim">{{ array_key_exists('story', $raw) ? 'Kona\'s page has no story section for this bike.' : 'Not read yet. It comes with the next read of this bike.' }}</div>
+                      <div class="bs-dim">{{ array_key_exists('story', $raw) ? $this->label() . '\'s page has no story section for this bike.' : 'Not read yet. It comes with the next read of this bike.' }}</div>
                     @endif
                     @if (! empty($raw['geometry']))
                       <div class="bs-faint" style="font-weight:600;margin:12px 0 4px">GEOMETRY</div>

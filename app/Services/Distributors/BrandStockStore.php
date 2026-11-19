@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\DB;
 class BrandStockStore
 {
     /**
-     * Replace the shop's file with these rows (from KonaStockFile::read).
+     * Replace the shop's file with these rows (from BrandStockFile::read).
      *
      * @param array<int,array<string,mixed>> $rows
      */

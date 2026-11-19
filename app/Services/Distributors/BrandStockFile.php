@@ -6,14 +6,16 @@ use App\Support\SimpleXlsx;
 use Illuminate\Support\Facades\DB;
 
 /**
- * A Kona dealer's stock file: Kona's "Item Valuation Data" export, .xlsx or
- * .csv. One row per part number with the dealer's cost ("Base Price"),
- * retail, stock on hand, UPC and model year. Read here for master admin's
- * check against the catalog; the shop-side upload reads it the same way.
+ * A dealer's stock file from a brand sold direct, .xlsx or .csv. One row per
+ * part number with the dealer's cost, retail, stock on hand, UPC and model
+ * year. Read here for master admin's check against the catalog; the shop-side
+ * upload reads it the same way. A brand's adapter may declare its own export
+ * name and column names through a static stockFile() (see KonaClient); these
+ * defaults cover any it leaves out.
  */
-class KonaStockFile
+class BrandStockFile
 {
-    /** Column names Kona uses, and the names this reader accepts for each. */
+    /** Column names accepted for each field, before a brand's own are added. */
     public const COLUMNS = [
         'id'          => ['inventory id', 'item', 'item id', 'part number', 'sku'],
         'description' => ['description', 'item description'],
@@ -28,8 +30,9 @@ class KonaStockFile
      * @return array{rows:array<int,array<string,mixed>>,missing:string[]}
      *         missing lists required columns the file does not have
      */
-    public static function read(string $path, ?string $originalName = null): array
+    public static function read(string $path, ?string $originalName = null, ?string $code = null): array
     {
+        $columns = self::columns($code);
         $ext = strtolower(pathinfo($originalName ?: $path, PATHINFO_EXTENSION));
         $records = $ext === 'csv' || $ext === 'txt' ? self::csv($path) : iterator_to_array(SimpleXlsx::records($path), false);
 
@@ -37,7 +40,7 @@ class KonaStockFile
         $first = $records[0] ?? [];
         foreach (array_keys($first) as $h) {
             $l = mb_strtolower(trim((string) $h));
-            foreach (self::COLUMNS as $key => $names) {
+            foreach ($columns as $key => $names) {
                 if (! isset($map[$key]) && in_array($l, $names, true)) {
                     $map[$key] = $h;
                 }
@@ -65,13 +68,42 @@ class KonaStockFile
         return ['rows' => $rows, 'missing' => $missing];
     }
 
+    /** What the brand's adapter declares about its stock file, or []. */
+    public static function declared(?string $code): array
+    {
+        $class = $code ? app(DistributorRegistry::class)->adapterClass($code) : null;
+        return $class && method_exists($class, 'stockFile') ? (array) $class::stockFile() : [];
+    }
+
+    /** Accepted column names per field: the defaults plus any the brand adds. */
+    public static function columns(?string $code): array
+    {
+        $out = self::COLUMNS;
+        foreach ((array) (self::declared($code)['columns'] ?? []) as $k => $names) {
+            $out[$k] = array_values(array_unique(array_merge(array_map('strtolower', (array) $names), $out[$k] ?? [])));
+        }
+        return $out;
+    }
+
+    /** The export's name as the brand calls it, for messages. */
+    public static function exportName(?string $code): string
+    {
+        return (string) (self::declared($code)['export'] ?? 'stock file');
+    }
+
+    /** Required fields, named the way the file does. */
+    public static function fieldLabels(): array
+    {
+        return ['id' => 'Inventory ID', 'cost' => 'Base Price', 'qty' => 'Qty. Hard Available'];
+    }
+
     /**
      * The file against the catalog: matched rows, rows not in the catalog,
      * UPCs shared by more than one part number, rows with no year (and
      * whether the catalog can fill it), and retail prices that differ from
-     * Kona's store.
+     * the brand's store.
      */
-    public static function check(array $rows, string $code = 'KONA'): array
+    public static function check(array $rows, string $code): array
     {
         $ids = array_column($rows, 'id');
         $cat = [];

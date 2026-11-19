@@ -91,6 +91,12 @@ class KonaClient implements DistributorAdapter
     /** No login: the catalog is public. */
     public static function needsKey(): bool { return false; }
 
+    /** What Kona's dealer stock file looks like (see BrandStockFile). */
+    public static function stockFile(): array
+    {
+        return ['export' => 'Item Valuation Data', 'columns' => []];
+    }
+
     /**
      * Whether shops can use this source. The shop's Kona box (stock file upload
      * and FTP folder) is built, so shops switched on in master admin see it.
