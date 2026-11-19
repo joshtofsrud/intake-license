@@ -37,6 +37,12 @@ class KonaClient implements DistributorAdapter
     /** How many bikes have a current spec page, for master admin. */
     public const PAGES_KEY = 'kona.pages_progress';
 
+    /**
+     * Bumped when the page reader learns a new layout, so bikes read with
+     * the older reader are read again once (2: the older #kro_specs table).
+     */
+    public const READER_VERSION = 2;
+
     /** Set by the Stop button; the read stops before its next request. */
     public const STOP_KEY = 'kona.catalog_stop';
 
@@ -351,7 +357,8 @@ class KonaClient implements DistributorAdapter
         $due = [];
         foreach ($handles as $h) {
             $at = (int) ($saved[$h]['read_at'] ?? 0);
-            if ($this->only || empty($saved[$h]['product']) && empty($saved[$h]['gone']) || $at < $fresh) {
+            $stale = ! empty($saved[$h]['product']) && (int) ($saved[$h]['v'] ?? 1) < self::READER_VERSION;
+            if ($this->only || empty($saved[$h]['product']) && empty($saved[$h]['gone']) || $at < $fresh || $stale) {
                 $due[$h] = $at;
             }
         }
@@ -375,7 +382,7 @@ class KonaClient implements DistributorAdapter
                     $page = $this->politeGet($this->base . '/products/' . rawurlencode($h), [], 'bikes', $n, $total);
                     $parsed = $page->successful() ? self::parsePage($page->body())
                         : ['specs' => $saved[$h]['specs'] ?? [], 'geometry' => $saved[$h]['geometry'] ?? []];
-                    $saved[$h] = ['product' => $product] + $parsed + ['read_at' => now()->timestamp];
+                    $saved[$h] = ['product' => $product] + $parsed + ['read_at' => now()->timestamp, 'v' => self::READER_VERSION];
                 } elseif ($this->only) {
                     throw new \RuntimeException('Kona\'s store answered HTTP ' . $res->status() . ' for "' . $h . '".');
                 }
@@ -404,7 +411,8 @@ class KonaClient implements DistributorAdapter
     {
         $n = 0;
         foreach ($handles as $h) {
-            if ((int) ($saved[$h]['read_at'] ?? 0) >= $fresh) {
+            if ((int) ($saved[$h]['read_at'] ?? 0) >= $fresh
+                && (! empty($saved[$h]['gone']) || (int) ($saved[$h]['v'] ?? 1) >= self::READER_VERSION)) {
                 $n++;
             }
         }
@@ -487,14 +495,28 @@ class KonaClient implements DistributorAdapter
         $xp = new \DOMXPath($dom);
         $clean = fn ($s) => trim(preg_replace('/\s+/u', ' ', str_replace("\xC2\xA0", ' ', (string) $s)) ?? '');
 
-        foreach ($xp->query('//table[contains(concat(" ", normalize-space(@class), " "), " newspec ")]//tr') ?: [] as $tr) {
-            $tds = $xp->query('./td', $tr);
-            if ($tds && $tds->length >= 2) {
+        // Two layouts: newer bikes use table.newspec (label | value cells);
+        // older ones a plain table inside #kro_specs with td.label / td.data.
+        $rows = $xp->query('//*[@id="kro_specs"]//table//tr | //table[contains(concat(" ", normalize-space(@class), " "), " newspec ")]//tr') ?: [];
+        $seen = [];
+        foreach ($rows as $tr) {
+            $label = $xp->query('./td[contains(concat(" ", normalize-space(@class), " "), " label ")]', $tr);
+            $data  = $xp->query('./td[contains(concat(" ", normalize-space(@class), " "), " data ")]', $tr);
+            if ($label && $label->length && $data && $data->length) {
+                $name = $clean($label->item(0)->textContent);
+                $val  = $clean($data->item(0)->textContent);
+            } else {
+                $tds = $xp->query('./td', $tr);
+                if (! $tds || $tds->length < 2) {
+                    continue;
+                }
                 $name = $clean($tds->item(0)->textContent);
                 $val  = $clean($tds->item(1)->textContent);
-                if ($name !== '') {
-                    $out['specs'][] = ['Name' => $name, 'Value' => $val];
-                }
+            }
+            $key = mb_strtolower($name);
+            if ($name !== '' && ! isset($seen[$key])) {
+                $seen[$key] = true;
+                $out['specs'][] = ['Name' => $name, 'Value' => $val];
             }
         }
 
