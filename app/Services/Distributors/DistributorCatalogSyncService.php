@@ -561,6 +561,8 @@ class DistributorCatalogSyncService
             'category'      => $canonical['category'] ?? null,
             'category_path' => $canonical['category_path'] ?? null,
             'unit'          => $canonical['uom'] ?? null,
+            'size'          => $canonical['size'] ?? null,
+            'color'         => $canonical['color'] ?? null,
             // mirrors CatalogTitleComposer::partsFromRow().
             // If these two drift, the editor preview and the real title differ.
             'item_group'    => $canonical['item_group'] ?? null,

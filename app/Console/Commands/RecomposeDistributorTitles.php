@@ -31,16 +31,8 @@ class RecomposeDistributorTitles extends Command
         $n = 0;
         $q->chunkById(500, function ($rows) use ($composer, &$n, $bar) {
             foreach ($rows as $r) {
-                $c = $composer->compose($r->distributor_code, [
-                    'brand'         => $r->manufacturer,
-                    'model'         => $r->name,
-                    'mpn'           => $r->manufacturer_sku,
-                    'description'   => $r->description,
-                    'attributes'    => $r->attributes ?? [],
-                    'category'      => $r->category,
-                    'category_path' => $r->category_path,
-                    'unit'          => $r->uom,
-                ]);
+                // the same parts the Titles preview uses, so stored titles match it
+                $c = $composer->compose($r->distributor_code, $composer->partsFromRow($r));
                 $r->forceFill([
                     'display_name'     => $c['title'] !== '' ? $c['title'] : $r->name,
                     'display_subtitle' => $c['subtitle'] !== '' ? $c['subtitle'] : null,

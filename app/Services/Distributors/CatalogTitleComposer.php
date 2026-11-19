@@ -86,6 +86,14 @@ class CatalogTitleComposer
             ? $sizeAttrOverride
             : ($setting->size_attribute_priority ?: []);
         $size = $this->pickAttribute($attrs, $sizePriority);
+        // the size and color the field map resolved: a feed that carries them as
+        // product options, not specs, has no attribute to pick from
+        if ($color === '') {
+            $color = trim((string) ($parts['color'] ?? ''));
+        }
+        if ($size === '') {
+            $size = trim((string) ($parts['size'] ?? ''));
+        }
         if ($size === '') {
             $size = $this->extractSize(
                 $distributorCode,
@@ -194,6 +202,8 @@ class CatalogTitleComposer
             'category'      => $row->category,
             'category_path' => $row->category_path,
             'unit'          => $row->uom,
+            'size'          => $row->size,
+            'color'         => $row->color,
             // must mirror the sync's parts array below,
             // or the preview shows something the sync will not produce.
             'item_group'    => $row->item_group,
