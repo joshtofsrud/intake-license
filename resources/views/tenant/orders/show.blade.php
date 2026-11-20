@@ -122,7 +122,7 @@
             @csrf <input type="hidden" name="op" value="ship">
             <select name="carrier" class="ia-input" style="width:auto">
               @foreach(\App\Services\Tenant\ShipmentFlow::carriers() as $k => $lbl)
-                <option value="{{ $k }}" @selected(($sh->carrier ?: str_before((string) $sh->service_code, '_')) === $k)>{{ $lbl }}</option>
+                <option value="{{ $k }}" @selected(($sh->carrier ?: \Illuminate\Support\Str::before((string) $sh->service_code, '_')) === $k)>{{ $lbl }}</option>
               @endforeach
             </select>
             <input type="text" name="tracking_number" class="ia-input" style="flex:1;min-width:150px" placeholder="Tracking number" value="{{ $sh->tracking_number }}">
