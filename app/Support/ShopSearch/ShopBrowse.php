@@ -40,6 +40,8 @@ class ShopBrowse
             'brand'   => $list('brand'),
             'avail'   => array_values(array_intersect($list('avail'), ['in', 'so', 'out'])),
             'sale'    => $r->boolean('sale'),
+            // MARKER-OPTION-FILTERS: option fields from master admin › Option splitting (casing, compound…), keyed s_*
+            'opt'     => self::opts($r),
             'min'     => $dollars('min'),
             'max'     => $dollars('max'),
             'sort'    => in_array($r->query('sort'), ['best', 'featured', 'price_asc', 'price_desc', 'newest'], true) ? $r->query('sort') : null,
@@ -68,6 +70,10 @@ class ShopBrowse
                 if (in_array('so', $f['avail'], true))  $w->orWhere(fn ($x) => $x->where('tenant_inventory_items.computed_stock_count', '<=', 0)->where('tenant_inventory_items.allow_oversell', true));
                 if (in_array('out', $f['avail'], true)) $w->orWhere(fn ($x) => $x->where('tenant_inventory_items.computed_stock_count', '<=', 0)->where(fn ($y) => $y->where('tenant_inventory_items.allow_oversell', false)->orWhereNull('tenant_inventory_items.allow_oversell')));
             });
+        }
+        foreach ($f['opt'] as $k => $vals) {
+            if ($skip === 'opt:' . $k || $skip === 'opt') continue;
+            $q->whereHas('distributorCatalog', fn ($c) => $c->whereIn('spec_attrs->' . $k, $vals));
         }
         if ($skip !== 'sale' && $f['sale']) $q->whereRaw('tenant_inventory_items.compare_at_cents > ' . ShopSearch::PRICE_SQL);
         if ($skip !== 'price') {
@@ -154,6 +160,7 @@ class ShopBrowse
             usort($rows, fn ($a, $b) => $b['n'] <=> $a['n'] ?: strcmp($a['name'], $b['name']));
             if (count($rows) > 1 || $f['brand']) $facets['brand'] = $rows;
         }
+        if ($opts = $this->optionFacets()) $facets['options'] = $opts;
         if (isset($on['availability'])) {
             $raw = $this->counts('avail', "CASE WHEN tenant_inventory_items.computed_stock_count > 0 THEN 'in' WHEN tenant_inventory_items.allow_oversell = 1 THEN 'so' ELSE 'out' END");
             $names = ['in' => 'In stock', 'so' => 'Special order', 'out' => 'Out of stock'];
@@ -190,6 +197,64 @@ class ShopBrowse
         ];
     }
 
+    /** opt[s_casing][]=EXO → ['s_casing' => ['EXO']], only keys an active Option splitting rule defines. */
+    private static function opts(Request $r): array
+    {
+        $known = array_flip(array_column(\App\Support\CatalogSpecs::rules(), 'key'));
+        $out = [];
+        foreach ((array) $r->query('opt', []) as $k => $vals) {
+            $k = (string) $k;
+            if (! isset($known[$k]) || ! preg_match('/^s_[a-z0-9_]+$/', $k)) continue;
+            $vals = array_values(array_unique(array_filter(array_map('strval', (array) $vals), fn ($v) => $v !== '')));
+            if ($vals) $out[$k] = $vals;
+        }
+        return $out;
+    }
+
+    /** Most rows read to build the option filters. Past this the shopper is browsing too wide for them to mean much. */
+    public const OPTION_SCAN_MAX = 5000;
+
+    /**
+     * MARKER-OPTION-FILTERS: one filter per Option splitting field that the
+     * items on this page carry, shown once a category or search narrows the
+     * page. Each field counts as if it were not set, like the others.
+     * [[key, name, rows:[[id,name,n]]]]
+     */
+    private function optionFacets(): array
+    {
+        $f = $this->f;
+        $rules = \App\Support\CatalogSpecs::rules();
+        if (! $rules || ($f['q'] === '' && ! $f['cat'] && ! $f['opt'])) return [];
+        $rows = $this->filtered('opt')->toBase()->reorder()
+            ->join('platform_distributor_catalogs as pdc_opt', 'pdc_opt.id', '=', 'tenant_inventory_items.distributor_catalog_id')
+            ->whereNotNull('pdc_opt.spec_attrs')
+            ->limit(self::OPTION_SCAN_MAX)
+            ->pluck('pdc_opt.spec_attrs')->all();
+        if (! $rows) return [];
+        $rows = array_map(fn ($j) => is_array($d = json_decode((string) $j, true)) ? $d : [], $rows);
+        $out = [];
+        foreach ($rules as $rule) {
+            $k = $rule['key'];
+            if (isset($out[$k])) continue;
+            $n = [];
+            foreach ($rows as $a) {
+                // the shopper's picks on the OTHER option fields still narrow this one
+                foreach ($f['opt'] as $ok => $vals) {
+                    if ($ok !== $k && ! in_array((string) ($a[$ok] ?? ''), $vals, true)) continue 2;
+                }
+                $v = (string) ($a[$k] ?? '');
+                if ($v !== '') $n[$v] = ($n[$v] ?? 0) + 1;
+            }
+            foreach ($f['opt'][$k] ?? [] as $picked) $n[$picked] = $n[$picked] ?? 0;
+            if (count($n) < 2 && empty($f['opt'][$k])) continue;
+            $list = [];
+            foreach ($n as $v => $c) $list[] = ['id' => (string) $v, 'name' => (string) $v, 'n' => (int) $c];
+            usort($list, fn ($a, $b) => $b['n'] <=> $a['n'] ?: strnatcasecmp($a['name'], $b['name']));
+            $out[$k] = ['key' => $k, 'name' => $rule['name'], 'rows' => $list];
+        }
+        return array_values($out);
+    }
+
     private function load(Builder $q): Builder
     {
         return $q->with(['distributorCatalog:id,manufacturer,images,distributor_code', 'category:id,name', 'itemImages.media']);
@@ -213,6 +278,16 @@ class ShopBrowse
         $names = ['in' => 'In stock', 'so' => 'Special order', 'out' => 'Out of stock'];
         foreach ($f['avail'] as $a) $out[] = ['label' => $names[$a], 'url' => $without('avail', $a)];
         if ($f['sale']) $out[] = ['label' => 'On sale', 'url' => $without('sale')];
+        $names2 = array_column(\App\Support\CatalogSpecs::rules(), 'name', 'key');
+        foreach ($f['opt'] as $k => $vals) {
+            foreach ($vals as $v) {
+                $q = request()->query(); unset($q['page']);
+                $q['opt'][$k] = array_values(array_filter((array) ($q['opt'][$k] ?? []), fn ($x) => (string) $x !== (string) $v));
+                if (! $q['opt'][$k]) unset($q['opt'][$k]);
+                if (empty($q['opt'])) unset($q['opt']);
+                $out[] = ['label' => ($names2[$k] ?? 'Option') . ': ' . $v, 'url' => '/shop' . ($q ? '?' . http_build_query($q) : '')];
+            }
+        }
         if ($f['min'] !== null || $f['max'] !== null) {
             $q = request()->query(); unset($q['min'], $q['max'], $q['page']);
             $out[] = ['label' => ($f['min'] !== null ? ShopSearch::money($f['min']) : '$0') . ' – ' . ($f['max'] !== null ? ShopSearch::money($f['max']) : 'any'), 'url' => '/shop' . ($q ? '?' . http_build_query($q) : '')];

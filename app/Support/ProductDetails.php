@@ -119,6 +119,7 @@ class ProductDetails
     {
         $hide = array_map('strtolower', (array) config('product_details.hide', []));
         $rows = [];
+        $seen = [];
         foreach ($attributes as $a) {
             if (! is_array($a) || ! isset($a['Name'], $a['Value'])) {
                 continue;
@@ -128,9 +129,23 @@ class ProductDetails
             if ($name === '' || $val === '' || in_array(strtolower($name), $hide, true)) {
                 continue;
             }
+            // a feed that lists one attribute many times (QBP "Fits Brand" once per brand) reads as one row
+            $lk = mb_strtolower($name);
+            if (isset($seen[$lk])) {
+                $i = $seen[$lk];
+                if (! in_array($val, $rows[$i]['parts'], true)) {
+                    $rows[$i]['parts'][] = $val;
+                    $rows[$i]['value'] = implode(', ', $rows[$i]['parts']);
+                    $rows[$i]['all'] = null;
+                }
+                continue;
+            }
             [$shown, $all] = self::forSize($val, $size);
-            $rows[] = ['label' => $name, 'value' => $shown, 'all' => $all];
+            $seen[$lk] = count($rows);
+            $rows[] = ['label' => $name, 'value' => $shown, 'all' => $all, 'parts' => [$val]];
         }
+        foreach ($rows as &$r) { unset($r['parts']); }
+        unset($r);
         if (count($rows) < (int) config('product_details.min_for_groups', 8)) {
             return $rows ? [['group' => null, 'rows' => $rows]] : [];
         }
@@ -225,8 +240,16 @@ class ProductDetails
     }
 
     /**
-     * The other sizes of this model, in size order, with what this shop has
-     * of each: [size, catalog_id, item_id|null, stock|null, current].
+     * MARKER-VARIANT-PICKER: the other variants of this model, with what this
+     * shop has of each: [size (label), opts, catalog_id, item_id|null, stock|null, current].
+     *
+     * Rows sharing the distributor's product number are only variants when
+     * they differ by size, color or an Option splitting field (casing,
+     * compound…), and every row has its own combination. Some distributors
+     * file many different products under one number (every derailleur hanger
+     * of a brand), so if any two rows read the same, or one is blank on a
+     * field the others differ by, they are separate products and there is
+     * no picker.
      */
     public static function siblings(TenantInventoryItem $item, PlatformDistributorCatalog $cat): array
     {
@@ -237,8 +260,12 @@ class ProductDetails
             ->where('distributor_code', $cat->distributor_code)
             ->where('distributor_product_no', $cat->distributor_product_no)
             ->where('is_active', true)
-            ->get(['id', 'size', 'distributor_variant_no']);
+            ->get(['id', 'size', 'color', 'spec_attrs', 'distributor_variant_no']);
         if ($rows->count() < 2) {
+            return [];
+        }
+        $axes = self::axes($rows->all());
+        if (! $axes) {
             return [];
         }
         $ids = $rows->pluck('id')->all();
@@ -254,8 +281,13 @@ class ProductDetails
         $out = [];
         foreach ($rows as $r) {
             $m = $byCat[(string) $r->id] ?? ($r->id === $cat->id ? $item : null);
+            $opts = [];
+            foreach ($axes as $k => $label) {
+                $opts[$k] = self::optValue($r, $k);
+            }
             $out[] = [
-                'size'       => trim((string) $r->size),
+                'size'       => implode(' · ', $opts),
+                'opts'       => $opts,
                 'catalog_id' => (string) $r->id,
                 'item_id'    => $m ? (string) $m->id : null,
                 'stock'      => $m ? (int) $m->computed_stock_count : null,
@@ -265,12 +297,89 @@ class ProductDetails
         $order = (array) config('product_details.size_order', []);
         $rank = function (string $s) use ($order) {
             if (preg_match('/^\d+(\.\d+)?/', $s, $m)) {
-                return [0, (float) $m[0]];
+                return [0, (float) $m[0], $s];
             }
             $i = array_search(strtoupper($s), $order, true);
-            return [1, $i === false ? 99 : $i];
+            return [1, $i === false ? 99 : $i, $s];
         };
-        usort($out, fn ($a, $b) => $rank($a['size']) <=> $rank($b['size']));
+        $keys = array_keys($axes);
+        usort($out, function ($a, $b) use ($keys, $rank) {
+            foreach ($keys as $k) {
+                $c = $rank((string) $a['opts'][$k]) <=> $rank((string) $b['opts'][$k]);
+                if ($c !== 0) {
+                    return $c;
+                }
+            }
+            return 0;
+        });
+        return $out;
+    }
+
+    /** The fields the variants differ by, [key => label], in picker order; [] when the rows aren't true variants. */
+    public static function axes(array $rows): array
+    {
+        $labels = ['size' => 'Size', 'color' => 'Color'];
+        foreach (CatalogSpecs::rules() as $rule) {
+            $labels[$rule['key']] ??= $rule['name'];
+        }
+        $axes = [];
+        foreach ($labels as $k => $label) {
+            $vals = [];
+            foreach ($rows as $r) {
+                $vals[mb_strtolower(self::optValue($r, $k))] = true;
+            }
+            if (count($vals) > 1) {
+                $axes[$k] = $label;
+            }
+        }
+        if (! $axes) {
+            return [];
+        }
+        $combos = [];
+        foreach ($rows as $r) {
+            $combo = [];
+            foreach (array_keys($axes) as $k) {
+                $v = self::optValue($r, $k);
+                if ($v === '') {
+                    return [];
+                }
+                $combo[] = mb_strtolower($v);
+            }
+            $c = implode('|', $combo);
+            if (isset($combos[$c])) {
+                return [];
+            }
+            $combos[$c] = true;
+        }
+        return $axes;
+    }
+
+    private static function optValue($row, string $k): string
+    {
+        if ($k === 'size' || $k === 'color') {
+            return trim((string) $row->{$k});
+        }
+        $spec = $row->spec_attrs;
+        if (is_string($spec)) {
+            $spec = json_decode($spec, true);
+        }
+        return trim((string) (((array) $spec)[$k] ?? ''));
+    }
+
+    /** [key => label] for the picker rows of these variants. */
+    public static function axesFor(array $sizes): array
+    {
+        if (! $sizes) {
+            return [];
+        }
+        $labels = ['size' => 'Size', 'color' => 'Color'];
+        foreach (CatalogSpecs::rules() as $rule) {
+            $labels[$rule['key']] ??= $rule['name'];
+        }
+        $out = [];
+        foreach (array_keys($sizes[0]['opts'] ?? []) as $k) {
+            $out[$k] = $labels[$k] ?? $k;
+        }
         return $out;
     }
 }

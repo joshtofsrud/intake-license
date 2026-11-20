@@ -121,17 +121,19 @@
       <h1>{{ $item->name }}</h1>
       @if($item->display_subtitle)<div class="subt">{{ $item->display_subtitle }}</div>@endif
 
-      @if(!empty($pd['fit']['range']) && empty($pdSizes))<div class="subt">Size {{ $pd['size'] }} · fits riders about {{ $pd['fit']['range'] }}</div>@endif
+      @if(!empty($pd['fit']['range']) && empty($pdAxes))<div class="subt">Size {{ $pd['size'] }} · fits riders about {{ $pd['fit']['range'] }}</div>@endif
       {{-- MARKER-PRODUCT-DETAILS: the other sizes of this model that are for sale here --}}
-      @if(!empty($pdSizes))
+      @if(!empty($pdAxes))
+        @foreach($pdAxes as $ax)
         <div class="szrow">
-          <div class="szlab"><span>Size: <b>{{ $pd['size'] }}</b></span>@if(!empty($pd['fit']['range']))<span style="opacity:.6;margin-left:10px">fits riders about {{ $pd['fit']['range'] }}</span>@endif</div>
+          <div class="szlab"><span>{{ $ax['label'] }}: <b>{{ $ax['value'] }}</b></span>@if($ax['key'] === 'size' && !empty($pd['fit']['range']))<span style="opacity:.6;margin-left:10px">fits riders about {{ $pd['fit']['range'] }}</span>@endif</div>
           <div class="szs">
-            @foreach($pdSizes as $z)
-              <a @if($z['href']) href="{{ $z['href'] }}" @endif class="sz{{ $z['current'] ? ' on' : '' }}"><b>{{ $z['size'] }}</b><span class="{{ ($z['stock'] ?? 0) > 0 ? 'in' : '' }}">{{ ($z['stock'] ?? 0) > 0 ? 'In stock' : 'Special order' }}</span></a>
+            @foreach($ax['values'] as $z)
+              <a @if($z['href']) href="{{ $z['href'] }}" @endif class="sz{{ $z['current'] ? ' on' : '' }}"><b>{{ $z['value'] }}</b><span class="{{ ($z['stock'] ?? 0) > 0 ? 'in' : '' }}">{{ $z['current'] ? (($z['stock'] ?? 0) > 0 ? 'In stock' : 'Special order') : ($z['exact'] ? (($z['stock'] ?? 0) > 0 ? 'In stock' : 'Special order') : 'Other options') }}</span></a>
             @endforeach
           </div>
         </div>
+        @endforeach
       @endif
 
       {{-- MARKER-SHOP-SEARCH-V2: a was price above the price shows crossed out --}}

@@ -299,6 +299,30 @@ class StorefrontController extends Controller
             }
         }
 
+        // MARKER-VARIANT-PICKER: one row per field the variants differ by (size, casing, compound…).
+        // A choice goes to the variant with that value and this item's other values, else the
+        // nearest one for sale with that value.
+        $pdAxes = [];
+        if ($pdSizes) {
+            $cur = collect($pdSizes)->firstWhere('current', true);
+            foreach (\App\Support\ProductDetails::axesFor($pdSizes) as $k => $label) {
+                $vals = [];
+                foreach ($pdSizes as $z) {
+                    $v = (string) $z['opts'][$k];
+                    $score = 0;
+                    foreach ($z['opts'] as $ok => $ov) {
+                        if ($ok !== $k && $cur && (string) $cur['opts'][$ok] === (string) $ov) $score++;
+                    }
+                    $exact = $cur && $score === count($z['opts']) - 1;
+                    if (! isset($vals[$v]) || $score > $vals[$v]['score'] || $z['current']) {
+                        $vals[$v] = ['value' => $v, 'href' => $z['current'] ? null : $z['href'], 'current' => $z['current'] || ($vals[$v]['current'] ?? false),
+                                     'stock' => $z['stock'], 'exact' => $exact, 'score' => $z['current'] ? 99 : $score];
+                    }
+                }
+                $pdAxes[] = ['key' => $k, 'label' => $label, 'value' => $cur ? (string) $cur['opts'][$k] : '', 'values' => array_values($vals)];
+            }
+        }
+
         return \App\Services\Tenant\SiteChromeService::render(tenant(), 'shop_show', [
             'shopItem' => $item, // collision-proof alias
             'cartCount' => \App\Services\Tenant\CartService::forTenant(tenant())->itemCount(),
@@ -308,6 +332,7 @@ class StorefrontController extends Controller
             'attrs'  => $attrs,
             'pd'     => $pd,
             'pdSizes' => $pdSizes,
+            'pdAxes'  => $pdAxes,
             'brand'  => $item->shop_brand ?: $cat?->manufacturer,
             'shareOn' => (bool) (tenant()->settings['storefront']['share_on'] ?? true), // MARKER-ITEM-SEO
         ], $this->seoMeta($item, $images, $item->shop_brand ?: $cat?->manufacturer));

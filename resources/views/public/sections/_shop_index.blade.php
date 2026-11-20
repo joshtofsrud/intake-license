@@ -309,6 +309,20 @@
                 @if(count($facets['brand']) > 8)<button type="button" class="more">Show all {{ count($facets['brand']) }}</button>@endif
               </div>
             @endif
+            {{-- MARKER-OPTION-FILTERS: option fields for what is on this page (casing, compound, size…) --}}
+            @foreach($facets['options'] ?? [] as $og)
+              <div class="g" data-more>
+                <h5>{{ $og['name'] }}</h5>
+                @php $ogOn = $f['opt'][$og['key']] ?? []; @endphp
+                @foreach($og['rows'] as $i => $o)
+                  <label class="{{ $o['n'] ? '' : 'zero' }}" @if($i >= 8 && ! in_array($o['id'], $ogOn, true)) hidden data-extra @endif>
+                    <input type="checkbox" name="opt[{{ $og['key'] }}][]" value="{{ $o['id'] }}" @checked(in_array($o['id'], $ogOn, true))>
+                    <span>{{ $o['name'] }}</span><span class="n">{{ $o['n'] }}</span>
+                  </label>
+                @endforeach
+                @if(count($og['rows']) > 8)<button type="button" class="more">Show all {{ count($og['rows']) }}</button>@endif
+              </div>
+            @endforeach
             @if(! empty($facets['availability']))
               <div class="g">
                 <h5>Availability</h5>

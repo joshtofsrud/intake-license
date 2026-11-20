@@ -155,13 +155,22 @@ class CatalogTitleComposer
         $resolve = function (string $name) use ($tokens, $attrs): string {
             $name = trim($name);
             if ($name === 'allattr') {
-                $out = [];
+                // an attribute listed many times (QBP "Fits Brand" once per brand)
+                // renders once: "Fits Brand Niner, Merida, Marin"
+                $byName = [];
                 foreach ($attrs as $a) {
                     if (is_array($a) && isset($a['Name'], $a['Value']) && trim((string) $a['Value']) !== '') {
-                        $out[] = trim($a['Name'] . ' ' . $a['Value']);
+                        $n = trim((string) $a['Name']);
+                        $k = mb_strtolower($n);
+                        $byName[$k]['name'] ??= $n;
+                        $byName[$k]['vals'][trim((string) $a['Value'])] = true;
                     }
                 }
-                return implode(' ', $out);
+                $out = [];
+                foreach ($byName as $g) {
+                    $out[] = trim($g['name'] . ' ' . implode(', ', array_keys($g['vals'])));
+                }
+                return implode(' · ', $out);
             }
             if (str_starts_with($name, 'attr:')) {
                 $want = trim(substr($name, 5));
