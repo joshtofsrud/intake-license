@@ -146,6 +146,7 @@ class PosConnectionController extends Controller
             'payment_type_id' => $data['payment_type_id'] ?? null, 'tax_id' => $data['tax_id'] ?? null,
         ]);
         $out = (bool) ($data['orders_out'] ?? false);
+        $wasOut = (bool) $conn->orders_out;
         if ($out) {
             $missing = [];
             foreach (['register_id' => 'register', 'user_id' => 'staff member', 'payment_type_id' => 'payment type'] as $k => $label) {
@@ -164,7 +165,8 @@ class PosConnectionController extends Controller
             'items_create' => $data['items_create'], 'items_edits' => (bool) ($data['items_edits'] ?? false),
         ])->save();
 
-        return $this->back()->with('success', 'Orders and items settings saved.');
+        $catch = $out && ! $wasOut ? \App\Services\Pos\PosPushService::catchupOrders($conn->tenant_id)->count() : 0;
+        return $this->back()->with('success', 'Orders and items settings saved.' . ($catch ? ' ' . $catch . ' paid ' . ($catch === 1 ? 'order' : 'orders') . ' from the last 7 days went out before this was on — send them from Sending below.' : ''));
     }
 
     /** Settle a Needs review field. */
@@ -180,6 +182,25 @@ class PosConnectionController extends Controller
         }
 
         return $this->back()->with('success', $data['keep'] === 'intake' ? 'Sent Intake\'s value to your Connected POS.' : 'Took your Connected POS\'s value into Intake.');
+    }
+
+    /** MARKER-POS-CATCHUP: send the paid orders from the last 7 days that went out before orders were switched on. */
+    public function sendRecentOrders(\App\Services\Pos\PosPushService $push): RedirectResponse
+    {
+        $this->guard();
+        $conn = TenantPosConnection::where('tenant_id', tenant()->id)->where('status', 'connected')->firstOrFail();
+        if (! $conn->orders_out) {
+            return $this->back()->with('error', 'Turn on Send paid online orders and save first.');
+        }
+        $n = 0;
+        foreach (\App\Services\Pos\PosPushService::catchupOrders($conn->tenant_id)->orderBy('created_at')->get(['id', 'order_number']) as $o) {
+            $push->queue($conn->tenant_id, 'sale', (string) $o->id, 'Online order ' . $o->order_number, false);
+            $n++;
+        }
+        if ($n) {
+            \App\Services\Pos\PosPushService::kick($conn->tenant_id);
+        }
+        return $this->back()->with('success', $n ? 'Sending ' . $n . ' paid ' . ($n === 1 ? 'order' : 'orders') . ' to your Connected POS. Watch them under Sending.' : 'Every paid order from the last 7 days is already sent.');
     }
 
     /** MARKER-POS-STOP-SENDS: stop everything still waiting to send. Nothing already sent is touched. */

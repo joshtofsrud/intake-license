@@ -195,19 +195,18 @@
     @endforelse
   </div>
 
-  {{-- sending activity, live --}}
-  <div class="ec-sec" id="posSends" data-live="{{ $waiting > 0 ? 1 : 0 }}">
+  {{-- sending activity. MARKER-POS-SENDS-LIST: the buttons sit OUTSIDE the area that refreshes,
+       so a confirm dialog never ends up pointing at a form that was swapped out underneath it. --}}
+  @php $kindNames = ['sale' => 'Order', 'refund' => 'Refund', 'item_create' => 'New item', 'item_update' => 'Item edit']; @endphp
+  <div class="ec-sec">
     <h3>Sending</h3>
-    @if($waiting > 0)
-      <div class="cp-live"><span class="cp-dot"></span>Sending {{ number_format($waiting) }} to your Connected POS — this page updates as they go.</div>
+    @if(($pos['catchup'] ?? 0) > 0 && $pc->orders_out)
+      <div class="ec-row" style="border:1px solid rgba(245,158,11,.4);background:rgba(245,158,11,.08);border-radius:10px;padding:10px 12px;margin-bottom:10px">
+        <div><div class="t">{{ $pos['catchup'] }} paid {{ $pos['catchup'] === 1 ? 'order' : 'orders' }} from the last 7 days {{ $pos['catchup'] === 1 ? "wasn't" : "weren't" }} sent</div><div class="d">They were paid before Send paid online orders was on. Sending records each one as a completed sale.</div></div>
+        <div class="ctl"><form method="POST" action="{{ route('tenant.storefront.pos.send_recent_orders') }}">@csrf<button class="ia-btn ia-btn--primary ia-btn--sm" type="submit">Send {{ $pos['catchup'] === 1 ? 'it' : 'them' }}</button></form></div>
+      </div>
     @endif
-    <div class="av-sum" style="margin-bottom:4px">
-      <div>Sent<b>{{ number_format($cnt['done'] ?? 0) }}</b></div>
-      <div>Waiting<b>{{ number_format($waiting) }}</b></div>
-      <div class="w">Failed<b>{{ number_format($cnt['failed'] ?? 0) }}</b></div>
-      <div>Stopped<b>{{ number_format($cnt['skipped'] ?? 0) }}</b></div>
-    </div>
-    <div class="cp-actions">
+    <div class="cp-actions" style="margin:0 0 6px">
       @if($waiting > 0)
         <form method="POST" action="{{ route('tenant.storefront.pos.stop_sends') }}">@csrf<button class="ia-btn ia-btn--secondary ia-btn--sm" type="submit" data-confirm="Stop everything still waiting to send? Anything already sent stays in your Connected POS.">Stop sending</button></form>
       @endif
@@ -215,56 +214,93 @@
         <form method="POST" action="{{ route('tenant.storefront.pos.sends_resume') }}">@csrf<button class="ia-btn ia-btn--primary ia-btn--sm" type="submit">Resume {{ number_format($cnt['skipped']) }} stopped</button></form>
         <form method="POST" action="{{ route('tenant.storefront.pos.clear_stopped') }}">@csrf<button class="ia-btn ia-btn--secondary ia-btn--sm" type="submit" data-confirm="Drop the {{ number_format($cnt['skipped']) }} stopped sends? They won't be sent. Nothing changes in your Connected POS.">Drop them</button></form>
       @endif
+      @if(($cnt['failed'] ?? 0) > 0)
+        <form method="POST" action="{{ route('tenant.storefront.pos.clear_failed') }}">@csrf<button class="ia-btn ia-btn--secondary ia-btn--sm" type="submit" data-confirm="Clear failed item sends from this list? Nothing changes in your Connected POS. Failed orders and refunds stay until they're sent.">Clear failed items</button></form>
+      @endif
     </div>
 
-    @if(count($pos['problems']))
-      <div class="t" style="margin-top:14px;font-size:13px;font-weight:500">Failed — latest {{ count($pos['problems']) }} of {{ number_format($cnt['failed'] ?? 0) }}</div>
+  <div id="posSends">
+    @if($waiting > 0)
+      <div class="cp-live"><span class="cp-dot"></span>Sending {{ number_format($waiting) }} to your Connected POS — this list updates as they go.</div>
+    @endif
+    <div class="av-sum" style="margin-bottom:4px">
+      <div>Sent<b>{{ number_format($cnt['done'] ?? 0) }}</b></div>
+      <div>Waiting<b>{{ number_format($waiting) }}</b></div>
+      <div class="w">Failed<b>{{ number_format($cnt['failed'] ?? 0) }}</b></div>
+      <div>Stopped<b>{{ number_format($cnt['skipped'] ?? 0) }}</b></div>
+    </div>
+
+    @if(count($pos['money_failed'] ?? []))
+      <div class="t" style="margin-top:14px;font-size:13px;font-weight:500;color:#A32D2D">Orders and refunds that didn't send</div>
       <table class="cp-tbl">
-        @foreach($pos['problems'] as $sd)
+        @foreach($pos['money_failed'] as $sd)
           <tr>
             <td class="what">{{ \Illuminate\Support\Str::limit($sd->label, 70) }}</td>
-            <td class="err">{{ \Illuminate\Support\Str::limit($sd->last_error, 120) }}</td>
+            <td class="err">{{ \Illuminate\Support\Str::limit($sd->last_error, 140) }}</td>
             <td class="when">{{ \Illuminate\Support\Carbon::parse($sd->updated_at)->diffForHumans(null, true) }}</td>
             <td><form method="POST" action="{{ route('tenant.storefront.pos.retry', $sd->id) }}">@csrf<button class="ia-btn ia-btn--secondary ia-btn--sm" type="submit">Retry</button></form></td>
           </tr>
         @endforeach
       </table>
-      <div class="cp-actions"><form method="POST" action="{{ route('tenant.storefront.pos.clear_failed') }}">@csrf<button class="ia-btn ia-btn--secondary ia-btn--sm" type="submit" data-confirm="Clear failed item sends from this list? Nothing changes in your Connected POS. Failed orders and refunds stay until they're sent.">Clear failed items</button></form></div>
     @endif
 
     @if(count($pos['latest']))
       <div class="t" style="margin-top:14px;font-size:13px;font-weight:500">Latest</div>
       <table class="cp-tbl">
         @foreach($pos['latest'] as $sd)
+          @php
+            [$badge, $cls] = match ($sd->status) {
+              'done'    => ['Sent', 'src-shop'],
+              'failed'  => ['Failed', 'src-special'],
+              'skipped' => ['Stopped', 'src-supplier'],
+              default   => [$sd->last_error ? 'Retrying' : 'Waiting', 'src-supplier'],
+            };
+          @endphp
           <tr>
+            <td class="when">{{ $kindNames[$sd->kind] ?? $sd->kind }}</td>
             <td class="what">{{ \Illuminate\Support\Str::limit($sd->label, 70) }}</td>
-            <td><span class="src-badge {{ $sd->status === 'done' ? 'src-shop' : 'src-supplier' }}">{{ $sd->status === 'done' ? 'Sent' : ($sd->last_error ? 'Retrying' : 'Waiting') }}</span></td>
-            <td class="err">{{ $sd->status === 'pending' ? \Illuminate\Support\Str::limit($sd->last_error, 90) : '' }}</td>
+            <td><span class="src-badge {{ $cls }}">{{ $badge }}</span></td>
+            <td class="err">{{ in_array($sd->status, ['pending', 'failed'], true) ? \Illuminate\Support\Str::limit($sd->last_error, 90) : '' }}</td>
             <td class="when">{{ \Illuminate\Support\Carbon::parse($sd->updated_at)->diffForHumans(null, true) }}</td>
+            <td>@if($sd->status === 'failed')<form method="POST" action="{{ route('tenant.storefront.pos.retry', $sd->id) }}">@csrf<button class="ia-btn ia-btn--secondary ia-btn--sm" type="submit">Retry</button></form>@endif</td>
           </tr>
         @endforeach
       </table>
-    @elseif(!count($pos['problems']))
+    @else
       <p class="ec-note">Nothing sent yet. Online orders, refunds and items sent to your Connected POS show here. To send items, pick them on Inventory and choose Send to Connected POS.</p>
     @endif
   </div>
+  </div>
 
   <script>
-  /* MARKER-POS-TAB-V2: while sending or preparing, refresh the Sending area in place (background poll) */
+  /* MARKER-POS-SENDS-LIST: keep the Sending list current — every 3s while anything is waiting,
+     every 15s otherwise, so a new order shows up without a reload. Never while a confirm
+     dialog is open. When what can be done changes (waiting/stopped/failed), the page reloads
+     so the buttons match. */
   (function(){
+    var sig = '{{ $waiting > 0 ? 1 : 0 }}|{{ (int) ($cnt['skipped'] ?? 0) > 0 ? 1 : 0 }}|{{ (int) ($cnt['failed'] ?? 0) > 0 ? 1 : 0 }}|{{ (int) ($pos['catchup'] ?? 0) }}';
+    var busy = {{ $waiting > 0 ? 'true' : 'false' }};
+    var dirty = false; /* never reload over settings someone is part-way through changing */
+    document.addEventListener('input', function(){ dirty = true; }, true);
+    document.addEventListener('change', function(){ dirty = true; }, true);
+    function dialogOpen(){ return !!document.querySelector('.ia-confirm-backdrop'); }
     function refresh(){
-      var box=document.getElementById('posSends'); if(!box || box.dataset.live!=='1') return;
+      if (dialogOpen() || document.hidden) { setTimeout(refresh, 2000); return; }
       fetch(location.pathname + '?tab=pos', {headers:{'X-Intake-Background':'1'}, credentials:'same-origin'})
         .then(function(r){ return r.ok ? r.text() : null; })
         .then(function(html){
-          if(!html) return;
-          var fresh=new DOMParser().parseFromString(html,'text/html').getElementById('posSends');
-          if(fresh){ box.replaceWith(fresh); }
+          if(!html || dialogOpen()) return;
+          var doc = new DOMParser().parseFromString(html,'text/html');
+          var fresh = doc.getElementById('posSends'), box = document.getElementById('posSends');
+          var m = html.match(/var sig = '([^']*)'/);
+          if (m && m[1] !== sig && !dirty) { location.reload(); return; }
+          if(fresh && box){ box.replaceWith(fresh); }
+          busy = !!(fresh && fresh.querySelector('.cp-live'));
         })
         .catch(function(){})
-        .finally(function(){ setTimeout(refresh, 3000); });
+        .finally(function(){ setTimeout(refresh, busy ? 3000 : 15000); });
     }
-    setTimeout(refresh, 3000);
+    setTimeout(refresh, busy ? 3000 : 15000);
   })();
   /* MARKER-CONNECTED-POS-CATALOG: live import progress (background poll) */
   (function(){

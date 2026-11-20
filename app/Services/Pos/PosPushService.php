@@ -452,6 +452,23 @@ class PosPushService
 
     // ── model hooks (registered in AppServiceProvider) ─────────
 
+    /**
+     * MARKER-POS-CATCHUP: paid online orders from the last 7 days that were never sent,
+     * for the one-time offer after "Send online orders" is turned on.
+     */
+    public static function catchupOrders(string $tenantId)
+    {
+        return TenantOrder::query()
+            ->where('tenant_id', $tenantId)
+            ->whereNotNull('sale_id')
+            ->whereIn('status', array_merge(TenantOrder::OPEN_STATUSES, [TenantOrder::STATUS_COMPLETED]))
+            ->where('created_at', '>=', now()->subDays(7))
+            ->whereNotExists(fn ($q) => $q->select(DB::raw(1))->from('tenant_pos_pushes')
+                ->whereColumn('tenant_pos_pushes.ref_id', 'tenant_orders.id')
+                ->where('tenant_pos_pushes.tenant_id', $tenantId)
+                ->where('tenant_pos_pushes.kind', 'sale'));
+    }
+
     public static function hooks(): void
     {
         // an online order became a sale

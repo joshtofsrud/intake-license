@@ -76,7 +76,12 @@ class StorefrontSettingsController extends Controller
             // MARKER-POS-TAB-V2: what the Recent sends and send-button areas show
             'counts'    => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', $tenant->id)->selectRaw('status, count(*) n')->groupBy('status')->pluck('n', 'status') : collect(),
             'problems'  => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', $tenant->id)->where('status', 'failed')->orderByDesc('updated_at')->limit(10)->get() : collect(),
-            'latest'    => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', $tenant->id)->whereIn('status', ['pending', 'done'])->orderByDesc('updated_at')->limit(8)->get() : collect(),
+            // MARKER-POS-SENDS-LIST: every kind and every status, newest first, so an order that
+            // failed or is retrying is never missing from the list
+            'latest'    => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', $tenant->id)->orderByDesc('updated_at')->limit(12)->get() : collect(),
+            // orders and refunds that failed stay pinned until they are sent: money records matter more than items
+            'money_failed' => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', $tenant->id)->whereIn('kind', ['sale', 'refund'])->where('status', 'failed')->orderByDesc('updated_at')->limit(20)->get() : collect(),
+            'catchup'   => $posConn ? \App\Services\Pos\PosPushService::catchupOrders($tenant->id)->count() : 0,
             'linked'    => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_items')->where('tenant_id', $tenant->id)->whereNotNull('inventory_item_id')->whereNull('removed_at')->count() : 0,
         ];
 
