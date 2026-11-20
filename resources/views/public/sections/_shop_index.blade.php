@@ -85,6 +85,8 @@
   .spg-index .fac .zero { opacity: .45; }
   .spg-index .fac label.sub { padding-left: calc(var(--d) * 22px); font-size: 13px; }
   .spg-index .fac label.sub input { width: 14px; height: 14px; }
+  .spg-index .fac .tog { font: inherit; font-size: 11px; line-height: 1; width: 22px; height: 22px; flex: none; border: 0; border-radius: 6px; background: none; color: var(--p-muted); cursor: pointer; transform: rotate(-90deg); transition: transform .15s; }
+  .spg-index .fac .tog.on { transform: none; }
   .spg-index .fac .more { font: inherit; font-size: 12.5px; text-decoration: underline; color: var(--p-muted); background: none; border: 0; padding: 4px 0; cursor: pointer; }
   .spg-index .fac .pr { display: flex; gap: 8px; align-items: center; }
   .spg-index .fac .pr input { width: 100%; min-width: 0; font: inherit; font-size: 13.5px; padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--p-text) 14%, transparent); border-radius: 8px; background: var(--s-field); }
@@ -285,13 +287,21 @@
                   // groups that hold a picked category always show, so it can be unpicked
                   $catOpen = collect($facets['category'])->whereIn('id', $f['cat'])->pluck('group')->flip()->all();
                   $catTops = collect($facets['category'])->where('depth', 0)->count();
+                  // subcategories start folded under their top category, open only where a pick sits
+                  $catKids = collect($facets['category'])->where('depth', '>', 0)->pluck('group')->flip()->all();
                 @endphp
                 @foreach($facets['category'] as $c)
-                  <label class="{{ $c['n'] ? '' : 'zero' }} {{ $c['depth'] ? 'sub' : '' }}" style="--d: {{ (int) $c['depth'] }}" @if($c['group'] >= 8 && ! isset($catOpen[$c['group']])) hidden data-extra @endif>
+                  @php $isOpen = isset($catOpen[$c['group']]); @endphp
+                  @if($c['depth'])
+                  <label class="{{ $c['n'] ? '' : 'zero' }} sub" style="--d: {{ (int) $c['depth'] }}" data-sub="{{ $c['group'] }}" @unless($isOpen) hidden @endunless>
+                  @else
+                  <label class="{{ $c['n'] ? '' : 'zero' }}" style="--d: 0" @if($c['group'] >= 8 && ! $isOpen) hidden data-extra @endif>
+                  @endif
                     <input type="checkbox" name="cat[]" value="{{ $c['id'] }}" @checked(in_array($c['id'], $f['cat'], true))>
                     @if($display['photos'] && ! $c['depth'])<span class="ci">@if($c['img'])<img src="{{ $c['img'] }}" alt="" loading="lazy">@endif</span>@endif
                     <span>{{ $c['name'] }}</span>
                     <span class="n">{{ $c['n'] }}</span>
+                    @if(! $c['depth'] && isset($catKids[$c['group']]))<button type="button" class="tog{{ $isOpen ? ' on' : '' }}" data-tog="{{ $c['group'] }}" aria-expanded="{{ $isOpen ? 'true' : 'false' }}" aria-label="Show {{ $c['name'] }} subcategories">&#9662;</button>@endif
                   </label>
                 @endforeach
                 @if($catTops > 8)<button type="button" class="more">Show all {{ $catTops }}</button>@endif
@@ -515,6 +525,14 @@
   var fac = document.getElementById('spgFac');
   if (fac) {
     fac.addEventListener('change', function (e) { if (e.target.type === 'checkbox' && innerWidth > 860) fac.submit(); });
+    fac.querySelectorAll('[data-tog]').forEach(function (b) {
+      b.onclick = function (e) {
+        e.preventDefault(); e.stopPropagation();
+        var open = ! b.classList.contains('on');
+        b.classList.toggle('on', open); b.setAttribute('aria-expanded', open ? 'true' : 'false');
+        fac.querySelectorAll('[data-sub="' + b.dataset.tog + '"]').forEach(function (l) { l.hidden = ! open; });
+      };
+    });
     fac.querySelectorAll('[data-more] .more').forEach(function (b) {
       b.onclick = function () { b.parentNode.querySelectorAll('[data-extra]').forEach(function (l) { l.hidden = false; }); b.remove(); };
     });
