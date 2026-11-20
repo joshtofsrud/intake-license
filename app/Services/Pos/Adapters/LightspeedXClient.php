@@ -264,14 +264,34 @@ class LightspeedXClient implements PosAdapter
     public function createItem(string $accessToken, string $accountId, array $context, array $fields): string
     {
         $base = $this->productsBase($this->ctxPrefix($context));
-        $family = array_filter([
-            'name'           => (string) ($fields['name'] ?: ($fields['sku'] ?? 'Item')),
+
+        // MARKER-POS-X-CREATE-SAFE: already there (made by the shop, or by an earlier try that
+        // stopped part-way)? Link to it rather than make a duplicate.
+        if (filled($fields['sku'] ?? null)) {
+            $found = $this->get($accessToken, $base . '/products', ['sku' => (string) $fields['sku']])['data'] ?? [];
+            $hit = is_array($found) ? (array_is_list($found) ? ($found[0] ?? null) : $found) : null;
+            if (is_array($hit) && ! empty($hit['id'])) {
+                return (string) $hit['id'];
+            }
+        }
+
+        $name = (string) ($fields['name'] ?: ($fields['sku'] ?? 'Item'));
+        $family = fn (string $n) => array_filter([
+            'name'           => $n,
             'classification' => 'STANDARD',
             'description'    => filled($fields['description'] ?? null) ? (string) $fields['description'] : null,
             'products'       => [['codes' => $this->codes($fields)]],
         ], fn ($v) => $v !== null);
 
-        $res = $this->send('post', $accessToken, $base . '/product_families', $family);
+        try {
+            $res = $this->send('post', $accessToken, $base . '/product_families', $family($name));
+        } catch (RuntimeException $e) {
+            // product names must be unique in this POS; Intake may hold several items with one name
+            if (! str_contains(strtolower($e->getMessage()), 'name is already in use')) {
+                throw $e;
+            }
+            $res = $this->send('post', $accessToken, $base . '/product_families', $family($name . ' (' . ($fields['sku'] ?: substr(md5($name . microtime()), 0, 6)) . ')'));
+        }
         $id = $res['data']['product_ids'][0] ?? null;
         if (! $id) {
             throw new RuntimeException('The POS did not return the new item.');
@@ -325,16 +345,16 @@ class LightspeedXClient implements PosAdapter
         return is_array($d) && isset($d['id']) ? $this->mapProduct($d) : null;
     }
 
-    /** SKU as the store's own code, plus any barcodes. At least one code is required. */
+    /** SKU as the store's own code, plus any barcodes — each value once (the POS refuses repeats). At least one code is required. */
     private function codes(array $f): array
     {
         $codes = [];
-        if (filled($f['sku'] ?? null)) {
-            $codes[] = ['type' => 'CUSTOM', 'code' => (string) $f['sku']];
-        }
-        foreach (['upc' => 'UPC', 'ean' => 'EAN'] as $k => $type) {
-            if (filled($f[$k] ?? null)) {
-                $codes[] = ['type' => $type, 'code' => (string) $f[$k]];
+        $seen = [];
+        foreach (['upc' => 'UPC', 'ean' => 'EAN', 'sku' => 'CUSTOM'] as $k => $type) {
+            $v = trim((string) ($f[$k] ?? ''));
+            if ($v !== '' && ! isset($seen[$v])) {
+                $seen[$v] = true;
+                $codes[] = ['type' => $type, 'code' => $v];
             }
         }
         if (! $codes) {
