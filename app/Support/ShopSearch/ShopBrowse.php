@@ -225,11 +225,20 @@ class ShopBrowse
         $f = $this->f;
         $rules = \App\Support\CatalogSpecs::rules();
         if (! $rules || ($f['q'] === '' && ! $f['cat'] && ! $f['opt'])) return [];
-        $rows = $this->filtered('opt')->toBase()->reorder()
-            ->join('platform_distributor_catalogs as pdc_opt', 'pdc_opt.id', '=', 'tenant_inventory_items.distributor_catalog_id')
-            ->whereNotNull('pdc_opt.spec_attrs')
+        // the shop's base query has unqualified columns (is_active, tenant_id), so no join:
+        // read the items' catalog ids, then the catalog rows on their own
+        $catIds = $this->filtered('opt')->toBase()->reorder()
+            ->whereNotNull('tenant_inventory_items.distributor_catalog_id')
             ->limit(self::OPTION_SCAN_MAX)
-            ->pluck('pdc_opt.spec_attrs')->all();
+            ->pluck('tenant_inventory_items.distributor_catalog_id')->all();
+        $rows = [];
+        foreach (array_chunk($catIds, 1000) as $chunk) {
+            foreach (DB::table('platform_distributor_catalogs')->whereIn('id', $chunk)->whereNotNull('spec_attrs')->pluck('spec_attrs', 'id') as $id => $j) {
+                $rows[(string) $id] = $j;
+            }
+        }
+        // one entry per item, not per catalog row: two items on one catalog row count twice
+        $rows = array_values(array_filter(array_map(fn ($id) => $rows[(string) $id] ?? null, $catIds)));
         if (! $rows) return [];
         $rows = array_map(fn ($j) => is_array($d = json_decode((string) $j, true)) ? $d : [], $rows);
         $out = [];
