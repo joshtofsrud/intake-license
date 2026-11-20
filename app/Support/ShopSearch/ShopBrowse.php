@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\DB;
 class ShopBrowse
 {
     public const PER_PAGE = 24;
+    public const NO_CAT = 'none';
 
     public array $f = [];
     public array $run = [];
@@ -62,7 +63,15 @@ class ShopBrowse
     {
         $q = $this->base();
         $f = $this->f;
-        if ($skip !== 'cat' && $f['cat']) $q->whereIn('tenant_inventory_items.category_id', $this->search->withChildren($f['cat']));
+        if ($skip !== 'cat' && $f['cat']) {
+            // MARKER-CATEGORY-OTHER: "none" is the Other row, items with no category
+            $real = array_values(array_filter($f['cat'], fn ($c) => $c !== self::NO_CAT));
+            $none = in_array(self::NO_CAT, $f['cat'], true);
+            $q->where(function ($w) use ($real, $none) {
+                if ($real) $w->orWhereIn('tenant_inventory_items.category_id', $this->search->withChildren($real));
+                if ($none) $w->orWhereNull('tenant_inventory_items.category_id');
+            });
+        }
         if ($skip !== 'brand' && $f['brand']) $q->whereIn(DB::raw(ShopSearch::BRAND_SQL), $f['brand']);
         if ($skip !== 'avail' && $f['avail']) {
             $q->where(function ($w) use ($f) {
@@ -151,6 +160,12 @@ class ShopBrowse
             $emit('', 0, null);
             foreach ($rows as &$r) $r['img'] = $this->display['photos'] ? $this->search->categoryImage($r['id']) : null;
             unset($r);
+            // MARKER-CATEGORY-OTHER: online items with no category, so every item can be browsed
+            // and the counts add up; the row goes away once the shop has categorized them all
+            $noneN = (int) ($raw[''] ?? 0);
+            if ($noneN > 0 || in_array(self::NO_CAT, $f['cat'], true)) {
+                $rows[] = ['id' => self::NO_CAT, 'name' => 'Other', 'parent' => null, 'depth' => 0, 'group' => -1, 'n' => $noneN, 'img' => null, 'other' => true];
+            }
             $facets['category'] = $rows;
         }
         if (isset($on['brand'])) {
@@ -282,7 +297,7 @@ class ShopBrowse
             else $q[$key] = array_values(array_filter((array) ($q[$key] ?? []), fn ($v) => (string) $v !== (string) $value));
             return '/shop' . ($q ? '?' . http_build_query($q) : '');
         };
-        foreach ($f['cat'] as $c) $out[] = ['label' => $cats[$c]['name'] ?? 'Category', 'url' => $without('cat', $c)];
+        foreach ($f['cat'] as $c) $out[] = ['label' => $c === self::NO_CAT ? 'Other' : ($cats[$c]['name'] ?? 'Category'), 'url' => $without('cat', $c)];
         foreach ($f['brand'] as $b) $out[] = ['label' => $b, 'url' => $without('brand', $b)];
         $names = ['in' => 'In stock', 'so' => 'Special order', 'out' => 'Out of stock'];
         foreach ($f['avail'] as $a) $out[] = ['label' => $names[$a], 'url' => $without('avail', $a)];

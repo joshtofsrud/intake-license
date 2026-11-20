@@ -87,6 +87,8 @@
   .spg-index .fac label.sub input { width: 14px; height: 14px; }
   .spg-index .fac .tog { font: inherit; font-size: 11px; line-height: 1; width: 22px; height: 22px; flex: none; border: 0; border-radius: 6px; background: none; color: var(--p-muted); cursor: pointer; transform: rotate(-90deg); transition: transform .15s; }
   .spg-index .fac .tog.on { transform: none; }
+  .spg-index .fac .tog-sp { width: 22px; flex: none; }
+  .spg-index .fac .ci-o { display: flex; width: 100%; height: 100%; align-items: center; justify-content: center; font-size: 12px; color: var(--p-muted); }
   .spg-index .fac .more { font: inherit; font-size: 12.5px; text-decoration: underline; color: var(--p-muted); background: none; border: 0; padding: 4px 0; cursor: pointer; }
   .spg-index .fac .pr { display: flex; gap: 8px; align-items: center; }
   .spg-index .fac .pr input { width: 100%; min-width: 0; font: inherit; font-size: 13.5px; padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--p-text) 14%, transparent); border-radius: 8px; background: var(--s-field); }
@@ -295,13 +297,13 @@
                   @if($c['depth'])
                   <label class="{{ $c['n'] ? '' : 'zero' }} sub" style="--d: {{ (int) $c['depth'] }}" data-sub="{{ $c['group'] }}" @unless($isOpen) hidden @endunless>
                   @else
-                  <label class="{{ $c['n'] ? '' : 'zero' }}" style="--d: 0" @if($c['group'] >= 8 && ! $isOpen) hidden data-extra @endif>
+                  <label class="{{ $c['n'] ? '' : 'zero' }}" style="--d: 0" @if(empty($c['other']) && $c['group'] >= 8 && ! $isOpen) hidden data-extra @endif>
                   @endif
                     <input type="checkbox" name="cat[]" value="{{ $c['id'] }}" @checked(in_array($c['id'], $f['cat'], true))>
-                    @if($display['photos'] && ! $c['depth'])<span class="ci">@if($c['img'])<img src="{{ $c['img'] }}" alt="" loading="lazy">@endif</span>@endif
+                    @if($display['photos'] && ! $c['depth'])<span class="ci">@if(! empty($c['other']))<span class="ci-o">&middot;&middot;&middot;</span>@elseif($c['img'])<img src="{{ $c['img'] }}" alt="" loading="lazy">@endif</span>@endif
                     <span>{{ $c['name'] }}</span>
                     <span class="n">{{ $c['n'] }}</span>
-                    @if(! $c['depth'] && isset($catKids[$c['group']]))<button type="button" class="tog{{ $isOpen ? ' on' : '' }}" data-tog="{{ $c['group'] }}" aria-expanded="{{ $isOpen ? 'true' : 'false' }}" aria-label="Show {{ $c['name'] }} subcategories">&#9662;</button>@endif
+                    @if(! $c['depth'] && isset($catKids[$c['group']]))<button type="button" class="tog{{ $isOpen ? ' on' : '' }}" data-tog="{{ $c['group'] }}" aria-expanded="{{ $isOpen ? 'true' : 'false' }}" aria-label="Show {{ $c['name'] }} subcategories">&#9662;</button>@elseif(! $c['depth'] && $catKids)<span class="tog-sp" aria-hidden="true"></span>@endif
                   </label>
                 @endforeach
                 @if($catTops > 8)<button type="button" class="more">Show all {{ $catTops }}</button>@endif
