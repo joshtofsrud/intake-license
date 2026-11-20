@@ -89,7 +89,7 @@ class PosPushService
                 ->where(fn ($q) => $q->where('attempts', 0)
                     ->orWhere(fn ($q) => $q->where('attempts', 1)->where('updated_at', '<', now()->subMinute()))
                     ->orWhere(fn ($q) => $q->where('attempts', '>=', 2)->where('updated_at', '<', now()->subMinutes(5))))
-                ->orderByRaw("CASE kind WHEN 'sale' THEN 0 WHEN 'refund' THEN 1 WHEN 'item_update' THEN 2 ELSE 3 END")->orderBy('id')
+                ->orderByRaw("CASE kind WHEN 'sale' THEN 0 WHEN 'refund' THEN 1 WHEN 'item_update' THEN 2 WHEN 'item_details' THEN 3 ELSE 4 END")->orderBy('id')
                 ->first();
             if (! $row) {
                 break;
@@ -143,14 +143,17 @@ class PosPushService
         }
         DB::table('tenant_pos_pushes')->where('id', $pushId)->update(['attempts' => DB::raw('attempts + 1'), 'updated_at' => now()]);
 
+        $this->customerNote = null;
         $external = match ($push->kind) {
             'sale'        => $this->sendSale($conn, TenantOrder::where('tenant_id', $conn->tenant_id)->findOrFail($push->ref_id)),
             'refund'      => $this->sendRefund($conn, TenantSale::where('tenant_id', $conn->tenant_id)->findOrFail($push->ref_id)),
             'item_create' => $this->ensureItem($conn, TenantInventoryItem::where('tenant_id', $conn->tenant_id)->findOrFail($push->ref_id)),
             'item_update' => $this->sendItemEdits($conn, TenantInventoryItem::where('tenant_id', $conn->tenant_id)->findOrFail($push->ref_id)),
+            'item_details' => $this->sendDetails($conn, TenantInventoryItem::where('tenant_id', $conn->tenant_id)->findOrFail($push->ref_id), true),
             default       => throw new RuntimeException('Unknown send type.'),
         };
-        $this->mark($pushId, $external === false ? 'skipped' : 'done', is_string($external) ? $external : null, null);
+        $this->mark($pushId, $external === false ? 'skipped' : 'done', is_string($external) ? $external : null, $this->customerNote);
+        $this->customerNote = null;
     }
 
     public function mark(int $pushId, string $status, ?string $externalId, ?string $error): void
@@ -210,6 +213,7 @@ class PosPushService
             'user_id'         => $setup['user_id'],
             'payment_type_id' => $setup['payment_type_id'],
             'tax_id'          => $setup['tax_id'] ?? null,
+            'customer_id'     => $this->customerFor($conn, $order),
             'return_for'      => null,
             'lines'           => $lines,
             'total_cents'     => $total,
@@ -353,8 +357,102 @@ class PosPushService
             }
         }
 
+        if (! $link->details_sent_at && ! $link->details_error) {
+            $this->sendDetails($conn, $item, false);
+        }
+
         return $id;
     }
+
+    /**
+     * MARKER-POS-ITEM-DETAILS: brand, category, supplier with its code and the item's cost,
+     * weight, and inventory tracking on. A failure here never undoes the item or holds up an
+     * order: it is kept on the link (details_error) and shown in the Connected POS tab, where
+     * "Fill in missing details" tries again. $strict (a details send of its own) throws so
+     * the send shows as failed with the reason.
+     */
+    public function sendDetails(TenantPosConnection $conn, TenantInventoryItem $item, bool $strict)
+    {
+        $link = DB::table('tenant_pos_items')->where('tenant_id', $conn->tenant_id)->where('inventory_item_id', $item->id)->whereNull('removed_at')->first();
+        if (! $link) {
+            if ($strict) {
+                throw new RuntimeException('This item is not in your Connected POS yet. Send it first.');
+            }
+            return false;
+        }
+        try {
+            $item->loadMissing(['category:id,name', 'distributorCatalog:id,manufacturer,distributor_variant_no']);
+            $vendor = $item->vendors()->orderByDesc('tenant_inventory_item_vendors.is_preferred')->first();
+            $cat = $item->distributorCatalog;
+            $details = array_filter([
+                'brand'           => $item->shop_brand ?: $cat?->manufacturer,
+                'category'        => $item->category?->name,
+                'supplier'        => $vendor?->name,
+                'supplier_code'   => $vendor?->pivot?->vendor_sku ?: ($item->catalog_mpn ?: $cat?->distributor_variant_no),
+                'cost_cents'      => $vendor?->pivot?->unit_cost_cents ?? $item->effectiveCostCents(),
+                // the shop's own shipping weight only: catalog weights don't say their unit
+                'weight_oz'       => $item->shop_weight_oz ?: null,
+            ], fn ($v) => $v !== null && $v !== '') + ['track_inventory' => true];
+            $this->adapterCall($conn, fn ($a, $t, $acct, $ctx) => $a->setItemDetails($t, $acct, $ctx, (string) $link->external_id, $details));
+        } catch (\Throwable $e) {
+            DB::table('tenant_pos_items')->where('id', $link->id)->update(['details_error' => Str::limit($e->getMessage(), 490)]);
+            if ($strict) {
+                throw $e;
+            }
+            return (string) $link->external_id;
+        }
+        DB::table('tenant_pos_items')->where('id', $link->id)->update(['details_sent_at' => now(), 'details_error' => null]);
+
+        return (string) $link->external_id;
+    }
+
+    /**
+     * MARKER-POS-CUSTOMERS: the Connected POS customer for this order, found or created
+     * once and then remembered. Never stops the sale: on any trouble the sale goes without
+     * a customer and the note on the send says why.
+     */
+    private function customerFor(TenantPosConnection $conn, TenantOrder $order): ?string
+    {
+        $email = mb_strtolower(trim((string) $order->contact_email));
+        $known = DB::table('tenant_pos_customers')->where('tenant_id', $conn->tenant_id)
+            ->where(fn ($q) => $order->customer_id
+                ? $q->where('customer_id', $order->customer_id)->when($email !== '', fn ($w) => $w->orWhere('email', $email))
+                : $q->where('email', $email !== '' ? $email : '__none__'))
+            ->value('external_id');
+        if ($known) {
+            return (string) $known;
+        }
+        if ($email === '' && ! filled($order->contact_phone)) {
+            return null;
+        }
+        $cust = $order->customer;
+        try {
+            $id = $this->adapterCall($conn, fn ($a, $t, $acct, $ctx) => $a->findOrCreateCustomer($t, $acct, $ctx, [
+                'first_name' => $order->contact_first_name ?: $cust?->first_name,
+                'last_name'  => $order->contact_last_name ?: $cust?->last_name,
+                'email'      => $email ?: $cust?->email,
+                'phone'      => $order->contact_phone ?: $cust?->phone,
+                'address1'   => $cust?->address_line1, 'address2' => $cust?->address_line2,
+                'city'       => $cust?->city, 'state' => $cust?->state, 'postcode' => $cust?->postcode, 'country' => $cust?->country,
+            ]));
+        } catch (\Throwable $e) {
+            $this->customerNote = 'Sent without a customer: ' . $e->getMessage();
+            return null;
+        }
+        if (! $id) {
+            $this->customerNote = 'Sent without a customer: this Connected POS does not take customers from Intake yet.';
+            return null;
+        }
+        DB::table('tenant_pos_customers')->updateOrInsert(
+            ['tenant_id' => $conn->tenant_id, 'customer_id' => $order->customer_id ?: null, 'email' => $email ?: null],
+            ['external_id' => $id, 'updated_at' => now(), 'created_at' => now()]
+        );
+
+        return $id;
+    }
+
+    /** Set by customerFor when a sale went without its customer, kept on the send as its note. */
+    private ?string $customerNote = null;
 
     /** @return string|false */
     private function sendItemEdits(TenantPosConnection $conn, TenantInventoryItem $item)
@@ -504,6 +602,17 @@ class PosPushService
             $c = self::connectionFor($i->tenant_id);
             if ($c && $c->items_edits && DB::table('tenant_pos_items')->where('tenant_id', $i->tenant_id)->where('inventory_item_id', $i->id)->whereNull('removed_at')->exists()) {
                 app(self::class)->queue($i->tenant_id, 'item_update', (string) $i->id, 'Changes to ' . $i->name);
+            }
+        });
+
+        // MARKER-POS-ITEM-DETAILS: brand, category, cost or weight changed on a linked item
+        TenantInventoryItem::updated(function (TenantInventoryItem $i) {
+            if (PosCatalogSync::$applying || ! $i->wasChanged(['shop_brand', 'category_id', 'shop_cost_cents', 'received_cost_cents', 'shop_weight_oz'])) {
+                return;
+            }
+            $c = self::connectionFor($i->tenant_id);
+            if ($c && $c->items_edits && DB::table('tenant_pos_items')->where('tenant_id', $i->tenant_id)->where('inventory_item_id', $i->id)->whereNull('removed_at')->exists()) {
+                app(self::class)->queue($i->tenant_id, 'item_details', (string) $i->id, 'Details for ' . $i->name);
             }
         });
 

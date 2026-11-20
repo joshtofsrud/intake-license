@@ -401,4 +401,19 @@ class LightspeedRClient implements PosAdapter
 
         return $out;
     }
+
+    /**
+     * MARKER-POS-ITEM-DETAILS: not built for R-Series yet (it has no test account to check
+     * the payload against). Says so plainly instead of pretending, and the tab shows it.
+     */
+    public function setItemDetails(string $accessToken, string $accountId, array $context, string $itemId, array $details): void
+    {
+        throw new \RuntimeException('Brand, category, supplier and cost are not sent to Lightspeed R-Series yet.');
+    }
+
+    /** MARKER-POS-CUSTOMERS: not built for R-Series yet; orders send without a customer. */
+    public function findOrCreateCustomer(string $accessToken, string $accountId, array $context, array $c): ?string
+    {
+        return null;
+    }
 }

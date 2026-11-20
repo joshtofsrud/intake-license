@@ -568,6 +568,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::post('/storefront/pos/sends-resume',  [TenantControllers\PosConnectionController::class, 'sendsResume'])->name('storefront.pos.sends_resume');
                 Route::post('/storefront/pos/clear-stopped', [TenantControllers\PosConnectionController::class, 'clearStopped'])->name('storefront.pos.clear_stopped'); // MARKER-POS-TAB-V2
                 Route::post('/storefront/pos/clear-failed',  [TenantControllers\PosConnectionController::class, 'clearFailed'])->name('storefront.pos.clear_failed');
+                Route::post('/storefront/pos/fill-details', [TenantControllers\PosConnectionController::class, 'fillDetails'])->name('storefront.pos.fill_details'); // MARKER-POS-ITEM-DETAILS
                 Route::post('/storefront/pos/send-recent-orders', [TenantControllers\PosConnectionController::class, 'sendRecentOrders'])->name('storefront.pos.send_recent_orders'); // MARKER-POS-CATCHUP
                 Route::post('/storefront/pos/stop-sends',    [TenantControllers\PosConnectionController::class, 'stopSends'])->name('storefront.pos.stop_sends'); // MARKER-POS-STOP-SENDS
                 Route::post('/storefront/pos/retry/{push}',  [TenantControllers\PosConnectionController::class, 'retry'])->name('storefront.pos.retry')->whereNumber('push');

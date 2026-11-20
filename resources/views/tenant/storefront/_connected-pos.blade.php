@@ -197,13 +197,20 @@
 
   {{-- sending activity. MARKER-POS-SENDS-LIST: the buttons sit OUTSIDE the area that refreshes,
        so a confirm dialog never ends up pointing at a form that was swapped out underneath it. --}}
-  @php $kindNames = ['sale' => 'Order', 'refund' => 'Refund', 'item_create' => 'New item', 'item_update' => 'Item edit']; @endphp
+  @php $kindNames = ['sale' => 'Order', 'refund' => 'Refund', 'item_create' => 'New item', 'item_update' => 'Item edit', 'item_details' => 'Item details']; @endphp
   <div class="ec-sec">
     <h3>Sending</h3>
     @if(($pos['catchup'] ?? 0) > 0 && $pc->orders_out)
       <div class="ec-row" style="border:1px solid rgba(245,158,11,.4);background:rgba(245,158,11,.08);border-radius:10px;padding:10px 12px;margin-bottom:10px">
         <div><div class="t">{{ $pos['catchup'] }} paid {{ $pos['catchup'] === 1 ? 'order' : 'orders' }} from the last 7 days {{ $pos['catchup'] === 1 ? "wasn't" : "weren't" }} sent</div><div class="d">They were paid before Send paid online orders was on. Sending records each one as a completed sale.</div></div>
         <div class="ctl"><form method="POST" action="{{ route('tenant.storefront.pos.send_recent_orders') }}">@csrf<button class="ia-btn ia-btn--primary ia-btn--sm" type="submit">Send {{ $pos['catchup'] === 1 ? 'it' : 'them' }}</button></form></div>
+      </div>
+    @endif
+    @if(($pos['details_missing'] ?? 0) > 0)
+      <div class="ec-row" style="margin-bottom:10px">
+        <div><div class="t">{{ number_format($pos['details_missing']) }} {{ $pos['details_missing'] === 1 ? 'item' : 'items' }} in your Connected POS without brand, category, supplier and cost</div>
+          <div class="d">Sent before these went along, or their last try didn't work.@if($pos['details_error']) Last reason: <span style="color:#A32D2D">{{ \Illuminate\Support\Str::limit($pos['details_error'], 160) }}</span>@endif</div></div>
+        <div class="ctl"><form method="POST" action="{{ route('tenant.storefront.pos.fill_details') }}">@csrf<button class="ia-btn ia-btn--secondary ia-btn--sm" type="submit">Fill in missing details</button></form></div>
       </div>
     @endif
     <div class="cp-actions" style="margin:0 0 6px">
@@ -260,7 +267,7 @@
             <td class="when">{{ $kindNames[$sd->kind] ?? $sd->kind }}</td>
             <td class="what">{{ \Illuminate\Support\Str::limit($sd->label, 70) }}</td>
             <td><span class="src-badge {{ $cls }}">{{ $badge }}</span></td>
-            <td class="err">{{ in_array($sd->status, ['pending', 'failed'], true) ? \Illuminate\Support\Str::limit($sd->last_error, 90) : '' }}</td>
+            <td class="err" @if($sd->status === 'done') style="color:#854F0B" @endif>{{ \Illuminate\Support\Str::limit($sd->last_error, 90) }}</td>
             <td class="when">{{ \Illuminate\Support\Carbon::parse($sd->updated_at)->diffForHumans(null, true) }}</td>
             <td>@if($sd->status === 'failed')<form method="POST" action="{{ route('tenant.storefront.pos.retry', $sd->id) }}">@csrf<button class="ia-btn ia-btn--secondary ia-btn--sm" type="submit">Retry</button></form>@endif</td>
           </tr>
@@ -278,7 +285,7 @@
      dialog is open. When what can be done changes (waiting/stopped/failed), the page reloads
      so the buttons match. */
   (function(){
-    var sig = '{{ $waiting > 0 ? 1 : 0 }}|{{ (int) ($cnt['skipped'] ?? 0) > 0 ? 1 : 0 }}|{{ (int) ($cnt['failed'] ?? 0) > 0 ? 1 : 0 }}|{{ (int) ($pos['catchup'] ?? 0) }}';
+    var sig = '{{ $waiting > 0 ? 1 : 0 }}|{{ (int) ($cnt['skipped'] ?? 0) > 0 ? 1 : 0 }}|{{ (int) ($cnt['failed'] ?? 0) > 0 ? 1 : 0 }}|{{ (int) ($pos['catchup'] ?? 0) }}|{{ ($pos['details_missing'] ?? 0) > 0 ? 1 : 0 }}';
     var busy = {{ $waiting > 0 ? 'true' : 'false' }};
     var dirty = false; /* never reload over settings someone is part-way through changing */
     document.addEventListener('input', function(){ dirty = true; }, true);

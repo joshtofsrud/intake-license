@@ -365,6 +365,181 @@ class LightspeedXClient implements PosAdapter
         }
     }
 
+    /**
+     * MARKER-POS-ITEM-DETAILS. The product family holds brand, category and inventory
+     * tracking; the product holds its suppliers (supplier, code, supply price) and weight.
+     * Brand, category and supplier are matched by name and created when missing.
+     */
+    public function setItemDetails(string $accessToken, string $accountId, array $context, string $itemId, array $details): void
+    {
+        $prefix = $this->ctxPrefix($context);
+        $base = $this->productsBase($prefix);
+
+        $fam = [];
+        if (filled($details['brand'] ?? null)) {
+            $fam['brand_id'] = $this->idFor($accessToken, $prefix, 'brands', (string) $details['brand']);
+        }
+        if (filled($details['category'] ?? null)) {
+            $fam['category_id'] = $this->idFor($accessToken, $prefix, 'product_categories', (string) $details['category']);
+        }
+        if (array_key_exists('track_inventory', $details)) {
+            $fam['track_inventory'] = (bool) $details['track_inventory'];
+        }
+        if ($fam) {
+            $familyId = $this->get($accessToken, $base . '/products/' . rawurlencode($itemId) . '/family')['data']['id'] ?? null;
+            if (! $familyId) {
+                throw new RuntimeException('Your Connected POS did not say which product family this item belongs to.');
+            }
+            $this->send('patch', $accessToken, $base . '/product_families/' . rawurlencode((string) $familyId), $fam);
+        }
+
+        $prod = [];
+        if (filled($details['supplier'] ?? null)) {
+            $sup = ['supplier_id' => $this->idFor($accessToken, $prefix, 'suppliers', (string) $details['supplier'])];
+            if (filled($details['supplier_code'] ?? null)) {
+                $sup['code'] = (string) $details['supplier_code'];
+            }
+            if (($details['cost_cents'] ?? null) !== null) {
+                $sup['price'] = number_format(((int) $details['cost_cents']) / 100, 2, '.', '');
+            }
+            $prod['suppliers'] = [$sup];
+        }
+        if (($details['weight_oz'] ?? null) !== null && (float) $details['weight_oz'] > 0) {
+            $prod['measurements'] = ['weight' => round((float) $details['weight_oz'], 2), 'weight_unit' => 'OZ'];
+        }
+        if ($prod) {
+            $this->send('patch', $accessToken, $base . '/products/' . rawurlencode($itemId), $prod);
+        }
+    }
+
+    /**
+     * A brand, category or supplier id by name (case and spacing ignored), created when
+     * missing. Lists are read once and kept 30 minutes per store, so a run of item sends
+     * doesn't re-read them for every item.
+     */
+    private function idFor(string $token, string $prefix, string $kind, string $name): string
+    {
+        $name = trim(preg_replace('/\s+/', ' ', $name));
+        $key = 'posx:' . $prefix . ':' . $kind;
+        $norm = fn ($n) => mb_strtolower(trim(preg_replace('/\s+/', ' ', (string) $n)));
+        $map = \Illuminate\Support\Facades\Cache::remember($key, 1800, fn () => $this->nameMap($token, $prefix, $kind));
+        if (isset($map[$norm($name)])) {
+            return $map[$norm($name)];
+        }
+
+        $base = $this->productsBase($prefix);
+        if ($kind === 'product_categories') {
+            $this->send('post', $token, $base . '/product_categories/bulk', ['categories' => [['name' => $name]]]);
+            $id = null;
+        } else {
+            $res = $this->send('post', $token, $base . '/' . $kind, ['name' => $name]);
+            $d = $res['data'] ?? null;
+            $id = is_string($d) ? $d : (is_array($d) ? ($d['id'] ?? null) : null);
+        }
+        // read the list again: confirms the new one, and covers a create that answers without its id
+        \Illuminate\Support\Facades\Cache::forget($key);
+        $map = \Illuminate\Support\Facades\Cache::remember($key, 1800, fn () => $this->nameMap($token, $prefix, $kind));
+        $id = $map[$norm($name)] ?? $id;
+        if (! $id) {
+            $what = ['brands' => 'brand', 'product_categories' => 'category', 'suppliers' => 'supplier'][$kind] ?? $kind;
+            throw new RuntimeException("Your Connected POS did not create the {$what} \"{$name}\".");
+        }
+
+        return (string) $id;
+    }
+
+    /** @return array<string,string> lower-cased name => id, every page */
+    private function nameMap(string $token, string $prefix, string $kind): array
+    {
+        $out = [];
+        $after = null;
+        for ($page = 0; $page < 50; $page++) {
+            $q = ['page_size' => 1000] + ($after !== null ? ['after' => $after] : []);
+            $res = $this->get($token, $this->productsBase($prefix) . '/' . $kind, $q);
+            $rows = $res['data'] ?? [];
+            if (isset($rows['categories'])) {
+                $rows = $rows['categories'];
+            }
+            if (! is_array($rows) || ! $rows) {
+                break;
+            }
+            $max = $after;
+            foreach ($rows as $r) {
+                if (! is_array($r) || empty($r['id']) || ! empty($r['deleted_at'])) {
+                    continue;
+                }
+                $k = mb_strtolower(trim(preg_replace('/\s+/', ' ', (string) ($r['name'] ?? ''))));
+                if ($k !== '' && ! isset($out[$k])) {
+                    $out[$k] = (string) $r['id'];
+                }
+                if (isset($r['version']) && ($max === null || (int) $r['version'] > $max)) {
+                    $max = (int) $r['version'];
+                }
+            }
+            $next = $res['version']['max'] ?? $max;
+            if ($next === null || $next === $after || count($rows) < 1000) {
+                break;
+            }
+            $after = (int) $next;
+        }
+
+        return $out;
+    }
+
+    /**
+     * MARKER-POS-CUSTOMERS: search by email, then phone; create when nobody matches.
+     * The POS needs a first and last name, so a missing one is filled from the other or the email.
+     */
+    public function findOrCreateCustomer(string $accessToken, string $accountId, array $context, array $c): ?string
+    {
+        $prefix = $this->ctxPrefix($context);
+        foreach (['email' => $c['email'] ?? null, 'phone' => $c['phone'] ?? null] as $field => $val) {
+            if (! filled($val)) {
+                continue;
+            }
+            try {
+                $rows = $this->get($accessToken, $this->api($prefix, 'search'), ['type' => 'customers', $field => (string) $val])['data'] ?? [];
+            } catch (RuntimeException $e) {
+                if (! str_contains($e->getMessage(), 'HTTP 404')) {
+                    throw $e;
+                }
+                $rows = [];
+            }
+            foreach ((array) $rows as $r) {
+                if (is_array($r) && ! empty($r['id']) && empty($r['deleted_at'])) {
+                    return (string) $r['id'];
+                }
+            }
+        }
+
+        $first = trim((string) ($c['first_name'] ?? ''));
+        $last  = trim((string) ($c['last_name'] ?? ''));
+        if ($first === '' && $last === '') {
+            $first = (string) strstr((string) ($c['email'] ?? 'Online'), '@', true) ?: 'Online';
+            $last = 'Customer';
+        }
+        $body = array_filter([
+            'first_name'         => $first !== '' ? $first : $last,
+            'last_name'          => $last !== '' ? $last : $first,
+            'email'              => $c['email'] ?? null,
+            'phone'              => $c['phone'] ?? null,
+            'physical_address1'  => $c['address1'] ?? null,
+            'physical_address2'  => $c['address2'] ?? null,
+            'physical_city'      => $c['city'] ?? null,
+            'physical_state'     => $c['state'] ?? null,
+            'physical_postcode'  => $c['postcode'] ?? null,
+            'physical_country_id'=> filled($c['country'] ?? null) && strlen((string) $c['country']) === 2 ? strtoupper((string) $c['country']) : null,
+            'note'               => 'Added by Intake from an online order.',
+        ], fn ($v) => $v !== null && $v !== '');
+        $res = $this->send('post', $accessToken, $this->api($prefix, 'customers'), $body);
+        $id = $res['data']['id'] ?? $res['id'] ?? null;
+        if (! $id) {
+            throw new RuntimeException('Your Connected POS did not return the new customer.');
+        }
+
+        return (string) $id;
+    }
+
     public function getItem(string $accessToken, string $accountId, array $context, string $itemId): ?array
     {
         try {

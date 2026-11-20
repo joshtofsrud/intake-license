@@ -81,6 +81,9 @@ class StorefrontSettingsController extends Controller
             'latest'    => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', $tenant->id)->orderByDesc('updated_at')->limit(12)->get() : collect(),
             // orders and refunds that failed stay pinned until they are sent: money records matter more than items
             'money_failed' => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', $tenant->id)->whereIn('kind', ['sale', 'refund'])->where('status', 'failed')->orderByDesc('updated_at')->limit(20)->get() : collect(),
+            // MARKER-POS-ITEM-DETAILS: linked items still missing brand/category/supplier/cost, and the latest reason
+            'details_missing' => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_items')->where('tenant_id', $tenant->id)->whereNotNull('inventory_item_id')->whereNull('removed_at')->whereNull('details_sent_at')->count() : 0,
+            'details_error'   => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_items')->where('tenant_id', $tenant->id)->whereNotNull('details_error')->orderByDesc('id')->value('details_error') : null,
             'catchup'   => $posConn ? \App\Services\Pos\PosPushService::catchupOrders($tenant->id)->count() : 0,
             'linked'    => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_items')->where('tenant_id', $tenant->id)->whereNotNull('inventory_item_id')->whereNull('removed_at')->count() : 0,
         ];

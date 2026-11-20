@@ -203,6 +203,32 @@ class PosConnectionController extends Controller
         return $this->back()->with('success', $n ? 'Sending ' . $n . ' paid ' . ($n === 1 ? 'order' : 'orders') . ' to your Connected POS. Watch them under Sending.' : 'Every paid order from the last 7 days is already sent.');
     }
 
+    /**
+     * MARKER-POS-ITEM-DETAILS: queue brand, category, supplier, cost and weight for every
+     * linked item that doesn't have them yet (or whose last try failed). Uses the same paced
+     * sending as everything else, with Stop.
+     */
+    public function fillDetails(\App\Services\Pos\PosPushService $push): RedirectResponse
+    {
+        $this->guard();
+        $conn = TenantPosConnection::where('tenant_id', tenant()->id)->where('status', 'connected')->firstOrFail();
+        $n = 0;
+        \Illuminate\Support\Facades\DB::table('tenant_pos_items')
+            ->join('tenant_inventory_items as ii', 'ii.id', '=', 'tenant_pos_items.inventory_item_id')
+            ->where('tenant_pos_items.tenant_id', $conn->tenant_id)->whereNull('tenant_pos_items.removed_at')->whereNull('tenant_pos_items.details_sent_at')
+            ->select(['tenant_pos_items.id', 'ii.id as item_id', 'ii.name'])
+            ->chunkById(500, function ($rows) use ($push, $conn, &$n) {
+                foreach ($rows as $r) {
+                    $push->queue($conn->tenant_id, 'item_details', (string) $r->item_id, 'Details for ' . $r->name, false);
+                    $n++;
+                }
+            }, 'tenant_pos_items.id', 'id');
+        if ($n) {
+            \App\Services\Pos\PosPushService::kick($conn->tenant_id);
+        }
+        return $this->back()->with('success', $n ? 'Filling in details for ' . number_format($n) . ' items. Watch them under Sending — Stop works here too.' : 'Every item in your Connected POS already has its details.');
+    }
+
     /** MARKER-POS-STOP-SENDS: stop everything still waiting to send. Nothing already sent is touched. */
     public function stopSends(): RedirectResponse
     {
@@ -286,7 +312,7 @@ class PosConnectionController extends Controller
     public function clearFailed(): RedirectResponse
     {
         $this->guard();
-        $n = \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', tenant()->id)->where('status', 'failed')->whereIn('kind', ['item_create', 'item_update'])->delete();
+        $n = \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', tenant()->id)->where('status', 'failed')->whereIn('kind', ['item_create', 'item_update', 'item_details'])->delete();
 
         return $this->back()->with('success', $n ? 'Cleared ' . number_format($n) . ' failed item sends. Orders and refunds that failed stay until they are sent.' : 'Nothing to clear.');
     }

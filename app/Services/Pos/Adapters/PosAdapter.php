@@ -129,4 +129,18 @@ interface PosAdapter
 
     /** One item as pullItems shapes it, or null when it no longer exists. */
     public function getItem(string $accessToken, string $accountId, array $context, string $itemId): ?array;
+
+    /**
+     * MARKER-POS-ITEM-DETAILS: fill in what an item is beyond its codes and price. Every key
+     * is optional: brand, category, supplier (names, matched in the POS or created there),
+     * supplier_code, cost_cents, weight_oz, track_inventory. Names are resolved by the adapter.
+     */
+    public function setItemDetails(string $accessToken, string $accountId, array $context, string $itemId, array $details): void;
+
+    /**
+     * MARKER-POS-CUSTOMERS: the POS's id for this person, found by email then phone, or
+     * created. $c: first_name, last_name, email, phone, address1, address2, city, state,
+     * postcode, country. Null when this POS can't attach customers yet.
+     */
+    public function findOrCreateCustomer(string $accessToken, string $accountId, array $context, array $c): ?string;
 }
