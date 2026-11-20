@@ -31,6 +31,9 @@ class PosCatalogSync
 {
     private const PAGES_PER_STEP = 8;
 
+    /** MARKER-CONNECTED-POS-PUSH: true while Intake writes what came from the POS, so those writes aren't sent back. */
+    public static bool $applying = false;
+
     public function __construct(private PosAdapterRegistry $registry, private PosConnectionService $conns) {}
 
     /** Begin a run. A full run re-reads everything from the start; otherwise it picks up from the last cursors. */
@@ -46,7 +49,7 @@ class PosCatalogSync
             'error'       => null,
             'pages'       => 0,
             'items_seen'  => 0, 'matched' => 0, 'created' => 0, 'price_updates' => 0, 'removed' => 0,
-            'stock_rows'  => 0, 'stock_changes' => 0, 'stock_unmapped' => 0,
+            'stock_rows'  => 0, 'stock_changes' => 0, 'stock_unmapped' => 0, 'conflicts' => 0,
         ]);
         if ($full) {
             $st['cursor_items'] = null;
@@ -139,6 +142,18 @@ class PosCatalogSync
         $itemId = $existing->inventory_item_id ?? null;
         $item = $itemId ? TenantInventoryItem::where('tenant_id', $tenantId)->find($itemId) : null;
 
+        self::$applying = true;
+        try {
+            $this->applyItemInner($conn, $it, $existing, $item, $st);
+        } finally {
+            self::$applying = false;
+        }
+    }
+
+    private function applyItemInner(TenantPosConnection $conn, array $it, ?object $existing, ?TenantInventoryItem $item, array &$st): void
+    {
+        $tenantId = $conn->tenant_id;
+
         if (! $it['active']) {
             if ($item && ! ($existing && $existing->removed_at)) {
                 $this->applyRemoval($conn, $item, $it['id']);
@@ -163,6 +178,65 @@ class PosCatalogSync
             $item->forceFill(['shop_sell_price_cents' => $it['price_cents']])->save();
             $st['price_updates']++;
         }
+
+        $this->reconcileShared($conn, $it, $item, $st);
+    }
+
+    /**
+     * MARKER-CONNECTED-POS-PUSH: shared fields (name, SKU, barcode, description).
+     * A POS change lands in Intake when Intake hasn't changed that field since they
+     * last agreed; when both have, it waits under Needs review. Nothing is overwritten.
+     */
+    private function reconcileShared(TenantPosConnection $conn, array $it, TenantInventoryItem $item, array &$st): void
+    {
+        $row = DB::table('tenant_pos_items')->where('tenant_id', $conn->tenant_id)->where('external_id', $it['id'])->first();
+        $snap = $row->snapshot ? (array) json_decode($row->snapshot, true) : null;
+        $conflict = $row->conflict ? (array) json_decode($row->conflict, true) : [];
+        $pos = ['name' => $it['name'], 'sku' => $it['sku'], 'upc' => $it['upc'], 'description' => $it['description'] ?? null];
+
+        if ($snap === null) {
+            $snap = [];
+            foreach (PosPushService::SHARED as $col => $key) {
+                $snap[$key] = $pos[$key] !== null ? (string) $pos[$key] : (string) ($item->{$col} ?? '');
+            }
+        } else {
+            $changes = [];
+            foreach (PosPushService::SHARED as $col => $key) {
+                if ($pos[$key] === null) {
+                    continue;
+                }
+                $theirs = (string) $pos[$key];
+                $was = (string) ($snap[$key] ?? '');
+                $mine = (string) ($item->{$col} ?? '');
+                if ($theirs === $was) {
+                    continue;
+                }
+                if ($mine === $theirs) {
+                    $snap[$key] = $theirs;
+                    unset($conflict[$key]);
+                } elseif ($mine === $was && ! ($col === 'sku' && $this->skuTaken($conn->tenant_id, $theirs, $item->id))) {
+                    $changes[$col] = $theirs === '' ? null : $theirs;
+                    $snap[$key] = $theirs;
+                    unset($conflict[$key]);
+                } else {
+                    $conflict[$key] = ['intake' => $mine, 'pos' => $theirs, 'at' => now()->toIso8601String()];
+                    $st['conflicts'] = ($st['conflicts'] ?? 0) + 1;
+                }
+            }
+            if ($changes) {
+                if (isset($changes['catalog_upc'])) {
+                    $changes['catalog_upc'] = substr((string) $changes['catalog_upc'], 0, 20);
+                }
+                $item->forceFill($changes)->save();
+            }
+        }
+
+        DB::table('tenant_pos_items')->where('id', $row->id)->update(['snapshot' => json_encode($snap), 'conflict' => $conflict ? json_encode($conflict) : null]);
+    }
+
+    private function skuTaken(string $tenantId, string $sku, string $exceptId): bool
+    {
+        return $sku === '' || TenantInventoryItem::withTrashed()->where('tenant_id', $tenantId)->where('sku', $sku)->where('id', '!=', $exceptId)->exists();
     }
 
     /** An Intake item not already linked to another POS product: barcode, then MPN, then SKU. */
@@ -208,6 +282,7 @@ class PosCatalogSync
             'catalog_ean'            => $it['ean'] ?: null,
             'catalog_mpn'            => $it['mpn'] ?: null,
             'shop_brand'             => $it['brand'] ?: null,
+            'description'            => ($it['description'] ?? null) ?: null,
             'shop_sell_price_cents'  => $it['price_cents'],
             'distributor_catalog_id' => $catalogId,
             'is_active'              => true,

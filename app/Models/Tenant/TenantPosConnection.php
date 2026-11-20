@@ -22,6 +22,7 @@ class TenantPosConnection extends Model
         'external_account_id', 'external_account_name', 'context', 'locations', 'payment_types',
         'connected_by', 'connected_at', 'last_checked_at', 'last_error',
         'location_map', 'removal_mode', 'sync_enabled', 'sync_state', 'last_synced_at', // MARKER-CONNECTED-POS-CATALOG
+        'orders_out', 'order_setup', 'setup_options', 'items_create', 'items_edits', // MARKER-CONNECTED-POS-PUSH
     ];
 
     protected $hidden = ['access_token', 'refresh_token'];
@@ -38,6 +39,10 @@ class TenantPosConnection extends Model
         'sync_state'       => 'array',
         'sync_enabled'     => 'boolean',
         'last_synced_at'   => 'datetime',
+        'orders_out'       => 'boolean',
+        'order_setup'      => 'array',
+        'setup_options'    => 'array',
+        'items_edits'      => 'boolean',
         'payment_types'    => 'array',
     ];
 

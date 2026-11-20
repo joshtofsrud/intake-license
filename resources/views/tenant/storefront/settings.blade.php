@@ -641,7 +641,9 @@
       <b>Connected POS</b> is the outside POS your shop already uses — not the Intake Register.
       <b>What syncs today:</b> with sync on, its products, prices and stock come into Intake about every minute, plus a full re-read nightly.
       Stock is updated only at the Intake locations you map below; its price replaces the Intake sell price.
-      <b>Not yet:</b> online orders, refunds, customers and purchase history are not sent or received, and Intake writes nothing to your POS.
+      <b>Sent to your Connected POS</b> only when you turn it on under Orders and items: each paid online order as a completed sale, its refunds, items it needs that aren't there yet, and (if you choose) your edits to item names, SKUs, barcodes and descriptions. Price is never sent except for a brand-new item — your POS owns price.
+      When both sides changed the same field, nothing is overwritten; it waits under <b>Needs review</b>.
+      <b>Not yet:</b> customers and purchase history.
       Items new to Intake start <b>off</b> the online store — choose what to sell under Availability.
       Disconnecting deletes Intake's access and stops sync; items already brought in stay in Intake.
     </div>
@@ -747,6 +749,24 @@
         <p class="ec-note" id="psPhase">@if($ss['running'] ?? false) Step: {{ ($ss['phase'] ?? '') === 'stock' ? 'reading stock counts' : 'reading products' }} · page {{ $ss['pages'] ?? 0 }} @endif</p>
       </div>
       <script>
+      /* MARKER-CONNECTED-POS-PUSH: while anything is sending, refresh the Recent sends list in place */
+      (function(){
+        function refresh(){
+          var box=document.getElementById('posSends'); if(!box || box.dataset.live!=='1') return;
+          fetch(location.pathname + '?tab=pos', {headers:{'X-Intake-Background':'1'}, credentials:'same-origin'})
+            .then(function(r){ return r.ok ? r.text() : null; })
+            .then(function(html){
+              if(!html) return;
+              var fresh=new DOMParser().parseFromString(html,'text/html').getElementById('posSends');
+              if(fresh){ box.replaceWith(fresh); }
+            })
+            .catch(function(){})
+            .finally(function(){ setTimeout(refresh, 3000); });
+        }
+        setTimeout(refresh, 3000);
+      })();
+      </script>
+      <script>
       /* MARKER-CONNECTED-POS-CATALOG: live import progress (background poll, never counts as activity) */
       (function(){
         var box=document.getElementById('posSync'); if(!box) return;
@@ -771,6 +791,88 @@
         tick();
       })();
       </script>
+
+      {{-- MARKER-CONNECTED-POS-PUSH: Intake → Connected POS --}}
+      @php $os = (array) ($pc->order_setup ?? []); $opt = (array) ($pc->setup_options ?? []); @endphp
+      <form method="POST" action="{{ route('tenant.storefront.pos.push_settings') }}" class="ec-sec">
+        @csrf
+        <h3>Orders and items</h3>
+        <div class="ec-row">
+          <div><div class="t">Send paid online orders as sales</div><div class="d">Each paid order is recorded as a completed sale at the outlet mapped to its location, with its refunds. Shipping and other lines with no item are named in the sale's note.</div></div>
+          <div class="ctl"><label class="tg"><input type="hidden" name="orders_out" value="0"><input type="checkbox" name="orders_out" value="1" @checked($pc->orders_out)><i></i></label></div>
+        </div>
+        <div class="ec-sub">
+          @foreach([['register_id', 'Register', $opt['registers'] ?? []], ['user_id', 'Recorded by', $opt['users'] ?? []], ['payment_type_id', 'Payment type', $pc->payment_types ?? []], ['tax_id', 'Tax', $opt['taxes'] ?? []]] as [$fld, $lbl, $list])
+            @if($fld !== 'tax_id' || count($list))
+              <div class="ec-row">
+                <div><div class="t">{{ $lbl }}</div>@if($fld === 'payment_type_id')<div class="d">Pick the one you made for web sales (for example "Intake Online") so online money stays separate from the till.</div>@endif</div>
+                <div class="ctl">
+                  @if(count($list))
+                    <select class="ia-select" name="{{ $fld }}"><option value="">Choose…</option>@foreach($list as $o)<option value="{{ $o['id'] }}" @selected(($os[$fld] ?? '') === (string) $o['id'])>{{ $o['name'] }}</option>@endforeach</select>
+                  @else
+                    <span class="ec-note">None found — click <b>Check connection</b> above.</span>
+                  @endif
+                </div>
+              </div>
+            @endif
+          @endforeach
+        </div>
+        <div class="ec-row">
+          <div><div class="t">Create items in your Connected POS</div><div class="d">Items an order needs are always created first, so the sale is complete.</div></div>
+          <div class="ctl"><select class="ia-select" name="items_create">
+            <option value="orders" @selected(($pc->items_create ?? 'orders') === 'orders')>Only when an order needs one</option>
+            <option value="always" @selected($pc->items_create === 'always')>Also whenever an item is added in Intake</option>
+          </select></div>
+        </div>
+        <div class="ec-row">
+          <div><div class="t">Send my item edits</div><div class="d">Name, SKU, barcode and description changes made in Intake go to your POS. Price stays with your POS.</div></div>
+          <div class="ctl"><label class="tg"><input type="hidden" name="items_edits" value="0"><input type="checkbox" name="items_edits" value="1" @checked($pc->items_edits)><i></i></label></div>
+        </div>
+        <div class="ec-actions">
+          <button class="ia-btn ia-btn--primary" type="submit">Save orders and items</button>
+          <button class="ia-btn ia-btn--secondary" type="submit" form="posSendItems" data-confirm="Create every active Intake item that isn't in your Connected POS yet? This adds them to your POS.">Send items not in my POS</button>
+        </div>
+      </form>
+      <form id="posSendItems" method="POST" action="{{ route('tenant.storefront.pos.send_items') }}">@csrf</form>
+
+      <div class="ec-sec">
+        <h3>Needs review @if(count($pos['conflicts']))<span class="src-badge src-special">{{ count($pos['conflicts']) }}</span>@endif</h3>
+        @forelse($pos['conflicts'] as $cf)
+          @foreach((array) json_decode($cf->conflict, true) as $field => $v)
+            <div class="ec-row">
+              <div>
+                <div class="t"><a href="{{ route('tenant.inventory.edit', $cf->item_id) }}">{{ $cf->item_name }}</a> — {{ ['name' => 'Name', 'sku' => 'SKU', 'upc' => 'Barcode', 'description' => 'Description'][$field] ?? $field }}</div>
+                <div class="d">Intake: <b>{{ \Illuminate\Support\Str::limit($v['intake'] ?? '', 80) ?: '(blank)' }}</b> · Connected POS: <b>{{ \Illuminate\Support\Str::limit($v['pos'] ?? '', 80) ?: '(blank)' }}</b></div>
+              </div>
+              <div class="ctl">
+                @foreach(['intake' => "Keep Intake's", 'pos' => "Keep the POS's"] as $k => $lbl)
+                  <form method="POST" action="{{ route('tenant.storefront.pos.resolve') }}">@csrf<input type="hidden" name="pos_item" value="{{ $cf->id }}"><input type="hidden" name="field" value="{{ $field }}"><input type="hidden" name="keep" value="{{ $k }}"><button class="ia-btn ia-btn--secondary ia-btn--sm" type="submit">{{ $lbl }}</button></form>
+                @endforeach
+              </div>
+            </div>
+          @endforeach
+        @empty
+          <p class="ec-note">Nothing waiting. When Intake and your Connected POS both change the same field on an item, it shows here for you to choose.</p>
+        @endforelse
+      </div>
+
+      <div class="ec-sec" id="posSends" data-live="{{ collect($pos['sends'])->contains('status', 'pending') ? 1 : 0 }}">
+        <h3>Recent sends</h3>
+        @forelse($pos['sends'] as $sd)
+          <div class="ec-row">
+            <div>
+              <div class="t">{{ $sd->label }} <span class="src-badge {{ ['done' => 'src-shop', 'pending' => 'src-supplier', 'failed' => 'src-out', 'skipped' => 'src-special'][$sd->status] ?? '' }}" style="margin-left:6px">{{ ['done' => 'Sent', 'pending' => 'Sending', 'failed' => 'Failed', 'skipped' => 'Not sent'][$sd->status] ?? $sd->status }}</span></div>
+              <div class="d">{{ \Illuminate\Support\Carbon::parse($sd->updated_at)->diffForHumans() }}@if($sd->attempts > 1) · {{ $sd->attempts }} tries @endif</div>
+              @if($sd->last_error)<div class="d" style="color:#A32D2D">{{ $sd->last_error }}</div>@endif
+            </div>
+            @if(in_array($sd->status, ['failed', 'skipped'], true))
+              <div class="ctl"><form method="POST" action="{{ route('tenant.storefront.pos.retry', $sd->id) }}">@csrf<button class="ia-btn ia-btn--secondary ia-btn--sm" type="submit">Retry</button></form></div>
+            @endif
+          </div>
+        @empty
+          <p class="ec-note">Nothing sent yet. Sales, refunds and items sent to your Connected POS appear here with their status.</p>
+        @endforelse
+      </div>
 
       <div class="ec-sec">
         <h3>Payment types in your Connected POS</h3>

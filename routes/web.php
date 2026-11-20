@@ -560,6 +560,11 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::post('/storefront/pos/settings', [TenantControllers\PosConnectionController::class, 'settings'])->name('storefront.pos.settings');
                 Route::post('/storefront/pos/import',   [TenantControllers\PosConnectionController::class, 'import'])->name('storefront.pos.import')->middleware('throttle:6,1');
                 Route::get('/storefront/pos/status',    [TenantControllers\PosConnectionController::class, 'status'])->name('storefront.pos.status');
+                // MARKER-CONNECTED-POS-PUSH
+                Route::post('/storefront/pos/push-settings', [TenantControllers\PosConnectionController::class, 'pushSettings'])->name('storefront.pos.push_settings');
+                Route::post('/storefront/pos/resolve',       [TenantControllers\PosConnectionController::class, 'resolve'])->name('storefront.pos.resolve');
+                Route::post('/storefront/pos/retry/{push}',  [TenantControllers\PosConnectionController::class, 'retry'])->name('storefront.pos.retry')->whereNumber('push');
+                Route::post('/storefront/pos/send-items',    [TenantControllers\PosConnectionController::class, 'sendItems'])->name('storefront.pos.send_items')->middleware('throttle:3,1');
                 // MARKER-ECOM-AVAILABILITY: what is for sale online / may be oversold
                 Route::get('/storefront/availability/items',      [TenantControllers\StorefrontAvailabilityController::class, 'items'])->name('storefront.availability.items');
                 Route::get('/storefront/availability/categories', [TenantControllers\StorefrontAvailabilityController::class, 'categories'])->name('storefront.availability.categories');

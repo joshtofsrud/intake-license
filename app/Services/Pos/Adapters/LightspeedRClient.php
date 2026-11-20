@@ -134,25 +134,8 @@ class LightspeedRClient implements PosAdapter
             if (! isset($r['itemID'])) {
                 continue;
             }
-            $price = null;
-            foreach ($this->rows($r['Prices']['ItemPrice'] ?? null) as $p) {
-                if (($p['useType'] ?? '') === 'Default' && is_numeric($p['amount'] ?? null)) {
-                    $price = (int) round(((float) $p['amount']) * 100);
-                }
-            }
             $c['max'] = max($c['max'] ?? '', (string) ($r['timeStamp'] ?? ''));
-            $items[] = [
-                'id'          => (string) $r['itemID'],
-                'parent_id'   => ! empty($r['itemMatrixID']) && $r['itemMatrixID'] !== '0' ? 'm' . $r['itemMatrixID'] : null,
-                'name'        => filled($r['description'] ?? null) ? (string) $r['description'] : null,
-                'sku'         => filled($r['customSku'] ?? null) ? (string) $r['customSku'] : (filled($r['systemSku'] ?? null) ? (string) $r['systemSku'] : null),
-                'upc'         => filled($r['upc'] ?? null) ? (string) $r['upc'] : null,
-                'ean'         => filled($r['ean'] ?? null) ? (string) $r['ean'] : null,
-                'mpn'         => filled($r['manufacturerSku'] ?? null) ? (string) $r['manufacturerSku'] : null,
-                'brand'       => null,
-                'price_cents' => $price,
-                'active'      => ! in_array(strtolower((string) ($r['archived'] ?? 'false')), ['true', '1'], true),
-            ];
+            $items[] = $this->mapItem($r);
         }
 
         return $this->advance($c, count($rows), 100) + ['items' => $items];
@@ -199,6 +182,141 @@ class LightspeedRClient implements PosAdapter
         return ['cursor' => json_encode(['since' => $c['max'] ?: $c['since'], 'offset' => 0, 'max' => null]), 'more' => false];
     }
 
+
+    /** One API item in the shape pullItems returns. R-Series items carry no description here. */
+    private function mapItem(array $r): array
+    {
+        $price = null;
+        foreach ($this->rows($r['Prices']['ItemPrice'] ?? null) as $p) {
+            if (($p['useType'] ?? '') === 'Default' && is_numeric($p['amount'] ?? null)) {
+                $price = (int) round(((float) $p['amount']) * 100);
+            }
+        }
+
+        return [
+            'id'          => (string) $r['itemID'],
+            'parent_id'   => ! empty($r['itemMatrixID']) && $r['itemMatrixID'] !== '0' ? 'm' . $r['itemMatrixID'] : null,
+            'name'        => filled($r['description'] ?? null) ? (string) $r['description'] : null,
+            'sku'         => filled($r['customSku'] ?? null) ? (string) $r['customSku'] : (filled($r['systemSku'] ?? null) ? (string) $r['systemSku'] : null),
+            'upc'         => filled($r['upc'] ?? null) ? (string) $r['upc'] : null,
+            'ean'         => filled($r['ean'] ?? null) ? (string) $r['ean'] : null,
+            'mpn'         => filled($r['manufacturerSku'] ?? null) ? (string) $r['manufacturerSku'] : null,
+            'brand'       => null,
+            'description' => null,
+            'price_cents' => $price,
+            'active'      => ! in_array(strtolower((string) ($r['archived'] ?? 'false')), ['true', '1'], true),
+        ];
+    }
+
+    // ── MARKER-CONNECTED-POS-PUSH ───────────────────────────────
+
+    public function registers(string $accessToken, string $accountId, array $context): array
+    {
+        return $this->named($this->rows($this->get($accessToken, $this->url($accountId, 'Register.json'), ['limit' => 100])['Register'] ?? null), 'registerID');
+    }
+
+    public function users(string $accessToken, string $accountId, array $context): array
+    {
+        $out = [];
+        foreach ($this->rows($this->get($accessToken, $this->url($accountId, 'Employee.json'), ['limit' => 100])['Employee'] ?? null) as $e) {
+            if (isset($e['employeeID']) && ! in_array(strtolower((string) ($e['archived'] ?? 'false')), ['true', '1'], true)) {
+                $out[] = ['id' => (string) $e['employeeID'], 'name' => trim(($e['firstName'] ?? '') . ' ' . ($e['lastName'] ?? '')) ?: '#' . $e['employeeID']];
+            }
+        }
+
+        return $out;
+    }
+
+    /** R-Series applies tax from its own tax classes, so there is nothing to choose. */
+    public function taxes(string $accessToken, string $accountId, array $context): array
+    {
+        return [];
+    }
+
+    public function createSale(string $accessToken, string $accountId, array $context, array $sale): string
+    {
+        $lines = [];
+        foreach ($sale['lines'] as $l) {
+            $lines[] = ['itemID' => $l['item_id'], 'unitQuantity' => (int) $l['qty'], 'unitPrice' => round($l['unit_cents'] / 100, 2), 'tax' => $l['tax_cents'] !== 0];
+        }
+        $body = array_filter([
+            'employeeID'            => $sale['user_id'],
+            'registerID'            => $sale['register_id'],
+            'shopID'                => $sale['outlet_id'],
+            'customerID'            => $sale['customer_id'] ?? null,
+            'completed'             => true,
+            'referenceNumber'       => $sale['reference'],
+            'referenceNumberSource' => 'Intake',
+            'SaleLines'             => ['SaleLine' => $lines],
+            'SalePayments'          => ['SalePayment' => [['amount' => round($sale['total_cents'] / 100, 2), 'paymentTypeID' => $sale['payment_type_id']]]],
+        ], fn ($v) => $v !== null);
+        $res = $this->send('post', $accessToken, $this->url($accountId, 'Sale.json'), $body);
+        $id = $this->rows($res['Sale'] ?? null)[0]['saleID'] ?? null;
+        if (! $id) {
+            throw new RuntimeException('The POS did not return the sale.');
+        }
+
+        return (string) $id;
+    }
+
+    public function createItem(string $accessToken, string $accountId, array $context, array $fields): string
+    {
+        $res = $this->send('post', $accessToken, $this->url($accountId, 'Item.json'), $this->itemPayload($fields));
+        $id = $this->rows($res['Item'] ?? null)[0]['itemID'] ?? null;
+        if (! $id) {
+            throw new RuntimeException('The POS did not return the new item.');
+        }
+
+        return (string) $id;
+    }
+
+    public function updateItem(string $accessToken, string $accountId, array $context, string $itemId, array $fields): void
+    {
+        $this->send('put', $accessToken, $this->url($accountId, 'Item/' . rawurlencode($itemId) . '.json'), $this->itemPayload($fields));
+    }
+
+    public function getItem(string $accessToken, string $accountId, array $context, string $itemId): ?array
+    {
+        try {
+            $body = $this->get($accessToken, $this->url($accountId, 'Item/' . rawurlencode($itemId) . '.json'), ['load_relations' => '["ItemPrices"]']);
+        } catch (RuntimeException $e) {
+            if (str_contains($e->getMessage(), 'HTTP 404')) {
+                return null;
+            }
+            throw $e;
+        }
+        $r = $this->rows($body['Item'] ?? null)[0] ?? null;
+
+        return $r && isset($r['itemID']) ? $this->mapItem($r) : null;
+    }
+
+    private function itemPayload(array $f): array
+    {
+        $out = [];
+        foreach (['name' => 'description', 'sku' => 'customSku', 'upc' => 'upc', 'ean' => 'ean', 'mpn' => 'manufacturerSku'] as $k => $api) {
+            if (array_key_exists($k, $f) && $f[$k] !== null) {
+                $out[$api] = (string) $f[$k];
+            }
+        }
+        if (isset($f['price_cents'])) {
+            $out['Prices'] = ['ItemPrice' => [['amount' => round($f['price_cents'] / 100, 2), 'useType' => 'Default', 'useTypeID' => 1]]];
+        }
+
+        return $out;
+    }
+
+    private function send(string $method, string $token, string $url, array $json): array
+    {
+        $go = fn () => Http::withToken($token)->acceptJson()->asJson()->timeout(30)->{$method}($url, $json);
+        $res = $go();
+        if ($res->status() === 429) {
+            sleep(min(5, max(1, (int) ($res->header('Retry-After') ?: 2))));
+            $res = $go();
+        }
+
+        return $this->ok($res);
+    }
+
     // ── internals ───────────────────────────────────────────────
 
     private function url(string $accountId, string $resource): string
@@ -241,7 +359,7 @@ class LightspeedRClient implements PosAdapter
         }
         if (! $res->successful()) {
             $j = $res->json() ?: [];
-            throw new RuntimeException('The POS answered with an error: ' . ($j['message'] ?? ('HTTP ' . $res->status())));
+            throw new RuntimeException('The POS answered with an error (HTTP ' . $res->status() . '): ' . (is_string($j['message'] ?? null) ? $j['message'] : ''));
         }
 
         return $res->json() ?: [];

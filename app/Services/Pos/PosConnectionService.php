@@ -100,6 +100,12 @@ class PosConnectionService
                 'external_account_name' => $acct['name'],
                 'locations'             => $adapter->locations($token, $acct['id'], $ctx),
                 'payment_types'         => $adapter->paymentTypes($token, $acct['id'], $ctx),
+                // MARKER-CONNECTED-POS-PUSH: what a sale can be recorded with
+                'setup_options'         => [
+                    'registers' => $this->soft(fn () => $adapter->registers($token, $acct['id'], $ctx)),
+                    'users'     => $this->soft(fn () => $adapter->users($token, $acct['id'], $ctx)),
+                    'taxes'     => $this->soft(fn () => $adapter->taxes($token, $acct['id'], $ctx)),
+                ],
                 'status'                => 'connected',
                 'last_checked_at'       => now(),
                 'last_error'            => null,
@@ -111,6 +117,16 @@ class PosConnectionService
             JobFailureReporter::report(self::class, 'POS connection check failed', $e, ['adapter' => $conn->adapter_code], $conn->tenant_id);
 
             return false;
+        }
+    }
+
+    /** Optional lists (a connection made before a permission existed may not be allowed to read them yet). */
+    private function soft(callable $fn): array
+    {
+        try {
+            return (array) $fn();
+        } catch (Throwable $e) {
+            return [];
         }
     }
 

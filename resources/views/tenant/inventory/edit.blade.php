@@ -153,8 +153,10 @@
         </div>
         <div class="ia-form-group">
           <label class="ia-form-label">Sell price ($)</label>
-          <input type="number" step="0.01" min="0" name="shop_sell_price_dollars" class="ia-input"
+          {{-- MARKER-CONNECTED-POS-PUSH --}}
+          <input type="number" step="0.01" min="0" name="shop_sell_price_dollars" class="ia-input" @if($posPrice ?? false) readonly title="Set by your Connected POS" @endif
             value="{{ old('shop_sell_price_dollars', $item->shop_sell_price_cents !== null ? number_format($item->shop_sell_price_cents / 100, 2, '.', '') : '') }}">
+          @if($posPrice ?? false)<div style="font-size:12px;color:var(--ia-text-muted);margin-top:4px">Set by your Connected POS — change it there and it updates here within a minute.</div>@endif
         </div>
       </div>
 

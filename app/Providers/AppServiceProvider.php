@@ -36,6 +36,9 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // MARKER-CONNECTED-POS-PUSH: online sales, refunds and item edits go to a shop's Connected POS
+        \App\Services\Pos\PosPushService::hooks();
+
         // MARKER-CF-IP: requests arrive through Cloudflare, so without this every
         // request()->ip() was a Cloudflare edge address — login throttles were
         // shared across shops, and waivers, consent and debug logs recorded the

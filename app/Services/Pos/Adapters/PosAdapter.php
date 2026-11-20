@@ -85,4 +85,39 @@ interface PosAdapter
      * @return array{rows: list<array{item_id: string, location_id: string, qty: int}>, cursor: ?string, more: bool}
      */
     public function pullStock(string $accessToken, string $accountId, array $context, ?string $cursor): array;
+
+    // ── MARKER-CONNECTED-POS-PUSH: Intake → Connected POS ─────────────
+
+    /** Registers a sale can be recorded on. @return list<array{id: string, name: string}> */
+    public function registers(string $accessToken, string $accountId, array $context): array;
+
+    /** Staff a sale can be recorded under. @return list<array{id: string, name: string}> */
+    public function users(string $accessToken, string $accountId, array $context): array;
+
+    /** Tax rates a sale line can carry; empty when the POS applies tax itself. @return list<array{id: string, name: string}> */
+    public function taxes(string $accessToken, string $accountId, array $context): array;
+
+    /**
+     * Record a completed sale (negative quantities and amount = a return).
+     *
+     * $sale: reference, note, outlet_id, register_id, user_id, payment_type_id, tax_id (nullable),
+     *        return_for (external sale id or null), lines: list<{item_id, qty, unit_cents, tax_cents}>,
+     *        total_cents.
+     *
+     * @return string the POS's sale id
+     */
+    public function createSale(string $accessToken, string $accountId, array $context, array $sale): string;
+
+    /**
+     * Create an item. $fields: name, sku, upc, ean, mpn, description, price_cents.
+     *
+     * @return string the POS's item id
+     */
+    public function createItem(string $accessToken, string $accountId, array $context, array $fields): string;
+
+    /** Update shared fields on an item (only the keys given). */
+    public function updateItem(string $accessToken, string $accountId, array $context, string $itemId, array $fields): void;
+
+    /** One item as pullItems shapes it, or null when it no longer exists. */
+    public function getItem(string $accessToken, string $accountId, array $context, string $itemId): ?array;
 }

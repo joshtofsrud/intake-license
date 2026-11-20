@@ -1747,7 +1747,11 @@ class InventoryController extends Controller
         $vendors = \App\Models\Tenant\TenantVendor::where('tenant_id', $tenant->id)
             ->where('is_active', true)->orderBy('name')->get();
 
-        return view('tenant.inventory.edit', compact('item', 'categories', 'vendors'));
+        // MARKER-CONNECTED-POS-PUSH: a linked item's price belongs to the shop's Connected POS
+        $posPrice = \App\Services\Pos\PosPushService::connectionFor($tenant->id)
+            && \Illuminate\Support\Facades\DB::table('tenant_pos_items')->where('tenant_id', $tenant->id)->where('inventory_item_id', $item->id)->whereNull('removed_at')->exists();
+
+        return view('tenant.inventory.edit', compact('item', 'categories', 'vendors', 'posPrice'));
     }
 
     public function update(Request $request, string $id): RedirectResponse
@@ -1827,7 +1831,10 @@ class InventoryController extends Controller
             'color'                  => $data['color'] ?? null,
             'size'                   => $data['size'] ?? null,
             'shop_cost_cents'        => isset($data['shop_cost_dollars']) ? (int) round($data['shop_cost_dollars'] * 100) : null,
-            'shop_sell_price_cents'  => isset($data['shop_sell_price_dollars']) ? (int) round($data['shop_sell_price_dollars'] * 100) : null,
+            // MARKER-CONNECTED-POS-PUSH: price is the Connected POS's on a linked item
+            'shop_sell_price_cents'  => (\App\Services\Pos\PosPushService::connectionFor($tenant->id) && \Illuminate\Support\Facades\DB::table('tenant_pos_items')->where('tenant_id', $tenant->id)->where('inventory_item_id', $item->id)->whereNull('removed_at')->exists())
+                ? $item->shop_sell_price_cents
+                : (isset($data['shop_sell_price_dollars']) ? (int) round($data['shop_sell_price_dollars'] * 100) : null),
             'compare_at_cents'       => isset($data['compare_at_dollars']) && $data['compare_at_dollars'] !== '' ? (int) round($data['compare_at_dollars'] * 100) : null,
             'shop_case_quantity'     => $data['shop_case_quantity'] ?? null,
             'shop_reorder_threshold' => $data['shop_reorder_threshold'] ?? null,

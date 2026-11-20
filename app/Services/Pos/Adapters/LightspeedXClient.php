@@ -130,29 +130,9 @@ class LightspeedXClient implements PosAdapter
 
         $items = [];
         foreach ($rows as $r) {
-            if (! is_array($r) || ! isset($r['id'])) {
-                continue;
+            if (is_array($r) && isset($r['id'])) {
+                $items[] = $this->mapProduct($r);
             }
-            $codes = [];
-            foreach ((array) ($r['product_codes'] ?? []) as $c) {
-                if (is_array($c) && ! empty($c['code'])) {
-                    $codes[strtoupper((string) ($c['type'] ?? ''))] = (string) $c['code'];
-                }
-            }
-            $price = $r['price_excluding_tax'] ?? $r['price_including_tax'] ?? null;
-            $name = trim((string) ($r['name'] ?? '') . (filled($r['variant_name'] ?? null) && ! str_contains((string) ($r['name'] ?? ''), (string) $r['variant_name']) ? ' / ' . $r['variant_name'] : ''));
-            $items[] = [
-                'id'          => (string) $r['id'],
-                'parent_id'   => isset($r['variant_parent_id']) ? (string) $r['variant_parent_id'] : null,
-                'name'        => $name !== '' ? $name : null,
-                'sku'         => filled($r['sku'] ?? null) ? (string) $r['sku'] : null,
-                'upc'         => $codes['UPC'] ?? null,
-                'ean'         => $codes['EAN'] ?? null,
-                'mpn'         => filled($r['supplier_code'] ?? null) ? (string) $r['supplier_code'] : ($codes['MPN'] ?? null),
-                'brand'       => is_array($r['brand'] ?? null) ? ($r['brand']['name'] ?? null) : (is_string($r['brand_name'] ?? null) ? $r['brand_name'] : null),
-                'price_cents' => is_numeric($price) ? (int) round(((float) $price) * 100) : null,
-                'active'      => empty($r['deleted_at']) && (($r['is_active'] ?? $r['active'] ?? true) !== false),
-            ];
         }
 
         return ['items' => $items, 'cursor' => $max !== null ? (string) $max : $cursor, 'more' => count($rows) > 0];
@@ -175,6 +155,184 @@ class LightspeedXClient implements PosAdapter
         }
 
         return ['rows' => $rows, 'cursor' => $max !== null ? (string) $max : $cursor, 'more' => count($data) > 0];
+    }
+
+
+    /** One API product in the shape pullItems returns. */
+    private function mapProduct(array $r): array
+    {
+        $codes = [];
+        foreach ((array) ($r['product_codes'] ?? []) as $c) {
+            if (is_array($c) && ! empty($c['code'])) {
+                $codes[strtoupper((string) ($c['type'] ?? ''))] = (string) $c['code'];
+            }
+        }
+        $price = $r['price_excluding_tax'] ?? $r['price_including_tax'] ?? null;
+        $name = trim((string) ($r['name'] ?? '') . (filled($r['variant_name'] ?? null) && ! str_contains((string) ($r['name'] ?? ''), (string) $r['variant_name']) ? ' / ' . $r['variant_name'] : ''));
+
+        return [
+            'id'          => (string) $r['id'],
+            'parent_id'   => isset($r['variant_parent_id']) ? (string) $r['variant_parent_id'] : null,
+            'name'        => $name !== '' ? $name : null,
+            'sku'         => filled($r['sku'] ?? null) ? (string) $r['sku'] : null,
+            'upc'         => $codes['UPC'] ?? null,
+            'ean'         => $codes['EAN'] ?? null,
+            'mpn'         => filled($r['supplier_code'] ?? null) ? (string) $r['supplier_code'] : ($codes['MPN'] ?? null),
+            'brand'       => is_array($r['brand'] ?? null) ? ($r['brand']['name'] ?? null) : (is_string($r['brand_name'] ?? null) ? $r['brand_name'] : null),
+            'description' => array_key_exists('description', $r) ? (string) ($r['description'] ?? '') : null,
+            'price_cents' => is_numeric($price) ? (int) round(((float) $price) * 100) : null,
+            'active'      => empty($r['deleted_at']) && (($r['is_active'] ?? $r['active'] ?? true) !== false),
+        ];
+    }
+
+    // ── MARKER-CONNECTED-POS-PUSH ───────────────────────────────
+
+    public function registers(string $accessToken, string $accountId, array $context): array
+    {
+        return $this->named($this->get($accessToken, $this->api($this->ctxPrefix($context), 'registers'))['data'] ?? []);
+    }
+
+    public function users(string $accessToken, string $accountId, array $context): array
+    {
+        $out = [];
+        foreach ((array) ($this->get($accessToken, $this->api($this->ctxPrefix($context), 'users'))['data'] ?? []) as $u) {
+            if (is_array($u) && isset($u['id']) && empty($u['deleted_at'])) {
+                $out[] = ['id' => (string) $u['id'], 'name' => (string) ($u['display_name'] ?? $u['username'] ?? $u['id'])];
+            }
+        }
+
+        return $out;
+    }
+
+    public function taxes(string $accessToken, string $accountId, array $context): array
+    {
+        return $this->named($this->get($accessToken, $this->api($this->ctxPrefix($context), 'taxes'))['data'] ?? []);
+    }
+
+    /**
+     * A closed register sale. Uses the long-standing register_sales endpoint, which
+     * can answer 200 with an empty sale when a field is wrong — so the reply is
+     * checked for its lines before it counts as done.
+     */
+    public function createSale(string $accessToken, string $accountId, array $context, array $sale): string
+    {
+        $products = [];
+        foreach ($sale['lines'] as $l) {
+            $products[] = [
+                'product_id' => $l['item_id'],
+                'quantity'   => (float) $l['qty'],
+                'price'      => round($l['unit_cents'] / 100, 2),
+                'tax'        => round(($l['tax_cents'] / max(1, abs($l['qty']))) / 100, 4),
+                'tax_id'     => $sale['tax_id'],
+                'status'     => 'CONFIRMED',
+            ];
+        }
+        $payload = array_filter([
+            'source_id'              => $sale['reference'],
+            'register_id'            => $sale['register_id'],
+            'user_id'                => $sale['user_id'],
+            'customer_id'            => $sale['customer_id'] ?? null,
+            'state'                  => 'closed',
+            'status'                 => 'CLOSED',
+            'note'                   => $sale['note'],
+            'return_for'             => $sale['return_for'] ?? null,
+            'register_sale_products' => $products,
+            'register_sale_payments' => [[
+                'retailer_payment_type_id' => $sale['payment_type_id'],
+                'payment_date'             => now()->utc()->format('Y-m-d H:i:s'),
+                'amount'                   => round($sale['total_cents'] / 100, 2),
+            ]],
+        ], fn ($v) => $v !== null);
+
+        $res = $this->send('post', $accessToken, $this->root($this->ctxPrefix($context)) . '/register_sales', $payload);
+        $rs = $res['register_sale'] ?? $res['data'] ?? $res;
+        if (empty($rs['id']) || empty($rs['register_sale_products'] ?? [1])) {
+            throw new \RuntimeException('The POS accepted the sale but recorded no items — nothing was saved there. Check the register, user, payment type and tax chosen under Connected POS.');
+        }
+
+        return (string) $rs['id'];
+    }
+
+    public function createItem(string $accessToken, string $accountId, array $context, array $fields): string
+    {
+        $res = $this->send('post', $accessToken, $this->root($this->ctxPrefix($context)) . '/products', $this->productPayload($fields) + [
+            'handle' => \Illuminate\Support\Str::slug(($fields['name'] ?? 'item') . '-' . ($fields['sku'] ?? \Illuminate\Support\Str::random(5))),
+        ]);
+        $id = $res['product']['id'] ?? $res['data']['id'] ?? $res['id'] ?? null;
+        if (! $id) {
+            throw new \RuntimeException('The POS did not return the new item.');
+        }
+
+        return (string) $id;
+    }
+
+    public function updateItem(string $accessToken, string $accountId, array $context, string $itemId, array $fields): void
+    {
+        $this->send('post', $accessToken, $this->root($this->ctxPrefix($context)) . '/products', ['id' => $itemId] + $this->productPayload($fields));
+    }
+
+    public function getItem(string $accessToken, string $accountId, array $context, string $itemId): ?array
+    {
+        try {
+            $d = $this->get($accessToken, $this->api($this->ctxPrefix($context), 'products/' . rawurlencode($itemId)))['data'] ?? null;
+        } catch (\RuntimeException $e) {
+            if (str_contains($e->getMessage(), 'HTTP 404')) {
+                return null;
+            }
+            throw $e;
+        }
+
+        return is_array($d) && isset($d['id']) ? $this->mapProduct($d) : null;
+    }
+
+    private function productPayload(array $f): array
+    {
+        $out = [];
+        foreach (['name' => 'name', 'sku' => 'sku', 'description' => 'description'] as $k => $api) {
+            if (array_key_exists($k, $f)) {
+                $out[$api] = (string) ($f[$k] ?? '');
+            }
+        }
+        if (array_key_exists('price_cents', $f) && $f['price_cents'] !== null) {
+            $out['retail_price'] = round($f['price_cents'] / 100, 2);
+        }
+        $codes = [];
+        foreach (['upc' => 'UPC', 'ean' => 'EAN'] as $k => $type) {
+            if (! empty($f[$k])) {
+                $codes[] = ['type' => $type, 'code' => (string) $f[$k]];
+            }
+        }
+        if ($codes) {
+            $out['product_codes'] = $codes;
+        }
+        if (! empty($f['mpn'])) {
+            $out['supplier_code'] = (string) $f['mpn'];
+        }
+
+        return $out;
+    }
+
+    private function ctxPrefix(array $context): string
+    {
+        return $this->prefix((string) ($context['domain_prefix'] ?? ''));
+    }
+
+    /** The store's /api root (for the older endpoints), from the configured 2.x base. */
+    private function root(string $prefix): string
+    {
+        return preg_replace('#/api/[^/]+/?$#', '/api', rtrim($this->fill((string) $this->cfg->api_base, $prefix), '/'));
+    }
+
+    private function send(string $method, string $token, string $url, array $json): array
+    {
+        $go = fn () => Http::withToken($token)->acceptJson()->asJson()->timeout(30)->{$method}($url, $json);
+        $res = $go();
+        if ($res->status() === 429) {
+            sleep(min(5, max(1, (int) ($res->header('Retry-After') ?: 2))));
+            $res = $go();
+        }
+
+        return $this->ok($res);
     }
 
     // ── internals ───────────────────────────────────────────────
@@ -239,7 +397,7 @@ class LightspeedXClient implements PosAdapter
         }
         if (! $res->successful()) {
             $j = $res->json() ?: [];
-            throw new RuntimeException('The POS answered with an error: ' . ($j['message'] ?? $j['error'] ?? ('HTTP ' . $res->status())));
+            throw new RuntimeException('The POS answered with an error (HTTP ' . $res->status() . '): ' . (is_string($j['message'] ?? null) ? $j['message'] : (is_string($j['error'] ?? null) ? $j['error'] : json_encode($j['details'] ?? $j['errors'] ?? ''))));
         }
 
         return $res->json() ?: [];

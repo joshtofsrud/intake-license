@@ -68,6 +68,13 @@ class StorefrontSettingsController extends Controller
             'label'     => $posConn ? \App\Models\PlatformPosAdapter::forCode($posConn->adapter_code)->displayLabel() : null,
             'available' => app(\App\Services\Pos\Adapters\PosAdapterRegistry::class)->available(),
             'intake_locations' => $tenant->activeLocations()->get(['id', 'name']), // MARKER-CONNECTED-POS-CATALOG
+            // MARKER-CONNECTED-POS-PUSH
+            'conflicts' => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_items as p')
+                ->join('tenant_inventory_items as i', 'i.id', '=', 'p.inventory_item_id')
+                ->where('p.tenant_id', $tenant->id)->whereNotNull('p.conflict')
+                ->orderBy('i.name')->limit(100)->get(['p.id', 'p.conflict', 'i.id as item_id', 'i.name as item_name']) : collect(),
+            'sends'     => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', $tenant->id)
+                ->orderByRaw("FIELD(status, 'failed', 'pending', 'done', 'skipped')")->orderByDesc('updated_at')->limit(25)->get() : collect(),
         ];
 
         return view('tenant.storefront.settings', [
