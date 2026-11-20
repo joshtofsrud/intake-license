@@ -29,7 +29,7 @@ class LightspeedXClient implements PosAdapter
     {
         return [
             'label'         => 'Lightspeed Retail (X-Series)',
-            'scopes'        => 'retailer:read outlets:read registers:read users:read taxes:read payment_types:read products:read products:write inventory:read inventory:write customers:read customers:write sales:read sales:write webhooks',
+            'scopes'        => 'retailer:read outlets:read registers:read users:read taxes:read payment_types:read products:read products:write suppliers:read suppliers:write inventory:read inventory:write customers:read customers:write sales:read sales:write webhooks',
             'authorize_url' => 'https://secure.retail.lightspeed.app/connect',
             'token_url'     => 'https://{domain_prefix}.retail.lightspeed.app/api/1.0/token',
             'api_base'      => 'https://{domain_prefix}.retail.lightspeed.app/api/2.0',
@@ -370,6 +370,8 @@ class LightspeedXClient implements PosAdapter
      * tracking; the product holds its suppliers (supplier, code, supply price) and weight.
      * Brand, category and supplier are matched by name and created when missing.
      */
+    public const GONE = 'This item was deleted in your Connected POS, so its details can\'t be set. Send it again from its item page if you still sell it.';
+
     public function setItemDetails(string $accessToken, string $accountId, array $context, string $itemId, array $details): void
     {
         $prefix = $this->ctxPrefix($context);
@@ -390,12 +392,32 @@ class LightspeedXClient implements PosAdapter
             if (! $familyId) {
                 throw new RuntimeException('Your Connected POS did not say which product family this item belongs to.');
             }
-            $this->send('patch', $accessToken, $base . '/product_families/' . rawurlencode((string) $familyId), $fam);
+            try {
+                $this->send('patch', $accessToken, $base . '/product_families/' . rawurlencode((string) $familyId), $fam);
+            } catch (RuntimeException $e) {
+                // the POS still lists the product but won't change it: it was deleted there
+                if (str_contains($e->getMessage(), 'HTTP 404')) {
+                    throw new RuntimeException(self::GONE);
+                }
+                throw $e;
+            }
         }
 
         $prod = [];
+        $later = null;
+        $supplierId = null;
         if (filled($details['supplier'] ?? null)) {
-            $sup = ['supplier_id' => $this->idFor($accessToken, $prefix, 'suppliers', (string) $details['supplier'])];
+            // a supplier problem (like a missing permission) must not cost the item its weight
+            try {
+                $supplierId = $this->idFor($accessToken, $prefix, 'suppliers', (string) $details['supplier']);
+            } catch (RuntimeException $e) {
+                $later = str_contains($e->getMessage(), 'missing a permission')
+                    ? 'Suppliers need a permission Intake does not have yet. Click Disconnect, then Connect again, then Fill in missing details.'
+                    : 'Supplier not set: ' . $e->getMessage();
+            }
+        }
+        if ($supplierId) {
+            $sup = ['supplier_id' => $supplierId];
             if (filled($details['supplier_code'] ?? null)) {
                 $sup['code'] = (string) $details['supplier_code'];
             }
@@ -409,6 +431,9 @@ class LightspeedXClient implements PosAdapter
         }
         if ($prod) {
             $this->send('patch', $accessToken, $base . '/products/' . rawurlencode($itemId), $prod);
+        }
+        if ($later) {
+            throw new RuntimeException($later);
         }
     }
 

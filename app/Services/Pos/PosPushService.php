@@ -396,6 +396,11 @@ class PosPushService
             $this->adapterCall($conn, fn ($a, $t, $acct, $ctx) => $a->setItemDetails($t, $acct, $ctx, (string) $link->external_id, $details));
         } catch (\Throwable $e) {
             DB::table('tenant_pos_items')->where('id', $link->id)->update(['details_error' => Str::limit($e->getMessage(), 490)]);
+            // deleted in the Connected POS: retrying can't help, so it stops here with the reason
+            if ($e->getMessage() === \App\Services\Pos\Adapters\LightspeedXClient::GONE) {
+                $this->customerNote = $e->getMessage();
+                return false;
+            }
             if ($strict) {
                 throw $e;
             }
