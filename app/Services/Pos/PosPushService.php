@@ -79,12 +79,11 @@ class PosPushService
      * then edits, then new items. A send that fails waits longer before each try
      * (1, then 5 minutes) and is marked Failed after 3 tries.
      *
-     * @return bool true when sends are still waiting
+     * @return int|null seconds until the next waiting send is due (0 = now), or null when nothing waits
      */
-    public function drain(string $tenantId): bool
+    public function drain(string $tenantId): ?int
     {
         $until = microtime(true) + 90;
-        $failedNow = 0;
         while (microtime(true) < $until) {
             $row = DB::table('tenant_pos_pushes')->where('tenant_id', $tenantId)->where('status', 'pending')
                 ->where(fn ($q) => $q->where('attempts', 0)
@@ -101,10 +100,14 @@ class PosPushService
                 $attempts = (int) DB::table('tenant_pos_pushes')->where('id', $row->id)->value('attempts');
                 if ($attempts >= 3) {
                     $this->mark((int) $row->id, 'failed', null, $e->getMessage());
-                    $failedNow++;
-                    if ($failedNow === 1 || in_array($row->kind, ['sale', 'refund'], true)) {
-                        // one Issue per run for items (not one per item); every order or refund that fails is reported
-                        \App\Support\JobFailureReporter::report(\App\Jobs\PosDrainJob::class, 'Connected POS send failed: ' . $row->label, $e, ['push' => $row->id], $tenantId);
+                    // MARKER-POS-ITEM-FIELDS: every failed order or refund is reported; item failures once
+                    // per shop per kind of error per hour, with how many were held back
+                    $sig = 'pos_alert:' . $tenantId . ':' . md5(preg_replace('/[0-9]+/', '#', $e->getMessage()));
+                    if (in_array($row->kind, ['sale', 'refund'], true) || \Illuminate\Support\Facades\Cache::add($sig, 1, 3600)) {
+                        $held = (int) \Illuminate\Support\Facades\Cache::pull($sig . ':held', 0);
+                        \App\Support\JobFailureReporter::report(\App\Jobs\PosDrainJob::class, 'Connected POS send failed: ' . $row->label . ($held ? " (+{$held} more like it this hour)" : ''), $e, ['push' => $row->id], $tenantId);
+                    } else {
+                        \Illuminate\Support\Facades\Cache::increment($sig . ':held');
                     }
                 } else {
                     DB::table('tenant_pos_pushes')->where('id', $row->id)->update(['last_error' => Str::limit($e->getMessage(), 900), 'updated_at' => now()]);
@@ -112,17 +115,18 @@ class PosPushService
             }
         }
 
-        return DB::table('tenant_pos_pushes')->where('tenant_id', $tenantId)->where('status', 'pending')->exists();
-    }
+        // MARKER-POS-DRAIN: when what's left is pausing after a failure, sleep until the first is due
+        // instead of waking every few seconds to find nothing to do
+        $due = null;
+        foreach (DB::table('tenant_pos_pushes')->where('tenant_id', $tenantId)->where('status', 'pending')->get(['attempts', 'updated_at']) as $p) {
+            $wait = (int) $p->attempts === 0 ? 0 : max(0, \Illuminate\Support\Carbon::parse($p->updated_at)->addMinutes((int) $p->attempts === 1 ? 1 : 5)->diffInSeconds(now(), false) * -1);
+            $due = $due === null ? (int) $wait : min($due, (int) $wait);
+            if ($due === 0) {
+                break;
+            }
+        }
 
-    /** Active items for sale online that aren't in the Connected POS and aren't already on their way. */
-    public function unsentOnlineQuery(string $tenantId)
-    {
-        $linked = DB::table('tenant_pos_items')->where('tenant_id', $tenantId)->whereNotNull('inventory_item_id')->whereNull('removed_at')->select('inventory_item_id');
-        $queued = DB::table('tenant_pos_pushes')->where('tenant_id', $tenantId)->where('kind', 'item_create')->whereIn('status', ['pending', 'done'])->select('ref_id');
-
-        return TenantInventoryItem::where('tenant_id', $tenantId)->where('is_active', true)->where('show_online', true)
-            ->whereNotIn('id', $linked)->whereNotIn('id', $queued);
+        return $due;
     }
 
     /** Run one send. Throws on failure (the drain records it). */
@@ -292,29 +296,62 @@ class PosPushService
 
     // ── items ───────────────────────────────────────────────────
 
-    /** The item's POS id, creating it in the POS when it isn't there. */
+    /**
+     * The item's Connected POS id, creating it there when it isn't.
+     *
+     * MARKER-POS-ITEM-FIELDS: done in steps, each recorded as it lands, so a retry only
+     * does what is left — never a second product:
+     *   1. create (or link to the one already there with this SKU) and save the link at once
+     *   2. set the price — the link's price stays empty until the POS has accepted it
+     *   3. send the shop's own first photo (distributor photos are never copied)
+     */
     public function ensureItem(TenantPosConnection $conn, TenantInventoryItem $item): string
     {
         $link = DB::table('tenant_pos_items')->where('tenant_id', $conn->tenant_id)->where('inventory_item_id', $item->id)->whereNull('removed_at')->first();
-        if ($link) {
-            return (string) $link->external_id;
-        }
-        $fields = [
-            'name' => $item->name, 'sku' => $item->sku, 'upc' => $item->catalog_upc, 'ean' => $item->catalog_ean,
-            'mpn' => $item->catalog_mpn, 'description' => $item->description,
-            'price_cents' => $item->shop_sell_price_cents ?? $item->catalog_msrp_cents,
-        ];
-        $id = $this->adapterCall($conn, fn ($a, $t, $acct, $ctx) => $a->createItem($t, $acct, $ctx, $fields));
+        $price = $item->shop_sell_price_cents ?? $item->catalog_msrp_cents;
 
-        DB::table('tenant_pos_items')->updateOrInsert(
-            ['tenant_id' => $conn->tenant_id, 'external_id' => $id],
-            [
-                'adapter_code' => $conn->adapter_code, 'inventory_item_id' => $item->id,
-                'name' => $item->name, 'sku' => $item->sku, 'upc' => $item->catalog_upc, 'ean' => $item->catalog_ean, 'mpn' => $item->catalog_mpn,
-                'price_cents' => $fields['price_cents'], 'active' => true, 'removed_at' => null, 'synced_at' => now(),
-                'snapshot' => json_encode($this->intakeShared($item)), 'conflict' => null,
-            ]
-        );
+        if (! $link) {
+            $fields = [
+                'name' => $item->name, 'sku' => $item->sku, 'upc' => $item->catalog_upc, 'ean' => $item->catalog_ean,
+                'mpn' => $item->catalog_mpn, 'description' => $item->description,
+            ];
+            $id = $this->adapterCall($conn, fn ($a, $t, $acct, $ctx) => $a->createItem($t, $acct, $ctx, $fields));
+            DB::table('tenant_pos_items')->updateOrInsert(
+                ['tenant_id' => $conn->tenant_id, 'external_id' => $id],
+                [
+                    'adapter_code' => $conn->adapter_code, 'inventory_item_id' => $item->id,
+                    'name' => $item->name, 'sku' => $item->sku, 'upc' => $item->catalog_upc, 'ean' => $item->catalog_ean, 'mpn' => $item->catalog_mpn,
+                    'price_cents' => null, 'active' => true, 'removed_at' => null, 'synced_at' => now(),
+                    'snapshot' => json_encode($this->intakeShared($item)), 'conflict' => null,
+                ]
+            );
+            $link = DB::table('tenant_pos_items')->where('tenant_id', $conn->tenant_id)->where('external_id', $id)->first();
+        }
+        $id = (string) $link->external_id;
+
+        if (! (int) $link->price_cents && $price) {
+            try {
+                $this->adapterCall($conn, fn ($a, $t, $acct, $ctx) => $a->setItemPrice($t, $acct, $ctx, $id, (int) $price));
+            } catch (\Throwable $e) {
+                throw new RuntimeException('Created in your Connected POS, but its price could not be set yet (' . $e->getMessage() . '). Retry sets just the price.');
+            }
+            DB::table('tenant_pos_items')->where('id', $link->id)->update(['price_cents' => (int) $price]);
+        }
+
+        if (! $link->image_sent_at) {
+            $media = $item->itemImages()->with('media')->orderBy('sort_order')->get()
+                ->map(fn ($j) => $j->media)->first(fn ($m) => $m && ! $m->archived_at && $m->path);
+            $disk = \Illuminate\Support\Facades\Storage::disk('public');
+            if ($media && $disk->exists($media->path)) {
+                try {
+                    $this->adapterCall($conn, fn ($a, $t, $acct, $ctx) => $a->uploadImage($t, $acct, $ctx, $id, $disk->path($media->path), $media->original_name ?: $media->filename));
+                    DB::table('tenant_pos_items')->where('id', $link->id)->update(['image_sent_at' => now()]);
+                } catch (\Throwable $e) {
+                    // a photo is a nice-to-have: the item and its price stand; note it and carry on
+                    \Illuminate\Support\Facades\Log::notice('pos.image_upload_failed', ['item' => $item->id, 'error' => $e->getMessage()]);
+                }
+            }
+        }
 
         return $id;
     }
@@ -332,7 +369,7 @@ class PosPushService
         $snap = (array) json_decode((string) $link->snapshot, true);
         $pos = $this->adapterCall($conn, fn ($a, $t, $acct, $ctx) => $a->getItem($t, $acct, $ctx, (string) $link->external_id));
         if (! $pos) {
-            throw new RuntimeException('This item no longer exists in the Connected POS.');
+            throw new RuntimeException('This item no longer exists in your Connected POS.');
         }
 
         $send = [];

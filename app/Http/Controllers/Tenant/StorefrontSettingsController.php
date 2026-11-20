@@ -78,7 +78,6 @@ class StorefrontSettingsController extends Controller
             'problems'  => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', $tenant->id)->where('status', 'failed')->orderByDesc('updated_at')->limit(10)->get() : collect(),
             'latest'    => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', $tenant->id)->whereIn('status', ['pending', 'done'])->orderByDesc('updated_at')->limit(8)->get() : collect(),
             'linked'    => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_items')->where('tenant_id', $tenant->id)->whereNotNull('inventory_item_id')->whereNull('removed_at')->count() : 0,
-            'unsent_online' => $posConn ? app(\App\Services\Pos\PosPushService::class)->unsentOnlineQuery($tenant->id)->count() : 0,
         ];
 
         return view('tenant.storefront.settings', [

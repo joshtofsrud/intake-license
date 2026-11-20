@@ -249,7 +249,7 @@ class LightspeedXClient implements PosAdapter
         $res = $this->send('post', $accessToken, $this->root($this->ctxPrefix($context)) . '/register_sales', $payload);
         $rs = $res['register_sale'] ?? $res['data'] ?? $res;
         if (empty($rs['id']) || empty($rs['register_sale_products'] ?? [1])) {
-            throw new \RuntimeException('The POS accepted the sale but recorded no items — nothing was saved there. Check the register, user, payment type and tax chosen under Connected POS.');
+            throw new \RuntimeException('Your Connected POS accepted the sale but recorded no items — nothing was saved there. Check the register, user, payment type and tax chosen under Connected POS.');
         }
 
         return (string) $rs['id'];
@@ -269,9 +269,13 @@ class LightspeedXClient implements PosAdapter
         // stopped part-way)? Link to it rather than make a duplicate.
         if (filled($fields['sku'] ?? null)) {
             $found = $this->get($accessToken, $base . '/products', ['sku' => (string) $fields['sku']])['data'] ?? [];
-            $hit = is_array($found) ? (array_is_list($found) ? ($found[0] ?? null) : $found) : null;
-            if (is_array($hit) && ! empty($hit['id'])) {
-                return (string) $hit['id'];
+            $rows = is_array($found) ? (array_is_list($found) ? $found : [$found]) : [];
+            foreach ($rows as $hit) {
+                // only a product whose own SKU or codes really match — never trust the filter alone
+                $codes = array_map(fn ($c) => (string) ($c['code'] ?? ''), (array) ($hit['codes'] ?? $hit['product_codes'] ?? []));
+                if (is_array($hit) && ! empty($hit['id']) && ((string) ($hit['sku'] ?? '') === (string) $fields['sku'] || in_array((string) $fields['sku'], $codes, true))) {
+                    return (string) $hit['id'];
+                }
             }
         }
 
@@ -294,15 +298,36 @@ class LightspeedXClient implements PosAdapter
         }
         $id = $res['data']['product_ids'][0] ?? null;
         if (! $id) {
-            throw new RuntimeException('The POS did not return the new item.');
-        }
-        if (isset($fields['price_cents']) && $fields['price_cents'] !== null) {
-            $this->send('patch', $accessToken, $base . '/products/' . rawurlencode((string) $id), [
-                'prices' => ['price_excluding_tax' => number_format($fields['price_cents'] / 100, 2, '.', '')],
-            ]);
+            throw new RuntimeException('Your Connected POS did not return the new item.');
         }
 
-        return (string) $id;
+        return (string) $id; // price is set separately (setItemPrice), once the POS has the product ready
+    }
+
+    /** A just-made product can answer "not found" for a moment: wait 1, 2, then 4 seconds and try again. */
+    public function setItemPrice(string $accessToken, string $accountId, array $context, string $itemId, int $priceCents): void
+    {
+        $url = $this->productsBase($this->ctxPrefix($context)) . '/products/' . rawurlencode($itemId);
+        $body = ['prices' => ['price_excluding_tax' => number_format($priceCents / 100, 2, '.', '')]];
+        foreach ([1, 2, 4, 0] as $wait) {
+            try {
+                $this->send('patch', $accessToken, $url, $body);
+                return;
+            } catch (RuntimeException $e) {
+                if ($wait === 0 || ! str_contains($e->getMessage(), 'HTTP 404')) {
+                    throw $e;
+                }
+                sleep($wait);
+            }
+        }
+    }
+
+    public function uploadImage(string $accessToken, string $accountId, array $context, string $itemId, string $filePath, string $fileName): void
+    {
+        $url = $this->api($this->ctxPrefix($context), 'products/' . rawurlencode($itemId) . '/actions/image_upload');
+        $res = Http::withToken($accessToken)->acceptJson()->timeout(60)
+            ->attach('image', file_get_contents($filePath), $fileName)->post($url);
+        $this->ok($res);
     }
 
     public function updateItem(string $accessToken, string $accountId, array $context, string $itemId, array $fields): void
@@ -314,7 +339,7 @@ class LightspeedXClient implements PosAdapter
         if ($fam) {
             $familyId = $this->get($accessToken, $base . '/products/' . rawurlencode($itemId) . '/family')['data']['id'] ?? null;
             if (! $familyId) {
-                throw new RuntimeException('The POS did not say which product family this item belongs to.');
+                throw new RuntimeException('Your Connected POS did not say which product family this item belongs to.');
             }
             $this->send('patch', $accessToken, $base . '/product_families/' . rawurlencode((string) $familyId), $fam);
         }
@@ -402,7 +427,7 @@ class LightspeedXClient implements PosAdapter
     {
         $p = strtolower(trim($p));
         if (! preg_match('/^[a-z0-9][a-z0-9-]{0,62}$/', $p)) {
-            throw new RuntimeException('The POS did not say which store this is. Try connecting again.');
+            throw new RuntimeException('Your Connected POS did not say which store this is. Try connecting again.');
         }
 
         return $p;
@@ -424,7 +449,7 @@ class LightspeedXClient implements PosAdapter
         $j = $res->json() ?: [];
         if (! $res->successful() || empty($j['access_token'])) {
             $why = $j['error_description'] ?? $j['error'] ?? $j['message'] ?? ('HTTP ' . $res->status());
-            throw new RuntimeException('The POS refused the sign-in: ' . $why);
+            throw new RuntimeException('Your Connected POS refused the sign-in: ' . $why);
         }
 
         return [
@@ -450,14 +475,14 @@ class LightspeedXClient implements PosAdapter
     private function ok(Response $res): array
     {
         if ($res->status() === 401) {
-            throw new RuntimeException('The POS no longer accepts Intake\'s access. Reconnect to fix it.');
+            throw new RuntimeException('Your Connected POS no longer accepts Intake\'s access. Reconnect to fix it.');
         }
         if ($res->status() === 403) {
-            throw new RuntimeException('The POS refused this request — the connection is missing a permission. Check the scopes in master admin, then reconnect.');
+            throw new RuntimeException('Your Connected POS refused this request — the connection is missing a permission. Check the scopes in master admin, then reconnect.');
         }
         if (! $res->successful()) {
             $j = $res->json() ?: [];
-            throw new RuntimeException('The POS answered with an error (HTTP ' . $res->status() . '): ' . (is_string($j['message'] ?? null) ? $j['message'] : (is_string($j['error'] ?? null) ? $j['error'] : json_encode($j['details'] ?? $j['errors'] ?? ''))));
+            throw new RuntimeException('Your Connected POS answered with an error (HTTP ' . $res->status() . '): ' . (is_string($j['message'] ?? null) ? $j['message'] : (is_string($j['error'] ?? null) ? $j['error'] : json_encode($j['details'] ?? $j['errors'] ?? ''))));
         }
 
         return $res->json() ?: [];

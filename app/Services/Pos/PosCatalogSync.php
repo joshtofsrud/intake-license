@@ -133,7 +133,7 @@ class PosCatalogSync
                 'ean'                => $it['ean'] ? Str::limit($it['ean'], 40, '') : null,
                 'mpn'                => $it['mpn'] ? Str::limit($it['mpn'], 100, '') : null,
                 'brand'              => $it['brand'] ? Str::limit($it['brand'], 150, '') : null,
-                'price_cents'        => $it['price_cents'],
+                'price_cents'        => $it['price_cents'] ?: null, // 0 = no price yet
                 'active'             => $it['active'],
                 'removed_at'         => $it['active'] ? null : ($existing->removed_at ?? now()),
                 'synced_at'          => now(),
@@ -175,7 +175,8 @@ class PosCatalogSync
         }
 
         // the Connected POS owns price
-        if ($it['price_cents'] !== null && (int) $item->shop_sell_price_cents !== (int) $it['price_cents']) {
+        // MARKER-POS-ITEM-FIELDS: a price of 0 means the Connected POS has none yet — never wipe Intake's
+        if ($it['price_cents'] !== null && (int) $it['price_cents'] > 0 && (int) $item->shop_sell_price_cents !== (int) $it['price_cents']) {
             $item->forceFill(['shop_sell_price_cents' => $it['price_cents']])->save();
             $st['price_updates']++;
         }

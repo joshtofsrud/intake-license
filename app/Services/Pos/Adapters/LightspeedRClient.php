@@ -94,7 +94,7 @@ class LightspeedRClient implements PosAdapter
         $body = $this->get($accessToken, rtrim($this->cfg->api_base, '/') . '.json');
         $acct = $this->rows($body['Account'] ?? null)[0] ?? null;
         if (! $acct || ! isset($acct['accountID'])) {
-            throw new RuntimeException('The POS did not return an account for this login.');
+            throw new RuntimeException('Your Connected POS did not return an account for this login.');
         }
 
         return ['id' => (string) $acct['accountID'], 'name' => (string) ($acct['name'] ?? '')];
@@ -253,7 +253,7 @@ class LightspeedRClient implements PosAdapter
         $res = $this->send('post', $accessToken, $this->url($accountId, 'Sale.json'), $body);
         $id = $this->rows($res['Sale'] ?? null)[0]['saleID'] ?? null;
         if (! $id) {
-            throw new RuntimeException('The POS did not return the sale.');
+            throw new RuntimeException('Your Connected POS did not return the sale.');
         }
 
         return (string) $id;
@@ -264,10 +264,23 @@ class LightspeedRClient implements PosAdapter
         $res = $this->send('post', $accessToken, $this->url($accountId, 'Item.json'), $this->itemPayload($fields));
         $id = $this->rows($res['Item'] ?? null)[0]['itemID'] ?? null;
         if (! $id) {
-            throw new RuntimeException('The POS did not return the new item.');
+            throw new RuntimeException('Your Connected POS did not return the new item.');
         }
 
         return (string) $id;
+    }
+
+    public function setItemPrice(string $accessToken, string $accountId, array $context, string $itemId, int $priceCents): void
+    {
+        $this->updateItem($accessToken, $accountId, $context, $itemId, ['price_cents' => $priceCents]);
+    }
+
+    public function uploadImage(string $accessToken, string $accountId, array $context, string $itemId, string $filePath, string $fileName): void
+    {
+        $res = Http::withToken($accessToken)->acceptJson()->timeout(60)
+            ->attach('image', file_get_contents($filePath), $fileName)
+            ->post($this->url($accountId, 'Item/' . rawurlencode($itemId) . '/Image.json'));
+        $this->ok($res);
     }
 
     public function updateItem(string $accessToken, string $accountId, array $context, string $itemId, array $fields): void
@@ -330,7 +343,7 @@ class LightspeedRClient implements PosAdapter
         $j = $res->json() ?: [];
         if (! $res->successful() || empty($j['access_token'])) {
             $why = $j['error_description'] ?? $j['error'] ?? $j['message'] ?? ('HTTP ' . $res->status());
-            throw new RuntimeException('The POS refused the sign-in: ' . $why);
+            throw new RuntimeException('Your Connected POS refused the sign-in: ' . $why);
         }
 
         return [
@@ -355,11 +368,11 @@ class LightspeedRClient implements PosAdapter
     private function ok(Response $res): array
     {
         if ($res->status() === 401) {
-            throw new RuntimeException('The POS no longer accepts Intake\'s access. Reconnect to fix it.');
+            throw new RuntimeException('Your Connected POS no longer accepts Intake\'s access. Reconnect to fix it.');
         }
         if (! $res->successful()) {
             $j = $res->json() ?: [];
-            throw new RuntimeException('The POS answered with an error (HTTP ' . $res->status() . '): ' . (is_string($j['message'] ?? null) ? $j['message'] : ''));
+            throw new RuntimeException('Your Connected POS answered with an error (HTTP ' . $res->status() . '): ' . (is_string($j['message'] ?? null) ? $j['message'] : ''));
         }
 
         return $res->json() ?: [];

@@ -49,7 +49,7 @@ class PosConnectionController extends Controller
         $this->guard();
         $conn = TenantPosConnection::where('tenant_id', tenant()->id)->first();
         if (! $conn) {
-            return $this->back()->with('error', 'There is no POS connected.');
+            return $this->back()->with('error', 'There is no Connected POS.');
         }
         $ok = $svc->discover($conn);
 
@@ -77,11 +77,11 @@ class PosConnectionController extends Controller
             }
         }
         if (count($map) !== count(array_unique($map))) {
-            return $this->back()->with('error', 'Two POS outlets can\'t feed the same Intake location — each location keeps one count.');
+            return $this->back()->with('error', 'Two Connected POS outlets can\'t feed the same Intake location — each location keeps one count.');
         }
         $wantsSync = (bool) ($data['sync_enabled'] ?? false);
         if ($wantsSync && ! $map) {
-            return $this->back()->with('error', 'Map at least one POS outlet to an Intake location before turning sync on.');
+            return $this->back()->with('error', 'Map at least one Connected POS outlet to an Intake location before turning sync on.');
         }
 
         $conn->forceFill(['location_map' => $map, 'removal_mode' => $data['removal_mode'], 'sync_enabled' => $wantsSync])->save();
@@ -189,16 +189,7 @@ class PosConnectionController extends Controller
         $tid = tenant()->id;
         $n = \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', $tid)->where('status', 'pending')
             ->update(['status' => 'skipped', 'last_error' => 'Stopped by you before it was sent.', 'updated_at' => now()]);
-        $conn = TenantPosConnection::where('tenant_id', $tid)->first();
-        if ($conn && (($conn->sync_state ?? [])['send_items']['running'] ?? false)) {
-            $st = (array) $conn->sync_state;
-            $st['send_items']['running'] = false;
-            $st['send_items']['error'] = 'Stopped by you.';
-            $st['send_items']['finished_at'] = now()->toIso8601String();
-            $conn->forceFill(['sync_state' => $st])->save();
-        }
-
-        return $this->back()->with('success', $n ? 'Stopped ' . number_format($n) . ' sends. They show as Not sent; Retry or Send items not in my POS picks them up again.' : 'Nothing was waiting to send.');
+        return $this->back()->with('success', $n ? 'Stopped ' . number_format($n) . ' sends. Resume picks them up from where they stopped.' : 'Nothing was waiting to send.');
     }
 
     /** MARKER-POS-STOP-RESUME: stop an import where it is; it keeps its place. */
@@ -261,30 +252,7 @@ class PosConnectionController extends Controller
         return $this->back()->with('success', 'Sending again — the list below updates as it goes.');
     }
 
-    /**
-     * MARKER-POS-TAB-V2: send the items you sell online that aren't in the Connected POS yet.
-     * Only for-sale-online items — never the whole catalog. Queued in the background.
-     */
-    public function sendItems(\App\Services\Pos\PosPushService $push): RedirectResponse
-    {
-        $this->guard();
-        $conn = TenantPosConnection::where('tenant_id', tenant()->id)->where('status', 'connected')->firstOrFail();
-        $n = $push->unsentOnlineQuery($conn->tenant_id)->count();
-        if (! $n) {
-            return $this->back()->with('success', 'Every item you sell online is already in your Connected POS or on its way.');
-        }
-        $st = (array) ($conn->sync_state ?? []);
-        if (($st['send_items']['running'] ?? false) && $conn->updated_at?->gt(now()->subMinutes(20))) {
-            return $this->back()->with('success', 'Items are already being prepared — progress is shown under Sending.');
-        }
-        $st['send_items'] = ['running' => true, 'total' => $n, 'queued' => 0, 'error' => null, 'started_at' => now()->toIso8601String(), 'finished_at' => null];
-        $conn->forceFill(['sync_state' => $st])->save();
-        \App\Jobs\PosQueueItemsJob::dispatch($conn->tenant_id);
-
-        return $this->back()->with('success', 'Sending ' . number_format($n) . ' online items to your Connected POS — progress is shown under Sending.');
-    }
-
-    /** Remove stopped and skipped sends from the list (nothing in the POS changes). */
+    /** Remove stopped and skipped sends from the list (nothing in the Connected POS changes). */
     public function clearStopped(): RedirectResponse
     {
         $this->guard();
@@ -293,7 +261,7 @@ class PosConnectionController extends Controller
         return $this->back()->with('success', $n ? 'Cleared ' . number_format($n) . ' stopped sends from the list.' : 'Nothing to clear.');
     }
 
-    /** Remove failed sends from the list after you've looked at them (nothing in the POS changes). */
+    /** Remove failed sends from the list after you've looked at them (nothing in the Connected POS changes). */
     public function clearFailed(): RedirectResponse
     {
         $this->guard();
@@ -307,6 +275,6 @@ class PosConnectionController extends Controller
         $this->guard();
         $svc->disconnect(tenant());
 
-        return $this->back()->with('success', 'POS disconnected. Intake no longer has access.');
+        return $this->back()->with('success', 'Connected POS disconnected. Intake no longer has access.');
     }
 }

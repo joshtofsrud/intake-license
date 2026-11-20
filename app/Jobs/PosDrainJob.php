@@ -35,8 +35,8 @@ class PosDrainJob implements ShouldQueue
         } finally {
             $lock->release();
         }
-        if ($more) {
-            PosPushService::kick($this->tenantId, 5);
+        if ($more !== null && config('queue.default') !== 'sync') {
+            PosPushService::kick($this->tenantId, max(5, min(300, $more + 1)));
         }
     }
 }

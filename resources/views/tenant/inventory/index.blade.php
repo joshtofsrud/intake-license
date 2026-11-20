@@ -604,6 +604,10 @@
       @endif
     </span>
     <button type="button" class="ia-btn ia-btn--sm ia-btn--secondary" onclick="invPrintLabels()">Print labels</button>
+    @if(($posConnected ?? false) && $stock !== 'archived')
+      {{-- MARKER-POS-ITEM-SEND --}}
+      <button type="button" class="ia-btn ia-btn--sm ia-btn--secondary" onclick="invPosSendAsk()" title="Create these items in your Connected POS">Send to Connected POS</button>
+    @endif
     @if(($canMergeItems ?? false))
     <button type="button" class="ia-btn ia-btn--sm ia-btn--secondary" title="Pick exactly two items to merge"
             id="inv-merge-go" onclick="invOpenMerge()" disabled>Merge…</button>
@@ -953,6 +957,12 @@
     bulkForm.submit();
   }
   window.invBulk = function (action) { bulkPost(action); };
+  // MARKER-POS-ITEM-SEND
+  window.invPosSendAsk = function () {
+    var n = picks.length;
+    IntakeConfirm.show({ title: 'Send ' + n + ' item' + (n === 1 ? '' : 's') + ' to your Connected POS?', message: 'Each one is created there with its price, barcode and your own photo. Items already in your Connected POS are skipped. Progress shows under E-commerce → Connected POS.', confirmText: 'Send' })
+      .then(function (ok) { if (ok) bulkPost('pos_send'); });
+  };
   window.invArchiveAsk = function () {
     var n = picks.length;
     IntakeConfirm.show({ title: 'Archive ' + n + ' item' + (n === 1 ? '' : 's') + '?', message: 'They leave the inventory list, search and the register. Sales history is kept, and you can bring them back from the Archived stock filter, or with Undo straight after.', confirmText: 'Archive', danger: true })

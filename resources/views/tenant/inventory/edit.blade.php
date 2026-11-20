@@ -279,6 +279,50 @@
   </div>
 </form>
 
+{{-- MARKER-POS-ITEM-SEND: this item and the shop's Connected POS — its own form, never inside the item form --}}
+@if($posState ?? null)
+  @php $pl = $posState['link']; $ps = $posState['send']; @endphp
+  <div style="margin-top:22px;padding-top:16px;border-top:.5px solid var(--ia-border);display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap"
+       @if($ps && $ps->status === 'pending') data-pos-live="1" @endif id="posItemBox">
+    <div style="font-size:13px;line-height:1.55">
+      <div style="font-weight:500">Connected POS</div>
+      @if($ps && $ps->status === 'pending')
+        <div style="color:var(--ia-text-muted)">Sending now{{ $ps->last_error ? ' — retrying: ' . \Illuminate\Support\Str::limit($ps->last_error, 140) : '' }}…</div>
+      @elseif($pl)
+        <div style="color:var(--ia-text-muted)">
+          In your Connected POS.
+          {{ (int) $pl->price_cents ? 'Price set.' : 'Price not set yet.' }}
+          {{ $pl->image_sent_at ? 'Photo sent.' : '' }}
+        </div>
+        @if($ps && $ps->status === 'failed')<div style="color:#A32D2D">Last send: {{ \Illuminate\Support\Str::limit($ps->last_error, 180) }}</div>@endif
+      @elseif($ps && $ps->status === 'failed')
+        <div style="color:#A32D2D">Not sent: {{ \Illuminate\Support\Str::limit($ps->last_error, 180) }}</div>
+      @else
+        <div style="color:var(--ia-text-muted)">Not in your Connected POS. It's created there automatically if an online order needs it, or send it now.</div>
+      @endif
+    </div>
+    @unless($ps && $ps->status === 'pending')
+      <form method="POST" action="{{ route('tenant.inventory.pos_send', $item->id) }}">@csrf
+        <button type="submit" class="ia-btn ia-btn--secondary ia-btn--sm">{{ $pl ? ((int) $pl->price_cents && ($pl->image_sent_at || !$item->itemImages()->exists()) ? 'Send again' : 'Finish sending') : 'Send to Connected POS' }}</button>
+      </form>
+    @endunless
+  </div>
+  @if($ps && $ps->status === 'pending')
+    <script>
+    /* MARKER-POS-ITEM-SEND: while sending, refresh this box until it lands (background poll) */
+    (function(){
+      function tick(){
+        fetch(location.href,{headers:{'X-Intake-Background':'1'},credentials:'same-origin'}).then(function(r){return r.ok?r.text():null;}).then(function(h){
+          if(!h) return; var f=new DOMParser().parseFromString(h,'text/html').getElementById('posItemBox'), b=document.getElementById('posItemBox');
+          if(f && b){ b.replaceWith(f); if(f.dataset.posLive==='1') setTimeout(tick,3000); }
+        }).catch(function(){ setTimeout(tick,5000); });
+      }
+      setTimeout(tick,3000);
+    })();
+    </script>
+  @endif
+@endif
+
 @endsection
 
 @push('scripts')

@@ -115,6 +115,15 @@ interface PosAdapter
      */
     public function createItem(string $accessToken, string $accountId, array $context, array $fields): string;
 
+    /**
+     * MARKER-POS-ITEM-FIELDS: set an item's price. Separate from createItem because a
+     * POS may not let a brand-new product be edited for a moment after it is made.
+     */
+    public function setItemPrice(string $accessToken, string $accountId, array $context, string $itemId, int $priceCents): void;
+
+    /** Upload one image file (the shop's own photo) to an item. */
+    public function uploadImage(string $accessToken, string $accountId, array $context, string $itemId, string $filePath, string $fileName): void;
+
     /** Update shared fields on an item (only the keys given). */
     public function updateItem(string $accessToken, string $accountId, array $context, string $itemId, array $fields): void;
 

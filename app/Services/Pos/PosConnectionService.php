@@ -38,7 +38,7 @@ class PosConnectionService
     {
         $row = collect($this->registry->available())->firstWhere('code', $code);
         if (! $row) {
-            throw new RuntimeException('That POS connection is not available right now.');
+            throw new RuntimeException('That Connected POS is not available right now.');
         }
 
         $nonce = Str::random(48);
@@ -138,7 +138,7 @@ class PosConnectionService
             return $conn->access_token;
         }
         if (! $conn->refresh_token) {
-            throw new RuntimeException('The POS access has expired. Reconnect to fix it.');
+            throw new RuntimeException('Access to your Connected POS has expired. Reconnect to fix it.');
         }
 
         // One refresh at a time per shop: a rotated refresh token used twice would lock the shop out.

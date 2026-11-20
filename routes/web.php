@@ -570,7 +570,6 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::post('/storefront/pos/clear-failed',  [TenantControllers\PosConnectionController::class, 'clearFailed'])->name('storefront.pos.clear_failed');
                 Route::post('/storefront/pos/stop-sends',    [TenantControllers\PosConnectionController::class, 'stopSends'])->name('storefront.pos.stop_sends'); // MARKER-POS-STOP-SENDS
                 Route::post('/storefront/pos/retry/{push}',  [TenantControllers\PosConnectionController::class, 'retry'])->name('storefront.pos.retry')->whereNumber('push');
-                Route::post('/storefront/pos/send-items',    [TenantControllers\PosConnectionController::class, 'sendItems'])->name('storefront.pos.send_items')->middleware('throttle:3,1');
                 // MARKER-ECOM-AVAILABILITY: what is for sale online / may be oversold
                 Route::get('/storefront/availability/items',      [TenantControllers\StorefrontAvailabilityController::class, 'items'])->name('storefront.availability.items');
                 Route::get('/storefront/availability/categories', [TenantControllers\StorefrontAvailabilityController::class, 'categories'])->name('storefront.availability.categories');
@@ -1091,6 +1090,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::post('/labels/prefs',     [TenantControllers\InventoryLabelController::class, 'savePrefs'])->name('labels.prefs');
                 // MARKER-INV-BULK: the list's selection bar
                 Route::post('/bulk',             [TenantControllers\InventoryController::class, 'bulk'])->name('bulk');
+                Route::post('/{id}/pos-send',    [TenantControllers\InventoryController::class, 'posSend'])->name('pos_send'); // MARKER-POS-ITEM-SEND
                 Route::post('/bulk/undo',        [TenantControllers\InventoryController::class, 'bulkUndo'])->name('bulk.undo');
                 Route::get('/{id}',              [TenantControllers\InventoryController::class, 'show'])->name('show');
                 Route::get('/{id}/edit',         [TenantControllers\InventoryController::class, 'edit'])->name('edit');

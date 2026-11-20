@@ -316,6 +316,7 @@ class InventoryController extends Controller
         // actually merge; the endpoints check the same capability themselves.
         $canMergeItems = (bool) optional(\Illuminate\Support\Facades\Auth::guard('tenant')->user())
             ->can('inventory.items.merge');
+        $posConnected = (bool) \App\Services\Pos\PosPushService::connectionFor($tenant->id); // MARKER-POS-ITEM-SEND
 
         $total = (clone $q)->count();
         $items = $q->forPage($page, $perPage)->get();
@@ -523,6 +524,7 @@ class InventoryController extends Controller
             'searchCorrected', 'searchMissing',
             'perPageAllowed',
             'canMergeItems',
+            'posConnected',
             'emptyReason', 'suggestBrands', 'suggestCategories',
             'brand', 'distributor', 'brandOptions', 'distributorOptions',
             'posCap',
@@ -1751,7 +1753,14 @@ class InventoryController extends Controller
         $posPrice = \App\Services\Pos\PosPushService::connectionFor($tenant->id)
             && \Illuminate\Support\Facades\DB::table('tenant_pos_items')->where('tenant_id', $tenant->id)->where('inventory_item_id', $item->id)->whereNull('removed_at')->exists();
 
-        return view('tenant.inventory.edit', compact('item', 'categories', 'vendors', 'posPrice'));
+        // MARKER-POS-ITEM-SEND: where this item stands with the Connected POS
+        $posConn = \App\Services\Pos\PosPushService::connectionFor($tenant->id);
+        $posState = $posConn ? [
+            'link' => \Illuminate\Support\Facades\DB::table('tenant_pos_items')->where('tenant_id', $tenant->id)->where('inventory_item_id', $item->id)->whereNull('removed_at')->first(),
+            'send' => \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', $tenant->id)->whereIn('kind', ['item_create', 'item_update'])->where('ref_id', $item->id)->orderByDesc('updated_at')->first(),
+        ] : null;
+
+        return view('tenant.inventory.edit', compact('item', 'categories', 'vendors', 'posPrice', 'posState'));
     }
 
     public function update(Request $request, string $id): RedirectResponse
@@ -1946,7 +1955,7 @@ class InventoryController extends Controller
         $tenant = tenant();
         $this->assertRetailEnabled($tenant);
         $data = $request->validate([
-            'action'      => ['required', 'in:category,hide,show,archive,restore'],
+            'action'      => ['required', 'in:category,hide,show,archive,restore,pos_send'], // MARKER-POS-ITEM-SEND
             'item_ids'    => ['required', 'array', 'min:1', 'max:1000'],
             'item_ids.*'  => ['uuid'],
             'category_id' => ['nullable', 'uuid'],
@@ -2007,6 +2016,30 @@ class InventoryController extends Controller
                 $undo = ['type' => 'restore', 'ids' => $changed];
                 break;
 
+            case 'pos_send':
+                // MARKER-POS-ITEM-SEND: queue the ticked items for the Connected POS; the shop's one
+                // paced sender does the work, and E-commerce → Connected POS shows it live
+                $conn = \App\Services\Pos\PosPushService::connectionFor($tenant->id);
+                if (! $conn) {
+                    return back()->with('flash', ['type' => 'error', 'message' => 'There is no Connected POS. Connect one under E-commerce → Connected POS.']);
+                }
+                $linked = \Illuminate\Support\Facades\DB::table('tenant_pos_items')->where('tenant_id', $tenant->id)->whereNull('removed_at')->whereIn('inventory_item_id', $ids)->pluck('inventory_item_id')->all();
+                $svc = app(\App\Services\Pos\PosPushService::class);
+                foreach ($base()->whereNotIn('id', $linked)->get(['id', 'name']) as $item) {
+                    $svc->queue($tenant->id, 'item_create', (string) $item->id, 'New item ' . $item->name, false);
+                    $n++;
+                }
+                if ($n) {
+                    \App\Services\Pos\PosPushService::kick($tenant->id);
+                }
+                $already = count($linked);
+                $msg = 'Sending ' . $n . ' ' . \Illuminate\Support\Str::plural('item', $n) . ' to your Connected POS — follow along under E-commerce → Connected POS.'
+                    . ($already ? ' ' . $already . ' ' . \Illuminate\Support\Str::plural('was', $already) . ' already there.' : '');
+                if (! $n) {
+                    return back()->with('flash', ['type' => 'info', 'message' => 'All ' . $already . ' already in your Connected POS.']);
+                }
+                break;
+
             case 'restore':
                 $changed = []; $skipped = 0;
                 foreach (TenantInventoryItem::withTrashed()->where('tenant_id', $tenant->id)->whereIn('id', $ids)->get() as $item) {
@@ -2026,6 +2059,23 @@ class InventoryController extends Controller
             $request->session()->put('inv_undo', $undo + ['label' => $msg]);
         }
         return back()->with('flash', ['type' => $n ? 'success' : 'info', 'message' => $n ? $msg : 'Nothing needed changing.']);
+    }
+
+    /** MARKER-POS-ITEM-SEND: send this one item to the Connected POS (or finish what's left of an earlier send). */
+    public function posSend(string $id): RedirectResponse
+    {
+        $tenant = tenant();
+        $this->assertRetailEnabled($tenant);
+        $item = TenantInventoryItem::where('tenant_id', $tenant->id)->findOrFail($id);
+        if (! \App\Services\Pos\PosPushService::connectionFor($tenant->id)) {
+            return back()->with('flash', ['type' => 'error', 'message' => 'There is no Connected POS. Connect one under E-commerce → Connected POS.']);
+        }
+        app(\App\Services\Pos\PosPushService::class)->queue($tenant->id, 'item_create', (string) $item->id, 'New item ' . $item->name);
+        \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', $tenant->id)->where('kind', 'item_create')->where('ref_id', $item->id)->where('status', 'done')
+            ->update(['status' => 'pending', 'attempts' => 0, 'last_error' => null, 'updated_at' => now()]); // a finished item can be sent again to fill in what's missing (price, photo)
+        \App\Services\Pos\PosPushService::kick($tenant->id);
+
+        return back()->with('flash', ['type' => 'success', 'message' => 'Sending to your Connected POS — this page shows the result.']);
     }
 
     /** MARKER-INV-BULK: undo the last selection-bar action, once. */
