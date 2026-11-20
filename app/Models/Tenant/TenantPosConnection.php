@@ -21,6 +21,7 @@ class TenantPosConnection extends Model
         'tenant_id', 'adapter_code', 'status', 'access_token', 'refresh_token', 'token_expires_at',
         'external_account_id', 'external_account_name', 'context', 'locations', 'payment_types',
         'connected_by', 'connected_at', 'last_checked_at', 'last_error',
+        'location_map', 'removal_mode', 'sync_enabled', 'sync_state', 'last_synced_at', // MARKER-CONNECTED-POS-CATALOG
     ];
 
     protected $hidden = ['access_token', 'refresh_token'];
@@ -33,6 +34,10 @@ class TenantPosConnection extends Model
         'last_checked_at'  => 'datetime',
         'locations'        => 'array',
         'context'          => 'array', // MARKER-POS-CONTEXT
+        'location_map'     => 'array',
+        'sync_state'       => 'array',
+        'sync_enabled'     => 'boolean',
+        'last_synced_at'   => 'datetime',
         'payment_types'    => 'array',
     ];
 

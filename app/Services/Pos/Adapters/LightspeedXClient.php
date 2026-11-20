@@ -29,7 +29,7 @@ class LightspeedXClient implements PosAdapter
     {
         return [
             'label'         => 'Lightspeed Retail (X-Series)',
-            'scopes'        => 'retailer:read outlets:read payment_types:read products:read inventory:read customers:read customers:write sales:read sales:write webhooks',
+            'scopes'        => 'retailer:read outlets:read payment_types:read products:read products:write inventory:read inventory:write customers:read customers:write sales:read sales:write webhooks',
             'authorize_url' => 'https://secure.retail.lightspeed.app/connect',
             'token_url'     => 'https://{domain_prefix}.retail.lightspeed.app/api/1.0/token',
             'api_base'      => 'https://{domain_prefix}.retail.lightspeed.app/api/2.0',
@@ -115,6 +115,66 @@ class LightspeedXClient implements PosAdapter
     public function paymentTypes(string $accessToken, string $accountId, array $context = []): array
     {
         return $this->named($this->get($accessToken, $this->api($this->prefix((string) ($context['domain_prefix'] ?? '')), 'payment_types'))['data'] ?? []);
+    }
+
+    /**
+     * MARKER-CONNECTED-POS-CATALOG: products by version. The API returns rows newer
+     * than `after` with the highest version seen; an empty page means caught up.
+     */
+    public function pullItems(string $accessToken, string $accountId, array $context, ?string $cursor): array
+    {
+        $prefix = $this->prefix((string) ($context['domain_prefix'] ?? ''));
+        $body = $this->get($accessToken, $this->api($prefix, 'products'), ['after' => (int) ($cursor ?? 0), 'page_size' => 500]);
+        $rows = (array) ($body['data'] ?? []);
+        $max = $body['version']['max'] ?? null;
+
+        $items = [];
+        foreach ($rows as $r) {
+            if (! is_array($r) || ! isset($r['id'])) {
+                continue;
+            }
+            $codes = [];
+            foreach ((array) ($r['product_codes'] ?? []) as $c) {
+                if (is_array($c) && ! empty($c['code'])) {
+                    $codes[strtoupper((string) ($c['type'] ?? ''))] = (string) $c['code'];
+                }
+            }
+            $price = $r['price_excluding_tax'] ?? $r['price_including_tax'] ?? null;
+            $name = trim((string) ($r['name'] ?? '') . (filled($r['variant_name'] ?? null) && ! str_contains((string) ($r['name'] ?? ''), (string) $r['variant_name']) ? ' / ' . $r['variant_name'] : ''));
+            $items[] = [
+                'id'          => (string) $r['id'],
+                'parent_id'   => isset($r['variant_parent_id']) ? (string) $r['variant_parent_id'] : null,
+                'name'        => $name !== '' ? $name : null,
+                'sku'         => filled($r['sku'] ?? null) ? (string) $r['sku'] : null,
+                'upc'         => $codes['UPC'] ?? null,
+                'ean'         => $codes['EAN'] ?? null,
+                'mpn'         => filled($r['supplier_code'] ?? null) ? (string) $r['supplier_code'] : ($codes['MPN'] ?? null),
+                'brand'       => is_array($r['brand'] ?? null) ? ($r['brand']['name'] ?? null) : (is_string($r['brand_name'] ?? null) ? $r['brand_name'] : null),
+                'price_cents' => is_numeric($price) ? (int) round(((float) $price) * 100) : null,
+                'active'      => empty($r['deleted_at']) && (($r['is_active'] ?? $r['active'] ?? true) !== false),
+            ];
+        }
+
+        return ['items' => $items, 'cursor' => $max !== null ? (string) $max : $cursor, 'more' => count($rows) > 0];
+    }
+
+    public function pullStock(string $accessToken, string $accountId, array $context, ?string $cursor): array
+    {
+        $prefix = $this->prefix((string) ($context['domain_prefix'] ?? ''));
+        $body = $this->get($accessToken, $this->api($prefix, 'inventory'), ['after' => (int) ($cursor ?? 0), 'page_size' => 1000]);
+        $data = (array) ($body['data'] ?? []);
+        $max = $body['version']['max'] ?? null;
+
+        $rows = [];
+        foreach ($data as $r) {
+            if (! is_array($r) || ! isset($r['product_id'], $r['outlet_id'])) {
+                continue;
+            }
+            $q = $r['inventory_level'] ?? $r['current_amount'] ?? $r['count'] ?? 0;
+            $rows[] = ['item_id' => (string) $r['product_id'], 'location_id' => (string) $r['outlet_id'], 'qty' => (int) floor((float) $q)];
+        }
+
+        return ['rows' => $rows, 'cursor' => $max !== null ? (string) $max : $cursor, 'more' => count($data) > 0];
     }
 
     // ── internals ───────────────────────────────────────────────

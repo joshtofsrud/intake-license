@@ -31,7 +31,7 @@ class LightspeedRClient implements PosAdapter
     {
         return [
             'label'         => 'Lightspeed Retail (R-Series)',
-            'scopes'        => 'employee:inventory_read employee:customers employee:register employee:register_refund',
+            'scopes'        => 'employee:inventory employee:customers employee:register employee:register_refund',
             'authorize_url' => 'https://cloud.lightspeedapp.com/oauth/authorize.php',
             'token_url'     => 'https://cloud.lightspeedapp.com/oauth/access_token.php',
             'api_base'      => 'https://api.lightspeedapp.com/API/V3/Account',
@@ -112,6 +112,91 @@ class LightspeedRClient implements PosAdapter
         $body = $this->get($accessToken, $this->url($accountId, 'PaymentType.json'), ['limit' => 100]);
 
         return $this->named($this->rows($body['PaymentType'] ?? null), 'paymentTypeID');
+    }
+
+    /**
+     * MARKER-CONNECTED-POS-CATALOG: items changed since a timestamp, paged by offset.
+     * The cursor holds the window start, the offset inside it and the newest
+     * timestamp seen, so the next run starts where this one finished.
+     */
+    public function pullItems(string $accessToken, string $accountId, array $context, ?string $cursor): array
+    {
+        $c = $this->cursor($cursor);
+        $q = ['limit' => 100, 'offset' => $c['offset'], 'sort' => 'timeStamp', 'load_relations' => '["ItemPrices"]'];
+        if ($c['since']) {
+            $q['timeStamp'] = '>,' . $c['since'];
+        }
+        $body = $this->get($accessToken, $this->url($accountId, 'Item.json'), $q);
+        $rows = $this->rows($body['Item'] ?? null);
+
+        $items = [];
+        foreach ($rows as $r) {
+            if (! isset($r['itemID'])) {
+                continue;
+            }
+            $price = null;
+            foreach ($this->rows($r['Prices']['ItemPrice'] ?? null) as $p) {
+                if (($p['useType'] ?? '') === 'Default' && is_numeric($p['amount'] ?? null)) {
+                    $price = (int) round(((float) $p['amount']) * 100);
+                }
+            }
+            $c['max'] = max($c['max'] ?? '', (string) ($r['timeStamp'] ?? ''));
+            $items[] = [
+                'id'          => (string) $r['itemID'],
+                'parent_id'   => ! empty($r['itemMatrixID']) && $r['itemMatrixID'] !== '0' ? 'm' . $r['itemMatrixID'] : null,
+                'name'        => filled($r['description'] ?? null) ? (string) $r['description'] : null,
+                'sku'         => filled($r['customSku'] ?? null) ? (string) $r['customSku'] : (filled($r['systemSku'] ?? null) ? (string) $r['systemSku'] : null),
+                'upc'         => filled($r['upc'] ?? null) ? (string) $r['upc'] : null,
+                'ean'         => filled($r['ean'] ?? null) ? (string) $r['ean'] : null,
+                'mpn'         => filled($r['manufacturerSku'] ?? null) ? (string) $r['manufacturerSku'] : null,
+                'brand'       => null,
+                'price_cents' => $price,
+                'active'      => ! in_array(strtolower((string) ($r['archived'] ?? 'false')), ['true', '1'], true),
+            ];
+        }
+
+        return $this->advance($c, count($rows), 100) + ['items' => $items];
+    }
+
+    public function pullStock(string $accessToken, string $accountId, array $context, ?string $cursor): array
+    {
+        $c = $this->cursor($cursor);
+        $q = ['limit' => 100, 'offset' => $c['offset'], 'sort' => 'timeStamp'];
+        if ($c['since']) {
+            $q['timeStamp'] = '>,' . $c['since'];
+        }
+        $body = $this->get($accessToken, $this->url($accountId, 'ItemShop.json'), $q);
+        $data = $this->rows($body['ItemShop'] ?? null);
+
+        $rows = [];
+        foreach ($data as $r) {
+            $c['max'] = max($c['max'] ?? '', (string) ($r['timeStamp'] ?? ''));
+            // shopID 0 is the all-shops total, not a place
+            if (! isset($r['itemID'], $r['shopID']) || (string) $r['shopID'] === '0') {
+                continue;
+            }
+            $rows[] = ['item_id' => (string) $r['itemID'], 'location_id' => (string) $r['shopID'], 'qty' => (int) floor((float) ($r['qoh'] ?? 0))];
+        }
+
+        return $this->advance($c, count($data), 100) + ['rows' => $rows];
+    }
+
+    /** @return array{since: ?string, offset: int, max: ?string} */
+    private function cursor(?string $cursor): array
+    {
+        $c = $cursor ? (json_decode($cursor, true) ?: []) : [];
+
+        return ['since' => $c['since'] ?? null, 'offset' => (int) ($c['offset'] ?? 0), 'max' => $c['max'] ?? null];
+    }
+
+    /** Next page in this window, or close the window at the newest timestamp seen. */
+    private function advance(array $c, int $got, int $limit): array
+    {
+        if ($got >= $limit) {
+            return ['cursor' => json_encode(['since' => $c['since'], 'offset' => $c['offset'] + $got, 'max' => $c['max']]), 'more' => true];
+        }
+
+        return ['cursor' => json_encode(['since' => $c['max'] ?: $c['since'], 'offset' => 0, 'max' => null]), 'more' => false];
     }
 
     // ── internals ───────────────────────────────────────────────

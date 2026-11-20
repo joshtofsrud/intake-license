@@ -425,3 +425,11 @@ Schedule::command('launch:sweep')
     ->everyFifteenMinutes()
     ->withoutOverlapping(10)
     ->runInBackground();
+
+// MARKER-CONNECTED-POS-CATALOG: Connected POS changes every minute, full reconcile nightly.
+Schedule::command('pos:sync')
+    ->everyMinute()
+    ->withoutOverlapping(5);
+Schedule::command('pos:sync --full')
+    ->dailyAt('03:41')
+    ->withoutOverlapping(30);

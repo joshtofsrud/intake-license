@@ -17,7 +17,7 @@ use Illuminate\Support\HtmlString;
 
 /**
  * MARKER-POS-CONNECT: Intake's own app credentials for each POS adapter.
- * Shops never see these; they connect from E-commerce → Shop POS.
+ * Shops never see these; they connect from E-commerce → Connected POS.
  */
 class PosAdapters extends Page implements HasForms
 {
@@ -28,10 +28,10 @@ class PosAdapters extends Page implements HasForms
     use InteractsWithForms;
 
     protected static ?string $navigationIcon  = 'heroicon-o-arrows-right-left';
-    protected static ?string $navigationLabel = 'POS connections';
+    protected static ?string $navigationLabel = 'Connected POS';
     protected static ?string $navigationGroup = 'Distribution';
     protected static ?int    $navigationSort  = 30;
-    protected static ?string $title           = 'POS connections';
+    protected static ?string $title           = 'Connected POS';
 
     protected static string $view = 'filament.pages.pos-adapters';
 
@@ -120,6 +120,6 @@ class PosAdapters extends Page implements HasForms
             }
         }
         $this->mount();
-        Notification::make()->success()->title('POS connections saved')->send();
+        Notification::make()->success()->title('Connected POS settings saved')->send();
     }
 }

@@ -175,8 +175,8 @@
   @if(session('success'))<div class="ec-ok">{{ session('success') }}</div>@endif
   @if(session('error'))<div class="ec-err">{{ session('error') }}</div>@endif
   {{-- MARKER-POS-CONNECT: the POS sends the shop back here with the outcome --}}
-  @if(request('pos') === 'connected')<div class="ec-ok">Your POS is connected. Its locations and payment types are listed under Shop POS.</div>@endif
-  @if(request('pos') === 'checkfailed')<div class="ec-err">Your POS approved Intake, but reading it failed. Details are under Shop POS.</div>@endif
+  @if(request('pos') === 'connected')<div class="ec-ok">Your POS is connected. Its outlets and payment types are listed under Connected POS.</div>@endif
+  @if(request('pos') === 'checkfailed')<div class="ec-err">Your POS approved Intake, but reading it failed. Details are under Connected POS.</div>@endif
   @if(request('pos_error'))<div class="ec-err">{{ \Illuminate\Support\Str::limit((string) request('pos_error'), 220) }}</div>@endif
   @if($errors->any())<div class="ec-err">{{ $errors->first() }}</div>@endif
 
@@ -190,7 +190,7 @@
     <button type="button" class="ec-tab {{ $tab === 'msg' ? 'on' : '' }}" data-p="msg">Messages</button>
     <button type="button" class="ec-tab {{ in_array($tab, ['goo','google']) ? 'on' : '' }}" data-p="goo">Google</button>
     {{-- MARKER-POS-CONNECT --}}
-    <button type="button" class="ec-tab {{ $tab === 'pos' ? 'on' : '' }}" data-p="pos">Shop POS @if($pos['conn'])<span class="pip {{ $pos['conn']->status === 'connected' ? '' : 'warn' }}">{{ $pos['conn']->status === 'connected' ? 'connected' : 'needs attention' }}</span>@endif</button>
+    <button type="button" class="ec-tab {{ $tab === 'pos' ? 'on' : '' }}" data-p="pos">Connected POS @if($pos['conn'])<span class="pip {{ $pos['conn']->status === 'connected' ? '' : 'warn' }}">{{ $pos['conn']->status === 'connected' ? 'connected' : 'needs attention' }}</span>@endif</button>
     <button type="button" class="ec-tab {{ $tab === 'gen' || $tab === 'general' ? 'on' : '' }}" data-p="gen">General</button>
   </div>
 
@@ -635,12 +635,15 @@
   </section>
 
   {{-- ============ GENERAL ============ --}}
-  {{-- MARKER-POS-CONNECT: the shop's own POS --}}
+  {{-- MARKER-POS-CONNECT / MARKER-CONNECTED-POS-CATALOG: the shop's own outside POS (not the Intake Register) --}}
   <section class="ec-panel {{ $tab === 'pos' ? 'on' : '' }}" id="p-pos">
     <div class="av-legend" style="max-width:760px;margin-bottom:18px">
-      <b>What this does today:</b> Intake can read your POS account name, its locations and its payment types — nothing more.
-      Nothing syncs yet: stock, prices, customers and orders are not exchanged, and Intake never writes to your POS.
-      Disconnecting deletes Intake's access; you can also remove Intake from your POS's own settings.
+      <b>Connected POS</b> is the outside POS your shop already uses — not the Intake Register.
+      <b>What syncs today:</b> with sync on, its products, prices and stock come into Intake about every minute, plus a full re-read nightly.
+      Stock is updated only at the Intake locations you map below; its price replaces the Intake sell price.
+      <b>Not yet:</b> online orders, refunds, customers and purchase history are not sent or received, and Intake writes nothing to your POS.
+      Items new to Intake start <b>off</b> the online store — choose what to sell under Availability.
+      Disconnecting deletes Intake's access and stops sync; items already brought in stay in Intake.
     </div>
 
     @php $pc = $pos['conn']; @endphp
@@ -658,7 +661,7 @@
           </div>
           <div class="ctl">
             <form method="POST" action="{{ route('tenant.storefront.pos.check') }}">@csrf<button class="ia-btn ia-btn--secondary ia-btn--sm" type="submit">Check connection</button></form>
-            <form method="POST" action="{{ route('tenant.storefront.pos.disconnect') }}">@csrf<button class="ia-btn ia-btn--secondary ia-btn--sm" type="submit" data-confirm="Disconnect your POS? Intake's access is deleted. You can connect again any time.">Disconnect</button></form>
+            <form method="POST" action="{{ route('tenant.storefront.pos.disconnect') }}">@csrf<button class="ia-btn ia-btn--secondary ia-btn--sm" type="submit" data-confirm="Disconnect your Connected POS? Intake's access is deleted and sync stops. Items already brought in stay. You can connect again any time.">Disconnect</button></form>
             @if($pc->status !== 'connected')
               <form method="POST" action="{{ route('tenant.storefront.pos.connect', $pc->adapter_code) }}">@csrf<button class="ia-btn ia-btn--primary ia-btn--sm" type="submit">Reconnect</button></form>
             @endif
@@ -667,17 +670,110 @@
       </div>
 
       <div class="ec-sec">
-        <h3>Locations in your POS</h3>
+        <h3>Outlets in your Connected POS</h3>
         @if(count($pc->locations ?? []))
           <div class="dw-chips">@foreach($pc->locations as $l)<span class="dw-chip">{{ $l['name'] }}</span>@endforeach</div>
-          <p class="ec-note" style="margin-top:8px">Choosing which location supplies the online store comes with stock sync.</p>
-        @else
+                  @else
           <p class="ec-note">None found. Click <b>Check connection</b> to read them again.</p>
         @endif
       </div>
 
+      {{-- MARKER-CONNECTED-POS-CATALOG: sync settings --}}
+      <form method="POST" action="{{ route('tenant.storefront.pos.settings') }}" class="ec-sec">
+        @csrf
+        <h3>Sync</h3>
+        <div class="ec-row">
+          <div><div class="t">Bring in products, prices and stock</div><div class="d">About every minute, and a full re-read each night.</div></div>
+          <div class="ctl"><label class="tg"><input type="hidden" name="sync_enabled" value="0"><input type="checkbox" name="sync_enabled" value="1" @checked($pc->sync_enabled)><i></i></label></div>
+        </div>
+        @if(count($pc->locations ?? []))
+          <div class="ec-row" style="display:block">
+            <div class="t">Where each outlet's stock goes in Intake</div>
+            <div class="d" style="max-width:none">Stock is only updated for outlets mapped here. Each Intake location takes one outlet.</div>
+            <table class="ec-mini" style="margin-top:8px">
+              <tr><th>Connected POS outlet</th><th>Intake location</th></tr>
+              @foreach($pc->locations as $l)
+                <tr>
+                  <td>{{ $l['name'] }}</td>
+                  <td><select class="ia-select" name="map[{{ $l['id'] }}]">
+                    <option value="">Don't sync this outlet</option>
+                    @foreach($pos['intake_locations'] as $il)
+                      <option value="{{ $il->id }}" @selected((($pc->location_map ?? [])[$l['id']] ?? null) === (string) $il->id)>{{ $il->name }}</option>
+                    @endforeach
+                  </select></td>
+                </tr>
+              @endforeach
+            </table>
+          </div>
+        @endif
+        <div class="ec-row">
+          <div><div class="t">When an item is removed from your Connected POS</div><div class="d">Nothing is deleted. Its Connected POS stock goes to zero either way.</div></div>
+          <div class="ctl"><select class="ia-select" name="removal_mode">
+            <option value="keep" @selected(($pc->removal_mode ?? 'keep') === 'keep')>Keep selling it from suppliers</option>
+            <option value="hide" @selected($pc->removal_mode === 'hide')>Hide it from the online store</option>
+            <option value="deactivate" @selected($pc->removal_mode === 'deactivate')>Deactivate it in Intake</option>
+          </select></div>
+        </div>
+        <div class="ec-actions"><button class="ia-btn ia-btn--primary" type="submit">Save sync settings</button></div>
+      </form>
+
+      @php $ss = (array) ($pc->sync_state ?? []); @endphp
+      <div class="ec-sec" id="posSync" data-status="{{ route('tenant.storefront.pos.status') }}" data-running="{{ ($ss['running'] ?? false) ? 1 : 0 }}">
+        <h3>Import</h3>
+        <div class="ec-row">
+          <div>
+            <div class="t" id="psHead">
+              @if($ss['running'] ?? false) Importing… @elseif(!empty($ss['error'])) Last run stopped with an error @elseif($pc->last_synced_at) Up to date @else Not imported yet @endif
+            </div>
+            <div class="d" id="psLine">
+              @if($pc->last_synced_at) Last finished {{ $pc->last_synced_at->diffForHumans() }}. @endif
+              @if(!$pc->sync_enabled) Turn sync on and save to import. @endif
+            </div>
+            <div class="d" id="psErr" style="color:#A32D2D">{{ $ss['error'] ?? '' }}</div>
+          </div>
+          <div class="ctl">
+            <form method="POST" action="{{ route('tenant.storefront.pos.import') }}">@csrf<button class="ia-btn ia-btn--secondary ia-btn--sm" type="submit" @disabled(!$pc->sync_enabled)>{{ $pc->last_synced_at ? 'Re-read everything now' : 'Start import' }}</button></form>
+          </div>
+        </div>
+        <div class="av-sum" id="psNums" style="margin-top:6px">
+          <div>Products read<b data-k="items_seen">{{ number_format($ss['items_seen'] ?? 0) }}</b></div>
+          <div>Matched to your items<b data-k="matched">{{ number_format($ss['matched'] ?? 0) }}</b></div>
+          <div>New items made<b data-k="created">{{ number_format($ss['created'] ?? 0) }}</b></div>
+          <div>Prices updated<b data-k="price_updates">{{ number_format($ss['price_updates'] ?? 0) }}</b></div>
+          <div>Stock changes<b data-k="stock_changes">{{ number_format($ss['stock_changes'] ?? 0) }}</b></div>
+          <div class="w">Removed in POS<b data-k="removed">{{ number_format($ss['removed'] ?? 0) }}</b></div>
+          <div>Counts for unmapped outlets<b data-k="stock_unmapped">{{ number_format($ss['stock_unmapped'] ?? 0) }}</b></div>
+        </div>
+        <p class="ec-note" id="psPhase">@if($ss['running'] ?? false) Step: {{ ($ss['phase'] ?? '') === 'stock' ? 'reading stock counts' : 'reading products' }} · page {{ $ss['pages'] ?? 0 }} @endif</p>
+      </div>
+      <script>
+      /* MARKER-CONNECTED-POS-CATALOG: live import progress (background poll, never counts as activity) */
+      (function(){
+        var box=document.getElementById('posSync'); if(!box) return;
+        var url=box.dataset.status, live=box.dataset.running==='1', t=null;
+        function fmt(n){ return (n||0).toLocaleString(); }
+        function tick(){
+          fetch(url,{headers:{'Accept':'application/json','X-Intake-Background':'1'},credentials:'same-origin'})
+            .then(function(r){ return r.ok ? r.json() : null; })
+            .then(function(j){
+              if(!j || !j.state) return;
+              var s=j.state;
+              box.querySelectorAll('[data-k]').forEach(function(b){ b.textContent=fmt(s[b.dataset.k]); });
+              document.getElementById('psHead').textContent = s.running ? 'Importing…' : (s.error ? 'Last run stopped with an error' : 'Up to date');
+              document.getElementById('psPhase').textContent = s.running ? ('Step: ' + (s.phase==='stock' ? 'reading stock counts' : 'reading products') + ' · page ' + (s.pages||0)) : '';
+              document.getElementById('psErr').textContent = s.error || '';
+              if(!s.running && j.last_synced_at){ document.getElementById('psLine').textContent = 'Last finished ' + j.last_synced_at + '. ' + fmt(j.linked) + ' items linked.'; }
+              live = !!s.running;
+            })
+            .catch(function(){})
+            .finally(function(){ t=setTimeout(tick, live ? 2000 : 15000); });
+        }
+        tick();
+      })();
+      </script>
+
       <div class="ec-sec">
-        <h3>Payment types in your POS</h3>
+        <h3>Payment types in your Connected POS</h3>
         @if(count($pc->payment_types ?? []))
           <div class="dw-chips">@foreach($pc->payment_types as $t)<span class="dw-chip">{{ $t['name'] }}</span>@endforeach</div>
         @else
@@ -687,7 +783,7 @@
       </div>
     @elseif(count($pos['available']))
       <div class="ec-sec">
-        <h3>Connect your POS</h3>
+        <h3>Connect your outside POS</h3>
         @foreach($pos['available'] as $a)
           <div class="ec-row">
             <div><div class="t">{{ $a->displayLabel() }}</div><div class="d">You'll sign in to your POS and approve Intake, then come straight back here.</div></div>
@@ -697,7 +793,7 @@
       </div>
     @else
       <div class="ec-sec">
-        <h3>Connect your POS</h3>
+        <h3>Connect your outside POS</h3>
         <p class="ec-note">No POS connections are switched on for your account yet. Reach out to Intake support and we'll turn on the one you use.</p>
       </div>
     @endif

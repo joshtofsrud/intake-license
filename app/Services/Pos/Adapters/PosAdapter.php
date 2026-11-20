@@ -68,4 +68,21 @@ interface PosAdapter
 
     /** @return list<array{id: string, name: string}> */
     public function paymentTypes(string $accessToken, string $accountId, array $context = []): array;
+
+    /**
+     * MARKER-CONNECTED-POS-CATALOG: one page of products changed since $cursor
+     * (null = from the beginning). Cursors are opaque to Intake.
+     *
+     * Each item: id, parent_id, name, sku, upc, ean, mpn, brand, price_cents (int|null), active (bool).
+     *
+     * @return array{items: list<array>, cursor: ?string, more: bool}
+     */
+    public function pullItems(string $accessToken, string $accountId, array $context, ?string $cursor): array;
+
+    /**
+     * One page of stock counts changed since $cursor.
+     *
+     * @return array{rows: list<array{item_id: string, location_id: string, qty: int}>, cursor: ?string, more: bool}
+     */
+    public function pullStock(string $accessToken, string $accountId, array $context, ?string $cursor): array;
 }

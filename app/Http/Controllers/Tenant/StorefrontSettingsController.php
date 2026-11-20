@@ -67,6 +67,7 @@ class StorefrontSettingsController extends Controller
             'conn'      => $posConn,
             'label'     => $posConn ? \App\Models\PlatformPosAdapter::forCode($posConn->adapter_code)->displayLabel() : null,
             'available' => app(\App\Services\Pos\Adapters\PosAdapterRegistry::class)->available(),
+            'intake_locations' => $tenant->activeLocations()->get(['id', 'name']), // MARKER-CONNECTED-POS-CATALOG
         ];
 
         return view('tenant.storefront.settings', [
