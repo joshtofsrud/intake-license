@@ -511,7 +511,9 @@ class OrderService
     {
         abort_if($order->payment_method === null, 422, 'Not a manual-payment order.');
 
-        return DB::transaction(function () use ($order, $staffUserId) {
+        $hadShorts = false;
+        $already = (bool) $order->sale_id;
+        $done = DB::transaction(function () use ($order, $staffUserId, &$hadShorts) {
             $fresh = TenantOrder::query()->whereKey($order->id)->lockForUpdate()->first();
             if ($fresh->sale_id) return $fresh;
 
@@ -561,9 +563,63 @@ class OrderService
             ])->save();
 
             $this->createSpecialOrders($fresh, $sale, $customer, $shorts);
+            $hadShorts = (bool) $shorts;
 
             return $fresh;
         });
+        if (! $already && $done->sale_id) {
+            $this->sendConfirmation($done, $hadShorts);
+        }
+
+        return $done;
+    }
+
+    /**
+     * MARKER-ORDER-CONFIRM-EMAIL: the customer's order confirmation. Sent once the sale
+     * exists, for card orders and for hand-paid orders when staff mark them paid (those used
+     * to get no email at all). Outside any transaction; a mail failure never touches the money.
+     */
+    protected function sendConfirmation(TenantOrder $result, bool $hasShorts): void
+    {
+        $result->loadMissing(['items', 'shipments']);
+        if ($result->sale_id && filled($result->contact_email)) {
+            try {
+                $rows = $result->items->map(fn ($l) =>
+                    "<tr><td style='padding:3px 14px 3px 0'>" . e($l->name_snapshot)
+                    . " ×" . (int) $l->quantity . "</td><td style='text-align:right'>$"
+                    . number_format($l->line_total_cents / 100, 2) . "</td></tr>"
+                )->implode('');
+                (new \App\Services\EmailService($this->tenant))->send(
+                    'order_confirmation',
+                    $result->contact_email,
+                    [
+                        'first_name'       => $result->contact_first_name ?: 'there',
+                        'order_number'     => $result->order_number,
+                        'total'            => '$' . number_format($result->total_cents / 100, 2),
+                        'items_rows'       => "<table style='font-size:14px'>{$rows}</table>",
+                        'fulfillment_line' => $result->fulfillment_type === 'ship'
+                            ? 'Shipping to ' . e((string) (($result->fulfillment_address['line'] ?? '') ?: 'your address'))
+                                . ($result->shipments->count() > 1 ? ' — it will arrive in ' . $result->shipments->count() . ' shipments' : '')
+                            : ($result->fulfillment_type === 'local_delivery'
+                            ? 'Local delivery — we\'ll reach out to set a window'
+                            : 'Pickup — we\'ll text you when it\'s ready'
+                                . ($this->config()['pickup_instructions'] !== '' ? '. ' . e($this->config()['pickup_instructions']) : '')),
+                        'order_url'        => 'https://' . request()->getHost() . '/order/' . $result->token,
+                        'whats_next'       => ($hasShorts ? e(self::wording($this->tenant)['special_notice']) . ' ' : '')
+                            . ($result->wants_install
+                                ? 'You asked about installation — we\'ll be in touch to get it scheduled.'
+                                : 'Questions? Just reply to this email.')
+                            // MARKER-SHOP-POLICIES: the returns page, when the shop chose one
+                            . (($ru = \App\Support\Launch\ShopPolicies::returnsUrl($this->tenant)) ? ' Our returns policy: https://' . request()->getHost() . $ru : ''),
+                    ]
+                );
+            } catch (\Throwable $e) {
+                Log::error('online_order.confirmation_email_failed', [
+                    'order' => $result->id, 'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
     }
 
     /** MARKER-SHOP-GA4: staff confirmed a hand-paid order, so tell Google it sold (needs the shop's API secret). */
@@ -850,45 +906,7 @@ class OrderService
             }
         }
 
-        // order confirmation email, outside the
-        // transaction so mail latency/failures never touch the money path.
-        if ($result->sale_id && filled($result->contact_email)) {
-            try {
-                $rows = $result->items->map(fn ($l) =>
-                    "<tr><td style='padding:3px 14px 3px 0'>" . e($l->name_snapshot)
-                    . " ×" . (int) $l->quantity . "</td><td style='text-align:right'>$"
-                    . number_format($l->line_total_cents / 100, 2) . "</td></tr>"
-                )->implode('');
-                (new \App\Services\EmailService($this->tenant))->send(
-                    'order_confirmation',
-                    $result->contact_email,
-                    [
-                        'first_name'       => $result->contact_first_name ?: 'there',
-                        'order_number'     => $result->order_number,
-                        'total'            => '$' . number_format($result->total_cents / 100, 2),
-                        'items_rows'       => "<table style='font-size:14px'>{$rows}</table>",
-                        'fulfillment_line' => $result->fulfillment_type === 'ship'
-                            ? 'Shipping to ' . e((string) (($result->fulfillment_address['line'] ?? '') ?: 'your address'))
-                                . ($result->shipments->count() > 1 ? ' — it will arrive in ' . $result->shipments->count() . ' shipments' : '')
-                            : ($result->fulfillment_type === 'local_delivery'
-                            ? 'Local delivery — we\'ll reach out to set a window'
-                            : 'Pickup — we\'ll text you when it\'s ready'
-                                . ($this->config()['pickup_instructions'] !== '' ? '. ' . e($this->config()['pickup_instructions']) : '')),
-                        'order_url'        => 'https://' . request()->getHost() . '/order/' . $result->token,
-                        'whats_next'       => ($shorts ? e(self::wording($this->tenant)['special_notice']) . ' ' : '')
-                            . ($result->wants_install
-                                ? 'You asked about installation — we\'ll be in touch to get it scheduled.'
-                                : 'Questions? Just reply to this email.')
-                            // MARKER-SHOP-POLICIES: the returns page, when the shop chose one
-                            . (($ru = \App\Support\Launch\ShopPolicies::returnsUrl($this->tenant)) ? ' Our returns policy: https://' . request()->getHost() . $ru : ''),
-                    ]
-                );
-            } catch (\Throwable $e) {
-                Log::error('online_order.confirmation_email_failed', [
-                    'order' => $result->id, 'error' => $e->getMessage(),
-                ]);
-            }
-        }
+        $this->sendConfirmation($result, (bool) $shorts);
 
         // MARKER-SHOP-POLICIES: tell the people the shop chose (never throws)
         if ($result->sale_id && ! (((array) ($result->metadata ?? []))['staff_notified'] ?? false)) {
