@@ -48,11 +48,12 @@ class PosPushService
                 'status' => 'pending', 'created_at' => now(), 'updated_at' => now(),
             ]);
             $row = DB::table('tenant_pos_pushes')->find($id);
-        } elseif (in_array($kind, ['item_update'], true) && $row->status !== 'pending') {
-            // an item can change many times; each change re-arms its one row
+        } elseif (($kind === 'item_update' && $row->status !== 'pending') || in_array($row->status, ['failed', 'skipped'], true)) {
+            // an item can change many times, and a failed send asked for again gets another go
             DB::table('tenant_pos_pushes')->where('id', $row->id)->update(['status' => 'pending', 'last_error' => null, 'updated_at' => now()]);
+            $row->status = 'pending';
         }
-        if ($row->status === 'pending' || in_array($kind, ['item_update'], true)) {
+        if ($row->status === 'pending') {
             // a refund's lines are written just after the refund itself; give them a moment
             \App\Jobs\PosPushJob::dispatch((int) $row->id)->afterCommit()->delay(now()->addSeconds($kind === 'refund' ? 15 : 3));
         }

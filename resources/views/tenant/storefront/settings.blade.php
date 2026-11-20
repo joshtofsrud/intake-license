@@ -856,8 +856,29 @@
         @endforelse
       </div>
 
-      <div class="ec-sec" id="posSends" data-live="{{ collect($pos['sends'])->contains('status', 'pending') ? 1 : 0 }}">
+      @php $sendCounts = \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', $pc->tenant_id)->selectRaw('status, count(*) n')->groupBy('status')->pluck('n', 'status'); @endphp
+      @php $prep = (array) (($pc->sync_state ?? [])['send_items'] ?? []); @endphp
+      <div class="ec-sec" id="posSends" data-live="{{ (($sendCounts['pending'] ?? 0) > 0 || ($prep['running'] ?? false)) ? 1 : 0 }}">
         <h3>Recent sends</h3>
+        {{-- MARKER-POS-SEND-ITEMS-BG: the preparing step is shown too — every action gets a reaction --}}
+        @if($prep)
+          @if($prep['running'] ?? false)
+            <p class="ec-note" style="margin-bottom:8px"><b>Preparing items:</b> {{ number_format($prep['queued'] ?? 0) }} of {{ number_format($prep['total'] ?? 0) }} queued…</p>
+          @elseif(!empty($prep['error']))
+            <p class="ec-note" style="margin-bottom:8px;color:#A32D2D"><b>Preparing items stopped</b> after {{ number_format($prep['queued'] ?? 0) }} of {{ number_format($prep['total'] ?? 0) }}: {{ $prep['error'] }} Click Send items not in my POS to continue.</p>
+          @elseif(!empty($prep['finished_at']))
+            <p class="ec-note" style="margin-bottom:8px">Prepared {{ number_format($prep['queued'] ?? 0) }} items {{ \Illuminate\Support\Carbon::parse($prep['finished_at'])->diffForHumans() }}.</p>
+          @endif
+        @endif
+        {{-- MARKER-POS-SEND-ITEMS-BG: totals, so a big send shows its progress --}}
+        @if($sendCounts->sum())
+          <div class="av-sum" style="margin-bottom:10px">
+            <div>Sent<b>{{ number_format($sendCounts['done'] ?? 0) }}</b></div>
+            <div>Sending<b>{{ number_format($sendCounts['pending'] ?? 0) }}</b></div>
+            <div class="w">Failed<b>{{ number_format($sendCounts['failed'] ?? 0) }}</b></div>
+            <div>Not sent<b>{{ number_format($sendCounts['skipped'] ?? 0) }}</b></div>
+          </div>
+        @endif
         @forelse($pos['sends'] as $sd)
           <div class="ec-row">
             <div>

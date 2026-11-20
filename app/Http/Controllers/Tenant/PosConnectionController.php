@@ -194,22 +194,26 @@ class PosConnectionController extends Controller
         return $this->back()->with('success', 'Sending again — the list below updates as it goes.');
     }
 
-    /** Create every active Intake item that isn't in the Connected POS yet. */
-    public function sendItems(\App\Services\Pos\PosPushService $push): RedirectResponse
+    /** Create every active Intake item that isn't in the Connected POS yet (queued in the background — MARKER-POS-SEND-ITEMS-BG). */
+    public function sendItems(): RedirectResponse
     {
         $this->guard();
         $conn = TenantPosConnection::where('tenant_id', tenant()->id)->where('status', 'connected')->firstOrFail();
         $linked = \Illuminate\Support\Facades\DB::table('tenant_pos_items')->where('tenant_id', $conn->tenant_id)->whereNotNull('inventory_item_id')->whereNull('removed_at')->select('inventory_item_id');
-        $n = 0;
-        \App\Models\Tenant\TenantInventoryItem::where('tenant_id', $conn->tenant_id)->where('is_active', true)->whereNotIn('id', $linked)
-            ->select(['id', 'name'])->orderBy('name')->chunk(200, function ($items) use ($push, $conn, &$n) {
-                foreach ($items as $i) {
-                    $push->queue($conn->tenant_id, 'item_create', (string) $i->id, 'New item ' . $i->name);
-                    $n++;
-                }
-            });
+        $queued = \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', $conn->tenant_id)->where('kind', 'item_create')->whereIn('status', ['pending', 'done'])->select('ref_id');
+        $n = \App\Models\Tenant\TenantInventoryItem::where('tenant_id', $conn->tenant_id)->where('is_active', true)->whereNotIn('id', $linked)->whereNotIn('id', $queued)->count();
+        if (! $n) {
+            return $this->back()->with('success', 'Every active item is already in your Connected POS or on its way.');
+        }
+        $st = (array) ($conn->sync_state ?? []);
+        if (($st['send_items']['running'] ?? false) && $conn->updated_at?->gt(now()->subMinutes(20))) {
+            return $this->back()->with('success', 'Items are already being prepared — progress is shown under Recent sends.');
+        }
+        $st['send_items'] = ['running' => true, 'total' => $n, 'queued' => 0, 'error' => null, 'started_at' => now()->toIso8601String(), 'finished_at' => null];
+        $conn->forceFill(['sync_state' => $st])->save();
+        \App\Jobs\PosQueueItemsJob::dispatch($conn->tenant_id);
 
-        return $this->back()->with('success', $n ? "Sending {$n} items — progress is shown under Recent sends." : 'Every active item is already in your Connected POS.');
+        return $this->back()->with('success', 'Sending ' . number_format($n) . ' items in the background — the counts under Recent sends update as they go.');
     }
 
     public function disconnect(PosConnectionService $svc): RedirectResponse
