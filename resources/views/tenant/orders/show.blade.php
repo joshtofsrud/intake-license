@@ -196,23 +196,26 @@
       </div>
     @endif
 
-    @if($advance || in_array($order->status, ['paid', 'fulfilling']))
+    {{-- MARKER-ORDER-MANUAL-PAY: an order waiting on cash, Venmo etc. gets its buttons too.
+         The mark-paid form used to sit inside @if($advance), which is always null while an
+         order is pending, so a manual-payment order had no way forward. --}}
+    @php $awaitingManual = $order->status === \App\Models\Tenant\TenantOrder::STATUS_PENDING_PAYMENT && $order->payment_method && ! $order->sale_id; @endphp
+    @if($advance || $awaitingManual || in_array($order->status, ['paid', 'fulfilling']))
       <div class="od-card">
         <h3>Move it along</h3>
-        @if($advance)
-          @if($order->status === \App\Models\Tenant\TenantOrder::STATUS_PENDING_PAYMENT && $order->payment_method)
-          {{-- manual payment confirmation --}}
+        @if($awaitingManual)
           <div style="border:1px solid rgba(245,158,11,.4);background:rgba(245,158,11,.08);border-radius:10px;padding:12px 14px;margin-bottom:12px;font-size:12.5px">
             Awaiting <b>{{ tender_label($order->payment_method) }}</b> — {{ number_format($order->total_cents / 100, 2) }} expected with note "{{ $order->order_number }}".
           </div>
-          <form method="POST" action="{{ route('tenant.orders.update', $order->id) }}" style="margin-bottom:10px"
-                onsubmit="return confirm('Confirm the {{ tender_label($order->payment_method) }} payment arrived? This builds the sale and marks the order paid.')">
+          <form method="POST" action="{{ route('tenant.orders.update', $order->id) }}" style="margin-bottom:10px" id="odMarkPaid">
             @csrf
             <input type="hidden" name="op" value="mark_paid">
-            <button class="ia-btn ia-btn--primary" style="width:100%">Payment received — mark paid</button>
+            <button type="button" class="ia-btn ia-btn--primary" style="width:100%"
+              onclick="IntakeConfirm.show({ title: 'Payment received?', message: {{ \Illuminate\Support\Js::from('Confirm the ' . tender_label($order->payment_method) . ' payment of ' . $money($order->total_cents) . ' arrived. This builds the sale and marks the order paid.') }}, confirmText: 'Mark paid' }).then(function (ok) { if (ok) document.getElementById('odMarkPaid').submit(); })">Payment received — mark paid</button>
           </form>
         @endif
-        <form method="POST" action="{{ route('tenant.orders.update', $order->id) }}">
+        @if($advance)
+          <form method="POST" action="{{ route('tenant.orders.update', $order->id) }}">
             @csrf
             <input type="hidden" name="op" value="advance">
             <button class="ia-btn ia-btn--primary" style="width:100%">{{ $advance[1] }}</button>
@@ -222,12 +225,12 @@
             @endif
           </form>
         @endif
-        @if(in_array($order->status, ['paid', 'fulfilling']))
-          <form method="POST" action="{{ route('tenant.orders.update', $order->id) }}" style="margin-top:8px"
-                onsubmit="return confirm('Cancel this order on the board? Money stays put — refund from the linked sale if needed.')">
+        @if($awaitingManual || in_array($order->status, ['paid', 'fulfilling']))
+          <form method="POST" action="{{ route('tenant.orders.update', $order->id) }}" style="margin-top:8px" id="odCancel">
             @csrf
             <input type="hidden" name="op" value="cancel">
-            <button class="ia-btn ia-btn--ghost" style="width:100%">Cancel order</button>
+            <button type="button" class="ia-btn ia-btn--ghost" style="width:100%"
+              onclick="IntakeConfirm.show({ title: 'Cancel this order?', message: {{ \Illuminate\Support\Js::from($awaitingManual ? 'No payment was taken, so nothing needs refunding.' : 'Money stays put — refund from the linked sale if needed.') }}, confirmText: 'Cancel order', cancelText: 'Keep it', danger: true }).then(function (ok) { if (ok) document.getElementById('odCancel').submit(); })">Cancel order</button>
           </form>
         @endif
       </div>

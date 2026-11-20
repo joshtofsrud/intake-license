@@ -103,7 +103,13 @@ class OrdersController extends Controller
         }
 
         if ($data['op'] === 'cancel') {
-            abort_unless(in_array($order->status, [TenantOrder::STATUS_PAID, TenantOrder::STATUS_FULFILLING]), 422);
+            // a manual-payment order nobody paid can be closed too; no sale exists, so nothing moves
+            $unpaidManual = $order->status === TenantOrder::STATUS_PENDING_PAYMENT && $order->payment_method && ! $order->sale_id;
+            abort_unless($unpaidManual || in_array($order->status, [TenantOrder::STATUS_PAID, TenantOrder::STATUS_FULFILLING]), 422);
+            if ($unpaidManual) {
+                $order->forceFill(['status' => TenantOrder::STATUS_CANCELLED])->save();
+                return back()->with('success', 'Order cancelled. No payment was taken.');
+            }
             // Money stays put — refunds go through the sale on the register,
             // same as any other sale. This only closes the fulfillment queue item.
             $order->forceFill(['status' => TenantOrder::STATUS_CANCELLED])->save();
