@@ -158,6 +158,27 @@
           </div>
         @endif
       @endforeach
+      {{-- MARKER-POS-REGISTER-PER-OUTLET: with more than one mapped outlet, each takes its own register --}}
+      @php
+        $mappedOutlets = collect($pc->locations ?? [])->filter(fn ($l) => isset(((array) $pc->location_map)[$l['id']]));
+        $regsKnowOutlet = collect($opt['registers'] ?? [])->contains(fn ($r) => ! empty($r['outlet_id']));
+      @endphp
+      @if($mappedOutlets->count() > 1)
+        @foreach($mappedOutlets as $mo)
+          @php $moRegs = collect($opt['registers'] ?? [])->filter(fn ($r) => ! $regsKnowOutlet || (string) ($r['outlet_id'] ?? '') === (string) $mo['id']); @endphp
+          <div class="ec-row">
+            <div><div class="t">Register at {{ $mo['name'] }}</div><div class="d">Online orders for this outlet are recorded on it. Left on Automatic, Intake uses the register above when it belongs here, otherwise this outlet's first register.</div></div>
+            <div class="ctl">
+              <select class="ia-select" name="registers[{{ $mo['id'] }}]">
+                <option value="">Automatic</option>
+                @foreach($moRegs as $o)<option value="{{ $o['id'] }}" @selected((($os['registers'] ?? [])[$mo['id']] ?? '') === (string) $o['id'])>{{ $o['name'] }}</option>@endforeach
+              </select>
+            </div>
+          </div>
+        @endforeach
+        @unless($regsKnowOutlet)<p class="ec-note">Click <b>Check connection</b> so Intake learns which outlet each register belongs to.</p>@endunless
+      @endif
+      <p class="ec-note">Shipping and delivery charges are recorded on each sale against one item Intake makes in your Connected POS, "Online order shipping and charges". You can rename it there.</p>
     </div>
     <div class="ec-row">
       <div><div class="t">Create items in your Connected POS</div><div class="d">An item an order needs is always created first, so the sale is complete.</div></div>

@@ -180,6 +180,51 @@ class PosPushService
         return $s;
     }
 
+    /**
+     * MARKER-POS-CHARGE-ITEM: the one non-stock item online shipping and other item-less
+     * lines are sold as. Made once (or found by its code), remembered on the connection, and
+     * re-made if the shop deleted it. The shop can rename it in its Connected POS.
+     */
+    private function chargeItem(TenantPosConnection $conn): string
+    {
+        $os = (array) ($conn->order_setup ?? []);
+        $id = (string) ($os['charge_item_id'] ?? '');
+        if ($id !== '' && \Illuminate\Support\Facades\Cache::remember('pos_charge_ok:' . $conn->id . ':' . $id, 3600,
+            fn () => $this->adapterCall($conn, fn ($a, $t, $acct, $ctx) => $a->getItem($t, $acct, $ctx, $id)) !== null)) {
+            return $id;
+        }
+        $id = (string) $this->adapterCall($conn, fn ($a, $t, $acct, $ctx) => $a->createItem($t, $acct, $ctx, [
+            'name' => 'Online order shipping and charges', 'sku' => 'INTAKE-ONLINE-CHARGES', 'upc' => null, 'ean' => null, 'mpn' => null,
+            'description' => 'Used by Intake for shipping, delivery and other charges on online orders. Not a stock item.',
+        ]));
+        $conn->forceFill(['order_setup' => ['charge_item_id' => $id] + $os])->save();
+
+        return $id;
+    }
+
+    /**
+     * MARKER-POS-REGISTER-PER-OUTLET: the register for a sale at this outlet. The shop's
+     * choice for the outlet, else the main register when it belongs there (or the Connected
+     * POS doesn't say where registers belong), else the first register at that outlet.
+     */
+    private function registerFor(TenantPosConnection $conn, array $setup, string $outlet): string
+    {
+        if (! empty($setup['registers'][$outlet])) {
+            return (string) $setup['registers'][$outlet];
+        }
+        $regs = (array) (((array) ($conn->setup_options ?? []))['registers'] ?? []);
+        $main = collect($regs)->firstWhere('id', (string) $setup['register_id']);
+        if (! $main || empty($main['outlet_id']) || (string) $main['outlet_id'] === $outlet) {
+            return (string) $setup['register_id'];
+        }
+        $there = collect($regs)->first(fn ($r) => (string) ($r['outlet_id'] ?? '') === $outlet);
+        if (! $there) {
+            throw new RuntimeException('The outlet this order belongs to has no register in your Connected POS. Add one there, click Check connection, then retry.');
+        }
+
+        return (string) $there['id'];
+    }
+
     private function outletFor(TenantPosConnection $conn, ?string $locationId): string
     {
         $outlet = array_search((string) $locationId, (array) ($conn->location_map ?? []), true);
@@ -203,13 +248,13 @@ class PosPushService
             return false;
         }
 
-        $note = 'Intake online order ' . $order->order_number . ($left ? ' — not recorded here: ' . implode(', ', $left) : '');
+        $note = 'Intake online order ' . $order->order_number . ($left ? ' — includes: ' . implode(', ', $left) : '');
 
         return $this->adapterCall($conn, fn ($a, $t, $acct, $ctx) => $a->createSale($t, $acct, $ctx, [
             'reference'       => 'intake-' . $order->order_number,
             'note'            => $note,
-            'outlet_id'       => $this->outletFor($conn, $sale->location_id),
-            'register_id'     => $setup['register_id'],
+            'outlet_id'       => $outlet = $this->outletFor($conn, $sale->location_id),
+            'register_id'     => $this->registerFor($conn, $setup, $outlet),
             'user_id'         => $setup['user_id'],
             'payment_type_id' => $setup['payment_type_id'],
             'tax_id'          => $setup['tax_id'] ?? null,
@@ -242,9 +287,9 @@ class PosPushService
 
         return $this->adapterCall($conn, fn ($a, $t, $acct, $ctx) => $a->createSale($t, $acct, $ctx, [
             'reference'       => 'intake-' . $order->order_number . '-refund-' . substr($refund->id, 0, 8),
-            'note'            => 'Refund for Intake online order ' . $order->order_number . ($left ? ' — not recorded here: ' . implode(', ', $left) : ''),
-            'outlet_id'       => $this->outletFor($conn, $refund->location_id ?? $order->location_id),
-            'register_id'     => $setup['register_id'],
+            'note'            => 'Refund for Intake online order ' . $order->order_number . ($left ? ' — includes: ' . implode(', ', $left) : ''),
+            'outlet_id'       => $outlet = $this->outletFor($conn, $refund->location_id ?? $order->location_id),
+            'register_id'     => $this->registerFor($conn, $setup, $outlet),
             'user_id'         => $setup['user_id'],
             'payment_type_id' => $setup['payment_type_id'],
             'tax_id'          => $setup['tax_id'] ?? null,
@@ -268,16 +313,20 @@ class PosPushService
         $total = 0;
         $left = [];
         foreach (TenantSaleItem::where('sale_id', $sale->id)->orderBy('position')->get() as $li) {
-            if ($li->type !== 'product' || ! $li->inventory_item_id) {
-                $amount = (int) $li->line_total_cents + (int) $li->tax_cents;
-                if ($amount !== 0) {
-                    $left[] = $li->name_snapshot . ' $' . number_format(abs($amount) / 100, 2);
-                }
-                continue;
-            }
-            $item = TenantInventoryItem::where('tenant_id', $conn->tenant_id)->find($li->inventory_item_id);
+            $item = ($li->type === 'product' && $li->inventory_item_id)
+                ? TenantInventoryItem::where('tenant_id', $conn->tenant_id)->find($li->inventory_item_id) : null;
             if (! $item) {
-                $left[] = $li->name_snapshot;
+                // MARKER-POS-CHARGE-ITEM: shipping, delivery and any line with no item go on the sale
+                // against one reusable non-stock item, so the Connected POS takes in the same money
+                // Intake did. The note says what each one was.
+                $ex = abs((int) $li->line_total_cents);
+                $tx = abs((int) $li->tax_cents);
+                if ($ex + $tx === 0) {
+                    continue;
+                }
+                $lines[] = ['item_id' => $this->chargeItem($conn), 'qty' => $sign, 'unit_cents' => $ex, 'tax_cents' => $sign * $tx];
+                $total += $sign * ($ex + $tx);
+                $left[] = $li->name_snapshot . ' $' . number_format($ex / 100, 2);
                 continue;
             }
             $qty = (int) round(abs((float) $li->quantity));
@@ -314,6 +363,7 @@ class PosPushService
         $link = DB::table('tenant_pos_items')->where('tenant_id', $conn->tenant_id)->where('inventory_item_id', $item->id)->whereNull('removed_at')->first();
         $price = $item->shop_sell_price_cents ?? $item->catalog_msrp_cents;
 
+        $created = ! $link;
         if (! $link) {
             $fields = [
                 'name' => $item->name, 'sku' => $item->sku, 'upc' => $item->catalog_upc, 'ean' => $item->catalog_ean,
@@ -358,7 +408,7 @@ class PosPushService
         }
 
         if (! $link->details_sent_at && ! $link->details_error) {
-            $this->sendDetails($conn, $item, false);
+            $this->sendDetails($conn, $item, false, $created);
         }
 
         return $id;
@@ -371,7 +421,7 @@ class PosPushService
      * "Fill in missing details" tries again. $strict (a details send of its own) throws so
      * the send shows as failed with the reason.
      */
-    public function sendDetails(TenantPosConnection $conn, TenantInventoryItem $item, bool $strict)
+    public function sendDetails(TenantPosConnection $conn, TenantInventoryItem $item, bool $strict, bool $created = false)
     {
         $link = DB::table('tenant_pos_items')->where('tenant_id', $conn->tenant_id)->where('inventory_item_id', $item->id)->whereNull('removed_at')->first();
         if (! $link) {
@@ -392,7 +442,14 @@ class PosPushService
                 'cost_cents'      => $vendor?->pivot?->unit_cost_cents ?? $item->effectiveCostCents(),
                 // the shop's own shipping weight only: catalog weights don't say their unit
                 'weight_oz'       => $item->shop_weight_oz ?: null,
-            ], fn ($v) => $v !== null && $v !== '') + ['track_inventory' => true];
+            ], fn ($v) => $v !== null && $v !== '');
+            // MARKER-POS-TRACKING: stock counting is only ever set on an item Intake has just made,
+            // and only on when the shop holds stock of it. A supplier-shipped item stays uncounted,
+            // so selling it never drives the Connected POS negative; an item that was already in
+            // the Connected POS keeps whatever the shop set there.
+            if ($created) {
+                $details['track_inventory'] = (int) $item->computed_stock_count > 0;
+            }
             $this->adapterCall($conn, fn ($a, $t, $acct, $ctx) => $a->setItemDetails($t, $acct, $ctx, (string) $link->external_id, $details));
         } catch (\Throwable $e) {
             DB::table('tenant_pos_items')->where('id', $link->id)->update(['details_error' => Str::limit($e->getMessage(), 490)]);

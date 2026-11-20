@@ -191,7 +191,15 @@ class LightspeedXClient implements PosAdapter
 
     public function registers(string $accessToken, string $accountId, array $context): array
     {
-        return $this->named($this->get($accessToken, $this->api($this->ctxPrefix($context), 'registers'))['data'] ?? []);
+        // MARKER-POS-REGISTER-PER-OUTLET: each register with the outlet it belongs to
+        $out = [];
+        foreach ((array) ($this->get($accessToken, $this->api($this->ctxPrefix($context), 'registers'))['data'] ?? []) as $r) {
+            if (is_array($r) && isset($r['id']) && empty($r['deleted_at'])) {
+                $out[] = ['id' => (string) $r['id'], 'name' => (string) ($r['name'] ?? $r['id']), 'outlet_id' => isset($r['outlet_id']) ? (string) $r['outlet_id'] : null];
+            }
+        }
+
+        return $out;
     }
 
     public function users(string $accessToken, string $accountId, array $context): array

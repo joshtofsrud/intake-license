@@ -132,6 +132,8 @@ class PosConnectionController extends Controller
             'user_id'         => ['nullable', 'string', 'max:100'],
             'payment_type_id' => ['nullable', 'string', 'max:100'],
             'tax_id'          => ['nullable', 'string', 'max:100'],
+            'registers'       => ['nullable', 'array'],
+            'registers.*'     => ['nullable', 'string', 'max:100'],
             'items_create'    => ['required', 'in:orders,always'],
             'items_edits'     => ['nullable', 'boolean'],
         ]);
@@ -145,6 +147,21 @@ class PosConnectionController extends Controller
             'register_id' => $data['register_id'] ?? null, 'user_id' => $data['user_id'] ?? null,
             'payment_type_id' => $data['payment_type_id'] ?? null, 'tax_id' => $data['tax_id'] ?? null,
         ]);
+        // MARKER-POS-REGISTER-PER-OUTLET: a register for each mapped outlet, when there is more than one
+        $regIds = collect($opts['registers'] ?? [])->pluck('id')->map(fn ($v) => (string) $v);
+        $perOutlet = [];
+        foreach ((array) ($data['registers'] ?? []) as $outlet => $reg) {
+            if (filled($reg) && isset(((array) $conn->location_map)[$outlet]) && $regIds->contains((string) $reg)) {
+                $perOutlet[(string) $outlet] = (string) $reg;
+            }
+        }
+        if ($perOutlet) {
+            $setup['registers'] = $perOutlet;
+        }
+        // kept across saves: the item online shipping is sold as
+        if (! empty(((array) $conn->order_setup)['charge_item_id'])) {
+            $setup['charge_item_id'] = ((array) $conn->order_setup)['charge_item_id'];
+        }
         $out = (bool) ($data['orders_out'] ?? false);
         $wasOut = (bool) $conn->orders_out;
         if ($out) {
