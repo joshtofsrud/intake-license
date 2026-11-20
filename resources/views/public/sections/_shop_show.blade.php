@@ -93,6 +93,7 @@
   .spg-show .idline { font-size: 12px; opacity: .45; margin-top: 18px; font-family: ui-monospace, monospace; }
 
 </style>
+{{-- no <section> or <header> inside this page: a floating nav pads the first one it finds, and it must be this wrapper --}}
 <div class="spg-show">
   <div class="wrap">
     <div style="display:flex;justify-content:space-between;padding:14px 0 0">
@@ -226,7 +227,7 @@
     $pdFirst = array_key_first($pdTabs);
   @endphp
   @if($pdTabs)
-  <section class="pdx" id="pdx">
+  <div class="pdx" id="pdx">
     @if(count($pdTabs) > 1)
     <div class="pdx-bar" role="tablist">
       @foreach($pdTabs as $k => $label)<button type="button" class="pdx-tb{{ $k === $pdFirst ? ' on' : '' }}" data-t="{{ $k }}">{{ $label }}</button>@endforeach
@@ -285,7 +286,7 @@
       </div>
     </div>
     @endif
-  </section>
+  </div>
   <script>
     (function () {
       var r = document.getElementById('pdx'); if (!r) return;
