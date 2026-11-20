@@ -85,8 +85,9 @@ class PosAdapters extends Page implements HasForms
                     TextInput::make('scopes')->label('Scopes requested')->columnSpanFull()
                         ->helperText('Space-separated. Shops approve these when they connect; changing them means shops reconnect to get the new ones.'),
                     TextInput::make('authorize_url')->label('Authorize URL')->url(),
-                    TextInput::make('token_url')->label('Token URL')->url(),
-                    TextInput::make('api_base')->label('API base URL')->url()->columnSpanFull(),
+                    // MARKER-POS-XSERIES: some POSes give every store its own host; {domain_prefix} stands in for it
+                    TextInput::make('token_url')->label('Token URL')->helperText('May contain {domain_prefix} where each store has its own address.'),
+                    TextInput::make('api_base')->label('API base URL')->columnSpanFull()->helperText('May contain {domain_prefix} where each store has its own address.'),
                 ]);
         }
 

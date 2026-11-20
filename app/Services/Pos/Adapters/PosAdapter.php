@@ -10,6 +10,8 @@ namespace App\Services\Pos\Adapters;
  * plus one registry entry. Vendor names, endpoints and credentials live in the
  * adapter's defaults and master admin, never in shared code or UI copy.
  *
+ * MARKER-POS-CONTEXT: every call after connecting gets the shop's saved context.
+ *
  * This first slice covers connecting and discovery. Pull (items, stock,
  * customers) and push (sales, refunds, cancellations) join the contract in
  * the sync patches, each adapter declaring what it supports in capabilities().
@@ -40,29 +42,30 @@ interface PosAdapter
     public function authorizeUrl(string $state, string $redirectUri): string;
 
     /**
-     * Trade the authorisation code for tokens.
+     * Trade the authorisation code for tokens. $callback is every query value the POS
+     * sent back; anything the adapter must remember per shop goes in 'context'.
      *
-     * @return array{access_token: string, refresh_token: ?string, expires_in: ?int}
+     * @return array{access_token: string, refresh_token: ?string, expires_in: ?int, context?: array}
      */
-    public function exchangeCode(string $code, string $redirectUri): array;
+    public function exchangeCode(string $code, string $redirectUri, array $callback = []): array;
 
     /**
      * New access token from a refresh token. A POS that rotates refresh tokens returns the new one.
      *
      * @return array{access_token: string, refresh_token: ?string, expires_in: ?int}
      */
-    public function refreshToken(string $refreshToken): array;
+    public function refreshToken(string $refreshToken, array $context = []): array;
 
     /**
      * The POS account the token belongs to.
      *
      * @return array{id: string, name: string}
      */
-    public function account(string $accessToken): array;
+    public function account(string $accessToken, array $context = []): array;
 
     /** @return list<array{id: string, name: string}> */
-    public function locations(string $accessToken, string $accountId): array;
+    public function locations(string $accessToken, string $accountId, array $context = []): array;
 
     /** @return list<array{id: string, name: string}> */
-    public function paymentTypes(string $accessToken, string $accountId): array;
+    public function paymentTypes(string $accessToken, string $accountId, array $context = []): array;
 }

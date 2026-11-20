@@ -59,12 +59,13 @@ class PosConnectionService
     }
 
     /** Finish a connection: tokens, account, discovery. Returns the saved connection. */
-    public function complete(array $pending, string $authCode): TenantPosConnection
+    public function complete(array $pending, string $authCode, array $callback = []): TenantPosConnection
     {
         $code = $pending['code'];
         $adapter = $this->registry->make($code);
-        $tok = $adapter->exchangeCode($authCode, self::callbackUrl($code));
-        $acct = $adapter->account($tok['access_token']);
+        $tok = $adapter->exchangeCode($authCode, self::callbackUrl($code), $callback);
+        $ctx = (array) ($tok['context'] ?? []); // MARKER-POS-CONTEXT
+        $acct = $adapter->account($tok['access_token'], $ctx);
 
         $conn = TenantPosConnection::firstOrNew(['tenant_id' => $pending['tenant_id']]);
         $conn->fill([
@@ -75,6 +76,7 @@ class PosConnectionService
             'token_expires_at'      => $tok['expires_in'] ? now()->addSeconds($tok['expires_in']) : null,
             'external_account_id'   => $acct['id'],
             'external_account_name' => $acct['name'],
+            'context'               => $ctx,
             'connected_by'          => $pending['user_id'],
             'connected_at'          => now(),
             'last_error'            => null,
@@ -91,12 +93,13 @@ class PosConnectionService
         try {
             $adapter = $this->registry->make($conn->adapter_code);
             $token = $this->accessToken($conn);
-            $acct = $adapter->account($token);
+            $ctx = (array) ($conn->context ?? []);
+            $acct = $adapter->account($token, $ctx);
             $conn->fill([
                 'external_account_id'   => $acct['id'],
                 'external_account_name' => $acct['name'],
-                'locations'             => $adapter->locations($token, $acct['id']),
-                'payment_types'         => $adapter->paymentTypes($token, $acct['id']),
+                'locations'             => $adapter->locations($token, $acct['id'], $ctx),
+                'payment_types'         => $adapter->paymentTypes($token, $acct['id'], $ctx),
                 'status'                => 'connected',
                 'last_checked_at'       => now(),
                 'last_error'            => null,
@@ -128,7 +131,7 @@ class PosConnectionService
             if ($fresh()) {
                 return $conn->access_token;
             }
-            $tok = $this->registry->make($conn->adapter_code)->refreshToken($conn->refresh_token);
+            $tok = $this->registry->make($conn->adapter_code)->refreshToken($conn->refresh_token, (array) ($conn->context ?? []));
             $conn->fill([
                 'access_token'     => $tok['access_token'],
                 'refresh_token'    => $tok['refresh_token'] ?: $conn->refresh_token,

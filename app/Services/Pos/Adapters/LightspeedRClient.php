@@ -68,7 +68,7 @@ class LightspeedRClient implements PosAdapter
         ], '', '&', PHP_QUERY_RFC3986);
     }
 
-    public function exchangeCode(string $code, string $redirectUri): array
+    public function exchangeCode(string $code, string $redirectUri, array $callback = []): array
     {
         return $this->tokenCall([
             'client_id'     => $this->cfg->client_id,
@@ -79,7 +79,7 @@ class LightspeedRClient implements PosAdapter
         ]);
     }
 
-    public function refreshToken(string $refreshToken): array
+    public function refreshToken(string $refreshToken, array $context = []): array
     {
         return $this->tokenCall([
             'client_id'     => $this->cfg->client_id,
@@ -89,7 +89,7 @@ class LightspeedRClient implements PosAdapter
         ]);
     }
 
-    public function account(string $accessToken): array
+    public function account(string $accessToken, array $context = []): array
     {
         $body = $this->get($accessToken, rtrim($this->cfg->api_base, '/') . '.json');
         $acct = $this->rows($body['Account'] ?? null)[0] ?? null;
@@ -100,14 +100,14 @@ class LightspeedRClient implements PosAdapter
         return ['id' => (string) $acct['accountID'], 'name' => (string) ($acct['name'] ?? '')];
     }
 
-    public function locations(string $accessToken, string $accountId): array
+    public function locations(string $accessToken, string $accountId, array $context = []): array
     {
         $body = $this->get($accessToken, $this->url($accountId, 'Shop.json'), ['limit' => 100]);
 
         return $this->named($this->rows($body['Shop'] ?? null), 'shopID');
     }
 
-    public function paymentTypes(string $accessToken, string $accountId): array
+    public function paymentTypes(string $accessToken, string $accountId, array $context = []): array
     {
         $body = $this->get($accessToken, $this->url($accountId, 'PaymentType.json'), ['limit' => 100]);
 

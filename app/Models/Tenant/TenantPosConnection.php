@@ -19,7 +19,7 @@ class TenantPosConnection extends Model
 
     protected $fillable = [
         'tenant_id', 'adapter_code', 'status', 'access_token', 'refresh_token', 'token_expires_at',
-        'external_account_id', 'external_account_name', 'locations', 'payment_types',
+        'external_account_id', 'external_account_name', 'context', 'locations', 'payment_types',
         'connected_by', 'connected_at', 'last_checked_at', 'last_error',
     ];
 
@@ -32,6 +32,7 @@ class TenantPosConnection extends Model
         'connected_at'     => 'datetime',
         'last_checked_at'  => 'datetime',
         'locations'        => 'array',
+        'context'          => 'array', // MARKER-POS-CONTEXT
         'payment_types'    => 'array',
     ];
 

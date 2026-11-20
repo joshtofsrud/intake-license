@@ -14,6 +14,7 @@ class PosAdapterRegistry
     /** code => adapter class */
     private const ADAPTERS = [
         'lightspeed-r' => LightspeedRClient::class,
+        'lightspeed-x' => LightspeedXClient::class, // MARKER-POS-XSERIES
     ];
 
     /** @return list<string> */

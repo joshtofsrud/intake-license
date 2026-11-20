@@ -30,7 +30,7 @@ class PosOAuthCallbackController extends Controller
         }
 
         try {
-            $conn = $svc->complete($pending, (string) $request->query('code', ''));
+            $conn = $svc->complete($pending, (string) $request->query('code', ''), $request->query()); // MARKER-POS-CONTEXT
         } catch (Throwable $e) {
             \App\Support\JobFailureReporter::report(self::class, 'POS connect failed', $e, ['adapter' => $pending['code']], $pending['tenant_id']);
 
