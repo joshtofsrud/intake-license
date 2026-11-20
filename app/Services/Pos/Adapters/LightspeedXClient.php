@@ -268,7 +268,16 @@ class LightspeedXClient implements PosAdapter
         // MARKER-POS-X-CREATE-SAFE: already there (made by the shop, or by an earlier try that
         // stopped part-way)? Link to it rather than make a duplicate.
         if (filled($fields['sku'] ?? null)) {
-            $found = $this->get($accessToken, $base . '/products', ['sku' => (string) $fields['sku']])['data'] ?? [];
+            // the products lookup answers 404 "product not found" when no product has the SKU,
+            // which is the normal case for a new item, not an error
+            try {
+                $found = $this->get($accessToken, $base . '/products', ['sku' => (string) $fields['sku']])['data'] ?? [];
+            } catch (RuntimeException $e) {
+                if (! str_contains($e->getMessage(), 'HTTP 404')) {
+                    throw $e;
+                }
+                $found = [];
+            }
             $rows = is_array($found) ? (array_is_list($found) ? $found : [$found]) : [];
             foreach ($rows as $hit) {
                 // only a product whose own SKU or codes really match — never trust the filter alone
