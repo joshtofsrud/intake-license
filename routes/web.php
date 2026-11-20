@@ -563,6 +563,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 // MARKER-CONNECTED-POS-PUSH
                 Route::post('/storefront/pos/push-settings', [TenantControllers\PosConnectionController::class, 'pushSettings'])->name('storefront.pos.push_settings');
                 Route::post('/storefront/pos/resolve',       [TenantControllers\PosConnectionController::class, 'resolve'])->name('storefront.pos.resolve');
+                Route::post('/storefront/pos/stop-sends',    [TenantControllers\PosConnectionController::class, 'stopSends'])->name('storefront.pos.stop_sends'); // MARKER-POS-STOP-SENDS
                 Route::post('/storefront/pos/retry/{push}',  [TenantControllers\PosConnectionController::class, 'retry'])->name('storefront.pos.retry')->whereNumber('push');
                 Route::post('/storefront/pos/send-items',    [TenantControllers\PosConnectionController::class, 'sendItems'])->name('storefront.pos.send_items')->middleware('throttle:3,1');
                 // MARKER-ECOM-AVAILABILITY: what is for sale online / may be oversold

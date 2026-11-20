@@ -52,6 +52,7 @@ class PosAdapters extends Page implements HasForms
                 'token_url'     => $row->token_url,
                 'api_base'      => $row->api_base,
                 'redirect_uri'  => $row->redirect_uri,
+                'products_api_base' => $row->products_api_base,
             ];
         }
         $this->form->fill($fill);
@@ -88,6 +89,9 @@ class PosAdapters extends Page implements HasForms
                     // MARKER-POS-XSERIES: some POSes give every store its own host; {domain_prefix} stands in for it
                     TextInput::make('token_url')->label('Token URL')->helperText('May contain {domain_prefix} where each store has its own address.'),
                     TextInput::make('api_base')->label('API base URL')->columnSpanFull()->helperText('May contain {domain_prefix} where each store has its own address.'),
+                    // MARKER-POS-XSERIES-FAMILIES
+                    TextInput::make('products_api_base')->label('Products API base URL (creating and editing items)')->columnSpanFull()
+                        ->helperText('Only for a POS that writes products through a separate API version. Blank uses the adapter\'s default. May contain {domain_prefix}.'),
                 ]);
         }
 
@@ -109,6 +113,7 @@ class PosAdapters extends Page implements HasForms
                 'token_url'     => $in['token_url'] ?? null,
                 'api_base'      => $in['api_base'] ?? null,
                 'redirect_uri'  => $in['redirect_uri'] ?? null,
+                'products_api_base' => $in['products_api_base'] ?? null,
             ]);
             if (filled($in['client_secret'] ?? null)) {
                 $row->client_secret = $in['client_secret'];

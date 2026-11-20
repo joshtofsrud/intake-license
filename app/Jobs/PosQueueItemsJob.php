@@ -37,13 +37,20 @@ class PosQueueItemsJob implements ShouldQueue
                 ->whereNotIn('id', $linked)->whereNotIn('id', $queued)
                 ->select(['id', 'name'])->orderBy('id')
                 ->chunkById(200, function ($items) use ($push, $conn, &$done) {
+                    $conn?->refresh();
+                    if ($conn && ! ((($conn->sync_state ?? [])['send_items']['running'] ?? false))) {
+                        return false; // stopped by the shop (MARKER-POS-STOP-SENDS)
+                    }
                     foreach ($items as $i) {
                         $push->queue($this->tenantId, 'item_create', (string) $i->id, 'New item ' . $i->name);
                         $done++;
                     }
                     $this->progress($conn, ['queued' => $done]);
                 });
-            $this->progress($conn, ['queued' => $done, 'running' => false, 'finished_at' => now()->toIso8601String()]);
+            $conn?->refresh();
+            if ($conn && ((($conn->sync_state ?? [])['send_items']['running'] ?? false))) {
+                $this->progress($conn, ['queued' => $done, 'running' => false, 'finished_at' => now()->toIso8601String()]);
+            }
         } catch (Throwable $e) {
             $this->progress($conn, ['queued' => $done, 'running' => false, 'error' => mb_substr($e->getMessage(), 0, 300), 'finished_at' => now()->toIso8601String()]);
             JobFailureReporter::report(self::class, 'Queuing items for the Connected POS failed', $e, [], $this->tenantId);

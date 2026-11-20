@@ -65,8 +65,8 @@ class PosPushService
     public function run(int $pushId): void
     {
         $push = DB::table('tenant_pos_pushes')->find($pushId);
-        if (! $push || $push->status === 'done') {
-            return;
+        if (! $push || $push->status !== 'pending') {
+            return; // done, or stopped by the shop before its turn (MARKER-POS-STOP-SENDS)
         }
         $conn = self::connectionFor($push->tenant_id);
         if (! $conn) {

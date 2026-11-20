@@ -182,6 +182,25 @@ class PosConnectionController extends Controller
         return $this->back()->with('success', $data['keep'] === 'intake' ? 'Sent Intake\'s value to your Connected POS.' : 'Took your Connected POS\'s value into Intake.');
     }
 
+    /** MARKER-POS-STOP-SENDS: stop everything still waiting to send. Nothing already sent is touched. */
+    public function stopSends(): RedirectResponse
+    {
+        $this->guard();
+        $tid = tenant()->id;
+        $n = \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', $tid)->where('status', 'pending')
+            ->update(['status' => 'skipped', 'last_error' => 'Stopped by you before it was sent.', 'updated_at' => now()]);
+        $conn = TenantPosConnection::where('tenant_id', $tid)->first();
+        if ($conn && (($conn->sync_state ?? [])['send_items']['running'] ?? false)) {
+            $st = (array) $conn->sync_state;
+            $st['send_items']['running'] = false;
+            $st['send_items']['error'] = 'Stopped by you.';
+            $st['send_items']['finished_at'] = now()->toIso8601String();
+            $conn->forceFill(['sync_state' => $st])->save();
+        }
+
+        return $this->back()->with('success', $n ? 'Stopped ' . number_format($n) . ' sends. They show as Not sent; Retry or Send items not in my POS picks them up again.' : 'Nothing was waiting to send.');
+    }
+
     /** Try a failed send again. */
     public function retry(int $push): RedirectResponse
     {

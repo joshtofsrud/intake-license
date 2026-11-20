@@ -878,6 +878,10 @@
             <div class="w">Failed<b>{{ number_format($sendCounts['failed'] ?? 0) }}</b></div>
             <div>Not sent<b>{{ number_format($sendCounts['skipped'] ?? 0) }}</b></div>
           </div>
+          @if(($sendCounts['pending'] ?? 0) > 0 || ($prep['running'] ?? false))
+            {{-- MARKER-POS-STOP-SENDS --}}
+            <form method="POST" action="{{ route('tenant.storefront.pos.stop_sends') }}" style="margin-bottom:10px">@csrf<button class="ia-btn ia-btn--secondary ia-btn--sm" type="submit" data-confirm="Stop everything still waiting to send? Anything already sent stays in your Connected POS.">Stop pending sends</button></form>
+          @endif
         @endif
         @forelse($pos['sends'] as $sd)
           <div class="ec-row">

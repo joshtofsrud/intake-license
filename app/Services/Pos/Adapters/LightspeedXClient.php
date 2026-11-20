@@ -33,6 +33,8 @@ class LightspeedXClient implements PosAdapter
             'authorize_url' => 'https://secure.retail.lightspeed.app/connect',
             'token_url'     => 'https://{domain_prefix}.retail.lightspeed.app/api/1.0/token',
             'api_base'      => 'https://{domain_prefix}.retail.lightspeed.app/api/2.0',
+            // MARKER-POS-XSERIES-FAMILIES: where products are created and edited
+            'products_api_base' => 'https://{domain_prefix}.retail.lightspeed.app/api/2026-10',
         ];
     }
 
@@ -253,14 +255,31 @@ class LightspeedXClient implements PosAdapter
         return (string) $rs['id'];
     }
 
+    /**
+     * MARKER-POS-XSERIES-FAMILIES: products are created and edited through the
+     * date-versioned product-family API (the old /api/products endpoints were
+     * removed). A plain item is a STANDARD family with one product: the family
+     * holds name and description, the product holds codes and price.
+     */
     public function createItem(string $accessToken, string $accountId, array $context, array $fields): string
     {
-        $res = $this->send('post', $accessToken, $this->root($this->ctxPrefix($context)) . '/products', $this->productPayload($fields) + [
-            'handle' => \Illuminate\Support\Str::slug(($fields['name'] ?? 'item') . '-' . ($fields['sku'] ?? \Illuminate\Support\Str::random(5))),
-        ]);
-        $id = $res['product']['id'] ?? $res['data']['id'] ?? $res['id'] ?? null;
+        $base = $this->productsBase($this->ctxPrefix($context));
+        $family = array_filter([
+            'name'           => (string) ($fields['name'] ?: ($fields['sku'] ?? 'Item')),
+            'classification' => 'STANDARD',
+            'description'    => filled($fields['description'] ?? null) ? (string) $fields['description'] : null,
+            'products'       => [['codes' => $this->codes($fields)]],
+        ], fn ($v) => $v !== null);
+
+        $res = $this->send('post', $accessToken, $base . '/product_families', $family);
+        $id = $res['data']['product_ids'][0] ?? null;
         if (! $id) {
-            throw new \RuntimeException('The POS did not return the new item.');
+            throw new RuntimeException('The POS did not return the new item.');
+        }
+        if (isset($fields['price_cents']) && $fields['price_cents'] !== null) {
+            $this->send('patch', $accessToken, $base . '/products/' . rawurlencode((string) $id), [
+                'prices' => ['price_excluding_tax' => number_format($fields['price_cents'] / 100, 2, '.', '')],
+            ]);
         }
 
         return (string) $id;
@@ -268,7 +287,28 @@ class LightspeedXClient implements PosAdapter
 
     public function updateItem(string $accessToken, string $accountId, array $context, string $itemId, array $fields): void
     {
-        $this->send('post', $accessToken, $this->root($this->ctxPrefix($context)) . '/products', ['id' => $itemId] + $this->productPayload($fields));
+        $base = $this->productsBase($this->ctxPrefix($context));
+
+        // family-level: name, description
+        $fam = array_intersect_key($fields, ['name' => 1, 'description' => 1]);
+        if ($fam) {
+            $familyId = $this->get($accessToken, $base . '/products/' . rawurlencode($itemId) . '/family')['data']['id'] ?? null;
+            if (! $familyId) {
+                throw new RuntimeException('The POS did not say which product family this item belongs to.');
+            }
+            $this->send('patch', $accessToken, $base . '/product_families/' . rawurlencode((string) $familyId), $fam);
+        }
+
+        // product-level: codes are replaced as a whole, so send the full set
+        if (array_key_exists('sku', $fields) || array_key_exists('upc', $fields)) {
+            $cur = $this->getItem($accessToken, $accountId, $context, $itemId) ?? [];
+            $codes = $this->codes([
+                'sku' => array_key_exists('sku', $fields) ? $fields['sku'] : ($cur['sku'] ?? null),
+                'upc' => array_key_exists('upc', $fields) ? $fields['upc'] : ($cur['upc'] ?? null),
+                'ean' => $cur['ean'] ?? null,
+            ]);
+            $this->send('patch', $accessToken, $base . '/products/' . rawurlencode($itemId), ['codes' => $codes]);
+        }
     }
 
     public function getItem(string $accessToken, string $accountId, array $context, string $itemId): ?array
@@ -285,31 +325,31 @@ class LightspeedXClient implements PosAdapter
         return is_array($d) && isset($d['id']) ? $this->mapProduct($d) : null;
     }
 
-    private function productPayload(array $f): array
+    /** SKU as the store's own code, plus any barcodes. At least one code is required. */
+    private function codes(array $f): array
     {
-        $out = [];
-        foreach (['name' => 'name', 'sku' => 'sku', 'description' => 'description'] as $k => $api) {
-            if (array_key_exists($k, $f)) {
-                $out[$api] = (string) ($f[$k] ?? '');
-            }
-        }
-        if (array_key_exists('price_cents', $f) && $f['price_cents'] !== null) {
-            $out['retail_price'] = round($f['price_cents'] / 100, 2);
-        }
         $codes = [];
+        if (filled($f['sku'] ?? null)) {
+            $codes[] = ['type' => 'CUSTOM', 'code' => (string) $f['sku']];
+        }
         foreach (['upc' => 'UPC', 'ean' => 'EAN'] as $k => $type) {
-            if (! empty($f[$k])) {
+            if (filled($f[$k] ?? null)) {
                 $codes[] = ['type' => $type, 'code' => (string) $f[$k]];
             }
         }
-        if ($codes) {
-            $out['product_codes'] = $codes;
-        }
-        if (! empty($f['mpn'])) {
-            $out['supplier_code'] = (string) $f['mpn'];
+        if (! $codes) {
+            $codes[] = ['type' => 'CUSTOM', 'code' => 'INTAKE-' . strtoupper(\Illuminate\Support\Str::random(8))];
         }
 
-        return $out;
+        return $codes;
+    }
+
+    /** The products API base (master admin), with the store's prefix filled in. */
+    private function productsBase(string $prefix): string
+    {
+        $tpl = (string) ($this->cfg->products_api_base ?: self::defaults()['products_api_base']);
+
+        return rtrim($this->fill($tpl, $prefix), '/');
     }
 
     private function ctxPrefix(array $context): string

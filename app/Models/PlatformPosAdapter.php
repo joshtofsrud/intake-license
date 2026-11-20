@@ -17,6 +17,7 @@ class PlatformPosAdapter extends Model
     protected $fillable = [
         'code', 'label', 'is_active', 'client_id', 'client_secret',
         'scopes', 'authorize_url', 'token_url', 'api_base', 'redirect_uri', // MARKER-POS-CALLBACK
+        'products_api_base', // MARKER-POS-XSERIES-FAMILIES
     ];
 
     protected $casts = [
@@ -38,6 +39,7 @@ class PlatformPosAdapter extends Model
             'authorize_url' => $d['authorize_url'] ?? null,
             'token_url'     => $d['token_url'] ?? null,
             'api_base'      => $d['api_base'] ?? null,
+            'products_api_base' => $d['products_api_base'] ?? null,
         ]);
     }
 
