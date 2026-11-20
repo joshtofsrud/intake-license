@@ -38,8 +38,14 @@ class PosPushService
         return TenantPosConnection::where('tenant_id', $tenantId)->where('status', 'connected')->first();
     }
 
-    /** Queue a send once; returns the push row (existing one when already queued or done). */
-    public function queue(string $tenantId, string $kind, string $refId, string $label): object
+    /**
+     * Queue a send once; returns the push row (existing one when already queued or done).
+     *
+     * MARKER-POS-DRAIN: a send is only a row. One paced worker per shop (PosDrainJob)
+     * works through that shop's rows — never one queue job per send, which flooded the
+     * shared queue and stalled everything behind it.
+     */
+    public function queue(string $tenantId, string $kind, string $refId, string $label, bool $kick = true): object
     {
         $row = DB::table('tenant_pos_pushes')->where('tenant_id', $tenantId)->where('kind', $kind)->where('ref_id', $refId)->first();
         if (! $row) {
@@ -50,18 +56,76 @@ class PosPushService
             $row = DB::table('tenant_pos_pushes')->find($id);
         } elseif (($kind === 'item_update' && $row->status !== 'pending') || in_array($row->status, ['failed', 'skipped'], true)) {
             // an item can change many times, and a failed send asked for again gets another go
-            DB::table('tenant_pos_pushes')->where('id', $row->id)->update(['status' => 'pending', 'last_error' => null, 'updated_at' => now()]);
+            DB::table('tenant_pos_pushes')->where('id', $row->id)->update(['status' => 'pending', 'attempts' => 0, 'last_error' => null, 'updated_at' => now()]);
             $row->status = 'pending';
         }
-        if ($row->status === 'pending') {
-            // a refund's lines are written just after the refund itself; give them a moment
-            \App\Jobs\PosPushJob::dispatch((int) $row->id)->afterCommit()->delay(now()->addSeconds($kind === 'refund' ? 15 : 3));
+        if ($kick && $row->status === 'pending') {
+            self::kick($tenantId, $kind === 'refund' ? 15 : 2);
         }
 
         return $row;
     }
 
-    /** Run one send. Throws on failure (the job records it). */
+    /** Make sure this shop's worker is coming (at most one waiting at a time). */
+    public static function kick(string $tenantId, int $delaySeconds = 2): void
+    {
+        if (\Illuminate\Support\Facades\Cache::add('pos_drain_queued:' . $tenantId, 1, 120)) {
+            \App\Jobs\PosDrainJob::dispatch($tenantId)->afterCommit()->delay(now()->addSeconds($delaySeconds));
+        }
+    }
+
+    /**
+     * Work through this shop's waiting sends for up to ~90 seconds: orders first,
+     * then edits, then new items. A send that fails waits longer before each try
+     * (1, then 5 minutes) and is marked Failed after 3 tries.
+     *
+     * @return bool true when sends are still waiting
+     */
+    public function drain(string $tenantId): bool
+    {
+        $until = microtime(true) + 90;
+        $failedNow = 0;
+        while (microtime(true) < $until) {
+            $row = DB::table('tenant_pos_pushes')->where('tenant_id', $tenantId)->where('status', 'pending')
+                ->where(fn ($q) => $q->where('attempts', 0)
+                    ->orWhere(fn ($q) => $q->where('attempts', 1)->where('updated_at', '<', now()->subMinute()))
+                    ->orWhere(fn ($q) => $q->where('attempts', '>=', 2)->where('updated_at', '<', now()->subMinutes(5))))
+                ->orderByRaw("CASE kind WHEN 'sale' THEN 0 WHEN 'refund' THEN 1 WHEN 'item_update' THEN 2 ELSE 3 END")->orderBy('id')
+                ->first();
+            if (! $row) {
+                break;
+            }
+            try {
+                $this->run((int) $row->id);
+            } catch (\Throwable $e) {
+                $attempts = (int) DB::table('tenant_pos_pushes')->where('id', $row->id)->value('attempts');
+                if ($attempts >= 3) {
+                    $this->mark((int) $row->id, 'failed', null, $e->getMessage());
+                    $failedNow++;
+                    if ($failedNow === 1 || in_array($row->kind, ['sale', 'refund'], true)) {
+                        // one Issue per run for items (not one per item); every order or refund that fails is reported
+                        \App\Support\JobFailureReporter::report(\App\Jobs\PosDrainJob::class, 'Connected POS send failed: ' . $row->label, $e, ['push' => $row->id], $tenantId);
+                    }
+                } else {
+                    DB::table('tenant_pos_pushes')->where('id', $row->id)->update(['last_error' => Str::limit($e->getMessage(), 900), 'updated_at' => now()]);
+                }
+            }
+        }
+
+        return DB::table('tenant_pos_pushes')->where('tenant_id', $tenantId)->where('status', 'pending')->exists();
+    }
+
+    /** Active items for sale online that aren't in the Connected POS and aren't already on their way. */
+    public function unsentOnlineQuery(string $tenantId)
+    {
+        $linked = DB::table('tenant_pos_items')->where('tenant_id', $tenantId)->whereNotNull('inventory_item_id')->whereNull('removed_at')->select('inventory_item_id');
+        $queued = DB::table('tenant_pos_pushes')->where('tenant_id', $tenantId)->where('kind', 'item_create')->whereIn('status', ['pending', 'done'])->select('ref_id');
+
+        return TenantInventoryItem::where('tenant_id', $tenantId)->where('is_active', true)->where('show_online', true)
+            ->whereNotIn('id', $linked)->whereNotIn('id', $queued);
+    }
+
+    /** Run one send. Throws on failure (the drain records it). */
     public function run(int $pushId): void
     {
         $push = DB::table('tenant_pos_pushes')->find($pushId);
@@ -73,7 +137,7 @@ class PosPushService
             $this->mark($pushId, 'skipped', null, 'No Connected POS is connected.');
             return;
         }
-        DB::table('tenant_pos_pushes')->where('id', $pushId)->increment('attempts');
+        DB::table('tenant_pos_pushes')->where('id', $pushId)->update(['attempts' => DB::raw('attempts + 1'), 'updated_at' => now()]);
 
         $external = match ($push->kind) {
             'sale'        => $this->sendSale($conn, TenantOrder::where('tenant_id', $conn->tenant_id)->findOrFail($push->ref_id)),

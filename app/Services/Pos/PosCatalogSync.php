@@ -42,6 +42,7 @@ class PosCatalogSync
         $st = (array) ($conn->sync_state ?? []);
         $st = array_merge($st, [
             'running'     => true,
+            'stopped'     => false,
             'full'        => $full,
             'phase'       => 'items',
             'started_at'  => now()->toIso8601String(),

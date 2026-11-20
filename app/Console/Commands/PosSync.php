@@ -23,6 +23,9 @@ class PosSync extends Command
         $full = (bool) $this->option('full');
         TenantPosConnection::where('sync_enabled', true)->where('status', 'connected')->each(function (TenantPosConnection $conn) use ($sync, $full) {
             $st = (array) ($conn->sync_state ?? []);
+            if ($st['stopped'] ?? false) {
+                return; // MARKER-POS-STOP-RESUME: the shop stopped it; Resume restarts it
+            }
             $stuck = ($st['running'] ?? false) && $conn->updated_at && $conn->updated_at->lt(now()->subMinutes(15));
             if (($st['running'] ?? false) && ! $stuck) {
                 return;

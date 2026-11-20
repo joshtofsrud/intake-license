@@ -2,20 +2,18 @@
 
 namespace App\Jobs;
 
-use App\Models\Tenant\TenantInventoryItem;
 use App\Services\Pos\PosPushService;
 use App\Support\JobFailureReporter;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
-use Illuminate\Support\Facades\DB;
 use Throwable;
 
 /**
- * MARKER-POS-SEND-ITEMS-BG: queues "create in the Connected POS" for every active
- * item not there yet, in the background — doing it inside the click timed out
- * (504) on a large inventory. Each item becomes its own send under Recent sends.
+ * MARKER-POS-SEND-ITEMS-BG: queues "create in the Connected POS" for every item the
+ * shop sells online that isn't there yet, in the background (doing it inside the
+ * click timed out). Each item is a row; the shop's one PosDrainJob sends them.
  */
 class PosQueueItemsJob implements ShouldQueue
 {
@@ -31,10 +29,7 @@ class PosQueueItemsJob implements ShouldQueue
         $conn = \App\Models\Tenant\TenantPosConnection::where('tenant_id', $this->tenantId)->first();
         $done = 0;
         try {
-            $linked = DB::table('tenant_pos_items')->where('tenant_id', $this->tenantId)->whereNotNull('inventory_item_id')->whereNull('removed_at')->select('inventory_item_id');
-            $queued = DB::table('tenant_pos_pushes')->where('tenant_id', $this->tenantId)->where('kind', 'item_create')->whereIn('status', ['pending', 'done'])->select('ref_id');
-            TenantInventoryItem::where('tenant_id', $this->tenantId)->where('is_active', true)
-                ->whereNotIn('id', $linked)->whereNotIn('id', $queued)
+            $push->unsentOnlineQuery($this->tenantId)  // MARKER-POS-TAB-V2: items sold online only
                 ->select(['id', 'name'])->orderBy('id')
                 ->chunkById(200, function ($items) use ($push, $conn, &$done) {
                     $conn?->refresh();
@@ -42,9 +37,10 @@ class PosQueueItemsJob implements ShouldQueue
                         return false; // stopped by the shop (MARKER-POS-STOP-SENDS)
                     }
                     foreach ($items as $i) {
-                        $push->queue($this->tenantId, 'item_create', (string) $i->id, 'New item ' . $i->name);
+                        $push->queue($this->tenantId, 'item_create', (string) $i->id, 'New item ' . $i->name, false);
                         $done++;
                     }
+                    PosPushService::kick($this->tenantId); // MARKER-POS-DRAIN: one worker, not one job per item
                     $this->progress($conn, ['queued' => $done]);
                 });
             $conn?->refresh();

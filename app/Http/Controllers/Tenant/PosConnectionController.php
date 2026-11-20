@@ -201,38 +201,105 @@ class PosConnectionController extends Controller
         return $this->back()->with('success', $n ? 'Stopped ' . number_format($n) . ' sends. They show as Not sent; Retry or Send items not in my POS picks them up again.' : 'Nothing was waiting to send.');
     }
 
+    /** MARKER-POS-STOP-RESUME: stop an import where it is; it keeps its place. */
+    public function importStop(): RedirectResponse
+    {
+        $this->guard();
+        $conn = TenantPosConnection::where('tenant_id', tenant()->id)->firstOrFail();
+        $st = (array) ($conn->sync_state ?? []);
+        $st['running'] = false;
+        $st['stopped'] = true;
+        $st['finished_at'] = now()->toIso8601String();
+        $conn->forceFill(['sync_state' => $st])->save();
+
+        return $this->back()->with('success', 'Import stopped after page ' . number_format($st['pages'] ?? 0) . '. Automatic sync is paused too. Resume carries on from there.');
+    }
+
+    /** Carry on a stopped import from its saved place (and switch automatic sync back on). */
+    public function importResume(): RedirectResponse
+    {
+        $this->guard();
+        $conn = TenantPosConnection::where('tenant_id', tenant()->id)->firstOrFail();
+        if (! $conn->sync_enabled) {
+            return $this->back()->with('error', 'Turn on Bring in products and save first.');
+        }
+        $st = (array) ($conn->sync_state ?? []);
+        $st['running'] = true;
+        $st['stopped'] = false;
+        $st['error'] = null;
+        $st['finished_at'] = null;
+        $st['phase'] = ($st['phase'] ?? 'done') === 'done' ? 'items' : $st['phase'];
+        $conn->forceFill(['sync_state' => $st])->save();
+        \App\Jobs\PosCatalogSyncJob::dispatch($conn->id);
+
+        return $this->back()->with('success', 'Import resumed from page ' . number_format($st['pages'] ?? 0) . '.');
+    }
+
+    /** Put stopped sends back in line — only those; nothing already sent goes again. */
+    public function sendsResume(): RedirectResponse
+    {
+        $this->guard();
+        $tid = tenant()->id;
+        $n = \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', $tid)->where('status', 'skipped')
+            ->update(['status' => 'pending', 'attempts' => 0, 'last_error' => null, 'updated_at' => now()]);
+        if ($n) {
+            \App\Services\Pos\PosPushService::kick($tid);
+        }
+
+        return $this->back()->with('success', $n ? 'Resumed ' . number_format($n) . ' sends from where they stopped.' : 'Nothing was stopped.');
+    }
+
     /** Try a failed send again. */
     public function retry(int $push): RedirectResponse
     {
         $this->guard();
         $row = \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', tenant()->id)->where('id', $push)->first();
         abort_unless($row, 404);
-        \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('id', $row->id)->update(['status' => 'pending', 'last_error' => null, 'updated_at' => now()]);
-        \App\Jobs\PosPushJob::dispatch((int) $row->id);
+        \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('id', $row->id)->update(['status' => 'pending', 'attempts' => 0, 'last_error' => null, 'updated_at' => now()]);
+        \App\Services\Pos\PosPushService::kick($row->tenant_id); // MARKER-POS-DRAIN
 
         return $this->back()->with('success', 'Sending again — the list below updates as it goes.');
     }
 
-    /** Create every active Intake item that isn't in the Connected POS yet (queued in the background — MARKER-POS-SEND-ITEMS-BG). */
-    public function sendItems(): RedirectResponse
+    /**
+     * MARKER-POS-TAB-V2: send the items you sell online that aren't in the Connected POS yet.
+     * Only for-sale-online items — never the whole catalog. Queued in the background.
+     */
+    public function sendItems(\App\Services\Pos\PosPushService $push): RedirectResponse
     {
         $this->guard();
         $conn = TenantPosConnection::where('tenant_id', tenant()->id)->where('status', 'connected')->firstOrFail();
-        $linked = \Illuminate\Support\Facades\DB::table('tenant_pos_items')->where('tenant_id', $conn->tenant_id)->whereNotNull('inventory_item_id')->whereNull('removed_at')->select('inventory_item_id');
-        $queued = \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', $conn->tenant_id)->where('kind', 'item_create')->whereIn('status', ['pending', 'done'])->select('ref_id');
-        $n = \App\Models\Tenant\TenantInventoryItem::where('tenant_id', $conn->tenant_id)->where('is_active', true)->whereNotIn('id', $linked)->whereNotIn('id', $queued)->count();
+        $n = $push->unsentOnlineQuery($conn->tenant_id)->count();
         if (! $n) {
-            return $this->back()->with('success', 'Every active item is already in your Connected POS or on its way.');
+            return $this->back()->with('success', 'Every item you sell online is already in your Connected POS or on its way.');
         }
         $st = (array) ($conn->sync_state ?? []);
         if (($st['send_items']['running'] ?? false) && $conn->updated_at?->gt(now()->subMinutes(20))) {
-            return $this->back()->with('success', 'Items are already being prepared — progress is shown under Recent sends.');
+            return $this->back()->with('success', 'Items are already being prepared — progress is shown under Sending.');
         }
         $st['send_items'] = ['running' => true, 'total' => $n, 'queued' => 0, 'error' => null, 'started_at' => now()->toIso8601String(), 'finished_at' => null];
         $conn->forceFill(['sync_state' => $st])->save();
         \App\Jobs\PosQueueItemsJob::dispatch($conn->tenant_id);
 
-        return $this->back()->with('success', 'Sending ' . number_format($n) . ' items in the background — the counts under Recent sends update as they go.');
+        return $this->back()->with('success', 'Sending ' . number_format($n) . ' online items to your Connected POS — progress is shown under Sending.');
+    }
+
+    /** Remove stopped and skipped sends from the list (nothing in the POS changes). */
+    public function clearStopped(): RedirectResponse
+    {
+        $this->guard();
+        $n = \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', tenant()->id)->where('status', 'skipped')->delete();
+
+        return $this->back()->with('success', $n ? 'Cleared ' . number_format($n) . ' stopped sends from the list.' : 'Nothing to clear.');
+    }
+
+    /** Remove failed sends from the list after you've looked at them (nothing in the POS changes). */
+    public function clearFailed(): RedirectResponse
+    {
+        $this->guard();
+        $n = \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', tenant()->id)->where('status', 'failed')->whereIn('kind', ['item_create', 'item_update'])->delete();
+
+        return $this->back()->with('success', $n ? 'Cleared ' . number_format($n) . ' failed item sends. Orders and refunds that failed stay until they are sent.' : 'Nothing to clear.');
     }
 
     public function disconnect(PosConnectionService $svc): RedirectResponse

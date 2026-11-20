@@ -563,6 +563,11 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 // MARKER-CONNECTED-POS-PUSH
                 Route::post('/storefront/pos/push-settings', [TenantControllers\PosConnectionController::class, 'pushSettings'])->name('storefront.pos.push_settings');
                 Route::post('/storefront/pos/resolve',       [TenantControllers\PosConnectionController::class, 'resolve'])->name('storefront.pos.resolve');
+                Route::post('/storefront/pos/import-stop',   [TenantControllers\PosConnectionController::class, 'importStop'])->name('storefront.pos.import_stop'); // MARKER-POS-STOP-RESUME
+                Route::post('/storefront/pos/import-resume', [TenantControllers\PosConnectionController::class, 'importResume'])->name('storefront.pos.import_resume');
+                Route::post('/storefront/pos/sends-resume',  [TenantControllers\PosConnectionController::class, 'sendsResume'])->name('storefront.pos.sends_resume');
+                Route::post('/storefront/pos/clear-stopped', [TenantControllers\PosConnectionController::class, 'clearStopped'])->name('storefront.pos.clear_stopped'); // MARKER-POS-TAB-V2
+                Route::post('/storefront/pos/clear-failed',  [TenantControllers\PosConnectionController::class, 'clearFailed'])->name('storefront.pos.clear_failed');
                 Route::post('/storefront/pos/stop-sends',    [TenantControllers\PosConnectionController::class, 'stopSends'])->name('storefront.pos.stop_sends'); // MARKER-POS-STOP-SENDS
                 Route::post('/storefront/pos/retry/{push}',  [TenantControllers\PosConnectionController::class, 'retry'])->name('storefront.pos.retry')->whereNumber('push');
                 Route::post('/storefront/pos/send-items',    [TenantControllers\PosConnectionController::class, 'sendItems'])->name('storefront.pos.send_items')->middleware('throttle:3,1');

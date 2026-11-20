@@ -29,7 +29,7 @@ class LightspeedXClient implements PosAdapter
     {
         return [
             'label'         => 'Lightspeed Retail (X-Series)',
-            'scopes'        => 'retailer:read outlets:read payment_types:read products:read products:write inventory:read inventory:write customers:read customers:write sales:read sales:write webhooks',
+            'scopes'        => 'retailer:read outlets:read registers:read users:read taxes:read payment_types:read products:read products:write inventory:read inventory:write customers:read customers:write sales:read sales:write webhooks',
             'authorize_url' => 'https://secure.retail.lightspeed.app/connect',
             'token_url'     => 'https://{domain_prefix}.retail.lightspeed.app/api/1.0/token',
             'api_base'      => 'https://{domain_prefix}.retail.lightspeed.app/api/2.0',

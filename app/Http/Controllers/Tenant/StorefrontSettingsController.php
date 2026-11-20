@@ -73,8 +73,12 @@ class StorefrontSettingsController extends Controller
                 ->join('tenant_inventory_items as i', 'i.id', '=', 'p.inventory_item_id')
                 ->where('p.tenant_id', $tenant->id)->whereNotNull('p.conflict')
                 ->orderBy('i.name')->limit(100)->get(['p.id', 'p.conflict', 'i.id as item_id', 'i.name as item_name']) : collect(),
-            'sends'     => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', $tenant->id)
-                ->orderByRaw("FIELD(status, 'failed', 'pending', 'done', 'skipped')")->orderByDesc('updated_at')->limit(25)->get() : collect(),
+            // MARKER-POS-TAB-V2: what the Recent sends and send-button areas show
+            'counts'    => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', $tenant->id)->selectRaw('status, count(*) n')->groupBy('status')->pluck('n', 'status') : collect(),
+            'problems'  => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', $tenant->id)->where('status', 'failed')->orderByDesc('updated_at')->limit(10)->get() : collect(),
+            'latest'    => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', $tenant->id)->whereIn('status', ['pending', 'done'])->orderByDesc('updated_at')->limit(8)->get() : collect(),
+            'linked'    => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_items')->where('tenant_id', $tenant->id)->whereNotNull('inventory_item_id')->whereNull('removed_at')->count() : 0,
+            'unsent_online' => $posConn ? app(\App\Services\Pos\PosPushService::class)->unsentOnlineQuery($tenant->id)->count() : 0,
         ];
 
         return view('tenant.storefront.settings', [
