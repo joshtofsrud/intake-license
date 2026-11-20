@@ -43,6 +43,6 @@ class TenantPosConnection extends Model
 
     public function connectedByUser(): BelongsTo
     {
-        return $this->belongsTo(\App\Models\TenantUser::class, 'connected_by');
+        return $this->belongsTo(\App\Models\Tenant\TenantUser::class, 'connected_by');
     }
 }
