@@ -9,6 +9,7 @@ use App\Models\Tenant\TenantSiteHealth;
 use App\Models\Tenant\TenantSiteIssue;
 use App\Support\ItemSeo;
 use App\Support\Seo;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 
@@ -294,7 +295,11 @@ class SiteChecker
         if ($st['item_cursor'] !== null) {
             $q->where('id', '>', $st['item_cursor']);
         }
+        // a step that died after writing its items but before saving its place is read again: clear what it wrote
+        $stale = DB::table('tenant_site_issue_items')->where('tenant_id', $tenant->id)->where('run', $st['run']);
+        $st['item_cursor'] !== null ? $stale->where('item_id', '>', $st['item_cursor'])->delete() : $stale->delete();
         $items = $q->get();
+        $behind = []; // every item behind an item row, so the page can list all of them
 
         foreach ($items as $item) {
             $st['item_cursor'] = (string) $item->id;
@@ -306,6 +311,7 @@ class SiteChecker
             $st['w_total'] += self::WEIGHT['medium'];
             $shown = array_filter($item->displayImages(3), fn ($i) => ! ($i['hidden'] ?? false));
             if (! $shown) {
+                $behind[] = ['tenant_id' => $tenant->id, 'code' => 'items_no_photo', 'cat' => $cat, 'item_id' => (string) $item->id, 'n' => 0, 'run' => $st['run']];
                 $st['cats'][$cat]['photo_n']++;
                 if (count($st['cats'][$cat]['photo']) < 8) {
                     $st['cats'][$cat]['photo'][] = ['id' => (string) $item->id, 'name' => Str::limit($item->name, 60)];
@@ -316,11 +322,16 @@ class SiteChecker
             $text = ItemSeo::plain($item->seo_description) ?: (ItemSeo::plain($item->description) ?: ItemSeo::plain($item->display_subtitle));
             $words = $text === '' ? 0 : count(preg_split('/\s+/u', $text));
             if ($words < self::ITEM_WORDS_MIN) {
+                $behind[] = ['tenant_id' => $tenant->id, 'code' => 'items_few_words', 'cat' => $cat, 'item_id' => (string) $item->id, 'n' => min(65000, $words), 'run' => $st['run']];
                 $st['cats'][$cat]['words_n']++;
                 if (count($st['cats'][$cat]['words']) < 8) {
                     $st['cats'][$cat]['words'][] = ['id' => (string) $item->id, 'name' => Str::limit($item->name, 60), 'words' => $words];
                 }
             }
+        }
+
+        foreach (array_chunk($behind, 200) as $chunk) {
+            DB::table('tenant_site_issue_items')->insert($chunk);
         }
 
         if ($items->count() < self::ITEMS_PER_STEP) {
@@ -418,6 +429,7 @@ class SiteChecker
     private function finish(Tenant $tenant, TenantSiteHealth $h, array $st): void
     {
         TenantSiteIssue::where('tenant_id', $tenant->id)->where('run', '<', $st['run'])->delete();
+        DB::table('tenant_site_issue_items')->where('tenant_id', $tenant->id)->where('run', '<', $st['run'])->delete();
 
         $base = rtrim($tenant->publicUrl(), '/');
         $loc = TenantLocation::where('tenant_id', $tenant->id)->where('is_active', true)->orderByDesc('is_default')->orderBy('sort_order')->first();

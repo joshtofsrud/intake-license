@@ -73,19 +73,23 @@
 
 @else
   @if ($r['code'] === 'items_no_photo')
-    <div class="sh-phs">
+    <div class="sh-phs" data-sh-items="photo">
       @foreach (($d['items'] ?? []) as $it)
         <a class="sh-ph" href="{{ route('tenant.inventory.edit', $it['id']) }}"><span></span><em>{{ $it['name'] }}</em></a>
       @endforeach
-      @if (($d['n'] ?? 0) > count($d['items'] ?? []))<span class="sh-ph more"><span>+{{ number_format($d['n'] - count($d['items'])) }}</span><em>more in this category</em></span>@endif
     </div>
+    @if (($d['n'] ?? 0) > count($d['items'] ?? []))
+      <button type="button" class="sh-more" data-sh-more="{{ route('tenant.site_health.items', $r['id']) }}" data-shown="{{ count($d['items']) }}" data-total="{{ $d['n'] }}">Show more · {{ count($d['items']) }} of {{ number_format($d['n']) }}</button>
+    @endif
   @elseif ($r['code'] === 'items_few_words')
-    <ul class="sh-items">
+    <ul class="sh-items" data-sh-items="words">
       @foreach (($d['items'] ?? []) as $it)
         <li><a href="{{ route('tenant.inventory.edit', $it['id']) }}">{{ $it['name'] }}</a><span>{{ $it['words'] ? $it['words'] . ' ' . \Illuminate\Support\Str::plural('word', $it['words']) : 'no description' }}</span></li>
       @endforeach
-      @if (($d['n'] ?? 0) > count($d['items'] ?? []))<li class="more">+{{ number_format($d['n'] - count($d['items'])) }} more in this category</li>@endif
     </ul>
+    @if (($d['n'] ?? 0) > count($d['items'] ?? []))
+      <button type="button" class="sh-more" data-sh-more="{{ route('tenant.site_health.items', $r['id']) }}" data-shown="{{ count($d['items']) }}" data-total="{{ $d['n'] }}">Show more · {{ count($d['items']) }} of {{ number_format($d['n']) }}</button>
+    @endif
   @elseif ($r['code'] === 'dead_links')
     <ul class="sh-items">
       @foreach (($d['links'] ?? []) as $l)

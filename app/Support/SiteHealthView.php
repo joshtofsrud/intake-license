@@ -36,7 +36,7 @@ class SiteHealthView
 
             return [
                 'id' => $i->id, 'grp' => $i->grp, 'code' => $i->code, 'kind' => $i->kind, 'label' => $i->label, 'path' => $i->path,
-                'problem' => $i->problem, 'impact' => $i->impact, 'status' => $i->status, 'detail' => $d,
+                'problem' => $i->problem, 'impact' => $i->impact, 'status' => $i->status, 'detail' => $d, 'weight' => (int) $i->weight,
                 'visits' => $i->path !== null ? ($visits[$i->path] ?? null) : null,
                 'page' => $page, 'field' => $field, 'items' => $i->subject_type === 'items',
                 'now' => $field === 'title' ? (string) ($page->meta_title ?: $page->title) : ($field === 'description' ? (string) $page->meta_description : null),
@@ -74,6 +74,26 @@ class SiteHealthView
         ];
     }
 
+    /** In a few plain sentences: what the score is made of and what would raise it most. */
+    public static function scoreTip(TenantSiteHealth $h, $open): string
+    {
+        $total = max(1, (int) $h->weight_total);
+        $lost = (int) $open->sum('weight');
+        $high = $open->where('impact', 'high');
+        $s = $h->score . ' out of 100. Every check on every page and item counts toward it, and high impact ones count most. ';
+        if ($open->isEmpty()) {
+            return $s . 'Nothing is open, so there is nothing to raise right now.';
+        }
+        if ($high->isNotEmpty()) {
+            $after = (int) max(0, min(100, round(100 * (1 - ($lost - (int) $high->sum('weight')) / $total))));
+
+            return $s . 'Fixing your ' . $high->count() . ' high impact ' . Str::plural('row', $high->count()) . ' would take it to about ' . $after . '.';
+        }
+        $top = $open->sortByDesc('weight')->first();
+
+        return $s . 'The row that would raise it most is "' . $top['problem'] . '" on ' . $top['label'] . '.';
+    }
+
     /** What a running check has found so far: rows by kind, and items counted but not yet written up as rows. */
     public static function live(array $st, array $counts): array
     {
@@ -102,7 +122,7 @@ class SiteHealthView
         $dates = array_map(fn ($r) => (string) $r[0], (array) ($h->history ?? []));
         $cur = count($hist) > 1 ? $hist : [(int) $h->score, (int) $h->score];
         $tiles = [
-            ['tone' => 3, 'title' => 'Site health', 'value' => (int) $h->score, 'pre' => '', 'sub' => $move, 'link' => '#shFix',
+            ['tone' => 3, 'title' => 'Site health', 'value' => (int) $h->score, 'pre' => '', 'sub' => $move, 'link' => '#shFix', 'tip' => self::scoreTip($h, $open),
                 'chart' => ['type' => 'spark', 'cur' => $cur, 'prev' => [], 'slots' => count($cur),
                     'axis' => [count($dates) > 1 ? Carbon::parse($dates[0])->format('M j') : '', 'Latest check']]],
             ['tone' => 2, 'title' => 'To fix', 'value' => $open->count(), 'pre' => '', 'link' => '#shFix',

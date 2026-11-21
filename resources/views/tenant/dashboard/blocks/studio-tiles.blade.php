@@ -6,8 +6,9 @@
 <section class="sd-tiles sd-n{{ count($sdTiles) }}" data-sd-live="tiles">
   @foreach ($sdTiles as $i => $t)
     @php $c = $t['chart'] ?? []; @endphp
-    <a class="sd-tile sd-t{{ $t['tone'] }} sd-in" style="--d:{{ $i * 90 }}ms" href="{{ $t['link'] }}" aria-label="{{ $t['title'] }}: {{ $t['pre'] }}{{ number_format($t['value'], $t['decimals'] ?? 0) }}, {{ $t['sub'] }}">
-      <div class="sd-tile-h"><span>{{ $t['title'] }}</span><i aria-hidden="true">↗</i></div>
+    @php $tag = isset($t['tip']) ? 'div' : 'a'; @endphp{{-- a tile that explains itself (tip) is not a link: a button inside a link would follow the link --}}
+    <{{ $tag }} class="sd-tile sd-t{{ $t['tone'] }} sd-in" style="--d:{{ $i * 90 }}ms" @if ($tag === 'a') href="{{ $t['link'] }}" @endif aria-label="{{ $t['title'] }}: {{ $t['pre'] }}{{ number_format($t['value'], $t['decimals'] ?? 0) }}, {{ $t['sub'] }}">
+      <div class="sd-tile-h"><span>{{ $t['title'] }}</span>@if ($tag === 'div')<span class="sd-tile-tip"><button type="button" class="ia-tip" aria-label="How this is worked out">i</button><span class="ia-tip-text" hidden>{{ $t['tip'] }}</span></span>@else<i aria-hidden="true">↗</i>@endif</div>
       <div class="sd-big"><b data-count="{{ $t['value'] }}" data-pre="{{ $t['pre'] }}" data-dec="{{ $t['decimals'] ?? 0 }}">{{ $t['pre'] }}{{ number_format($t['value'], $t['decimals'] ?? 0) }}</b><small>{{ $t['sub'] }}</small></div>
 
       @if (($c['type'] ?? '') === 'bars')
@@ -59,7 +60,7 @@
           @endforeach
         </div>
       @endif
-    </a>
+    </{{ $tag }}>
   @endforeach
 </section>
 @endif

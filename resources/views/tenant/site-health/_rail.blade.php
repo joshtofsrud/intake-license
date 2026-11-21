@@ -2,15 +2,11 @@
      its own numbers, its own "pick which one", its own error. --}}
 @php
   $g = $sh['google'];
-  $ok = collect($sh['basics'])->where('ok', true)->count();
 @endphp
 
-@if ($sh['basics'])
-  <div class="sh-basics {{ $ok === count($sh['basics']) ? '' : 'part' }}">
-    <i>{{ $ok === count($sh['basics']) ? '✓' : '!' }}</i>
-    <b>{{ $ok }} of {{ count($sh['basics']) }} basics in place</b>
-    <button type="button" class="ia-tip" aria-label="Which basics">i</button><span class="ia-tip-text" hidden>@foreach ($sh['basics'] as $b){{ $b['ok'] ? '✓ ' . $b['yes'] : '✗ ' . $b['no'] }}<br>@endforeach</span>
-  </div>
+{{-- beside Google's panels when Google is on; with Google off the basics sit above the tiles and the list takes the full width --}}
+@if ($g['available'] ?? false)
+  @include('tenant.site-health._basics')
 @endif
 
 @if ($g['available'] ?? false)

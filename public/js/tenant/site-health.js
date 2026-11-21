@@ -52,10 +52,18 @@
     if (!tpl) { box.hidden = true; box.innerHTML = ''; return; }
     box.innerHTML = ''; box.appendChild(tpl.content.cloneNode(true)); box.hidden = false;
     var row = $('#shList .sh-row[data-id="' + id + '"]');
-    // on a phone the details open right under the picked row; otherwise under the list
-    if (phone() && row) row.parentNode.insertBefore(box, tpl.nextSibling); else $('#shFix').appendChild(box);
+    place();
     $$('form.sh-edit', box).forEach(live);
     if (!quiet && phone() && row) row.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }
+  // on a phone the details sit right under the picked row; otherwise under the list.
+  // Moving the box keeps whatever is typed or loaded in it; it is never drawn again for a resize.
+  function place() {
+    var box = $('#shDetail'), tpl = picked && $('#shList template[data-for="' + picked + '"]');
+    if (!box || !tpl || box.hidden) return;
+    var want = phone() ? tpl.parentNode : $('#shFix'), after = phone() ? tpl.nextSibling : null;
+    if (box.parentNode === want && (phone() ? box.previousSibling === tpl : box === want.lastElementChild)) return;
+    want.insertBefore(box, after);
   }
 
   // a title or description: the preview and the count follow the typing
@@ -151,6 +159,35 @@
     if (t.closest('#shResume')) { start(URLS.resume, false); return; }
     if (t.closest('#shStop')) { t.closest('#shStop').disabled = true; post(URLS.stop).then(poll).catch(function (er) { toast.error(er.message); }).then(function () { $('#shStop').disabled = false; }); return; }
 
+    var more = t.closest('[data-sh-more]');
+    if (more) {
+      // the next 50 items behind this row, added under the ones already showing
+      more.disabled = true;
+      var shown = more.dataset.loaded ? (+more.dataset.shown || 0) : 0; // the first press starts from the top, in name order
+      fetch(more.dataset.shMore + '?offset=' + shown, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+        .then(function (r) { if (!r.ok) throw new Error(); return r.json(); })
+        .then(function (j) {
+          var list = more.parentNode.querySelector('[data-sh-items]'), kind = list.dataset.shItems;
+          if (!j.total) { more.textContent = 'Check again to list every item here.'; return; }
+          // the first page replaces the few drawn with the row, so nothing shows twice
+          if (!more.dataset.loaded) { list.innerHTML = ''; more.dataset.loaded = '1'; }
+          j.items.forEach(function (it) {
+            var a = document.createElement('a'); a.href = it.url;
+            if (kind === 'photo') {
+              a.className = 'sh-ph'; a.appendChild(document.createElement('span'));
+              var em = document.createElement('em'); em.textContent = it.name; a.appendChild(em); list.appendChild(a);
+            } else {
+              a.textContent = it.name; var li = document.createElement('li'), sp = document.createElement('span');
+              sp.textContent = it.words ? it.words + (it.words === 1 ? ' word' : ' words') : 'no description';
+              li.appendChild(a); li.appendChild(sp); list.appendChild(li);
+            }
+          });
+          var now = list.children.length; more.dataset.shown = j.next === null ? now : j.next;
+          if (j.next === null) more.remove(); else { more.disabled = false; more.textContent = 'Show more · ' + now.toLocaleString('en-US') + ' of ' + j.total.toLocaleString('en-US'); }
+        })
+        .catch(function () { more.disabled = false; toast.error('Could not load more. Try again.'); });
+      return;
+    }
     var act = t.closest('[data-sh-post]');
     if (act) {
       act.disabled = true;
@@ -203,7 +240,7 @@
   // the header stays at the top on a wide screen: once the page scrolls under it, it frosts so nothing shows through
   function frost() { var h = $('#shHead'); if (h) h.classList.toggle('frost', window.scrollY > 24 && window.innerWidth > 1023); }
   window.addEventListener('scroll', frost, { passive: true });
-  window.addEventListener('resize', function () { frost(); if (picked) pick(picked, true); });
+  window.addEventListener('resize', function () { frost(); place(); });
   frost();
   applyFilter();
   if (location.hash === '#reviews' && $('#reviews')) $('#reviews').scrollIntoView();

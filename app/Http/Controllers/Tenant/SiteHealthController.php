@@ -179,6 +179,26 @@ class SiteHealthController extends Controller
         return response()->json(['ok' => true, 'message' => 'Back on the list.']);
     }
 
+    /** GET /site-health/fix/{issue}/items?offset= — the next items behind an item row, by name. */
+    public function items(Request $request, int $issue): JsonResponse
+    {
+        $i = $this->issue($issue);
+        abort_unless($i->subject_type === 'items', 404);
+        $offset = max(0, (int) $request->query('offset', 0));
+        $base = \Illuminate\Support\Facades\DB::table('tenant_site_issue_items as b')
+            ->join('tenant_inventory_items as it', 'it.id', '=', 'b.item_id')
+            ->where('b.tenant_id', tenant()->id)->where('it.tenant_id', tenant()->id)
+            ->where('b.code', $i->code)->where('b.cat', (string) $i->subject_id)->where('b.run', $i->run)->whereNull('it.deleted_at');
+        $total = (clone $base)->count();
+        $rows = $base->orderBy('it.name')->orderBy('it.id')->offset($offset)->limit(50)->get(['it.id', 'it.name', 'b.n']);
+
+        return response()->json([
+            'total' => $total,
+            'items' => $rows->map(fn ($r) => ['name' => \Illuminate\Support\Str::limit((string) $r->name, 60), 'words' => (int) $r->n, 'url' => route('tenant.inventory.edit', $r->id)])->all(),
+            'next' => $offset + $rows->count() < $total ? $offset + $rows->count() : null,
+        ]);
+    }
+
     private function issue(int $id): TenantSiteIssue
     {
         return TenantSiteIssue::where('tenant_id', tenant()->id)->whereKey($id)->firstOrFail();

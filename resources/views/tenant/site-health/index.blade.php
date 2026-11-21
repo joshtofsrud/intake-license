@@ -41,7 +41,7 @@
   @if (session('success'))<p class="sh-flash">{{ session('success') }}</p>@endif
   @if (session('error'))<p class="sh-flash error">{{ session('error') }}</p>@endif
 
-  <div class="sh-grid {{ ! ($sh['google']['available'] ?? false) && ! $sh['basics'] ? 'solo' : '' }}" id="shGrid">
+  <div class="sh-grid {{ ($sh['google']['available'] ?? false) ? '' : 'solo' }}" id="shGrid">
     <div id="shMain">@include('tenant.site-health._main')</div>
     <aside class="sd-rail" id="shRail">@include('tenant.site-health._rail')</aside>
   </div>

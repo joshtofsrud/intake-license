@@ -1360,6 +1360,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::post('/site-health/check',                [TenantControllers\SiteHealthController::class, 'check'])->name('site_health.check')->middleware('throttle:6,1');
             Route::post('/site-health/stop',                 [TenantControllers\SiteHealthController::class, 'stop'])->name('site_health.stop');
             Route::post('/site-health/resume',               [TenantControllers\SiteHealthController::class, 'resume'])->name('site_health.resume');
+            Route::get('/site-health/fix/{issue}/items',     [TenantControllers\SiteHealthController::class, 'items'])->name('site_health.items')->whereNumber('issue');
             Route::post('/site-health/fix/{issue}/save',     [TenantControllers\SiteHealthController::class, 'save'])->name('site_health.save')->whereNumber('issue');
             Route::post('/site-health/fix/{issue}/undo',     [TenantControllers\SiteHealthController::class, 'undo'])->name('site_health.undo')->whereNumber('issue');
             Route::post('/site-health/fix/{issue}/hide',     [TenantControllers\SiteHealthController::class, 'hide'])->name('site_health.hide')->whereNumber('issue');

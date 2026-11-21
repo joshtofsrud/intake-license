@@ -43,6 +43,7 @@
   @include('tenant.site-health._list')
 
 @else
+  @if (! ($sh['google']['available'] ?? false))<div class="sh-basics-top">@include('tenant.site-health._basics')</div>@endif
   @include('tenant.dashboard.blocks.studio-tiles')
   @include('tenant.site-health._list')
 @endif

@@ -76,6 +76,13 @@
 .sh-items li { display: flex; justify-content: space-between; gap: 14px; padding: 7px 0; border-top: 1px solid var(--ia-border); } .sh-items li:first-child { border-top: 0; }
 .sh-items a { color: var(--ia-text); } .sh-items span, .sh-items .more { color: var(--ia-text-muted); }
 
+/* the rest of the items behind an item row */
+.sh-more { display: block; width: 100%; margin-top: 10px; padding: 9px; border: 1px dashed var(--ia-border-strong); border-radius: 10px; background: none; font: inherit; font-size: 12px; color: var(--ia-text-muted); cursor: pointer; }
+.sh-more:hover { color: var(--ia-text); border-color: var(--ia-text-muted); } .sh-more:disabled { opacity: .6; cursor: default; }
+.sh-basics-top { margin: 0 0 14px; }
+.sh .sd-tile-tip .ia-tip { border-color: color-mix(in srgb, var(--sd-ink) 45%, transparent); color: inherit; }
+div.sd-tile { cursor: default; }
+
 /* the rail */
 .sh-basics { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .sh-basics i { font-style: normal; width: 20px; height: 20px; border-radius: 50%; display: grid; place-content: center; font-size: 11px; background: color-mix(in srgb, var(--sd-t3) 45%, transparent); }
