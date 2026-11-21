@@ -4,6 +4,8 @@
 .sh-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); column-gap: 28px; align-items: start; }
 .sh-grid.solo { grid-template-columns: minmax(0, 1fr); } .sh-grid.solo > .sd-rail { display: none; }
 .sh .sd-head { grid-template-columns: minmax(0, 1fr) auto; }
+/* the pinned header is solid from the first pixel of scroll, so the line under it can never show through */
+.sh .sd-head, .sh .sd-head.frost { background: var(--ia-bg); -webkit-backdrop-filter: none; backdrop-filter: none; }
 .sh .sd-list { max-height: none; }
 .sh-row { grid-template-columns: 34px minmax(0, 1.2fr) minmax(0, 1.5fr) 118px; }
 .sh-list.has-v .sh-row { grid-template-columns: 34px minmax(0, 1.2fr) minmax(0, 1.5fr) 118px 70px; }
