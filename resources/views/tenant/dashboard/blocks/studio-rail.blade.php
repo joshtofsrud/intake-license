@@ -10,17 +10,23 @@
 @endphp
 @if ($rail)
 <aside class="sd-rail sd-in" style="--d:140ms" data-sd-live="rail">
-  {{-- phone: the month as one row of days that swipes sideways, a week showing at a time, opening on this week --}}
+  {{-- phone: one row of days that swipes sideways, a week showing at a time. It opens on this week, reaches back about 90 days and runs
+       as far ahead as the shop takes bookings; a past day with something unfinished is red; the heading follows the month in view, and the 1st shows its month. --}}
+  @php $sdStrip = $rail['strip'] ?? []; @endphp
+  @if ($sdStrip)
   <div class="sd-week">
-    <div class="sd-cal-h"><b>{{ $rail['month'] }}</b><a href="{{ route('tenant.calendar.index') }}" class="sd-link">Open calendar →</a></div>
+    <div class="sd-cal-h"><b data-sd-week-label>{{ $rail['month'] }}</b><a href="{{ route('tenant.calendar.index') }}" class="sd-link">Open calendar →</a></div>
     <div class="sd-week-g" data-sd-week>
-      @foreach ($rail['days'] as $d)
-        @php $wkAt = \Illuminate\Support\Carbon::parse($d['date']); @endphp
-        <a href="{{ $d['url'] }}" class="{{ $d['today'] ? 't' : '' }}{{ $d['closed'] ? ' x' : '' }}{{ $wkAt->dayOfWeekIso === 1 ? ' mon' : '' }}" style="--f:{{ $d['fill'] }}"
-           aria-label="{{ $wkAt->format('l, M j') }}: {{ $d['closed'] ? 'closed' : $d['n'] . ' ' . \Illuminate\Support\Str::plural('booking', $d['n']) }}"><small>{{ $wkAt->format('D') }}</small>{{ $d['d'] }}</a>
+      @foreach ($sdStrip as $d)
+        <a href="{{ $d['url'] }}" class="{{ $d['today'] ? 't' : '' }}{{ $d['closed'] ? ' x' : '' }}{{ $d['monday'] ? ' mon' : '' }}{{ $d['past'] ? ' past' : '' }}{{ $d['open'] ? ' late' : '' }}" style="--f:{{ $d['fill'] }}" data-month="{{ $d['month'] }}"
+           aria-label="{{ \Illuminate\Support\Carbon::parse($d['date'])->format('l, M j') }}: {{ $d['closed'] ? 'closed' : $d['n'] . ' ' . \Illuminate\Support\Str::plural('booking', $d['n']) }}{{ $d['open'] ? ', ' . $d['open'] . ' not finished' : '' }}"><small>{{ $d['d'] === 1 ? $d['mon'] : $d['dow'] }}</small>{{ $d['d'] }}</a>
       @endforeach
     </div>
+    @if (collect($sdStrip)->contains(fn ($d) => $d['open'] > 0))
+      <div class="sd-week-key"><i></i>A red day in the past still has an appointment that isn't finished. Tap it to open that day.</div>
+    @endif
   </div>
+  @endif
   <div class="sd-cal">
     <div class="sd-cal-h"><b>{{ $rail['month'] }}</b><a href="{{ route('tenant.calendar.index') }}" class="sd-link">Open calendar →</a></div>
     <div class="sd-cal-g">

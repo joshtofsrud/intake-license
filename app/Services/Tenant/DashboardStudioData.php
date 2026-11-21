@@ -233,6 +233,7 @@ class DashboardStudioData
             'month' => $this->now->format('F Y'),
             'lead'  => (int) $first->format('N') - 1, // Monday-first blanks
             'days'  => $days,
+            'strip' => $this->strip(),
         ];
 
         if ($this->mode === 'slots') {
@@ -400,6 +401,57 @@ class DashboardStudioData
 
         return $q->orderByRaw('appointment_time IS NULL, appointment_time ASC')->orderBy('created_at')
             ->with(['customer', 'items', 'assets'])->get();
+    }
+
+    /**
+     * MARKER-STUDIO-SMALL: the phone's row of days. It reaches back about 90 days (to a
+     * Monday) and runs as far ahead as the shop takes bookings (Settings: how far ahead
+     * customers can book; the picked location's own setting when it has one), never less
+     * than four weeks. A past day that still has an appointment not finished or cancelled
+     * is flagged 'open' with how many, so the row can mark it red.
+     * Shaded the same way as the month: against each day's limit for drop-off shops,
+     * against the busiest day in the row for time-slot shops.
+     */
+    private function strip(): array
+    {
+        $window = (int) ($this->tenant->booking_window_days ?? 60);
+        if ($this->loc) {
+            $own = \App\Models\Tenant\TenantLocation::where('tenant_id', $this->tenant->id)->whereKey($this->loc)->value('booking_window_days_override');
+            $window = $own !== null ? (int) $own : $window;
+        }
+        $first = $this->now->copy()->startOfDay()->subDays(90)->startOfWeek(Carbon::MONDAY);
+        $last  = $this->now->copy()->startOfDay()->addDays(max(28, min(366, $window)));
+        $today = $this->now->toDateString();
+
+        $q = TenantAppointment::where('tenant_id', $this->tenant->id)
+            ->whereBetween('appointment_date', [$first->toDateString(), $last->toDateString()])
+            ->whereNotIn('status', AppointmentStatus::terminalStatuses());
+        $this->scopeLoc($q);
+        $counts = $q->selectRaw('DATE(appointment_date) as d, COUNT(*) as n')->groupByRaw('DATE(appointment_date)')->get()->keyBy('d');
+        // past days with something still open: booked for that day, and neither finished nor cancelled
+        $oq = TenantAppointment::where('tenant_id', $this->tenant->id)
+            ->where('appointment_date', '>=', $first->toDateString())->where('appointment_date', '<', $today)
+            ->whereNotIn('status', array_values(array_unique(array_merge(AppointmentStatus::terminalStatuses(), AppointmentStatus::doneStatuses()))));
+        $this->scopeLoc($oq);
+        $open = $oq->selectRaw('DATE(appointment_date) as d, COUNT(*) as n')->groupByRaw('DATE(appointment_date)')->pluck('n', 'd');
+        // day limits only matter from today on; the past is what happened
+        $caps = $this->mode === 'capacity' ? collect($this->dayLoad($today, (int) $this->now->copy()->startOfDay()->diffInDays($last) + 1))->keyBy('date') : collect();
+        $peak = max(1, (int) ($counts->max('n') ?? 1));
+
+        $days = [];
+        for ($d = $first->copy(); $d->lte($last); $d->addDay()) {
+            $k = $d->toDateString();
+            $n = (int) ($counts[$k]->n ?? 0);
+            $cap = $caps[$k] ?? null;
+            $fill = $this->mode === 'capacity' && $cap && $cap['max'] ? min(1, ($cap['used'] ?? 0) / $cap['max']) : $n / $peak;
+            $days[] = ['d' => (int) $d->format('j'), 'date' => $k, 'n' => $n, 'fill' => round($fill, 2),
+                'dow' => $d->format('D'), 'mon' => $d->format('M'), 'month' => $d->format('F Y'), 'monday' => $d->dayOfWeekIso === 1,
+                'past' => $k < $today, 'open' => (int) ($open[$k] ?? 0),
+                'closed' => $cap ? $cap['state'] === 'closed' : false, 'today' => $k === $this->now->toDateString(),
+                'url' => route('tenant.calendar.index', ['date' => $k])];
+        }
+
+        return $days;
     }
 
     private function scopeLoc($q): void

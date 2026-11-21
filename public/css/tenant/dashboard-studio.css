@@ -364,7 +364,12 @@ html.sd-motion .sd-ny:not(.on) .sd-chip { opacity: 0; transform: translateY(8px)
   .sd-week-g a { display: grid; justify-items: center; gap: 3px; padding: 7px 0 8px; border-radius: 12px; font-size: 14px; font-weight: 600; text-decoration: none; color: var(--ia-text); background: color-mix(in srgb, var(--sd-t3) calc(var(--f) * 42%), var(--ia-surface)); }
   .sd-week-g a small { font-size: 9.5px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: var(--ia-text-muted); }
   .sd-week-g a.t { background: var(--ia-accent); color: var(--ia-accent-text, #0d0d0d); } .sd-week-g a.t small { color: inherit; opacity: .7; }
-  .sd-week-g a.x, .sd-week-g a.o { opacity: .4; }
+  .sd-week-g a.x { opacity: .4; }
+  .sd-week-g a.past { background: var(--ia-surface); color: var(--ia-text-muted); }
+  .sd-week-g a.late { background: color-mix(in srgb, var(--sd-bad) 22%, var(--ia-surface)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sd-bad) 60%, transparent); color: var(--ia-text); opacity: 1; }
+  .sd-week-g a.late small { color: var(--sd-bad); }
+  .sd-week-key { font-size: 11.5px; color: var(--ia-text-muted); margin-top: 8px; line-height: 1.45; }
+  .sd-week-key i { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; background: color-mix(in srgb, var(--sd-bad) 55%, transparent); }
   /* today: what's left leads */
   .sd-dash .sd-donebtn { display: block; background: none; border: 0; color: var(--ia-text-muted); font: inherit; font-size: 12px; padding: 4px 0 8px; cursor: pointer; }
   .sd-dash .sd-tl:not(.all) .sd-tl-r.done { display: none; }

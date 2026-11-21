@@ -200,6 +200,15 @@
     var m = t; while (m && !m.classList.contains('mon')) m = m.previousElementSibling;
     m = m || g.firstElementChild;
     g.scrollLeft = Math.max(0, m.offsetLeft - g.offsetLeft - 12);
+    weekLabel();
+    if (!g._lbl) { g._lbl = 1; g.addEventListener('scroll', function () { if (!g._raf) g._raf = requestAnimationFrame(function () { g._raf = 0; weekLabel(); }); }, { passive: true }); }
+  }
+  // the heading over the strip names the month of the days in view
+  function weekLabel() {
+    var g = $('[data-sd-week]'), lb = $('[data-sd-week-label]'); if (!g || !lb) return;
+    var left = g.getBoundingClientRect().left + 14, days = $$('a', g), hit = null;
+    for (var i = 0; i < days.length; i++) { if (days[i].getBoundingClientRect().right > left + 60) { hit = days[i]; break; } }
+    if (hit && hit.dataset.month && lb.textContent !== hit.dataset.month) lb.textContent = hit.dataset.month;
   }
   function headBar(open) {
     var bar = $('#sdHeadBar'), btn = $('[data-sd-view]'); if (!bar || !btn) return;
