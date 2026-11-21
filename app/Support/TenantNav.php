@@ -130,7 +130,7 @@ class TenantNav
         // /568 — online orders queue
         [
           'route'  => 'tenant.orders.index',
-          'label'  => 'Orders',
+          'label'  => 'Web orders',
           'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 3.5h1.4l1.2 6.2a1 1 0 0 0 1 .8h4.9a1 1 0 0 0 1-.8l.9-4.2H4.1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="12" r="0.9" fill="currentColor"/><circle cx="10.6" cy="12" r="0.9" fill="currentColor"/></svg>',
           'group'  => 'website',
           'gate'   => 'online_store_enabled',
@@ -354,7 +354,7 @@ class TenantNav
         [
           'route'  => 'tenant.settings.index',
           'label'  => 'Business',
-          'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="2" stroke="currentColor" stroke-width="1.2"/><path d="M7 1v1.5M7 11.5V13M1 7h1.5M11.5 7H13M2.9 2.9l1.1 1.1M10 10l1.1 1.1M2.9 11.1l1.1-1.1M10 4l1.1-1.1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
+          'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="4" width="11" height="8" rx="1.2" stroke="currentColor" stroke-width="1.2"/><path d="M5 4V2.8a.8.8 0 0 1 .8-.8h2.4a.8.8 0 0 1 .8.8V4M1.5 7.5h11" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
           'group'  => 'settings',
         ],
         [
