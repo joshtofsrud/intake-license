@@ -16,7 +16,7 @@
       @if ($wide)<a class="sd-tile-go" href="{{ $t['link'] }}" aria-label="Open {{ $t['title'] }}"></a><div class="sd-w">@endif
       <div class="sd-tile-h"><span>{{ $t['title'] }}</span>@if (isset($t['tip']))<span class="sd-tile-tip"><button type="button" class="ia-tip" aria-label="How this is worked out">i</button><span class="ia-tip-text" hidden>{{ $t['tip'] }}</span></span>@else<i aria-hidden="true">↗</i>@endif</div>
       <div class="sd-big"><b data-count="{{ $t['value'] }}" data-pre="{{ $t['pre'] }}" data-dec="{{ $t['decimals'] ?? 0 }}">{{ $t['pre'] }}{{ number_format($t['value'], $t['decimals'] ?? 0) }}</b><small>{{ $t['sub'] }}</small></div>
-      @if ($wide)<div class="sd-w-mid">@endif
+      @if ($wide)<div class="sd-w-mid"><div class="sd-w-t sd-w-only">{{ $wide['mid'] ?? '' }}</div>@endif
 
       @if (($c['type'] ?? '') === 'bars')
         <div class="sd-bars" aria-hidden="true">

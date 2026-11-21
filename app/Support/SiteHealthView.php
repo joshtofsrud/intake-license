@@ -189,7 +189,7 @@ class SiteHealthView
         $url = route('tenant.site_health.index') . '#reviews';
 
         return [
-            'title' => $waiting ? 'Waiting for a reply' : 'Latest reviews',
+            'mid' => 'Stars', 'title' => $waiting ? 'Waiting for a reply' : 'Latest reviews',
             'rows' => array_map(fn ($r) => ['a' => $r['who'] . ' · ' . str_repeat('★', (int) $r['stars']), 'b' => Str::limit($r['text'] !== '' ? $r['text'] : 'No words, stars only.', 80), 'url' => $url], $pick),
             'none' => 'No reviews yet.', 'foot' => null,
         ];
@@ -231,7 +231,7 @@ class SiteHealthView
             'sub' => ($open ? $open . ' to fix' . ($high ? ' · ' . $high . ' high impact' : '') : 'nothing to fix') . ' · checked ' . $h->checked_at->diffForHumans(null, true, true) . ' ago',
             'link' => route('tenant.site_health.index'), 'say' => 'Opening Site health',
             'chart' => ['type' => 'stack', 'parts' => $parts],
-            'wide' => ['title' => 'Next up', 'rows' => $next, 'none' => 'Nothing to fix right now.', 'foot' => $foot],
+            'wide' => ['mid' => 'What is open', 'title' => 'Next up', 'rows' => $next, 'none' => 'Nothing to fix right now.', 'foot' => $foot],
         ];
     }
 
