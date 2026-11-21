@@ -75,6 +75,8 @@
         @if($pmRow?->instructions){{ $pmRow->instructions }}@endif
         Include <b>{{ $order->order_number }}</b> in the note so we can match it fast.
       </div>
+      {{-- MARKER-PAY-LATER --}}
+      <div style="font-size:12.5px;line-height:1.55;opacity:.75;margin-top:8px">{{ \App\Services\Tenant\OrderService::forTenant(tenant())->holdLine($order) }}</div>
       @if($payLink)
         <a href="{{ $payLink }}" style="display:inline-block;margin-top:12px;background:var(--s-ink);color:var(--s-on-ink);font-weight:700;font-size:13px;border-radius:10px;padding:11px 18px;text-decoration:none">Pay now →</a>
         <div style="font-size:11px;opacity:.55;margin-top:8px;word-break:break-all">{{ $payLink }}</div>

@@ -128,6 +128,12 @@ class StorefrontSettingsController extends Controller
                 'dp_enabled'          => (bool) $tenant->direct_payments_enabled,
                 'tax_test_zip'        => \App\Services\Shipping\ShippingRates::zip((string) ($tenant->defaultLocation?->postal_code ?? '')),
                 'hold_hours'          => $oc['hold_hours'],
+                'pay_later_scope'     => $oc['pay_later_scope'],
+                'pay_later_hold'      => $oc['pay_later_hold'],
+                'pay_later_max_cents' => $oc['pay_later_max_cents'],
+                'pay_later_label'     => $oc['pay_later_label'],
+                // the Connected POS can't see Intake's holds; the setting says so when orders go there
+                'pos_orders_out'      => (bool) \App\Models\Tenant\TenantPosConnection::where('tenant_id', $tenant->id)->where('status', 'connected')->where('orders_out', true)->exists(),
                 'auto_refund'         => $oc['auto_refund'],
                 // messages + wording
                 'ready_text'          => (string) ($s['ready_text'] ?? ''),
@@ -349,8 +355,19 @@ class StorefrontSettingsController extends Controller
                 break;
 
             case 'payments':
-                $data = $request->validate(['hold_hours' => ['required', 'integer', 'min:1', 'max:720']]);
+                $data = $request->validate([
+                    'hold_hours'      => ['required', 'integer', 'min:1', 'max:720'],
+                    'pay_later_scope' => ['required', 'in:pickup,all'],
+                    'pay_later_hold'  => ['required', 'in:hold,none'],
+                    'pay_later_max'   => ['nullable', 'numeric', 'min:0', 'max:1000000'],
+                    'pay_later_label' => ['nullable', 'string', 'max:40'],
+                ]);
                 $sf['hold_hours']  = (int) $data['hold_hours'];
+                // MARKER-PAY-LATER
+                $sf['pay_later_scope']     = $data['pay_later_scope'];
+                $sf['pay_later_hold']      = $data['pay_later_hold'] === 'hold';
+                $sf['pay_later_max_cents'] = ($data['pay_later_max'] ?? '') !== '' && $data['pay_later_max'] !== null ? (int) round(((float) $data['pay_later_max']) * 100) : null;
+                $sf['pay_later_label']     = trim((string) ($data['pay_later_label'] ?? ''));
                 $sf['auto_refund'] = $request->boolean('auto_refund');
                 $msg = 'Payment settings saved.';
                 break;

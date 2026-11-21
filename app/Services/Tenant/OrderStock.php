@@ -41,6 +41,54 @@ class OrderStock
 
     public function __construct(private Tenant $tenant) {}
 
+    /** MARKER-PAY-LATER: the order being judged, so its own hold doesn't count against it. */
+    private ?string $exclude = null;
+
+    /** Judge stock for this order: its own hold is its own, not someone else's. */
+    public function excluding(TenantOrder $order): self
+    {
+        $this->exclude = (string) $order->id;
+
+        return $this;
+    }
+    /** @var array<string,array<string,int>>|null location => item => units held */
+    private ?array $held = null;
+
+    /**
+     * MARKER-PAY-LATER: units set aside for unpaid pay-later orders, by location and item.
+     * Only orders placed while the shop holds items, not yet paid, cancelled or timed out.
+     */
+    public function heldUnits(string $itemId, ?string $locationId): int
+    {
+        if ($this->held === null) {
+            $this->held = [];
+            $orders = TenantOrder::query()
+                ->where('tenant_id', $this->tenant->id)
+                ->where('status', TenantOrder::STATUS_PENDING_PAYMENT)
+                ->whereNull('sale_id')->whereNotNull('payment_method')
+                ->with('items:id,order_id,inventory_item_id,quantity')
+                ->get(['id', 'location_id', 'metadata']);
+            $default = $this->tenant->defaultLocation?->id;
+            foreach ($orders as $o) {
+                $m = (array) ($o->metadata ?? []);
+                if (empty($m['held']) || empty($m['held_until']) || \Illuminate\Support\Carbon::parse($m['held_until'])->isPast()) {
+                    continue;
+                }
+                $loc = (string) ($o->location_id ?? $default);
+                foreach ($o->items as $l) {
+                    if ($l->inventory_item_id) {
+                        $this->held[$loc][(string) $l->inventory_item_id][(string) $o->id] = (int) ceil((float) $l->quantity)
+                            + ($this->held[$loc][(string) $l->inventory_item_id][(string) $o->id] ?? 0);
+                    }
+                }
+            }
+        }
+        $byOrder = $this->held[(string) ($locationId ?? $this->tenant->defaultLocation?->id)][$itemId] ?? [];
+        unset($byOrder[(string) $this->exclude]);
+
+        return (int) array_sum($byOrder);
+    }
+
     public static function forTenant(Tenant $tenant): self
     {
         return new self($tenant);
@@ -62,10 +110,10 @@ class OrderStock
                 ->where('location_id', $locationId)
                 ->first();
 
-            return max(0, (int) ($row?->computed_stock_count ?? 0));
+            return max(0, (int) ($row?->computed_stock_count ?? 0) - $this->heldUnits((string) $item->id, $locationId));
         }
 
-        return max(0, (int) $item->computed_stock_count);
+        return max(0, (int) $item->computed_stock_count - $this->heldUnits((string) $item->id, null));
     }
 
     /** Is the item still offered online at all? */
@@ -167,6 +215,7 @@ class OrderStock
     public function itemResults(TenantOrder $order, string $mode = self::MODE_PICKUP): array
     {
         $order->loadMissing('items');
+        $this->exclude = (string) $order->id;
         $loc  = $this->locationId($order);
         $ids  = $order->items->pluck('inventory_item_id')->filter()->unique()->all();
         $byId = TenantInventoryItem::query()

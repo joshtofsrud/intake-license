@@ -45,6 +45,13 @@ class OrderService
             'tax_delivery_fee'    => (bool) ($s['tax_delivery_fee'] ?? false),
             'install_label'       => trim((string) ($s['install_label'] ?? '')) ?: self::DEFAULT_INSTALL_LABEL,
             'hold_hours'          => max(1, (int) ($s['hold_hours'] ?? 24)),
+            // MARKER-PAY-LATER: orders paid later (cash, Venmo…) — who may, the most they may
+            // order, whether their items are held, and what checkout calls the choice
+            'pay_later_scope'     => (($s['pay_later_scope'] ?? 'pickup') === 'all') ? 'all' : 'pickup',
+            'pay_later_hold'      => (bool) ($s['pay_later_hold'] ?? true),
+            'pay_later_max_cents' => (isset($s['pay_later_max_cents']) && $s['pay_later_max_cents'] !== '' && $s['pay_later_max_cents'] !== null)
+                ? max(0, (int) $s['pay_later_max_cents']) : null,
+            'pay_later_label'     => trim((string) ($s['pay_later_label'] ?? '')) ?: 'Pay in store',
             // MARKER-ORDER-SHIPMENTS: ship to an address, a flat fee per shipment
             'ship_enabled'        => (bool) ($s['ship_enabled'] ?? false),
             'ship_fee_cents'      => max(0, (int) ($s['ship_fee_cents'] ?? 0)),
@@ -400,6 +407,15 @@ class OrderService
 
         $quote = $this->quote($cart, $fulfillment['type'], ['address' => $fulfillment['ship']['address'] ?? [], 'choices' => $fulfillment['ship']['choices'] ?? [], 'strict' => true]);
 
+        // MARKER-PAY-LATER: the shop's limits on paying later, checked here too so a hand-made
+        // request can't get round what checkout hides
+        if ($manualMethod !== null) {
+            $why = self::payLaterRefusal($this->config(), $fulfillment['type'], (int) $quote['total_cents']);
+            if ($why !== null) {
+                throw new \App\Exceptions\PayLaterNotAllowedException($why);
+            }
+        }
+
         // Existing customer by email — link now; creation waits for money.
         $customer = TenantCustomer::query()
             ->where('tenant_id', $this->tenant->id)
@@ -429,7 +445,7 @@ class OrderService
                 'total_cents'         => $quote['total_cents'],
                 'payment_method'      => $manualMethod, // null for card
                 // MARKER-ECOM-SETTINGS: remember whether delivery was taxed, so the sale matches what was charged even if the setting changes before payment lands
-                'metadata'            => array_merge((array) ($cart->metadata ?? []), ['delivery_taxed' => (bool) ($quote['shipping_taxed'] ?? false), 'tax' => $quote['tax_info'] ?? ['source' => 'rate'], 'ga' => \App\Support\ShopGa4::on($this->tenant) ? \App\Support\ShopGa4::clientFromCookies(\App\Support\ShopGa4::id($this->tenant)) : null]), // MARKER-SHOP-GA4: the visit's Google ids, so a hand-confirmed payment or a refund is credited to the right visit
+                'metadata'            => array_merge((array) ($cart->metadata ?? []), self::holdMeta($this->config(), $manualMethod), ['delivery_taxed' => (bool) ($quote['shipping_taxed'] ?? false), 'tax' => $quote['tax_info'] ?? ['source' => 'rate'], 'ga' => \App\Support\ShopGa4::on($this->tenant) ? \App\Support\ShopGa4::clientFromCookies(\App\Support\ShopGa4::id($this->tenant)) : null]), // MARKER-SHOP-GA4: the visit's Google ids, so a hand-confirmed payment or a refund is credited to the right visit
             ])->save();
 
             // MARKER-ORDER-SHIPMENTS: remember exactly how this order will ship, so the sale and the
@@ -472,6 +488,7 @@ class OrderService
         if ($manualMethod !== null) {
             // MARKER-SHOP-POLICIES: staff need to know there is money to watch for
             \App\Support\Launch\ShopPolicies::notifyNewOrder($this->tenant, $order->loadMissing('items'), 'waiting for payment by ' . tender_label($manualMethod));
+            $this->sendReceived($order);
             return [$order, null];
         }
 
@@ -575,6 +592,78 @@ class OrderService
     }
 
     /**
+     * MARKER-PAY-LATER: why paying later isn't allowed for this order, or null when it is.
+     * Shopper-facing wording.
+     */
+    public static function payLaterRefusal(array $cfg, string $fulfillmentType, int $totalCents): ?string
+    {
+        if ($cfg['pay_later_scope'] === 'pickup' && $fulfillmentType !== 'pickup') {
+            return 'Paying later is only for in-store pickup. Choose pickup, or pay by card.';
+        }
+        if ($cfg['pay_later_max_cents'] !== null && $totalCents > $cfg['pay_later_max_cents']) {
+            return 'Orders over $' . number_format($cfg['pay_later_max_cents'] / 100, 2) . ' need to be paid by card.';
+        }
+
+        return null;
+    }
+
+    /** MARKER-PAY-LATER: what a pay-later order remembers about its hold. */
+    public static function holdMeta(array $cfg, ?string $manualMethod): array
+    {
+        if ($manualMethod === null) {
+            return [];
+        }
+        return $cfg['pay_later_hold']
+            ? ['held' => true, 'held_until' => now()->addHours($cfg['hold_hours'])->toIso8601String()]
+            : ['held' => false];
+    }
+
+    /** The shopper-facing sentence about the hold, for checkout, the order page and the email. */
+    public function holdLine(TenantOrder $order): string
+    {
+        $m = (array) ($order->metadata ?? []);
+        if (! empty($m['held']) && ! empty($m['held_until'])) {
+            $until = \Illuminate\Support\Carbon::parse($m['held_until'])->setTimezone($this->tenant->timezone());
+            return 'We\'re holding your items until ' . $until->format('D M j, g:ia') . '. If it isn\'t paid by then, the order is cancelled and the items go back on the shelf.';
+        }
+
+        return 'Your items aren\'t set aside until you pay, so they could sell in the meantime. If anything does, we\'ll let you know.';
+    }
+
+    /**
+     * MARKER-PAY-LATER: "order received, here's how to pay" — sent when a pay-later order
+     * is placed. Never throws.
+     */
+    protected function sendReceived(TenantOrder $order): void
+    {
+        if (! filled($order->contact_email)) {
+            return;
+        }
+        try {
+            $order->loadMissing('items');
+            $pm = \App\Models\Tenant\TenantPaymentMethod::where('tenant_id', $this->tenant->id)->where('method_key', $order->payment_method)->first();
+            $rows = $order->items->map(fn ($l) =>
+                "<tr><td style='padding:3px 14px 3px 0'>" . e($l->name_snapshot) . ' ×' . (int) $l->quantity
+                . "</td><td style='text-align:right'>$" . number_format($l->line_total_cents / 100, 2) . '</td></tr>'
+            )->implode('');
+            (new \App\Services\EmailService($this->tenant))->send('order_received_pay_later', $order->contact_email, [
+                'first_name'   => $order->contact_first_name ?: 'there',
+                'order_number' => $order->order_number,
+                'total'        => '$' . number_format($order->total_cents / 100, 2),
+                'items_rows'   => "<table style='font-size:14px'>{$rows}</table>",
+                'pay_line'     => e('Pay with ' . ($pm?->name ?? tender_label($order->payment_method)) . '.'
+                    . ($pm?->instructions ? ' ' . $pm->instructions : '')
+                    . ' Mention ' . $order->order_number . ' so we can match it.'),
+                'hold_line'    => e($this->holdLine($order)),
+                'order_url'    => 'https://' . request()->getHost() . '/order/' . $order->token,
+                'shop_name'    => $this->tenant->name,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('online_order.received_email_failed', ['order' => $order->id, 'error' => $e->getMessage()]);
+        }
+    }
+
+    /**
      * MARKER-ORDER-CONFIRM-EMAIL: the customer's order confirmation. Sent once the sale
      * exists, for card orders and for hand-paid orders when staff mark them paid (those used
      * to get no email at all). Outside any transaction; a mail failure never touches the money.
@@ -655,7 +744,7 @@ class OrderService
                     $need[$line->inventory_item_id]['qty'] += (int) $it->quantity;
                 }
             }
-            $stock = OrderStock::forTenant($this->tenant);
+            $stock = OrderStock::forTenant($this->tenant)->excluding($order);
             $loc   = $stock->locationId($order);
             $items = \App\Models\Tenant\TenantInventoryItem::query()->where('tenant_id', $this->tenant->id)->whereIn('id', array_keys($need))->get()->keyBy('id');
             foreach ($need as $itemId => $n) {

@@ -673,6 +673,21 @@ HTML;
 <p style='margin-top:14px'><a href='{{order_url}}' style='color:#111'>View your order</a></p>
 <p>{{whats_next}}</p>",
             ],
+            // MARKER-PAY-LATER: a pay-later order was placed; how to pay and whether it's held
+            'order_received_pay_later' => [
+                'subject'   => 'Order received — {{order_number}}',
+                'body_html' => "<p>Hi {{first_name}},</p>
+<p>Thanks for your order with {$shop}. It's waiting for your payment:</p>
+{{items_rows}}
+<table style='font-size:14px;line-height:1.9;margin-top:8px'>
+  <tr><td style='color:#666;padding-right:16px'>Order</td><td><strong>{{order_number}}</strong></td></tr>
+  <tr><td style='color:#666;padding-right:16px'>Total</td><td><strong>{{total}}</strong></td></tr>
+</table>
+<p><strong>{{pay_line}}</strong></p>
+<p>{{hold_line}}</p>
+<p style='margin-top:14px'><a href='{{order_url}}' style='color:#111'>View your order</a></p>
+<p>— The {$shop} team</p>",
+            ],
             // MARKER-ECOM-STOCK-GUARD: a paid online order couldn't be completed
             'order_refunded_unavailable' => [
                 'subject'   => 'We couldn\'t complete your order — {{order_number}}',

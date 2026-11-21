@@ -28,6 +28,8 @@
 .ec-row .t{font-size:13.5px;font-weight:500}
 .ec-row .d{font-size:12px;color:var(--ia-text-muted);margin-top:2px;max-width:50ch;line-height:1.5}
 .ec-row .ctl{display:flex;gap:8px;align-items:center;flex:none}
+.pl-tip{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;border:.5px solid var(--ia-border-strong);font-size:10px;font-weight:500;color:var(--ia-text-muted);cursor:help;position:relative;margin-left:5px;vertical-align:1px}
+.pl-tip:hover::after,.pl-tip:focus::after,.pl-tip.on::after{content:attr(data-tip);position:absolute;top:20px;left:-8px;width:260px;padding:8px 10px;background:var(--ia-surface);border:.5px solid var(--ia-border-strong);border-radius:var(--ia-r-md);font-size:11.5px;font-weight:400;line-height:1.45;color:var(--ia-text-muted);white-space:normal;z-index:20;box-shadow:0 6px 20px rgba(0,0,0,.35)}
 .ec-row .ia-input,.ec-row .ia-select{width:auto}
 .ec-pre{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--ia-text-muted)}
 .ec-pre .ia-input{width:92px}
@@ -462,8 +464,21 @@
       </div>
       <div class="ec-sec">
         <h3>Other ways to pay</h3>
-        <div class="ec-note" style="margin-bottom:4px">Venmo, Cash App and pay-in-store orders wait as <b>Awaiting payment</b> until you mark them paid on the order. Stock isn't taken until then.</div>
-        <div class="ec-row"><div><div class="t">Cancel unpaid orders after</div><div class="d">Awaiting-payment orders are released after this long.</div></div><div class="ctl"><input class="ia-input" type="number" min="1" max="720" name="hold_hours" value="{{ old('hold_hours', $cfg['hold_hours']) }}" style="width:80px"> hours</div></div>
+        <div class="ec-note" style="margin-bottom:4px">Venmo, Cash App and pay-in-store orders wait as <b>Awaiting payment</b> until you mark them paid on the order. The sale is made then.</div>
+        <div class="ec-row"><div><div class="t">Cancel unpaid orders after</div><div class="d">Awaiting-payment orders are cancelled after this long, and anything held for them goes back on the shelf.</div></div><div class="ctl"><input class="ia-input" type="number" min="1" max="720" name="hold_hours" value="{{ old('hold_hours', $cfg['hold_hours']) }}" style="width:80px"> hours</div></div>
+        {{-- MARKER-PAY-LATER --}}
+        <div class="ec-row"><div><div class="t">Who can pay later</div><div class="d">Pickup only means nothing leaves the shop before it's paid for.</div></div><div class="ctl"><select class="ia-select" name="pay_later_scope">
+          <option value="pickup" @selected(old('pay_later_scope', $cfg['pay_later_scope']) === 'pickup')>Pickup orders only</option>
+          <option value="all" @selected(old('pay_later_scope', $cfg['pay_later_scope']) === 'all')>Every order</option>
+        </select></div></div>
+        <div class="ec-row"><div><div class="t">Unpaid orders' items
+          @if($cfg['pos_orders_out'])<span class="pl-tip" tabindex="0" id="plTip" data-tip="Holds only exist in Intake. Your Connected POS still shows a held unit as in stock, so it can be sold in store there, until the order is paid and sent.">?</span>@endif
+          </div><div class="d">Held: they come off what the online store can sell until the order is paid or cancelled. Not held: checkout and the customer's email say they could sell first.</div></div><div class="ctl"><select class="ia-select" name="pay_later_hold" id="plHold">
+          <option value="hold" @selected(old('pay_later_hold', $cfg['pay_later_hold'] ? 'hold' : 'none') === 'hold')>Hold them</option>
+          <option value="none" @selected(old('pay_later_hold', $cfg['pay_later_hold'] ? 'hold' : 'none') === 'none')>Don't hold them</option>
+        </select></div></div>
+        <div class="ec-row"><div><div class="t">Largest order that can be paid later</div><div class="d">Bigger orders must be paid by card. Leave blank for no limit.</div></div><div class="ctl">$ <input class="ia-input" type="number" min="0" step="1" name="pay_later_max" value="{{ old('pay_later_max', $cfg['pay_later_max_cents'] !== null ? (int) round($cfg['pay_later_max_cents'] / 100) : '') }}" placeholder="No limit" style="width:100px"></div></div>
+        <div class="ec-row"><div><div class="t">Name at checkout</div><div class="d">Heads the pay-later choices on the checkout page.</div></div><div class="ctl"><input class="ia-input" name="pay_later_label" maxlength="40" value="{{ old('pay_later_label', $cfg['pay_later_label']) }}" style="width:180px"></div></div>
         <div class="ec-row"><div><div class="t">Payment methods</div><div class="d">Turn Venmo, Cash App and others on or off for online orders.</div></div><div class="ctl"><a class="ia-btn ia-btn--secondary ia-btn--sm" href="{{ route('tenant.settings.index') }}">Edit payment methods</a></div></div>
       </div>
       <div class="ec-sec">
@@ -472,13 +487,24 @@
       </div>
       <div class="ec-actions"><button class="ia-btn ia-btn--primary" type="submit">Save payments</button></div>
     </form>
+    @if($cfg['pos_orders_out'])
+    <script>
+    /* MARKER-PAY-LATER: changing the hold setting shows the Connected POS note on its own */
+    (function(){
+      var sel=document.getElementById('plHold'), tip=document.getElementById('plTip'), t;
+      if(!sel||!tip) return;
+      sel.addEventListener('change', function(){ tip.classList.add('on'); clearTimeout(t); t=setTimeout(function(){ tip.classList.remove('on'); }, 8000); });
+    })();
+    </script>
+    @endif
   </section>
 
   {{-- ============ MESSAGES ============ --}}
   <section class="ec-panel {{ $tab === 'msg' ? 'on' : '' }}" id="p-msg">
     <div class="ec-sec">
       <h3>Order messages</h3>
-      <div class="ec-row msg-row"><div><div class="t">Order confirmation<span class="ch">Email</span></div><div class="d">Sent when payment clears.</div></div><div class="ctl"><a class="ia-btn ia-btn--secondary ia-btn--sm" href="{{ route('tenant.communication.index') }}">Messages</a></div></div>
+      <div class="ec-row msg-row"><div><div class="t">Order confirmation<span class="ch">Email</span></div><div class="d">Sent when payment clears, or when you mark a pay-later order paid.</div></div><div class="ctl"><a class="ia-btn ia-btn--secondary ia-btn--sm" href="{{ route('tenant.communication.index') }}">Messages</a></div></div>
+      <div class="ec-row msg-row"><div><div class="t">Order received, pay later<span class="ch">Email</span></div><div class="d">Sent when a shopper places a pay-later order: how to pay, and whether the items are held.</div></div><div class="ctl"><a class="ia-btn ia-btn--secondary ia-btn--sm" href="{{ route('tenant.communication.index') }}">Edit</a></div></div>
       <div class="ec-row msg-row"><div><div class="t">Online order refunded<span class="ch">Email</span></div><div class="d">Sent if a paid order can't be completed and the money goes back. Edit it under Messages.</div></div><div class="ctl"><a class="ia-btn ia-btn--secondary ia-btn--sm" href="{{ route('tenant.communication.index') }}">Edit</a></div></div>
     </div>
     {{-- MARKER-SHOP-POLICIES: who hears about new orders, and the returns page shoppers are shown --}}

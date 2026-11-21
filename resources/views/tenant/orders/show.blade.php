@@ -206,6 +206,21 @@
         @if($awaitingManual)
           <div style="border:1px solid rgba(245,158,11,.4);background:rgba(245,158,11,.08);border-radius:10px;padding:12px 14px;margin-bottom:12px;font-size:12.5px">
             Awaiting <b>{{ tender_label($order->payment_method) }}</b> — {{ number_format($order->total_cents / 100, 2) }} expected with note "{{ $order->order_number }}".
+            {{-- MARKER-PAY-LATER: the hold, and anything that sold in the meantime --}}
+            @php
+              $plMeta = (array) ($order->metadata ?? []);
+              $plGone = \App\Services\Tenant\OrderStock::forTenant(tenant())->inspect($order, \App\Services\Tenant\OrderStock::MODE_PICKUP)['blocked'] ?? [];
+            @endphp
+            <div style="margin-top:6px;opacity:.85">
+              @if(! empty($plMeta['held']) && ! empty($plMeta['held_until']))
+                Items held until {{ tlocal(\Illuminate\Support\Carbon::parse($plMeta['held_until']), 'D M j, g:ia') }}.
+              @else
+                Items are not held for this order.
+              @endif
+            </div>
+            @if($plGone)
+              <div style="margin-top:6px;color:#A32D2D">Sold since this order was placed: {{ collect($plGone)->pluck('name')->implode(', ') }}. Let the customer know before they pay — marking it paid turns the missing units into a special order.</div>
+            @endif
           </div>
           <form method="POST" action="{{ route('tenant.orders.update', $order->id) }}" style="margin-bottom:10px" id="odMarkPaid">
             @csrf

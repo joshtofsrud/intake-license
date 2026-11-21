@@ -217,6 +217,9 @@ class CheckoutController extends Controller
                 'wants_install' => (bool) ($data['wants_install'] ?? false),
                 'ship'          => $shipAddress ? ['address' => ['zip' => substr($shipAddress['zip'], 0, 5), 'state' => $shipAddress['state'], 'line1' => $shipAddress['line1'], 'city' => $shipAddress['city']], 'choices' => (array) ($data['ship_choices'] ?? [])] : null,
             ], $manualMethod);
+        } catch (\App\Exceptions\PayLaterNotAllowedException $e) {
+            // MARKER-PAY-LATER: nothing was placed; the shopper picks card or pickup
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
         } catch (\App\Exceptions\ShippingChoiceException $e) {
             // MARKER-SHIPPING-RATES: nothing was charged; the page re-fetches the options
             return response()->json(['ok' => false, 'rates' => true, 'message' => $e->getMessage()], 409);

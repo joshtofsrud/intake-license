@@ -137,19 +137,28 @@
             ->reject(fn ($m) => $m->method_key === 'cash_app' && $m->mode === 'stripe')
             ->values();
       @endphp
+      @php $plCfg = \App\Services\Tenant\OrderService::forTenant($tenant)->config(); @endphp
       @if($onlineMethods->isNotEmpty())
-      <div class="panel">
+      <div class="panel" id="pm-panel">
         <h2>Pay with</h2>
         <label class="pm-opt" style="display:flex;align-items:center;gap:10px;border:1.5px solid color-mix(in srgb, var(--p-text) 12%, transparent);border-radius:10px;padding:11px 12px;margin-bottom:8px;cursor:pointer;font-weight:600;font-size:14px">
           <input type="radio" name="pm" value="card" checked style="accent-color:var(--s-ink)"> Card
           <span style="font-size:11px;color:var(--p-muted);font-weight:400">Instant</span>
         </label>
+        {{-- MARKER-PAY-LATER: the shop's name for paying later, its rules, and the hold --}}
+        <div id="pl-group">
+        <div style="font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;opacity:.6;margin:12px 0 6px">{{ $plCfg['pay_later_label'] }}</div>
         @foreach($onlineMethods as $om)
-          <label class="pm-opt" style="display:flex;align-items:center;gap:10px;border:1.5px solid color-mix(in srgb, var(--p-text) 12%, transparent);border-radius:10px;padding:11px 12px;margin-bottom:8px;cursor:pointer;font-weight:600;font-size:14px">
+          <label class="pm-opt pl-opt" style="display:flex;align-items:center;gap:10px;border:1.5px solid color-mix(in srgb, var(--p-text) 12%, transparent);border-radius:10px;padding:11px 12px;margin-bottom:8px;cursor:pointer;font-weight:600;font-size:14px">
             <input type="radio" name="pm" value="{{ $om->method_key }}" style="accent-color:var(--s-ink)"> {{ $om->name }}
             @if($om->hintFor('online'))<span style="font-size:11px;color:var(--p-muted);font-weight:400">{{ $om->hintFor('online') }}</span>@endif
           </label>
         @endforeach
+        <div style="font-size:12px;line-height:1.5;opacity:.7;margin-top:4px">
+          @if($plCfg['pay_later_hold'])We'll hold your items for {{ $plCfg['hold_hours'] }} {{ $plCfg['hold_hours'] === 1 ? 'hour' : 'hours' }} while you pay.@else Your items aren't set aside until you pay, so they could sell in the meantime.@endif
+        </div>
+        </div>
+        <div id="pl-why" style="display:none;font-size:12px;line-height:1.5;opacity:.7;margin-top:8px"></div>
       </div>
       @endif
 
@@ -266,7 +275,20 @@
     };
     if (immediate) run(); else rateTimer = setTimeout(run, 450);
   }
+  // MARKER-PAY-LATER: pay-later choices only where the shop allows them for this order
+  var PL = { scope: @json($plCfg['pay_later_scope']), max: @json($plCfg['pay_later_max_cents']), label: @json($plCfg['pay_later_label']) };
+  function syncPay() {
+    var g = document.getElementById('pl-group'); if (!g) return;
+    var q = QUOTES[ful] || {}, why = '';
+    if (PL.scope === 'pickup' && ful !== 'pickup') why = PL.label + ' is only for pickup orders.';
+    else if (PL.max !== null && (q.total_cents || 0) > PL.max) why = 'Orders over ' + money(PL.max) + ' are paid by card.';
+    g.style.display = why ? 'none' : 'block';
+    var w = document.getElementById('pl-why'); w.textContent = why; w.style.display = why ? 'block' : 'none';
+    var on = document.querySelector('input[name="pm"]:checked');
+    if (why && on && on.value !== 'card') document.querySelector('input[name="pm"][value="card"]').checked = true;
+  }
   function syncGo() {
+    syncPay();
     var blocked = (SHIP_ONLY && ful !== 'ship') || (ful === 'ship' && RATED && !ratesReady);
     document.getElementById('go').disabled = blocked;
   }
@@ -298,6 +320,7 @@
     r.addEventListener('change', function () { pickFul(r.value); });
   });
   if (ful !== 'pickup' || SHIP_ONLY || RATED || TAXDEST) pickFul(ful); // start on whatever is offered first, and apply the ships-only notice
+  syncPay();
 
   function fail(msg) {
     var e = document.getElementById('err');
