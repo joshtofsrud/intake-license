@@ -46,7 +46,10 @@ class OrdersController extends Controller
             ->paginate(25)
             ->withQueryString();
 
-        return view('tenant.orders.index', compact('orders', 'counts', 'tab'));
+        // MARKER-POS-RETURN-FOR: orders refunded in the shop's Connected POS, for the mark on the list
+        $posRefunds = \App\Services\Pos\PosSalesSync::refundedThere($tenant->id, $orders->pluck('id')->all());
+
+        return view('tenant.orders.index', compact('orders', 'counts', 'tab', 'posRefunds'));
     }
 
     public function show(string $id)
@@ -57,7 +60,9 @@ class OrdersController extends Controller
             ->with(['items', 'customer', 'sale'])
             ->findOrFail($id);
 
-        return view('tenant.orders.show', compact('order'));
+        $posRefund = \App\Services\Pos\PosSalesSync::refundedThere(tenant()->id, [$order->id])[$order->id] ?? null; // MARKER-POS-RETURN-FOR
+
+        return view('tenant.orders.show', compact('order', 'posRefund'));
     }
 
     /**

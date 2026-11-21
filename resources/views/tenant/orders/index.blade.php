@@ -64,7 +64,7 @@
         <td style="text-align:right;font-variant-numeric:tabular-nums">${{ number_format($o->total_cents / 100, 2) }}</td>
         {{-- MARKER-ORDER-STEPS: the step's own name, and pickups left waiting --}}
         @php $oWait = \App\Support\OrderSteps::waitingDays($o); $oRem = $oRem ?? \App\Support\OrderSteps::reminderDays(tenant()); @endphp
-        <td><span class="od-st {{ $o->status }}">{{ \App\Support\OrderSteps::label($o) }}</span>@if($oWait !== null && $oRem > 0 && $oWait >= $oRem)<span style="display:block;font-size:11px;color:#EF9F27;margin-top:3px">Not collected · {{ $oWait }} days</span>@endif</td>
+        <td><span class="od-st {{ $o->status }}">{{ \App\Support\OrderSteps::label($o) }}</span>@if(! empty($posRefunds[$o->id]))<span style="display:block;font-size:11px;color:#EF9F27;margin-top:3px" title="A return for this order was rung up in your Connected POS. Intake has not refunded it.">Refunded in Connected POS · {{ format_money($posRefunds[$o->id]['cents']) }}</span>@endif@if($oWait !== null && $oRem > 0 && $oWait >= $oRem)<span style="display:block;font-size:11px;color:#EF9F27;margin-top:3px">Not collected · {{ $oWait }} days</span>@endif</td>
         <td style="color:var(--ia-text-muted)">{{ $o->paid_at ? tlocal($o->paid_at, 'M j, g:i a') : tlocal($o->created_at, 'M j, g:i a') }}</td>
       </tr>
     @endforeach

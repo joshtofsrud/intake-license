@@ -110,6 +110,13 @@
 @if(session('error'))
   <div class="ia-flash ia-flash--error" style="margin-bottom:14px">{{ session('error') }}</div>
 @endif
+{{-- MARKER-POS-RETURN-FOR: this order was refunded at the shop's Connected POS, not in Intake --}}
+@if(! empty($posRefund))
+  <div class="ia-flash" style="margin-bottom:14px;border:.5px solid rgba(239,159,39,.45);background:rgba(239,159,39,.08);color:var(--ia-text)">
+    <b>Refunded in your Connected POS:</b> {{ format_money($posRefund['cents']) }} on {{ \Illuminate\Support\Carbon::parse($posRefund['last'])->format('M j, Y') }}{{ $posRefund['numbers'] ? ' (receipt ' . implode(', ', array_map(fn ($n) => '#' . $n, $posRefund['numbers'])) . ')' : '' }}{{ $posRefund['count'] > 1 ? ', in ' . $posRefund['count'] . ' returns' : '' }}.
+    <button type="button" class="ia-tip" aria-label="What this means">i</button><span class="ia-tip-text" hidden>A return for this order was rung up in your Connected POS. Intake has not refunded it: no money went back through Intake and this order's status is unchanged. If the customer still needs their online payment returned, refund here as well, but know that Intake will then send that refund to your Connected POS as a second return.</span>
+  </div>
+@endif
 
 <div class="od-grid">
   <div>
@@ -367,7 +374,7 @@
           <input class="ia-input" name="reason" maxlength="300" placeholder="Reason (optional, kept on the refund)" style="width:100%;margin-top:12px">
           @if(filled($order->contact_email))<label class="od-chk"><input type="checkbox" name="notify" value="1" checked> Email {{ $order->contact_first_name ?: 'the customer' }}</label>@endif
           <label class="od-chk"><input type="checkbox" name="restock" value="1" checked> Put the items back in stock</label>
-          <div class="od-nx">Supplier-shipped lines are never restocked, since they didn't come off your shelf. The refund is sent on to your Connected POS when one is connected.</div>
+          <div class="od-nx">Supplier-shipped lines are never restocked, since they didn't come off your shelf. The refund is sent on to your Connected POS when one is connected.@if(! empty($posRefund)) <b style="color:#EF9F27">This order already has a {{ format_money($posRefund['cents']) }} return in your Connected POS; refunding here adds a second one there.</b>@endif</div>
           <div class="acts">
             <button type="button" class="ia-btn ia-btn--secondary" onclick="document.getElementById('odRefund').classList.remove('on')">{{ $order->status === 'completed' ? 'Close' : 'Keep the order' }}</button>
             <button type="submit" class="ia-btn ia-btn--primary" id="odRefGo" style="background:#E24B4A;border-color:#E24B4A;color:#fff">Refund</button>

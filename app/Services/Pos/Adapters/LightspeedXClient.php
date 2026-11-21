@@ -246,6 +246,7 @@ class LightspeedXClient implements PosAdapter
                 // a sale to nobody in particular is recorded there against one "walk-in" customer
                 'customer_id'    => filled($r['customer_id'] ?? null) && (string) $r['customer_id'] !== $walkIn ? (string) $r['customer_id'] : null,
                 'state'          => $state,
+                'return_for'     => filled($r['return_for'] ?? null) ? (string) $r['return_for'] : null, // the sale this return is for
                 'subtotal_cents' => $cents($r['total_price'] ?? null) ?? $sub,
                 'tax_cents'      => $cents($r['total_tax'] ?? null) ?? $tax,
                 'lines'          => $lines,

@@ -162,7 +162,8 @@ interface PosAdapter
      *
      * Each sale: id, number (?string), sold_at (UTC, any format Carbon reads), outlet_id (?string),
      * customer_id (?string), state ('done' a finished sale or return | 'void' cancelled or
-     * deleted | 'open' not finished yet), subtotal_cents (before tax), tax_cents, and
+     * deleted | 'open' not finished yet), return_for (?string, optional: the id of the sale a
+     * return is for), subtotal_cents (before tax), tax_cents, and
      * lines: list of product_id (?string), name (?string), sku (?string), quantity (float,
      * negative on a return), unit_price_cents (before tax), total_cents (the line, before
      * tax, after its discount), discount_cents, tax_cents, unit_cost_cents (?int).

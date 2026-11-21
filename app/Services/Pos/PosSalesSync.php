@@ -264,6 +264,7 @@ class PosSalesSync
                     'sale_date'            => $at->copy()->setTimezone($tz)->toDateString(),
                     'external_outlet_id'   => $s['outlet_id'],
                     'external_customer_id' => $s['customer_id'],
+                    'return_for_external_id' => $s['return_for'] ?? null, // MARKER-POS-RETURN-FOR
                     'subtotal_cents'       => (int) $s['subtotal_cents'],
                     'tax_cents'            => (int) $s['tax_cents'],
                     'total_cents'          => (int) $s['subtotal_cents'] + (int) $s['tax_cents'],
@@ -324,6 +325,41 @@ class PosSalesSync
                 ->whereColumn('c.tenant_id', 'tenant_pos_sales.tenant_id')->whereColumn('c.external_id', 'tenant_pos_sales.external_customer_id')
                 ->whereNotNull('c.customer_id'))->count() : 0,
         ];
+    }
+
+    /**
+     * MARKER-POS-RETURN-FOR: web orders that were refunded in the Connected POS itself.
+     * Intake sent the order there as a sale; a return read back that names that sale is a
+     * refund the shop gave at its Connected POS. Nothing is written to the order: this is
+     * looked up when a page shows it. (Refunds Intake sent there are never in the history.)
+     *
+     * @param  list<string>  $orderIds
+     * @return array<string, array{cents: int, count: int, last: string, numbers: list<string>}> by order id
+     */
+    public static function refundedThere(string $tenantId, array $orderIds): array
+    {
+        if (! $orderIds) {
+            return [];
+        }
+        $rows = DB::table('tenant_pos_pushes as p')
+            ->join('tenant_pos_sales as s', function ($j) {
+                $j->on('s.tenant_id', '=', 'p.tenant_id')->on('s.return_for_external_id', '=', 'p.external_id');
+            })
+            ->where('p.tenant_id', $tenantId)->where('p.kind', 'sale')->whereIn('p.ref_id', $orderIds)
+            ->orderBy('s.sold_at')->get(['p.ref_id', 's.total_cents', 's.sale_date', 's.number']);
+        $out = [];
+        foreach ($rows as $r) {
+            $o = $out[$r->ref_id] ?? ['cents' => 0, 'count' => 0, 'last' => null, 'numbers' => []];
+            $o['cents'] += abs((int) $r->total_cents);
+            $o['count']++;
+            $o['last'] = substr((string) $r->sale_date, 0, 10);
+            if ($r->number) {
+                $o['numbers'][] = (string) $r->number;
+            }
+            $out[$r->ref_id] = $o;
+        }
+
+        return $out;
     }
 
     /**
