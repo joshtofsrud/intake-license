@@ -2,12 +2,14 @@
 @php
   $pageTitle = $order->order_number;
   $money = fn ($c) => '$' . number_format(($c ?? 0) / 100, 2);
-  $advance = match ($order->status) {
-      'paid'       => ['fulfilling', 'Start fulfilling'],
-      'fulfilling' => ['fulfilled',  $order->fulfillment_type === 'pickup' ? 'Mark ready for pickup' : 'Mark ready'],
-      'fulfilled'  => ['completed',  $order->fulfillment_type === 'pickup' ? 'Picked up — complete' : 'Delivered — complete'],
-      default      => null,
-  };
+  // MARKER-ORDER-STEPS: steps, labels and the next button follow how the order leaves
+  $steps   = \App\Support\OrderSteps::steps($order);
+  $stepNow = \App\Support\OrderSteps::next($order);
+  $reached = \App\Support\OrderSteps::reached($order);
+  $history = \App\Support\OrderSteps::history($order);
+  $waited  = \App\Support\OrderSteps::waitingDays($order);
+  $remDays = \App\Support\OrderSteps::reminderDays(tenant());
+
 @endphp
 
 @section('content')
@@ -34,19 +36,60 @@
   .od-st.cancelled{background:rgba(242,109,109,.12);color:#F26D6D}
   .od-chk{display:flex;gap:8px;align-items:center;font-size:12.5px;color:var(--ia-text-muted);padding:8px 0 2px;cursor:pointer}
   .od-chk input{accent-color:var(--ia-accent)}
+  /* MARKER-ORDER-STEPS */
+  .os{display:flex;align-items:center;margin:4px 0 18px;flex-wrap:wrap;row-gap:8px}
+  .os .s{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ia-text-dim);white-space:nowrap}
+  .os .d{width:20px;height:20px;border-radius:50%;border:1.5px solid var(--ia-border-strong);display:grid;place-content:center;font-size:11px;flex:none}
+  .os .ln{flex:1;height:1.5px;background:var(--ia-border-strong);margin:0 10px;min-width:24px}
+  .os .s.done{color:var(--ia-text-muted)} .os .s.done .d{background:var(--ia-accent);border-color:var(--ia-accent);color:#111}
+  .os .s.now{color:var(--ia-text);font-weight:600} .os .s.now .d{border-color:var(--ia-accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--ia-accent) 22%,transparent)}
+  .os .ln.done{background:var(--ia-accent)}
+  .os .when{font-size:11px;color:var(--ia-text-dim);font-weight:400;margin-left:2px}
+  .od-nx{font-size:12.5px;color:var(--ia-text-muted);margin:8px 0 0;line-height:1.5}
+  .od-prog{height:6px;border-radius:99px;background:var(--ia-hover);overflow:hidden;margin:8px 0 6px}
+  .od-prog i{display:block;height:100%;background:var(--ia-accent);border-radius:99px}
+  .od-flag{font-size:12px;border:1px solid rgba(239,159,39,.4);background:rgba(239,159,39,.08);color:#EF9F27;border-radius:10px;padding:9px 12px;margin-bottom:10px;line-height:1.5}
+  .od-hist{font-size:12px;color:var(--ia-text-muted);line-height:1.9}
+  .od-hist b{color:var(--ia-text);font-weight:500}
+  .od-scrim{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:200}
+  .od-scrim.on{display:flex}
+  .od-dlg{width:min(540px,92vw);max-height:90vh;overflow:auto;background:var(--ia-surface);border:.5px solid var(--ia-border-strong);border-radius:14px;padding:20px 22px}
+  .od-dlg h4{font-size:16px;font-weight:600;margin:0 0 4px}
+  .od-dlg .sub{font-size:12.5px;color:var(--ia-text-muted);margin-bottom:12px;line-height:1.5}
+  .od-rl{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:.5px solid var(--ia-border);font-size:13px}
+  .od-rl input[type=checkbox]{accent-color:var(--ia-accent)} .od-rl .p{margin-left:auto;font-variant-numeric:tabular-nums}
+  .od-rl input[type=number]{width:58px}
+  .od-rl.gone{opacity:.45}
+  .od-rf{display:flex;justify-content:space-between;font-size:14px;font-weight:700;border-top:.5px solid var(--ia-border);margin-top:8px;padding-top:10px}
+  .od-dlg .acts{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
 </style>
 
 <div class="ia-page-head">
   <div class="ia-page-head-left">
     <a href="{{ route('tenant.orders.index') }}" style="font-size:12.5px;color:var(--ia-text-muted);text-decoration:none">← Orders</a>
     <h1 class="ia-page-title" style="margin-top:4px">{{ $order->order_number }}
-      <span class="od-st {{ $order->status }}" style="vertical-align:3px;margin-left:8px">{{ str_replace('_', ' ', $order->status) }}</span>
+      <span class="od-st {{ $order->status }}" style="vertical-align:3px;margin-left:8px">{{ \App\Support\OrderSteps::label($order) }}</span>
     </h1>
   </div>
 </div>
 
+{{-- MARKER-ORDER-STEPS: where the order is, for how it leaves --}}
+@if(array_key_exists($order->status, $steps))
+  @php $keys = array_keys($steps); $at = array_search($order->status, $keys, true); @endphp
+  <div class="os">
+    @foreach($steps as $st => $lbl)
+      @php $i = $loop->index; $cls = $i < $at || ($i === $at && $st === 'completed') ? 'done' : ($i === $at ? 'now' : ''); @endphp
+      <span class="s {{ $cls }}"><span class="d">{{ $cls === 'done' ? '✓' : '' }}</span>{{ $lbl }}@if(! empty($reached[$st]))<span class="when">{{ tlocal(\Illuminate\Support\Carbon::parse($reached[$st]), 'M j, g:ia') }}</span>@endif</span>
+      @unless($loop->last)<span class="ln {{ $i < $at ? 'done' : '' }}"></span>@endunless
+    @endforeach
+  </div>
+@endif
+
 @if(session('success'))
-  <div class="ia-banner ia-banner--success" style="margin-bottom:14px">{{ session('success') }}</div>
+  <div class="ia-flash ia-flash--success" style="margin-bottom:14px">{{ session('success') }}</div>
+@endif
+@if(session('error'))
+  <div class="ia-flash ia-flash--error" style="margin-bottom:14px">{{ session('error') }}</div>
 @endif
 
 <div class="od-grid">
@@ -164,7 +207,7 @@
       @endforeach
       <div style="font-size:11.5px;color:var(--ia-text-muted);margin-top:10px;line-height:1.5">
         <b>To ship</b> → <b>Shipped</b> → <b>Out for delivery</b> → <b>Delivered</b>. The order moves on its own as its shipments do.
-        <b>Special order</b> adds the items to your special orders list and tells the customer. <b>Cancel</b> tells the customer a refund is coming; ring the refund up from the linked sale on the register.
+        <b>Special order</b> adds the items to your special orders list and tells the customer. <b>Cancel</b> tells the customer a refund is coming; then refund its lines with <b>Cancel and refund</b> on this order.
       </div>
     </div>
     @endif
@@ -181,28 +224,34 @@
       @if($order->wants_install)
         <div class="od-kv"><span class="k">Install</span><span style="color:var(--ia-accent);font-weight:600">Customer requested installation — reach out to schedule</span></div>
       @endif
+      {{-- MARKER-ORDER-STEPS: who moved it along, and when --}}
+      @if($history)
+        <div class="od-kv"><span class="k">History</span><span class="od-hist">
+          @foreach($history as $h)
+            <b>{{ $h['what'] }}</b> · {{ tlocal(\Illuminate\Support\Carbon::parse($h['at']), 'M j, g:ia') }}@if(! empty($h['by'])) · {{ $h['by'] }}@endif @if(! empty($h['note'])) · {{ $h['note'] }}@endif<br>
+          @endforeach
+        </span></div>
+      @endif
     </div>
   </div>
 
   <div>
-    @if($order->fulfillment_type === 'local_delivery' && in_array($order->status, ['paid','fulfilling','fulfilled']))
-      <div class="od-card">
-        <h3>Local delivery</h3>
-        <form method="POST" action="{{ route('tenant.orders.update', $order->id) }}">
-          @csrf <input type="hidden" name="op" value="out_for_delivery">
-          <button class="ia-btn ia-btn--ghost" style="width:100%" @disabled(! filled($order->contact_email))>Tell the customer it's out for delivery</button>
-          <div style="font-size:11.5px;color:var(--ia-text-muted);margin-top:6px">{{ filled($order->contact_email) ? 'Sends the "out for delivery" email.' : 'No email on this order.' }}</div>
-        </form>
-      </div>
-    @endif
 
     {{-- MARKER-ORDER-MANUAL-PAY: an order waiting on cash, Venmo etc. gets its buttons too.
          The mark-paid form used to sit inside @if($advance), which is always null while an
          order is pending, so a manual-payment order had no way forward. --}}
     @php $awaitingManual = $order->status === \App\Models\Tenant\TenantOrder::STATUS_PENDING_PAYMENT && $order->payment_method && ! $order->sale_id; @endphp
-    @if($advance || $awaitingManual || in_array($order->status, ['paid', 'fulfilling']))
+    @php
+      $canRefund = $order->sale_id && in_array($order->status, ['paid', 'fulfilling', 'fulfilled', 'completed'], true);
+      $refundPlan = $canRefund ? \App\Support\OrderRefund::plan($order, $order->sale) : null;
+      $refundLeft = $refundPlan ? collect($refundPlan['lines'])->sum(fn ($l) => $l['left'] > 0 ? 1 : 0) : 0;
+      $shipsAll   = $order->fulfillment_type === 'ship' ? $order->shipments()->get(['status']) : collect();
+      $shipsLive  = $shipsAll->where('status', '!=', 'cancelled');
+      $shipsSent  = $shipsLive->whereIn('status', ['shipped', 'out_for_delivery', 'delivered'])->count();
+    @endphp
+    @if($awaitingManual || $stepNow || ($order->fulfillment_type === 'ship' && $shipsLive->isNotEmpty() && in_array($order->status, ['paid', 'fulfilling', 'fulfilled'], true)) || ($canRefund && $refundLeft))
       <div class="od-card">
-        <h3>Move it along</h3>
+        <h3>{{ $awaitingManual ? 'Payment' : ($order->fulfillment_type === 'ship' ? 'Where it stands' : 'Next step') }}</h3>
         @if($awaitingManual)
           <div style="border:1px solid rgba(245,158,11,.4);background:rgba(245,158,11,.08);border-radius:10px;padding:12px 14px;margin-bottom:12px;font-size:12.5px">
             Awaiting <b>{{ tender_label($order->payment_method) }}</b> — {{ number_format($order->total_cents / 100, 2) }} expected with note "{{ $order->order_number }}".
@@ -229,26 +278,91 @@
               onclick="IntakeConfirm.show({ title: 'Payment received?', message: {{ \Illuminate\Support\Js::from('Confirm the ' . tender_label($order->payment_method) . ' payment of ' . $money($order->total_cents) . ' arrived. This builds the sale and marks the order paid.') }}, confirmText: 'Mark paid' }).then(function (ok) { if (ok) document.getElementById('odMarkPaid').submit(); })">Payment received — mark paid</button>
           </form>
         @endif
-        @if($advance)
+        {{-- MARKER-ORDER-STEPS: the next step, for how it leaves --}}
+        @if($stepNow)
+          @if($waited !== null && $remDays > 0 && $waited >= $remDays)
+            <div class="od-flag">Ready for {{ $waited }} days and not collected.@if(! empty(((array) $order->metadata)['reminded_at'])) A reminder went to {{ $order->contact_first_name ?: 'the customer' }} {{ \Illuminate\Support\Carbon::parse(((array) $order->metadata)['reminded_at'])->diffForHumans() }}.@endif</div>
+          @elseif($waited !== null)
+            <div class="od-nx" style="margin:0 0 10px">Ready for {{ $waited }} {{ $waited === 1 ? 'day' : 'days' }}.@if($remDays > 0) A reminder goes out at {{ $remDays }}.@endif</div>
+          @endif
           <form method="POST" action="{{ route('tenant.orders.update', $order->id) }}">
             @csrf
             <input type="hidden" name="op" value="advance">
-            <button class="ia-btn ia-btn--primary" style="width:100%">{{ $advance[1] }}</button>
-            @if($advance[0] === 'fulfilled' && filled($order->contact_phone))
-              <label class="od-chk"><input type="checkbox" name="notify_text" value="1" checked>
-                Text {{ $order->contact_first_name }} that it's ready</label>
+            <button class="ia-btn ia-btn--primary" style="width:100%">{{ $stepNow[1] }}</button>
+            @if($stepNow[0] === 'fulfilled' && (filled($order->contact_phone) || filled($order->contact_email)))
+              <label class="od-chk"><input type="checkbox" name="notify" value="1" checked>
+                @if($order->fulfillment_type === 'local_delivery')
+                  Email {{ $order->contact_first_name ?: 'the customer' }} that it's on its way
+                @else
+                  {{ filled($order->contact_phone) && filled($order->contact_email) ? 'Text and email' : (filled($order->contact_phone) ? 'Text' : 'Email') }} {{ $order->contact_first_name ?: 'the customer' }} that it's ready
+                @endif
+              </label>
             @endif
+            <div class="od-nx">{{ $stepNow[2] }}</div>
           </form>
+        @elseif($order->fulfillment_type === 'ship' && $shipsLive->isNotEmpty() && in_array($order->status, ['paid', 'fulfilling', 'fulfilled'], true))
+          <div style="font-size:13px;font-weight:600">{{ $shipsSent }} of {{ $shipsLive->count() }} {{ $shipsLive->count() === 1 ? 'shipment' : 'shipments' }} sent</div>
+          <div class="od-prog"><i style="width:{{ round($shipsSent / max(1, $shipsLive->count()) * 100) }}%"></i></div>
+          <div class="od-nx">The order moves on its own as its shipments do: <b>Shipping</b> once one leaves, <b>Delivered</b> when every one arrives. Ship from the Shipments box.</div>
         @endif
-        @if($awaitingManual || in_array($order->status, ['paid', 'fulfilling']))
+
+        @if($awaitingManual)
           <form method="POST" action="{{ route('tenant.orders.update', $order->id) }}" style="margin-top:8px" id="odCancel">
             @csrf
             <input type="hidden" name="op" value="cancel">
             <button type="button" class="ia-btn ia-btn--ghost" style="width:100%"
-              onclick="IntakeConfirm.show({ title: 'Cancel this order?', message: {{ \Illuminate\Support\Js::from($awaitingManual ? 'No payment was taken, so nothing needs refunding.' : 'Money stays put — refund from the linked sale if needed.') }}, confirmText: 'Cancel order', cancelText: 'Keep it', danger: true }).then(function (ok) { if (ok) document.getElementById('odCancel').submit(); })">Cancel order</button>
+              onclick="IntakeConfirm.show({ title: 'Cancel this order?', message: 'No payment was taken, so nothing needs refunding. Anything held for it goes back on the shelf.', confirmText: 'Cancel order', cancelText: 'Keep it', danger: true }).then(function (ok) { if (ok) document.getElementById('odCancel').submit(); })">Cancel order</button>
           </form>
+        @elseif($canRefund && $refundLeft)
+          <button type="button" class="ia-btn ia-btn--ghost" style="width:100%;margin-top:12px" onclick="document.getElementById('odRefund').classList.add('on')">{{ $order->status === 'completed' ? 'Refund' : 'Cancel and refund' }}</button>
         @endif
       </div>
+    @endif
+
+    {{-- MARKER-ORDER-STEPS: cancel and refund, the way the money came in --}}
+    @if($canRefund && $refundLeft)
+      <div class="od-scrim" id="odRefund" onclick="if (event.target === this) this.classList.remove('on')">
+        <form class="od-dlg" method="POST" action="{{ route('tenant.orders.update', $order->id) }}" id="odRefundForm">
+          @csrf <input type="hidden" name="op" value="refund">
+          <h4>{{ $order->status === 'completed' ? 'Refund' : 'Cancel and refund' }}</h4>
+          <div class="sub">Goes back {{ $refundPlan['method_label'] }}, the way it was paid, and is recorded like a refund at the register.@if($order->fulfillment_type === 'ship' && collect($refundPlan['lines'])->contains('shipped', true)) Lines that already shipped are unticked; tick them if they're coming back.@endif</div>
+          @foreach($refundPlan['lines'] as $l)
+            <label class="od-rl {{ $l['left'] <= 0 ? 'gone' : '' }}">
+              <input type="checkbox" data-each="{{ $l['each_cents'] }}" data-row="{{ $l['sale_item_id'] }}" @checked($l['left'] > 0 && ! $l['shipped']) @disabled($l['left'] <= 0)>
+              <span>{{ $l['name'] }}@if($l['left'] <= 0) <small style="color:var(--ia-text-muted)">· already refunded</small>@endif</span>
+              @if($l['left'] > 1)<input type="number" class="ia-input" min="1" max="{{ $l['left'] }}" step="1" value="{{ (int) $l['left'] }}" data-qty="{{ $l['sale_item_id'] }}" title="How many">@endif
+              <span class="p">{{ $money($l['each_cents'] * max(1, $l['left'])) }}</span>
+            </label>
+            <input type="hidden" name="lines[{{ $l['sale_item_id'] }}]" value="0" data-out="{{ $l['sale_item_id'] }}">
+          @endforeach
+          <div class="od-rf"><span>Refund {{ $refundPlan['method_label'] }}</span><span id="odRefTot">$0.00</span></div>
+          <input class="ia-input" name="reason" maxlength="300" placeholder="Reason (optional, kept on the refund)" style="width:100%;margin-top:12px">
+          @if(filled($order->contact_email))<label class="od-chk"><input type="checkbox" name="notify" value="1" checked> Email {{ $order->contact_first_name ?: 'the customer' }}</label>@endif
+          <label class="od-chk"><input type="checkbox" name="restock" value="1" checked> Put the items back in stock</label>
+          <div class="od-nx">Supplier-shipped lines are never restocked, since they didn't come off your shelf. The refund is sent on to your Connected POS when one is connected.</div>
+          <div class="acts">
+            <button type="button" class="ia-btn ia-btn--secondary" onclick="document.getElementById('odRefund').classList.remove('on')">{{ $order->status === 'completed' ? 'Close' : 'Keep the order' }}</button>
+            <button type="submit" class="ia-btn ia-btn--primary" id="odRefGo" style="background:#E24B4A;border-color:#E24B4A;color:#fff">Refund</button>
+          </div>
+        </form>
+      </div>
+      <script>
+      (function () {
+        var f = document.getElementById('odRefundForm'), money = function (c) { return '$' + (c / 100).toFixed(2); };
+        function calc() {
+          var t = 0;
+          f.querySelectorAll('input[data-row]').forEach(function (b) {
+            var id = b.dataset.row, q = f.querySelector('[data-qty="' + id + '"]'), n = b.checked ? (q ? Math.max(1, parseInt(q.value || '1', 10)) : 1) : 0;
+            f.querySelector('[data-out="' + id + '"]').value = n;
+            t += n * parseInt(b.dataset.each, 10);
+          });
+          document.getElementById('odRefTot').textContent = money(t);
+          var go = document.getElementById('odRefGo'); go.textContent = t ? 'Refund ' + money(t) : 'Choose what to refund'; go.disabled = !t;
+        }
+        f.addEventListener('input', calc); f.addEventListener('change', calc); calc();
+        f.addEventListener('submit', function () { var g = document.getElementById('odRefGo'); g.disabled = true; g.textContent = 'Refunding…'; });
+      })();
+      </script>
     @endif
 
     <div class="od-card">

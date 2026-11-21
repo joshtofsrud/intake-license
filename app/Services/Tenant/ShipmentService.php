@@ -147,7 +147,11 @@ class ShipmentService
         $order = TenantOrder::find($sh->order_id);
         if (! $order) return;
         $next = ShipmentFlow::orderStatus(TenantOrderShipment::where('order_id', $order->id)->pluck('status')->all(), $order->status);
-        if ($next !== $order->status) $order->forceFill(['status' => $next])->save();
+        if ($next !== $order->status) {
+            $order->forceFill(['status' => $next])->save();
+            // MARKER-ORDER-STEPS: the step bar and history follow the shipments too
+            \App\Support\OrderSteps::record($order, \App\Support\OrderSteps::label($order, $next), \Illuminate\Support\Facades\Auth::guard('tenant')->user()?->name);
+        }
     }
 
     protected function orderUrl(TenantOrder $order): string

@@ -716,6 +716,26 @@ HTML;
 <p style='margin-top:14px'><a href='{{order_url}}' style='color:#111'>View your order</a></p>
 <p>— The {$shop} team</p>",
             ],
+            // MARKER-ORDER-STEPS: a pickup order is ready, and the reminder when it waits
+            'order_ready_pickup' => [
+                'subject'   => 'Ready for pickup — {{order_number}}',
+                'body_html' => "<p>Hi {{first_name}},</p>
+<p>Your order from {$shop} is ready to pick up.</p>
+{{items_rows}}
+<p>{{pickup_line}}</p>
+<p style='margin-top:14px'><a href='{{order_url}}' style='color:#111'>View your order</a></p>
+<p>— The {$shop} team</p>",
+            ],
+            'order_pickup_reminder' => [
+                'subject'   => 'Still waiting for you — {{order_number}}',
+                'body_html' => "<p>Hi {{first_name}},</p>
+<p>Just a reminder: your order from {$shop} has been ready since {{ready_date}}.</p>
+{{items_rows}}
+<p>{{pickup_line}}</p>
+<p>If plans changed, reply to this email and we'll sort it out.</p>
+<p style='margin-top:14px'><a href='{{order_url}}' style='color:#111'>View your order</a></p>
+<p>— The {$shop} team</p>",
+            ],
             'order_out_for_delivery' => [
                 'subject'   => 'Out for delivery today — {{order_number}}',
                 'body_html' => "<p>Hi {{first_name}},</p>

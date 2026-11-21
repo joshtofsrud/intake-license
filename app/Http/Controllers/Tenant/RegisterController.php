@@ -3402,51 +3402,8 @@ class RegisterController extends Controller
      */
     protected function fireStripeRefund(\App\Models\Tenant $tenant, \App\Models\Tenant\TenantSale $refundRow): ?string
     {
-        if (! $tenant->direct_payments_enabled) {
-            // Not an error — just nothing to do.
-            return null;
-        }
-
-        $original = \App\Models\Tenant\TenantSale::find($refundRow->refund_of_sale_id);
-        if (! $original || ! $original->stripe_payment_intent_id) {
-            // Original wasn\'t paid via Stripe; nothing to refund there.
-            return null;
-        }
-
-        try {
-            $direct = new DirectPaymentsService($tenant);
-            $stripeRefund = $direct->refundCharge(
-                $original->stripe_payment_intent_id,
-                (int) $refundRow->total_cents,
-                [
-                    'intake_refund_sale_id'   => $refundRow->id,
-                    'intake_original_sale_id' => $original->id,
-                ]
-            );
-            $refundRow->stripe_refund_id = $stripeRefund->id;
-            $refundRow->save();
-
-            // MARKER-DESTINATION-TAX: tax Stripe Tax was told about comes back out of its report with the refund
-            try {
-                $ord = \App\Models\Tenant\TenantOrder::query()->where('sale_id', $original->id)->first();
-                $ti  = (array) (((array) ($ord?->metadata ?? []))['tax'] ?? []);
-                if (($ti['source'] ?? null) === 'stripe' && ! empty($ti['transaction_id']) && (int) $refundRow->tax_cents !== 0) {
-                    \App\Services\Tenant\StripeTax::reverse($tenant, $ti['transaction_id'], 'refund-' . $refundRow->id, abs((int) $refundRow->tax_cents));
-                }
-            } catch (\Throwable $e) {
-                Log::error('stripe_tax.reverse_hook_failed', ['refund_sale_id' => $refundRow->id, 'error' => $e->getMessage()]);
-            }
-            return null;
-        } catch (\Throwable $e) {
-            Log::error('direct_payments.refund_failed', [
-                'tenant_id'        => $tenant->id,
-                'refund_sale_id'   => $refundRow->id,
-                'original_sale_id' => $original->id,
-                'pi'               => $original->stripe_payment_intent_id,
-                'error'            => $e->getMessage(),
-            ]);
-            return $e->getMessage();
-        }
+        // MARKER-ORDER-STEPS: shared with the online order's cancel-and-refund
+        return \App\Support\OrderRefund::stripe($tenant, $refundRow);
     }
 
     /**

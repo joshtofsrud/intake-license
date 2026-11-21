@@ -289,6 +289,8 @@
         <h3>Pickup</h3>
         <div class="ec-row"><div><div class="t">Offer pickup</div><div class="d">Customers collect in store. Free.</div></div><div class="ctl"><label class="tg"><input type="checkbox" name="pickup_enabled" value="1" @checked($cfg['pickup_enabled'])><i></i></label></div></div>
         <div class="ec-row"><div style="flex:1"><div class="t">Pickup instructions</div><div class="d">Optional. Hours, where to park, what to bring. Shown at checkout and in the confirmation email.</div><textarea class="ia-textarea ec-ta" name="pickup_instructions" maxlength="300" placeholder="Come to the front counter and give us your name or order number.">{{ old('pickup_instructions', $cfg['pickup_instructions']) }}</textarea></div></div>
+        {{-- MARKER-ORDER-STEPS --}}
+        <div class="ec-row"><div><div class="t">Remind uncollected pickups after</div><div class="d">The customer gets a reminder email and the order is flagged on your Orders list. 0 turns reminders off.</div></div><div class="ctl"><input class="ia-input" type="number" min="0" max="90" name="pickup_reminder_days" value="{{ old('pickup_reminder_days', $cfg['pickup_reminder_days']) }}" style="width:70px"> days</div></div>
       </div>
 
       <div class="ec-sec">
@@ -505,6 +507,7 @@
     <div class="ec-sec">
       <h3>Order messages</h3>
       <div class="ec-row msg-row"><div><div class="t">Order confirmation<span class="ch">Email</span></div><div class="d">Sent when payment clears, or when you mark a pay-later order paid.</div></div><div class="ctl"><a class="ia-btn ia-btn--secondary ia-btn--sm" href="{{ route('tenant.communication.index') }}">Messages</a></div></div>
+      <div class="ec-row msg-row"><div><div class="t">Ready for pickup<span class="ch">Email</span></div><div class="d">Sent with the ready text when you mark a pickup order ready, and a reminder if it isn't collected (days set under Fulfillment).</div></div><div class="ctl"><a class="ia-btn ia-btn--secondary ia-btn--sm" href="{{ route('tenant.communication.index') }}">Edit</a></div></div>
       <div class="ec-row msg-row"><div><div class="t">Order received, pay later<span class="ch">Email</span></div><div class="d">Sent when a shopper places a pay-later order: how to pay, and whether the items are held.</div></div><div class="ctl"><a class="ia-btn ia-btn--secondary ia-btn--sm" href="{{ route('tenant.communication.index') }}">Edit</a></div></div>
       <div class="ec-row msg-row"><div><div class="t">Online order refunded<span class="ch">Email</span></div><div class="d">Sent if a paid order can't be completed and the money goes back. Edit it under Messages.</div></div><div class="ctl"><a class="ia-btn ia-btn--secondary ia-btn--sm" href="{{ route('tenant.communication.index') }}">Edit</a></div></div>
     </div>

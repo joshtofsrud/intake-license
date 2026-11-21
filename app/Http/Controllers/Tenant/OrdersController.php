@@ -71,9 +71,20 @@ class OrdersController extends Controller
             ->findOrFail($id);
 
         $data = $request->validate([
-            'op'          => ['required', 'in:advance,cancel,mark_paid,out_for_delivery'],
+            'op'          => ['required', 'in:advance,cancel,mark_paid,refund'],
             'notify_text' => ['nullable', 'boolean'],
+            'notify'      => ['nullable', 'boolean'],
+            // MARKER-ORDER-STEPS: cancel and refund in one step
+            'lines'       => ['nullable', 'array'],
+            'lines.*'     => ['nullable', 'numeric', 'min:0'],
+            'restock'     => ['nullable', 'boolean'],
+            'reason'      => ['nullable', 'string', 'max:300'],
         ]);
+        $me = \Illuminate\Support\Facades\Auth::guard('tenant')->user();
+
+        if ($data['op'] === 'refund') {
+            return $this->refund($request, $order, $data, $me);
+        }
 
         // staff confirm a manual payment landed (Venmo etc.)
         if ($data['op'] === 'mark_paid') {
@@ -81,78 +92,176 @@ class OrdersController extends Controller
             $svc = \App\Services\Tenant\OrderService::forTenant($tenant);
             $done = $svc->finalizeManual($order, \Illuminate\Support\Facades\Auth::guard('tenant')->id());
             $svc->reportPurchase($done); // MARKER-SHOP-GA4
+            \App\Support\OrderSteps::record($done->fresh(), 'Paid', $me?->name, tender_label($done->payment_method) . ', marked by staff');
             return back()->with('success', 'Payment confirmed — order is paid and in the queue.');
         }
 
-        // MARKER-SHIPMENT-WORKFLOW: a local delivery heading out the door
-        if ($data['op'] === 'out_for_delivery') {
-            abort_unless($order->fulfillment_type === 'local_delivery'
-                && in_array($order->status, [TenantOrder::STATUS_PAID, TenantOrder::STATUS_FULFILLING, TenantOrder::STATUS_FULFILLED], true), 422);
-            if (filled($order->contact_email)) {
-                $rows = $order->items->map(fn ($i) => "<tr><td style='padding:3px 14px 3px 0'>" . e($i->name_snapshot) . ' ×' . (int) $i->quantity . '</td></tr>')->implode('');
-                try {
-                    (new \App\Services\EmailService($tenant))->send('order_out_for_delivery', $order->contact_email, [
-                        'first_name' => $order->contact_first_name ?: 'there', 'order_number' => $order->order_number,
-                        'shop_name' => $tenant->name, 'items_rows' => "<table style='font-size:14px'>{$rows}</table>",
-                        'tracking_html' => '', 'shipment_label' => 'your order', 'what_next' => 'We are bringing it to you today.',
-                        'order_url' => 'https://' . request()->getHost() . '/order/' . $order->token,
-                    ]);
-                } catch (\Throwable $e) { Log::error('orders.out_for_delivery_email_failed', ['order' => $order->id, 'error' => $e->getMessage()]); }
-            }
-            return back()->with('success', 'Customer told it is out for delivery.');
-        }
-
+        // only an unpaid pay-later order is cancelled on its own; a paid one goes through
+        // cancel-and-refund (op=refund) so the money is settled in the same step
         if ($data['op'] === 'cancel') {
-            // a manual-payment order nobody paid can be closed too; no sale exists, so nothing moves
-            $unpaidManual = $order->status === TenantOrder::STATUS_PENDING_PAYMENT && $order->payment_method && ! $order->sale_id;
-            abort_unless($unpaidManual || in_array($order->status, [TenantOrder::STATUS_PAID, TenantOrder::STATUS_FULFILLING]), 422);
-            if ($unpaidManual) {
-                $order->forceFill(['status' => TenantOrder::STATUS_CANCELLED])->save();
-                return back()->with('success', 'Order cancelled. No payment was taken.');
-            }
-            // Money stays put — refunds go through the sale on the register,
-            // same as any other sale. This only closes the fulfillment queue item.
+            abort_unless($order->status === TenantOrder::STATUS_PENDING_PAYMENT && $order->payment_method && ! $order->sale_id, 422);
             $order->forceFill(['status' => TenantOrder::STATUS_CANCELLED])->save();
-            return back()->with('success', 'Order cancelled on the board. Refund it from the linked sale if money should move.');
+            \App\Support\OrderSteps::record($order, 'Cancelled', $me?->name, 'no payment was taken');
+            return back()->with('success', 'Order cancelled. No payment was taken.');
         }
 
-        $next = match ($order->status) {
-            TenantOrder::STATUS_PAID       => TenantOrder::STATUS_FULFILLING,
-            TenantOrder::STATUS_FULFILLING => TenantOrder::STATUS_FULFILLED,
-            TenantOrder::STATUS_FULFILLED  => TenantOrder::STATUS_COMPLETED,
-            default => null,
-        };
-        abort_unless($next, 422);
+        // MARKER-ORDER-STEPS: the next step for how this order leaves
+        $step = \App\Support\OrderSteps::next($order);
+        abort_unless($step, 422, 'This order moves on its own, or is already done.');
+        [$next, $label] = $step;
+        $notify = $request->boolean('notify') || $request->boolean('notify_text');
 
-        $order->forceFill(['status' => $next])->save();
+        $meta = (array) ($order->metadata ?? []);
+        if ($next === TenantOrder::STATUS_FULFILLED && $order->fulfillment_type === 'pickup') {
+            $meta['ready_at'] = now()->toIso8601String();
+            unset($meta['reminded_at']);
+        }
+        $order->forceFill(['status' => $next, 'metadata' => $meta])->save();
 
-        // Ready-for-pickup text on the fulfilled transition
-        if ($next === TenantOrder::STATUS_FULFILLED
-            && $request->boolean('notify_text')
-            && filled($order->contact_phone)) {
+        $told = null;
+        if ($notify && $next === TenantOrder::STATUS_FULFILLED) {
+            $told = $order->fulfillment_type === 'local_delivery'
+                ? $this->tellOutForDelivery($tenant, $order)
+                : $this->tellReady($tenant, $order);
+        }
+        \App\Support\OrderSteps::record($order, \App\Support\OrderSteps::label($order, $next), $me?->name, $told);
+
+        return back()->with('success', \App\Support\OrderSteps::label($order, $next) . '.' . ($told ? ' ' . ucfirst($told) . '.' : ''));
+    }
+
+    /**
+     * MARKER-ORDER-STEPS: "ready for pickup" by text and email. Returns what was sent,
+     * e.g. "customer texted and emailed", or "couldn't tell the customer: …".
+     */
+    private function tellReady($tenant, TenantOrder $order): string
+    {
+        $sent = [];
+        if (filled($order->contact_phone)) {
             try {
                 // MARKER-ECOM-SETTINGS: the shop's own wording for pickup orders (E-commerce > Messages)
                 $tpl = trim((string) ($tenant->settings['storefront']['ready_text'] ?? ''));
-                if ($order->fulfillment_type === 'pickup' && $tpl !== '') {
-                    $body = strtr($tpl, [
-                        '{first_name}'   => $order->contact_first_name ?: 'there',
-                        '{shop_name}'    => $tenant->name,
-                        '{order_number}' => $order->order_number,
-                    ]);
-                    if (! preg_match('/\bSTOP\b/i', $body)) $body .= ' Reply STOP to opt out.';
-                } else {
-                    $body = "{$tenant->name}: Your order {$order->order_number} is ready"
-                        . ($order->fulfillment_type === 'pickup' ? ' for pickup!' : '!')
-                        . ' Reply STOP to opt out.';
-                }
+                $body = $tpl !== ''
+                    ? strtr($tpl, ['{first_name}' => $order->contact_first_name ?: 'there', '{shop_name}' => $tenant->name, '{order_number}' => $order->order_number])
+                    : "{$tenant->name}: Your order {$order->order_number} is ready for pickup!";
+                if (! preg_match('/\bSTOP\b/i', $body)) $body .= ' Reply STOP to opt out.';
                 SmsService::send($tenant, $order->contact_phone, $body);
+                $sent[] = 'texted';
             } catch (\Throwable $e) {
                 Log::error('orders.ready_text_failed', ['order' => $order->id, 'error' => $e->getMessage()]);
-                return back()->with('success', 'Status updated — but the text failed to send (check SMS settings).');
             }
         }
+        if (filled($order->contact_email)) {
+            try {
+                $cfg = \App\Services\Tenant\OrderService::forTenant($tenant)->config();
+                (new \App\Services\EmailService($tenant))->send('order_ready_pickup', $order->contact_email, [
+                    'first_name' => $order->contact_first_name ?: 'there', 'order_number' => $order->order_number, 'shop_name' => $tenant->name,
+                    'items_rows' => $this->itemRows($order),
+                    'pickup_line' => e($cfg['pickup_instructions'] !== '' ? $cfg['pickup_instructions'] : 'Bring your name or order number to the counter.'),
+                    'order_url' => 'https://' . request()->getHost() . '/order/' . $order->token,
+                ]);
+                $sent[] = 'emailed';
+            } catch (\Throwable $e) {
+                Log::error('orders.ready_email_failed', ['order' => $order->id, 'error' => $e->getMessage()]);
+            }
+        }
+        return $sent ? 'customer ' . implode(' and ', $sent) : 'couldn\'t reach the customer (no phone or email worked)';
+    }
 
-        return back()->with('success', 'Order is now ' . str_replace('_', ' ', $next) . '.');
+    private function tellOutForDelivery($tenant, TenantOrder $order): string
+    {
+        if (! filled($order->contact_email)) {
+            return 'no email on this order, so the customer wasn\'t told';
+        }
+        try {
+            (new \App\Services\EmailService($tenant))->send('order_out_for_delivery', $order->contact_email, [
+                'first_name' => $order->contact_first_name ?: 'there', 'order_number' => $order->order_number,
+                'shop_name' => $tenant->name, 'items_rows' => $this->itemRows($order),
+                'tracking_html' => '', 'shipment_label' => 'your order', 'what_next' => 'We are bringing it to you today.',
+                'order_url' => 'https://' . request()->getHost() . '/order/' . $order->token,
+            ]);
+            return 'customer emailed';
+        } catch (\Throwable $e) {
+            Log::error('orders.out_for_delivery_email_failed', ['order' => $order->id, 'error' => $e->getMessage()]);
+            return 'the email to the customer failed';
+        }
+    }
+
+    private function itemRows(TenantOrder $order): string
+    {
+        $rows = $order->items->map(fn ($i) => "<tr><td style='padding:3px 14px 3px 0'>" . e($i->name_snapshot) . ' ×' . (int) $i->quantity . '</td></tr>')->implode('');
+        return "<table style='font-size:14px'>{$rows}</table>";
+    }
+
+    /**
+     * MARKER-ORDER-STEPS: cancel and refund in one step. Goes through the same refund as the
+     * register (SaleService::createRefund), so the money goes back the way it came in and lands
+     * in the ledger the same way: card to the card, cash as a cash refund, and so on. The
+     * refund then reaches the Connected POS through its usual hook.
+     */
+    private function refund(Request $request, TenantOrder $order, array $data, $me)
+    {
+        $tenant = tenant();
+        abort_unless($order->sale_id && in_array($order->status, [TenantOrder::STATUS_PAID, TenantOrder::STATUS_FULFILLING, TenantOrder::STATUS_FULFILLED, TenantOrder::STATUS_COMPLETED], true), 422);
+        $sale = \App\Models\Tenant\TenantSale::where('tenant_id', $tenant->id)->with('items')->findOrFail($order->sale_id);
+        $plan = \App\Support\OrderRefund::plan($order, $sale);
+
+        $restock = $request->boolean('restock');
+        $rows = [];
+        foreach ((array) ($data['lines'] ?? []) as $saleItemId => $qty) {
+            $line = collect($plan['lines'])->firstWhere('sale_item_id', (string) $saleItemId);
+            $qty = (float) $qty;
+            if (! $line || $qty <= 0) continue;
+            $qty = min($qty, $line['left']);
+            $rows[] = [
+                'sale_item_id' => (string) $saleItemId,
+                'quantity'     => $qty,
+                'disposition'  => ($line['kind'] === 'product' && $restock && ! $line['dropship']) ? 'restock' : 'customer_keeps',
+            ];
+        }
+        if (! $rows) {
+            return back()->with('error', 'Choose at least one thing to refund.');
+        }
+
+        try {
+            $refundSale = app(\App\Services\Tenant\SaleService::class)->createRefund([
+                'tenant_id'          => $tenant->id,
+                'original_sale_id'   => $sale->id,
+                'rang_up_by_user_id' => $me?->id,
+                'refund_method'      => $plan['method'],
+                'reason'             => trim('Online order ' . $order->order_number . ' cancelled' . (filled($data['reason'] ?? null) ? ': ' . $data['reason'] : '')),
+                'items'              => $rows,
+            ]);
+        } catch (\App\Services\Tenant\SaleValidationException $e) {
+            return back()->with('error', $e->getMessage());
+        } catch (\Throwable $e) {
+            Log::error('orders.refund_failed', ['order' => $order->id, 'error' => $e->getMessage()]);
+            return back()->with('error', 'The refund didn\'t go through: ' . $e->getMessage());
+        }
+
+        // the card refund itself, exactly as the register does it
+        $cardError = $plan['method'] === 'card' ? \App\Support\OrderRefund::stripe($tenant, $refundSale) : null;
+
+        if ($request->boolean('notify')) {
+            try {
+                \App\Services\Tenant\ShipmentService::forTenant($tenant)->notifyRefund($sale->id, (int) abs($refundSale->total_cents), $plan['method']);
+            } catch (\Throwable $e) { Log::warning('order refund email skipped: ' . $e->getMessage()); }
+        }
+
+        // everything refunded: the order is cancelled, and shipments not yet sent are too
+        $after = \App\Support\OrderRefund::plan($order, $sale->fresh('items'));
+        $all = collect($after['lines'])->where('kind', 'product')->every(fn ($l) => $l['left'] <= 0);
+        if ($all) {
+            $order->forceFill(['status' => TenantOrder::STATUS_CANCELLED])->save();
+            \App\Models\Tenant\TenantOrderShipment::where('order_id', $order->id)->whereIn('status', ['pending', 'to_ship', null])->update(['status' => 'cancelled']);
+        }
+        $amount = '$' . number_format(abs($refundSale->total_cents) / 100, 2);
+        \App\Support\OrderRefund::recordHistory($order, $all, $amount, $plan['method_label'], $me?->name);
+
+        $msg = ($all ? 'Order cancelled and ' : '') . $amount . ' refunded ' . $plan['method_label'] . '.';
+        if ($cardError) {
+            return back()->with('error', $msg . ' But the card refund failed: ' . $cardError . ' Retry it from the sale, or in Stripe.');
+        }
+        return back()->with('success', $msg);
     }
 
     /** POST /orders/{id}/shipments/{shipment} — MARKER-SHIPMENT-WORKFLOW */

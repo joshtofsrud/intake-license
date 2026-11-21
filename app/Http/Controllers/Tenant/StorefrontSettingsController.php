@@ -89,6 +89,7 @@ class StorefrontSettingsController extends Controller
                 // fulfillment
                 'pickup_enabled'      => $oc['pickup_enabled'],
                 'pickup_instructions' => $oc['pickup_instructions'],
+                'pickup_reminder_days' => \App\Support\OrderSteps::reminderDays($tenant),
                 'local_delivery'      => $oc['local_delivery'],
                 'delivery_fee'        => $cents($oc['delivery_fee_cents']),
                 'free_over'           => $cents($oc['free_delivery_over_cents']),
@@ -239,6 +240,7 @@ class StorefrontSettingsController extends Controller
             case 'fulfillment':
                 $data = $request->validate([
                     'pickup_instructions' => ['nullable', 'string', 'max:300'],
+                    'pickup_reminder_days' => ['nullable', 'integer', 'min:0', 'max:90'], // MARKER-ORDER-STEPS
                     'delivery_fee'        => ['nullable', 'numeric', 'min:0', 'max:500'],
                     'free_over'           => ['nullable', 'numeric', 'min:0', 'max:100000'],
                     'delivery_zips'       => ['nullable', 'string', 'max:2000'],
@@ -271,6 +273,7 @@ class StorefrontSettingsController extends Controller
                 $sf = array_merge($sf, [
                     'pickup_enabled'           => $request->boolean('pickup_enabled'),
                     'pickup_instructions'      => trim((string) ($data['pickup_instructions'] ?? '')),
+                    'pickup_reminder_days'     => (int) ($data['pickup_reminder_days'] ?? 0),
                     'local_delivery'           => $request->boolean('local_delivery'),
                     'delivery_fee_cents'       => (int) ($cents($data['delivery_fee'] ?? null) ?? 0),
                     'free_delivery_over_cents' => $cents($data['free_over'] ?? null),

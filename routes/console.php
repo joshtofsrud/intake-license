@@ -162,6 +162,12 @@ Schedule::command('orders:reap-abandoned')
     ->withoutOverlapping()
     ->runInBackground();
 
+// MARKER-ORDER-STEPS: pickup orders waiting longer than the shop allows (UTC; mid-morning Pacific)
+Schedule::command('orders:pickup-reminders')
+    ->dailyAt('17:41')
+    ->withoutOverlapping()
+    ->runInBackground();
+
 // the catalog chain. Order matters: each step
 // reads what the one before it wrote, and a step that runs early produces a
 // half-built index rather than an error.

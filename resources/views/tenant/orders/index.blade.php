@@ -35,7 +35,7 @@
 </div>
 
 @if(session('success'))
-  <div class="ia-banner ia-banner--success" style="margin-bottom:14px">{{ session('success') }}</div>
+  <div class="ia-flash ia-flash--success" style="margin-bottom:14px">{{ session('success') }}</div>
 @endif
 
 @if($orders->isEmpty())
@@ -52,7 +52,9 @@
         <td>{{ (int) $o->items->sum('quantity') }} item{{ $o->items->sum('quantity') == 1 ? '' : 's' }}</td>
         <td><span class="od-ful">{{ $o->fulfillment_type === 'ship' ? '📦 Shipping' : ($o->fulfillment_type === 'local_delivery' ? '🚚 Delivery' : '🏪 Pickup') }}{{ $o->wants_install ? ' · install' : '' }}</span></td>
         <td style="text-align:right;font-variant-numeric:tabular-nums">${{ number_format($o->total_cents / 100, 2) }}</td>
-        <td><span class="od-st {{ $o->status }}">{{ str_replace('_', ' ', $o->status) }}</span></td>
+        {{-- MARKER-ORDER-STEPS: the step's own name, and pickups left waiting --}}
+        @php $oWait = \App\Support\OrderSteps::waitingDays($o); $oRem = $oRem ?? \App\Support\OrderSteps::reminderDays(tenant()); @endphp
+        <td><span class="od-st {{ $o->status }}">{{ \App\Support\OrderSteps::label($o) }}</span>@if($oWait !== null && $oRem > 0 && $oWait >= $oRem)<span style="display:block;font-size:11px;color:#EF9F27;margin-top:3px">Not collected · {{ $oWait }} days</span>@endif</td>
         <td style="color:var(--ia-text-muted)">{{ $o->paid_at ? tlocal($o->paid_at, 'M j, g:i a') : tlocal($o->created_at, 'M j, g:i a') }}</td>
       </tr>
     @endforeach
