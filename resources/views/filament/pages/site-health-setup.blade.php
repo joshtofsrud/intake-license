@@ -10,6 +10,7 @@
   .sx-row code { font-size:12px; background:rgba(255,255,255,.07); padding:1px 6px; border-radius:5px; user-select:all; }
   .sx-pill { font-size:11px; font-weight:600; padding:2px 8px; border-radius:99px; margin-left:8px; }
   .sx-pill.ok { background:rgba(190,242,100,.16); color:#BEF264; } .sx-pill.no { background:rgba(244,124,124,.16); color:#f47c7c; }
+  .sx-warn { padding:12px 14px; margin-bottom:14px; border-radius:9px; background:rgba(244,124,124,.1); border:1px solid rgba(244,124,124,.35); } .sx-warn small { display:block; font-size:12.5px; color:#c9c9d1; line-height:1.5; margin-top:4px; overflow-wrap:anywhere; }
   .sx-btn { border:1px solid #8b5cf6; background:#8b5cf6; color:#fff; border-radius:7px; padding:7px 13px; font-weight:500; font-size:13px; cursor:pointer; margin-top:18px; }
   details.sx-how { font-size:12.5px; color:#a3a3ab; margin-top:8px; } details.sx-how li { margin:3px 0; }
 </style>
@@ -18,6 +19,14 @@
     <div><b>{{ number_format($this->shopsChecked()) }}</b><span>shops with a site check</span></div>
     <div><b>{{ number_format($this->shopsConnected()) }}</b><span>shops with Google connected</span></div>
   </div>
+
+  @foreach ($this->setupProblems() as $src => $p)
+    <div class="sx-warn">
+      <b>{{ \App\Services\SiteHealth\GoogleSiteData::SOURCES[$src] ?? $src }} is not working for shops.</b>
+      <small>Google said: {{ $p['message'] }}</small>
+      <small>Shops see "Not ready on Intake's side yet". This clears itself the next time it reads cleanly.</small>
+    </div>
+  @endforeach
 
   <label class="sx-row">
     <input type="checkbox" wire:model="google" @disabled(! $this->configured())>

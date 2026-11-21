@@ -54,11 +54,11 @@
         @elseif ($data && $src === 'gsc')
           <div class="sh-on">
             @forelse ($data['queries'] as $q)
-              <div class="sh-q"><span>{{ $q['q'] }}</span><b>{{ $q['pos'] }}</b><em class="{{ $q['move'] > 0 ? 'up' : ($q['move'] < 0 ? 'dn' : '') }}">{{ $q['move'] === null ? 'new' : ($q['move'] > 0 ? '▲' . $q['move'] : ($q['move'] < 0 ? '▼' . abs($q['move']) : '—')) }}</em></div>
+              <div class="sh-q"><span>{{ $q['q'] }}<small>{{ number_format($q['clicks']) }} {{ \Illuminate\Support\Str::plural('click', $q['clicks']) }}@if (isset($q['shown'])) · shown {{ number_format($q['shown']) }}@endif</small></span><b title="Average position in Google">{{ $q['pos'] }}</b><em class="{{ $q['move'] > 0 ? 'up' : ($q['move'] < 0 ? 'dn' : '') }}">{{ $q['move'] === null ? 'new' : ($q['move'] > 0 ? '▲' . $q['move'] : ($q['move'] < 0 ? '▼' . abs($q['move']) : '—')) }}</em></div>
             @empty
               <p class="sh-cap">No searches led to your site in the last 28 days yet.</p>
             @endforelse
-            @if ($data['queries'])<div class="sh-cap">Position in search, last 28 days</div>@endif
+            @if ($data['queries'])<div class="sh-cap">Your most-clicked searches and where you rank for each, last 28 days</div>@endif
           </div>
         @elseif ($data && $src === 'ga')
           @php $mx = max(1, collect($data['channels'])->max('n') ?? 1); @endphp

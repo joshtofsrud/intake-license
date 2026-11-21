@@ -109,7 +109,7 @@ div.sd-tile { cursor: default; }
 .sh-pick { display: flex; gap: 6px; margin-top: 10px; } .sh-pick select { flex: 1; min-width: 0; }
 .sh-change { margin-top: 8px; font-size: 11px; color: var(--ia-text-muted); } .sh-change summary { cursor: pointer; list-style: none; } .sh-change summary::-webkit-details-marker { display: none; } .sh-change summary u { color: var(--ia-accent); text-decoration: none; }
 .sh-q { display: grid; grid-template-columns: 1fr 28px 38px; gap: 8px; align-items: center; padding: 6px 0; border-top: 1px solid var(--ia-border); font-size: 12.5px; } .sh-q:first-child { border-top: 0; }
-.sh-q span { overflow-wrap: anywhere; } .sh-q b { text-align: right; font: 600 13px var(--ia-font-mono, monospace); }
+.sh-q span { overflow-wrap: anywhere; } .sh-q span small { display: block; font-size: 10.5px; color: var(--ia-text-muted); margin-top: 1px; } .sh-q b { text-align: right; font: 600 13px var(--ia-font-mono, monospace); }
 .sh-q em { font-style: normal; font-size: 11px; color: var(--ia-text-muted); text-align: right; } .sh-q em.up { color: var(--sd-t3); } .sh-q em.dn { color: var(--sd-bad); }
 .sh-bars { display: flex; gap: 10px; align-items: flex-end; height: 86px; }
 .sh-bars span { flex: 1; min-width: 0; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 5px; }

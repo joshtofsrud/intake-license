@@ -45,12 +45,14 @@ class SiteHealthSetup extends Page
     public function configured(): bool { return GoogleSiteData::configured(); }
     public function callbackUrl(): string { return GoogleSiteData::callbackUrl(); }
     public function shopsChecked(): int { return TenantSiteHealth::whereNotNull('checked_at')->count(); }
+    public function setupProblems(): array { return GoogleSiteData::setupProblems(); }
     public function shopsConnected(): int { return TenantGoogleConnection::whereNotNull('refresh_token')->count(); }
 
     public function save(): void
     {
         $row = PlatformSettings::current();
-        $row->site_health_settings = ['google' => $this->google, 'reviews' => $this->google && $this->reviews];
+        // keeps anything else stored beside the two switches (what Google last refused, for the notice above them)
+        $row->site_health_settings = array_merge((array) ($row->site_health_settings ?? []), ['google' => $this->google, 'reviews' => $this->google && $this->reviews]);
         $row->save();
         PlatformSettings::forget();
         $this->reviews = $this->google && $this->reviews;

@@ -181,6 +181,11 @@ class GoogleSiteData
         };
         if (! $r->successful()) {
             $msg = (string) ($r->json('error.message') ?? '');
+            // Intake's own Google Cloud project is not set up for this yet: nothing the shop can do about it
+            if (($r->status() === 401 && str_contains($msg, 'not registered with the merchant account'))
+                || ($r->status() === 403 && (str_contains($msg, 'has not been used in project') || str_contains($msg, 'is disabled') || str_contains($msg, 'quota') && str_contains($msg, "'0'")))) {
+                throw new GoogleSetupNeeded(Str::limit($msg, 400));
+            }
             throw new RuntimeException(match (true) {
                 $r->status() === 401 => 'Google no longer accepts this sign-in. Connect Google again.',
                 $r->status() === 403 => 'This Google account is not allowed to see this.' . ($msg !== '' ? ' (' . Str::limit($msg, 110) . ')' : ''),
@@ -230,6 +235,11 @@ class GoogleSiteData
                     continue; // the shop picks which one; the panel asks
                 }
                 $data[$src] = $this->{'read' . ucfirst($src)}($tenant, $conn, $picks[$src]) + ['at' => now()->toIso8601String()];
+                self::clearSetup($src);
+            } catch (GoogleSetupNeeded $e) {
+                unset($data[$src]);
+                $errors[$src] = self::NOT_READY;
+                self::noteSetup($src, $e->getMessage());
             } catch (\Throwable $e) {
                 $errors[$src] = $e instanceof RuntimeException ? $e->getMessage() : 'Could not read this from Google.';
                 if (! $e instanceof RuntimeException) {
@@ -244,6 +254,42 @@ class GoogleSiteData
         $conn->state = ['running' => false, 'errors' => $errors, 'error' => null];
         $conn->synced_at = now();
         $conn->save();
+    }
+
+    /** What a shop sees when the fault is in Intake's own Google setup. */
+    public const NOT_READY = 'Not ready on Intake\'s side yet. Nothing for you to do; it will fill in once it is.';
+
+    /** Keep what Google said for master admin (Tenants > Site health), where it can be acted on. */
+    public static function noteSetup(string $src, string $message): void
+    {
+        $row = PlatformSettings::current();
+        $s = (array) ($row->site_health_settings ?? []);
+        if ((($s['setup'] ?? [])[$src]['message'] ?? null) === $message) {
+            return;
+        }
+        $s['setup'] = (array) ($s['setup'] ?? []);
+        $s['setup'][$src] = ['message' => $message, 'at' => now()->toIso8601String()];
+        $row->site_health_settings = $s;
+        $row->save();
+        PlatformSettings::forget();
+    }
+
+    /** A source read cleanly: whatever was wrong with the setup for it is fixed. */
+    public static function clearSetup(string $src): void
+    {
+        $row = PlatformSettings::current();
+        $s = (array) ($row->site_health_settings ?? []);
+        if (isset($s['setup'][$src])) {
+            unset($s['setup'][$src]);
+            $row->site_health_settings = $s;
+            $row->save();
+            PlatformSettings::forget();
+        }
+    }
+
+    public static function setupProblems(): array
+    {
+        return (array) ((PlatformSettings::current()->site_health_settings ?? [])['setup'] ?? []);
     }
 
     private const EMPTY = [
@@ -352,10 +398,13 @@ class GoogleSiteData
         foreach ($q($d(55), $d(28), ['query'], 500) as $r) {
             $before[$r['keys'][0]] = (float) $r['position'];
         }
+        // most clicks first, then most often shown: with few clicks Google's own order is no order at all
+        $rows = $q($d(27), $d(0), ['query'], 250);
+        usort($rows, fn ($a, $b) => [(int) $b['clicks'], (int) ($b['impressions'] ?? 0)] <=> [(int) $a['clicks'], (int) ($a['impressions'] ?? 0)]);
         $queries = [];
-        foreach ($q($d(27), $d(0), ['query'], 8) as $r) {
+        foreach (array_slice($rows, 0, 8) as $r) {
             $was = $before[$r['keys'][0]] ?? null;
-            $queries[] = ['q' => (string) $r['keys'][0], 'clicks' => (int) $r['clicks'], 'pos' => (int) round($r['position']), 'move' => $was === null ? null : (int) round($was - $r['position'])];
+            $queries[] = ['q' => (string) $r['keys'][0], 'clicks' => (int) $r['clicks'], 'shown' => (int) ($r['impressions'] ?? 0), 'pos' => (int) round($r['position']), 'move' => $was === null ? null : (int) round($was - $r['position'])];
         }
 
         $weeks = array_fill(0, 12, 0);
