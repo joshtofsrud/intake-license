@@ -45,6 +45,8 @@ class PlatformSettings extends Model
         'distribution_settings',
         // MARKER-SHOP-SEARCH-V2: which plan gets which search feature
         'search_settings',
+        // MARKER-SITE-HEALTH: can shops connect Google, and are reviews on
+        'site_health_settings',
     ];
 
     // without this the json column reads back as a
@@ -55,6 +57,7 @@ class PlatformSettings extends Model
         'velocity_settings' => 'array',
         'distribution_settings' => 'array',
         'search_settings' => 'array',
+        'site_health_settings' => 'array',
     ];
 
     /** Laravel's framework default when nothing is configured. */

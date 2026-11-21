@@ -52,14 +52,14 @@
   function count(tile) {
     $$('[data-count]', tile).forEach(function (el) {
       if (el._counted) return; el._counted = 1;
-      var to = +el.dataset.count || 0, pre = el.dataset.pre || '', t0 = null, dur = reduce ? 0 : 900;
+      var to = +el.dataset.count || 0, pre = el.dataset.pre || '', dec = +el.dataset.dec || 0, t0 = null, dur = reduce ? 0 : 900;
       function step(ts) {
         if (!t0) t0 = ts;
         var p = dur ? Math.min(1, (ts - t0) / dur) : 1;
-        el.textContent = pre + Math.round(to * (1 - Math.pow(1 - p, 3))).toLocaleString('en-US');
+        var v = to * (1 - Math.pow(1 - p, 3)); el.textContent = pre + (dec ? v.toFixed(dec) : Math.round(v).toLocaleString('en-US'));
         if (p < 1) requestAnimationFrame(step);
       }
-      if (dur) { el.textContent = pre + '0'; requestAnimationFrame(step); }
+      if (dur) { el.textContent = pre + (dec ? (0).toFixed(dec) : '0'); requestAnimationFrame(step); }
     });
   }
   // tiles are drawn inside .sd-tiles; each tile appears on its own delay

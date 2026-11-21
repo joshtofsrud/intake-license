@@ -396,6 +396,11 @@ Schedule::command('seo:check')
     ->dailyAt('04:15')
     ->withoutOverlapping();
 
+// MARKER-SITE-HEALTH: each shop's own list of things to fix, and its Google numbers
+Schedule::command('site-health:check')
+    ->dailyAt('05:05')
+    ->withoutOverlapping();
+
 // MARKER-BG-IMPORT: shop lists loading in the background (Find shops > Load a shop list)
 Schedule::command('sales:run-imports')
     ->everyMinute()

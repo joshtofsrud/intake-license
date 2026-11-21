@@ -80,7 +80,7 @@ class AdminAccess
             'tenant-billing', 'billing-notices', 'sidebar', 'plan-prices', 'addons', 'scheduled-tasks',
             'dashboards', 'dashboard-editor',
             'dashboard-blocks', 'dashboard-block', 'dashboard-preview', 'dashboard-people',
-            'launch-checklists', 'search-defaults', 'site-templates' => 'tenants', // MARKER-DASH-ADMIN, MARKER-DASH-BUILDER, MARKER-LAUNCH-CHECKLIST, MARKER-SHOP-SEARCH-V2
+            'launch-checklists', 'search-defaults', 'site-templates', 'site-health' => 'tenants', // MARKER-DASH-ADMIN, MARKER-DASH-BUILDER, MARKER-LAUNCH-CHECKLIST, MARKER-SHOP-SEARCH-V2
             'live-view'                                      => 'impersonation', // MARKER-LIVE-VIEW
             'tenant-domains'                                 => 'domains',
             'sales-channels', 'sales-prospects',

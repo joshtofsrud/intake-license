@@ -200,6 +200,8 @@ Route::domain('app.' . $domain)->middleware(\App\Http\Middleware\SeoSignals::cla
     Route::post('/signup/complete', [Platform\OnboardingController::class, 'completeSignup'])->name('platform.signup.complete');
     // MARKER-POS-CONNECT: the one OAuth return point for every shop's POS connection
     Route::get('/integrations/pos/callback/{adapter?}', Platform\PosOAuthCallbackController::class)->where('adapter', '[a-z0-9-]+')->middleware('throttle:30,1')->name('platform.pos.callback');
+    // MARKER-SITE-HEALTH: the one return point for every shop's Google sign-in
+    Route::get('/integrations/google/callback', Platform\GoogleOAuthCallbackController::class)->middleware('throttle:30,1')->name('platform.google.callback');
     Route::post('/subdomain/check', [Platform\OnboardingController::class, 'checkSubdomain'])->name('platform.subdomain.check');
 
     Route::get('/login',    [Platform\OnboardingController::class, 'login'])->name('platform.login');
@@ -1351,6 +1353,22 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::delete('/scheduling/template/{templateId}', [TenantControllers\SchedulingController::class, 'deleteTemplate'])->name('scheduling.template.delete');
 
             Route::post('/uploads', [TenantControllers\UploadController::class, 'store'])->name('uploads.store');
+
+            // MARKER-SITE-HEALTH: what to fix so more people find the shop
+            Route::get('/site-health',                       [TenantControllers\SiteHealthController::class, 'index'])->name('site_health.index');
+            Route::get('/site-health/status',                [TenantControllers\SiteHealthController::class, 'status'])->name('site_health.status');
+            Route::post('/site-health/check',                [TenantControllers\SiteHealthController::class, 'check'])->name('site_health.check')->middleware('throttle:6,1');
+            Route::post('/site-health/stop',                 [TenantControllers\SiteHealthController::class, 'stop'])->name('site_health.stop');
+            Route::post('/site-health/resume',               [TenantControllers\SiteHealthController::class, 'resume'])->name('site_health.resume');
+            Route::post('/site-health/fix/{issue}/save',     [TenantControllers\SiteHealthController::class, 'save'])->name('site_health.save')->whereNumber('issue');
+            Route::post('/site-health/fix/{issue}/undo',     [TenantControllers\SiteHealthController::class, 'undo'])->name('site_health.undo')->whereNumber('issue');
+            Route::post('/site-health/fix/{issue}/hide',     [TenantControllers\SiteHealthController::class, 'hide'])->name('site_health.hide')->whereNumber('issue');
+            Route::post('/site-health/fix/{issue}/restore',  [TenantControllers\SiteHealthController::class, 'restore'])->name('site_health.restore')->whereNumber('issue');
+            Route::post('/site-health/google/connect',       [TenantControllers\SiteHealthController::class, 'googleConnect'])->name('site_health.google.connect')->middleware('throttle:10,1');
+            Route::post('/site-health/google/disconnect',    [TenantControllers\SiteHealthController::class, 'googleDisconnect'])->name('site_health.google.disconnect');
+            Route::post('/site-health/google/refresh',       [TenantControllers\SiteHealthController::class, 'googleRefresh'])->name('site_health.google.refresh')->middleware('throttle:6,1');
+            Route::post('/site-health/google/pick',          [TenantControllers\SiteHealthController::class, 'googlePick'])->name('site_health.google.pick');
+            Route::post('/site-health/google/reply',         [TenantControllers\SiteHealthController::class, 'googleReply'])->name('site_health.google.reply')->middleware('throttle:20,1');
 
             // media library
             Route::get('/media',            [TenantControllers\MediaLibraryController::class, 'index'])->name('media.index');

@@ -6,9 +6,9 @@
 <section class="sd-tiles sd-n{{ count($sdTiles) }}" data-sd-live="tiles">
   @foreach ($sdTiles as $i => $t)
     @php $c = $t['chart'] ?? []; @endphp
-    <a class="sd-tile sd-t{{ $t['tone'] }} sd-in" style="--d:{{ $i * 90 }}ms" href="{{ $t['link'] }}" aria-label="{{ $t['title'] }}: {{ $t['pre'] }}{{ number_format($t['value']) }}, {{ $t['sub'] }}">
+    <a class="sd-tile sd-t{{ $t['tone'] }} sd-in" style="--d:{{ $i * 90 }}ms" href="{{ $t['link'] }}" aria-label="{{ $t['title'] }}: {{ $t['pre'] }}{{ number_format($t['value'], $t['decimals'] ?? 0) }}, {{ $t['sub'] }}">
       <div class="sd-tile-h"><span>{{ $t['title'] }}</span><i aria-hidden="true">↗</i></div>
-      <div class="sd-big"><b data-count="{{ $t['value'] }}" data-pre="{{ $t['pre'] }}">{{ $t['pre'] }}{{ number_format($t['value']) }}</b><small>{{ $t['sub'] }}</small></div>
+      <div class="sd-big"><b data-count="{{ $t['value'] }}" data-pre="{{ $t['pre'] }}" data-dec="{{ $t['decimals'] ?? 0 }}">{{ $t['pre'] }}{{ number_format($t['value'], $t['decimals'] ?? 0) }}</b><small>{{ $t['sub'] }}</small></div>
 
       @if (($c['type'] ?? '') === 'bars')
         <div class="sd-bars" aria-hidden="true">
@@ -50,6 +50,13 @@
         <div class="sd-ring">
           <svg viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="18" r="15.5"/>@if ($c['pct'] > 0)<circle class="v" cx="18" cy="18" r="15.5" pathLength="100" style="--p:{{ $c['pct'] }}"/>@endif</svg>
           <div><b>{{ $c['pct'] }}%</b><span>{{ $c['label'] }}</span></div>
+        </div>
+
+      @elseif (($c['type'] ?? '') === 'dist'){{-- MARKER-SITE-HEALTH: how many reviews at each star, 5 down to 1 --}}
+        <div class="sd-dist" aria-hidden="true">
+          @foreach ($c['dist'] as $star => $n)
+            <span><small>{{ $star }}</small><i><u style="width:{{ round($n / $c['of'] * 100) }}%"></u></i></span>
+          @endforeach
         </div>
       @endif
     </a>

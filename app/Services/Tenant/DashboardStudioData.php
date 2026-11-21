@@ -63,6 +63,14 @@ class DashboardStudioData
         if ($money) {
             $tiles[] = $this->onlineTile();
         }
+        // MARKER-SITE-HEALTH: two more tiles, each only once it has something to show
+        if ($this->see->can('pages')) {
+            foreach ([\App\Support\SiteHealthView::dashTile($this->tenant), \App\Support\SiteHealthView::reviewsTile($this->tenant)] as $extra) {
+                if ($extra) {
+                    $tiles[] = $extra;
+                }
+            }
+        }
 
         return [
             'mode'   => $this->mode,

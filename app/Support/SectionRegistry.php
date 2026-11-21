@@ -58,7 +58,7 @@ class SectionRegistry
             'intake_form_editor'=> ['label' => 'Intake Form Editor', 'group' => 'manage',   'prefixes' => ['tenant.booking-editor'],                       'gate' => null],
 
             // website, marketing, messages and settings follow the menu's order
-            'pages'             => ['label' => 'Pages',              'group' => 'website',  'prefixes' => ['tenant.pages'],                                'gate' => null],
+            'pages'             => ['label' => 'Pages',              'group' => 'website',  'prefixes' => ['tenant.pages', 'tenant.site_health'],                                'gate' => null],
             'templates'         => ['label' => 'Templates',          'group' => 'website',  'prefixes' => ['tenant.templates'],                            'gate' => null],
             'media'             => ['label' => 'Media',              'group' => 'website',  'prefixes' => ['tenant.media'],                                'gate' => null],
             'storefront'        => ['label' => 'E-commerce',         'group' => 'website',  'prefixes' => ['tenant.storefront'],                           'gate' => 'online_store_enabled'],

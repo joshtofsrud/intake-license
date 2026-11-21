@@ -135,6 +135,15 @@ class TenantNav
           'group'  => 'website',
           'gate'   => 'online_store_enabled',
         ],
+        // MARKER-SITE-HEALTH
+        [
+          'route'  => 'tenant.site_health.index',
+          'label'  => 'Site health',
+          'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 7.5h2.6l1.5-4 2.6 7.5 1.7-5 .9 1.5H13" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+          'group'  => 'website',
+          'match_alt' => 'tenant.site_health.',
+          'gate'   => null,
+        ],
         [
           'route'  => 'tenant.gift-cards.index',
           'label'  => 'Gift Cards',
@@ -379,7 +388,7 @@ class TenantNav
           'tenant.work-order-fields.index', 'tenant.booking-editor.index',
           // website, then marketing, then messages
           'tenant.pages.index', 'tenant.templates.index', 'tenant.media.index',
-          'tenant.orders.index', 'tenant.storefront.settings', 'tenant.reports.search', 'tenant.booking_modes.index',
+          'tenant.orders.index', 'tenant.site_health.index', 'tenant.storefront.settings', 'tenant.reports.search', 'tenant.booking_modes.index',
           'tenant.campaigns.index', 'tenant.discounts.index', 'tenant.recovery.index',
           'tenant.waitlist.index',
           'tenant.inbox.index', 'tenant.notifications', 'tenant.communication.index',

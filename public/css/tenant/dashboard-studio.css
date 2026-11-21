@@ -31,7 +31,14 @@ body.ia-theme-c { --sd-t1:#F2CC57; --sd-t2:#F09CC4; --sd-t3:#BEF264; --sd-t4:#8F
 
 /* tiles */
 .sd-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-bottom: 30px; }
-.sd-tiles.sd-n1, .sd-tiles.sd-n3 > .sd-tile:last-child { grid-column: 1 / -1; }
+.sd-tiles.sd-n1, .sd-tiles.sd-n3 > .sd-tile:last-child, .sd-tiles.sd-n5 > .sd-tile:last-child { grid-column: 1 / -1; }
+/* MARKER-SITE-HEALTH: reviews at each star, as five thin bars */
+.sd-dist { display: grid; gap: 4px; margin-top: auto; }
+.sd-dist span { display: grid; grid-template-columns: 10px 1fr; gap: 8px; align-items: center; }
+.sd-dist small { font-size: 10px; opacity: .7; }
+.sd-dist i { height: 5px; border-radius: 99px; background: color-mix(in srgb, var(--sd-ink) 14%, transparent); overflow: hidden; }
+.sd-dist u { display: block; height: 100%; border-radius: 99px; background: var(--sd-ink); }
+body.ia-theme-c .sd-dist i { background: color-mix(in srgb, var(--c) 22%, transparent); } body.ia-theme-c .sd-dist u { background: var(--c); }
 .sd-tile { --c: var(--sd-t1); position: relative; overflow: hidden; isolation: isolate; display: flex; flex-direction: column; gap: 10px; min-height: 184px;
   padding: 18px 18px 14px; border-radius: 18px; color: var(--sd-ink); text-decoration: none; background: color-mix(in srgb, var(--c) 30%, var(--ia-surface)); }
 .sd-t2 { --c: var(--sd-t2); } .sd-t3 { --c: var(--sd-t3); } .sd-t4 { --c: var(--sd-t4); }
@@ -317,6 +324,7 @@ html.sd-motion .sd-ny:not(.on) .sd-chip { opacity: 0; transform: translateY(8px)
   .sd-dash .dash-row > .dash-col { display: contents; }
   .sd-dash .sd-tiles { grid-column: 1 / -1; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; order: 0; }
   .sd-dash .sd-tiles.sd-n1 { grid-template-columns: minmax(0, 1fr); } .sd-dash .sd-tiles.sd-n2, .sd-dash .sd-tiles.sd-n4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sd-dash .sd-tiles.sd-n5 > .sd-tile:last-child { grid-column: auto; }
   .sd-dash .sd-tiles.sd-n3 > .sd-tile:last-child { grid-column: auto; }
   .sd-dash .sd-tile { min-height: 132px; padding: 14px 16px; gap: 6px; }
   .sd-dash .sd-big b { font-size: 26px; }
@@ -348,7 +356,7 @@ html.sd-motion .sd-ny:not(.on) .sd-chip { opacity: 0; transform: translateY(8px)
   .sd-dash .sd-tiles { display: flex; gap: 8px; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none; margin: 0 -12px; padding: 0 12px; scroll-padding: 0 12px; } /* bleeds to the edge like the Needs you row above it */
   .sd-dash .sd-tiles::-webkit-scrollbar { display: none; }
   .sd-dash .sd-tile { flex: 1 0 calc((100% - 16px) / 3); min-width: 104px; min-height: 0; padding: 10px 12px; gap: 4px; border-radius: 14px; scroll-snap-align: start; }
-  .sd-dash .sd-tile-h i, .sd-dash .sd-bars, .sd-dash .sd-axis, .sd-dash .sd-spark, .sd-dash .sd-stack, .sd-dash .sd-key, .sd-dash .sd-meter, .sd-dash .sd-ring { display: none; }
+  .sd-dash .sd-tile-h i, .sd-dash .sd-bars, .sd-dash .sd-axis, .sd-dash .sd-spark, .sd-dash .sd-stack, .sd-dash .sd-key, .sd-dash .sd-meter, .sd-dash .sd-ring, .sd-dash .sd-dist { display: none; }
   .sd-dash .sd-tile-h span { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .sd-dash .sd-big { flex-direction: column; align-items: flex-start; gap: 1px; flex-wrap: nowrap; }
   .sd-dash .sd-big b { font-size: 22px; }
