@@ -43,6 +43,13 @@
   .spg-checkout .mini .p { margin-left: auto; font-weight: 650; }
   .spg-checkout .pay { display: block; width: 100%; text-align: center; font: inherit; font-size: 15px; font-weight: 700; padding: 15px 0; border: 0; border-radius: var(--s-btn-r); background: var(--acc); cursor: pointer; margin-top: 16px; color: var(--s-acc-text);}
   .spg-checkout .pay:disabled { opacity: .5; cursor: wait; }
+  /* MARKER-PAY-LATER: the chosen way to pay is plain to see, like the fulfillment choice above it */
+  .spg-checkout .pm-opt { transition: border-color .15s, background .15s; }
+  .spg-checkout .pm-opt input { appearance: none; -webkit-appearance: none; width: 18px; height: 18px; flex: none; margin: 0; border-radius: 50%; border: 1.5px solid color-mix(in srgb, var(--p-text) 35%, transparent); display: grid; place-content: center; cursor: pointer; }
+  .spg-checkout .pm-opt input::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--acc); transform: scale(0); transition: transform .12s; }
+  .spg-checkout .pm-opt input:checked { border-color: var(--acc); }
+  .spg-checkout .pm-opt input:checked::before { transform: scale(1); }
+  .spg-checkout .pm-opt:has(input:checked) { border-color: var(--acc) !important; background: color-mix(in srgb, var(--acc) 9%, transparent); }
   .spg-checkout .err { color: var(--s-bad); font-size: 13px; margin-top: 10px; display: none; }
   .spg-checkout #payment-element { margin-top: 4px; }
   .spg-checkout #pay-panel { display: none; }
@@ -142,7 +149,7 @@
       <div class="panel" id="pm-panel">
         <h2>Pay with</h2>
         <label class="pm-opt" style="display:flex;align-items:center;gap:10px;border:1.5px solid color-mix(in srgb, var(--p-text) 12%, transparent);border-radius:10px;padding:11px 12px;margin-bottom:8px;cursor:pointer;font-weight:600;font-size:14px">
-          <input type="radio" name="pm" value="card" checked style="accent-color:var(--s-ink)"> Card
+          <input type="radio" name="pm" value="card" checked> Card
           <span style="font-size:11px;color:var(--p-muted);font-weight:400">Instant</span>
         </label>
         {{-- MARKER-PAY-LATER: the shop's name for paying later, its rules, and the hold --}}
@@ -150,7 +157,7 @@
         <div style="font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;opacity:.6;margin:12px 0 6px">{{ $plCfg['pay_later_label'] }}</div>
         @foreach($onlineMethods as $om)
           <label class="pm-opt pl-opt" style="display:flex;align-items:center;gap:10px;border:1.5px solid color-mix(in srgb, var(--p-text) 12%, transparent);border-radius:10px;padding:11px 12px;margin-bottom:8px;cursor:pointer;font-weight:600;font-size:14px">
-            <input type="radio" name="pm" value="{{ $om->method_key }}" style="accent-color:var(--s-ink)"> {{ $om->name }}
+            <input type="radio" name="pm" value="{{ $om->method_key }}"> {{ $om->name }}
             @if($om->hintFor('online'))<span style="font-size:11px;color:var(--p-muted);font-weight:400">{{ $om->hintFor('online') }}</span>@endif
           </label>
         @endforeach
@@ -287,8 +294,17 @@
     var on = document.querySelector('input[name="pm"]:checked');
     if (why && on && on.value !== 'card') document.querySelector('input[name="pm"][value="card"]').checked = true;
   }
+  // MARKER-PAY-LATER: the button says what it will do. Card goes on to the card form;
+  // paying later places the order there and then.
+  function syncGoLabel() {
+    if (placed) return;
+    var on = document.querySelector('input[name="pm"]:checked');
+    document.getElementById('go').textContent = (on && on.value !== 'card') ? 'Place order · ' + PL.label.toLowerCase() : 'Continue to payment';
+  }
+  document.querySelectorAll('input[name="pm"]').forEach(function (r) { r.addEventListener('change', syncGoLabel); });
   function syncGo() {
     syncPay();
+    syncGoLabel();
     var blocked = (SHIP_ONLY && ful !== 'ship') || (ful === 'ship' && RATED && !ratesReady);
     document.getElementById('go').disabled = blocked;
   }
@@ -320,7 +336,7 @@
     r.addEventListener('change', function () { pickFul(r.value); });
   });
   if (ful !== 'pickup' || SHIP_ONLY || RATED || TAXDEST) pickFul(ful); // start on whatever is offered first, and apply the ships-only notice
-  syncPay();
+  syncPay(); syncGoLabel();
 
   function fail(msg) {
     var e = document.getElementById('err');
