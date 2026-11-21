@@ -54,16 +54,15 @@
     var row = $('#shList .sh-row[data-id="' + id + '"]');
     place();
     $$('form.sh-edit', box).forEach(live);
-    if (!quiet && phone() && row) row.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    // keep the opened details in view without jumping the page about
+    if (!quiet && row) { var r = box.getBoundingClientRect(); if (r.bottom > window.innerHeight || r.top < 110) box.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
   }
-  // on a phone the details sit right under the picked row; otherwise under the list.
-  // Moving the box keeps whatever is typed or loaded in it; it is never drawn again for a resize.
+  // the details open right under the picked row, on every screen: with a long list, details at the
+  // foot of it would open out of sight and the press would look like it did nothing
   function place() {
     var box = $('#shDetail'), tpl = picked && $('#shList template[data-for="' + picked + '"]');
-    if (!box || !tpl || box.hidden) return;
-    var want = phone() ? tpl.parentNode : $('#shFix'), after = phone() ? tpl.nextSibling : null;
-    if (box.parentNode === want && (phone() ? box.previousSibling === tpl : box === want.lastElementChild)) return;
-    want.insertBefore(box, after);
+    if (!box || !tpl || box.hidden || box.previousSibling === tpl) return;
+    tpl.parentNode.insertBefore(box, tpl.nextSibling);
   }
 
   // a title or description: the preview and the count follow the typing
@@ -237,11 +236,12 @@
     }
   });
 
-  // the header stays at the top on a wide screen: once the page scrolls under it, it frosts so nothing shows through
-  function frost() { var h = $('#shHead'); if (h) h.classList.toggle('frost', window.scrollY > 24 && window.innerWidth > 1023); }
-  window.addEventListener('scroll', frost, { passive: true });
-  window.addEventListener('resize', function () { frost(); place(); });
-  frost();
+  // the header stays at the top on a wide screen. It only gains a hairline once the page is under it;
+  // it never changes size, so scrolling can never fight it.
+  function stuck() { var h = $('#shHead'); if (h) h.classList.toggle('stuck', window.scrollY > 4); }
+  window.addEventListener('scroll', stuck, { passive: true });
+  window.addEventListener('resize', stuck);
+  stuck();
   applyFilter();
   if (location.hash === '#reviews' && $('#reviews')) $('#reviews').scrollIntoView();
   if (root.dataset.running === '1' || root.dataset.googleRunning === '1') poll();

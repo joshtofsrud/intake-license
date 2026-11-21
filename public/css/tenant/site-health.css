@@ -4,14 +4,17 @@
 .sh-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); column-gap: 28px; align-items: start; }
 .sh-grid.solo { grid-template-columns: minmax(0, 1fr); } .sh-grid.solo > .sd-rail { display: none; }
 .sh .sd-head { grid-template-columns: minmax(0, 1fr) auto; }
-/* the pinned header is solid from the first pixel of scroll, so the line under it can never show through */
-.sh .sd-head, .sh .sd-head.frost { background: var(--ia-bg); -webkit-backdrop-filter: none; backdrop-filter: none; }
-.sh .sd-list { max-height: none; }
+/* the pinned header is solid, and never changes size: a header that shrinks as the page scrolls moves
+   everything under it, which the browser answers by scrolling back, and the two chase each other */
+.sh .sd-head { background: var(--ia-bg); }
+.sh .sd-head.stuck { box-shadow: 0 1px 0 var(--ia-border); }
+.sh .sd-list { max-height: none; overflow: visible; overscroll-behavior: auto; } /* the list is part of the page: the page scrolls, never the list */
 .sh-row { grid-template-columns: 34px minmax(0, 1.2fr) minmax(0, 1.5fr) 118px; }
 .sh-list.has-v .sh-row { grid-template-columns: 34px minmax(0, 1.2fr) minmax(0, 1.5fr) 118px 70px; }
 .sh-list:not(.has-v) .sh-row .sd-age { display: none; }
 .sh-row .sd-job { white-space: normal; overflow: visible; }
 .sh-row .sd-st { white-space: nowrap; justify-self: start; }
+.sh .sd-list > .sd-detail { margin: 6px 0 12px; scroll-margin-top: 110px; }
 .sh .sd-detail h3 { align-items: flex-start; }
 .sh .sd-detail h3 > span:last-child { white-space: nowrap; }
 .sh .sd-detail h3 .sh-h { font-family: inherit; font-size: 16px; font-weight: 600; line-height: 1.3; color: var(--ia-text); }
@@ -165,7 +168,7 @@ div.sd-tile { cursor: default; }
   .sh-cmp { grid-template-columns: 1fr; }
   .sh-live-n b { font-size: 40px; } .sh-tally { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .sh-ghost-art .sd-tiles > .sd-tile { min-height: 0; } .sh-ghost-art .sd-bars, .sh-ghost-art .sd-stack, .sh-ghost-art .sd-meter { display: none; } .sh-ghost-cta { inset: 76px 0 0 0; } .sh-ghost-cta h2 { font-size: 19px; }
-  .sh .sd-detail { margin: 6px 0 10px; padding: 16px; }
+  .sh .sd-detail { padding: 16px; }
   .sh .sd-detail h3 { flex-direction: column; gap: 4px; }
   .sh .sd-seg { display: flex; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; max-width: 100%; } .sh .sd-seg button { white-space: nowrap; }
 }
