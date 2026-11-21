@@ -151,6 +151,7 @@
 .inv-row-cost { color: var(--ia-text-muted); }
 </style>
 
+<style>
 /* MARKER-INV-FAST-LOAD: numbers strip, chart, placeholders */
 .ivp{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) minmax(0,1.6fr);border:.5px solid var(--ia-border);border-radius:var(--ia-r-lg);margin-bottom:10px;overflow:hidden}
 .ivp>a,.ivp>div{padding:13px 16px;border-right:.5px solid var(--ia-border);min-width:0;text-decoration:none;color:inherit}
@@ -180,6 +181,7 @@
 @keyframes ivpin{from{opacity:0}to{opacity:1}}
 @media(max-width:1100px){.ivp{grid-template-columns:repeat(2,minmax(0,1fr))}.ivp>*{border-bottom:.5px solid var(--ia-border)}.ivp-chart{grid-column:1/-1}}
 @media(max-width:640px){.ivp-chart{display:none}.ivp .v{font-size:20px}}
+</style>
 @endpush
 
 @section('content')
