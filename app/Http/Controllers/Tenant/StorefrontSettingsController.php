@@ -58,7 +58,7 @@ class StorefrontSettingsController extends Controller
         ];
 
         // MARKER-POS-CONNECT: the Shop POS tab
-        $posConn = \App\Models\Tenant\TenantPosConnection::where('tenant_id', $tenant->id)->with('connectedByUser')->first();
+        $posConn = $tenant->connected_pos_enabled ? \App\Models\Tenant\TenantPosConnection::where('tenant_id', $tenant->id)->first() : null;
         // MARKER-ECOM-FAST-LOAD: a background request for the Connected POS tab gets just that tab
         if ($request->query('panel') === 'pos') {
             return view('tenant.storefront._connected-pos', ['pos' => $this->posData($tenant, $posConn)]);
@@ -155,31 +155,16 @@ class StorefrontSettingsController extends Controller
     }
 
     /** MARKER-ECOM-FAST-LOAD: everything the Connected POS tab shows. Built only when that tab is opened. */
+    /**
+     * MARKER-CONNECTED-POS-SECTION: what the E-commerce → Connected POS tab shows. Only the
+     * online-orders part lives here now; the rest is the Connected POS section's.
+     */
     private function posData($tenant, $posConn): array
     {
         return [
-            'conn'      => $posConn,
-            'label'     => $posConn ? \App\Models\PlatformPosAdapter::forCode($posConn->adapter_code)->displayLabel() : null,
-            'available' => app(\App\Services\Pos\Adapters\PosAdapterRegistry::class)->available(),
-            'intake_locations' => $tenant->activeLocations()->get(['id', 'name']), // MARKER-CONNECTED-POS-CATALOG
-            // MARKER-CONNECTED-POS-PUSH
-            'conflicts' => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_items as p')
-                ->join('tenant_inventory_items as i', 'i.id', '=', 'p.inventory_item_id')
-                ->where('p.tenant_id', $tenant->id)->whereNotNull('p.conflict')
-                ->orderBy('i.name')->limit(100)->get(['p.id', 'p.conflict', 'i.id as item_id', 'i.name as item_name']) : collect(),
-            // MARKER-POS-TAB-V2: what the Recent sends and send-button areas show
-            'counts'    => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', $tenant->id)->selectRaw('status, count(*) n')->groupBy('status')->pluck('n', 'status') : collect(),
-            'problems'  => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', $tenant->id)->where('status', 'failed')->orderByDesc('updated_at')->limit(10)->get() : collect(),
-            // MARKER-POS-SENDS-LIST: every kind and every status, newest first, so an order that
-            // failed or is retrying is never missing from the list
-            'latest'    => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', $tenant->id)->orderByDesc('updated_at')->limit(12)->get() : collect(),
-            // orders and refunds that failed stay pinned until they are sent: money records matter more than items
-            'money_failed' => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', $tenant->id)->whereIn('kind', ['sale', 'refund'])->where('status', 'failed')->orderByDesc('updated_at')->limit(20)->get() : collect(),
-            // MARKER-POS-ITEM-DETAILS: linked items still missing brand/category/supplier/cost, and the latest reason
-            'details_missing' => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_items')->where('tenant_id', $tenant->id)->whereNotNull('inventory_item_id')->whereNull('removed_at')->whereNull('details_sent_at')->count() : 0,
-            'details_error'   => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_items')->where('tenant_id', $tenant->id)->whereNotNull('details_error')->orderByDesc('id')->value('details_error') : null,
-            'catchup'   => $posConn ? \App\Services\Pos\PosPushService::catchupOrders($tenant->id)->count() : 0,
-            'linked'    => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_items')->where('tenant_id', $tenant->id)->whereNotNull('inventory_item_id')->whereNull('removed_at')->count() : 0,
+            'conn'         => $posConn,
+            'catchup'      => $posConn ? \App\Services\Pos\PosPushService::catchupOrders($tenant->id)->count() : 0,
+            'money_failed' => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', $tenant->id)->whereIn('kind', ['sale', 'refund'])->where('status', 'failed')->limit(20)->get() : collect(),
         ];
     }
 

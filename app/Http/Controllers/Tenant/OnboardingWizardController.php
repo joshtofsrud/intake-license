@@ -344,15 +344,44 @@ class OnboardingWizardController extends Controller
 
     public function complete(Request $request): JsonResponse
     {
-        tenant()->update([
+        $tenant = tenant();
+        $tenant->update([
             'onboarding_status' => 'complete',
             'onboarded_at'      => now(),
             'onboarding_step'   => null,
         ]);
+
+        // MARKER-CONNECTED-POS-SECTION: "Are you moving from another POS?" Yes turns the free
+        // Connected POS add-on on (Branded and up) and opens the Move to Intake checklist.
+        $redirect = route('tenant.dashboard', []);
+        if ($request->boolean('moving_from_pos')) {
+            $settings = (array) ($tenant->settings ?? []);
+            $settings['connected_pos'] = array_merge((array) ($settings['connected_pos'] ?? []), ['use' => 'move']);
+            $tenant->forceFill(['settings' => $settings])->save();
+
+            if ($this->tierAtLeast($tenant, 'branded')) {
+                try {
+                    if (! $tenant->connected_pos_enabled) {
+                        app(\App\Services\AddonManagementService::class)->activate($tenant, 'connected_pos', [
+                            'source'      => 'self_serve',
+                            'actor_type'  => 'tenant',
+                            'actor_id'    => null, // the audit log's actor id is a number; a shop user's is not
+                            'actor_label' => trim((string) \Illuminate\Support\Facades\Auth::guard('tenant')->user()?->name . ' <' . \Illuminate\Support\Facades\Auth::guard('tenant')->user()?->email . '>'),
+                            'reason'      => 'said they are moving from another POS during onboarding',
+                        ]);
+                    }
+                    $redirect = route('tenant.cpos.move', []);
+                } catch (\Throwable $e) {
+                    // onboarding still finishes; the add-on can be turned on from Add-ons
+                    \App\Support\JobFailureReporter::report(self::class, 'Connected POS could not be turned on at the end of onboarding', $e, [], $tenant->id);
+                }
+            }
+        }
+
         return response()->json([
             'ok'       => true,
             'complete' => true,
-            'redirect' => route('tenant.dashboard', []),
+            'redirect' => $redirect,
         ]);
     }
 
@@ -413,6 +442,7 @@ class OnboardingWizardController extends Controller
             'planTier'    => $tenant->plan_tier ?? 'starter',
             'canClasses'  => $this->tierAtLeast($tenant, 'branded'),
             'canTeam'     => $this->tierAtLeast($tenant, 'branded'),
+            'canConnectedPos' => $this->tierAtLeast($tenant, 'branded'), // MARKER-CONNECTED-POS-SECTION
         ]);
     }
 

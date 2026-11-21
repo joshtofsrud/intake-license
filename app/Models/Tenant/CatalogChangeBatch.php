@@ -36,7 +36,13 @@ class CatalogChangeBatch extends Model
     public function isReversible(): bool
     {
         return ! $this->isUndone()
-            && in_array($this->action, ['adopt_title', 'adopt_details', 'raise_map', 'match_msrp'], true);
+            && in_array($this->action, ['adopt_title', 'adopt_details', 'raise_map', 'match_msrp', 'pos_import'], true);
+    }
+
+    /** An import from the shop's Connected POS: undone by removing what it linked and made. */
+    public function isPosImport(): bool
+    {
+        return $this->action === 'pos_import';
     }
 
     public function label(): string
@@ -49,6 +55,8 @@ class CatalogChangeBatch extends Model
             'raise_map'     => 'Raised to MAP',
             'match_msrp'    => 'Matched MSRP',
             'acknowledge'   => 'Dismissed',
+            'pos_import'    => 'Imported from Connected POS', // MARKER-CONNECTED-POS-SECTION
+            'import'        => 'Imported from a distributor',
         ][$this->action] ?? $this->action;
     }
 }

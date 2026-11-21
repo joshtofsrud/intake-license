@@ -34,7 +34,8 @@ class PosCatalogSyncJob implements ShouldQueue
 
         $conn = TenantPosConnection::find($this->connectionId);
         try {
-            if (! $conn || ! $conn->sync_enabled || $conn->status !== 'connected' || ! (($conn->sync_state ?? [])['running'] ?? false)) {
+            // MARKER-CONNECTED-POS-SECTION: a read the shop asked for runs with sync off too (it only records and links)
+            if (! $conn || $conn->status !== 'connected' || ! (($conn->sync_state ?? [])['running'] ?? false)) {
                 return;
             }
             $more = $sync->step($conn);

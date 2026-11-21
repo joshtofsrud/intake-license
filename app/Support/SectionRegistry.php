@@ -34,6 +34,8 @@ class SectionRegistry
             // MARKER-BUYING: the page itself (tenant.buying) is open to everyone in a
             // retail shop so it can say why it's locked; everything under it is enforced.
             'buying'            => ['label' => 'Buying',             'group' => 'main',     'prefixes' => ['tenant.buying.'],                              'gate' => 'retail_enabled'],
+            // MARKER-CONNECTED-POS-SECTION: the shop's outside POS (also the route to moving over to Intake)
+            'connected_pos'     => ['label' => 'Connected POS',      'group' => 'main',     'prefixes' => ['tenant.cpos.home', 'tenant.cpos.'],                                'gate' => 'connected_pos_enabled'],
             // MARKER-SEC-SECTIONS: online orders, gift cards, storefront and
             // discounts used to sit outside every area, so no role could be
             // kept out of them. Existing roles were given them (see the

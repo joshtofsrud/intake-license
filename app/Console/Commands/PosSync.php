@@ -22,6 +22,9 @@ class PosSync extends Command
     {
         $full = (bool) $this->option('full');
         TenantPosConnection::where('sync_enabled', true)->where('status', 'connected')->each(function (TenantPosConnection $conn) use ($sync, $full) {
+            if (! $this->addonOn($conn)) {
+                return;
+            }
             $st = (array) ($conn->sync_state ?? []);
             if ($st['stopped'] ?? false) {
                 return; // MARKER-POS-STOP-RESUME: the shop stopped it; Resume restarts it
@@ -36,6 +39,9 @@ class PosSync extends Command
 
         // MARKER-POS-CUSTOMERS-IN: customers changed since the last run, for shops that bring them in
         TenantPosConnection::where('customers_in', true)->where('status', 'connected')->each(function (TenantPosConnection $conn) use ($full) {
+            if (! $this->addonOn($conn)) {
+                return;
+            }
             $st = (array) ($conn->customer_sync ?? []);
             if (($st['stopped'] ?? false) || empty($st['last_done'])) {
                 return; // stopped by the shop, or the first import hasn't finished: Import / Resume handle those
@@ -49,5 +55,13 @@ class PosSync extends Command
         });
 
         return self::SUCCESS;
+    }
+
+    /** MARKER-CONNECTED-POS-SECTION: a shop whose Connected POS add-on was taken away is no longer read. */
+    private function addonOn(TenantPosConnection $conn): bool
+    {
+        $tenant = $conn->tenant;
+
+        return $tenant && $tenant->connected_pos_enabled;
     }
 }

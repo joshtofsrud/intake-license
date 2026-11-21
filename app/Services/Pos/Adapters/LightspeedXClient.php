@@ -217,7 +217,58 @@ class LightspeedXClient implements PosAdapter
             'description' => array_key_exists('description', $r) ? (string) ($r['description'] ?? '') : null,
             'price_cents' => is_numeric($price) ? (int) round(((float) $price) * 100) : null,
             'active'      => empty($r['deleted_at']) && (($r['is_active'] ?? $r['active'] ?? true) !== false),
-        ];
+        ] + $this->mapProductExtras($r);
+    }
+
+    /**
+     * MARKER-CONNECTED-POS-SECTION: category, supplier, cost and whether stock is tracked,
+     * for Inventory › Import. A field the store doesn't send is left out altogether (not
+     * sent as blank), so what Intake already recorded for it is never wiped.
+     */
+    private function mapProductExtras(array $r): array
+    {
+        $name = fn ($v) => is_array($v) && filled($v['name'] ?? null) ? trim((string) $v['name']) : null;
+        $out = [];
+
+        $cat = $name($r['product_category'] ?? null) ?? $name($r['type'] ?? null);
+        if ($cat === null) {
+            foreach ((array) ($r['categories'] ?? []) as $c) {
+                if ($cat = $name($c)) {
+                    break;
+                }
+            }
+        }
+        if ($cat !== null || array_key_exists('product_category', $r) || array_key_exists('type', $r)) {
+            $out['category'] = $cat;
+        }
+
+        $sup = is_array($r['product_suppliers'] ?? null) ? ($r['product_suppliers'][0] ?? null) : null;
+        if (! is_array($sup) && is_array($r['suppliers'] ?? null)) {
+            $sup = $r['suppliers'][0] ?? null;
+        }
+        $supplier = $name($r['supplier'] ?? null)
+            ?? (is_array($sup) && filled($sup['supplier_name'] ?? null) ? trim((string) $sup['supplier_name']) : null);
+        if ($supplier !== null || array_key_exists('supplier', $r)) {
+            $out['supplier'] = $supplier;
+        }
+        $code = is_array($sup) && filled($sup['code'] ?? null) ? (string) $sup['code'] : (filled($r['supplier_code'] ?? null) ? (string) $r['supplier_code'] : null);
+        if ($code !== null) {
+            $out['supplier_code'] = $code;
+        }
+
+        $cost = $r['supply_price'] ?? (is_array($sup) ? ($sup['price'] ?? null) : null);
+        if (is_numeric($cost)) {
+            $out['cost_cents'] = (int) round(((float) $cost) * 100);
+        }
+
+        foreach (['has_inventory', 'track_inventory'] as $k) {
+            if (array_key_exists($k, $r) && $r[$k] !== null) {
+                $out['track_stock'] = (bool) $r[$k];
+                break;
+            }
+        }
+
+        return $out;
     }
 
     // ── MARKER-CONNECTED-POS-PUSH ───────────────────────────────

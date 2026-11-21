@@ -24,6 +24,7 @@ class TenantPosConnection extends Model
         'location_map', 'removal_mode', 'sync_enabled', 'sync_state', 'last_synced_at', // MARKER-CONNECTED-POS-CATALOG
         'customers_in', 'customer_sync', // MARKER-POS-CUSTOMERS-IN
         'orders_out', 'order_setup', 'setup_options', 'items_create', 'items_edits', // MARKER-CONNECTED-POS-PUSH
+        'mode', 'auto_link', 'import_state', 'items_marked_at', 'switched_at', // MARKER-CONNECTED-POS-SECTION
     ];
 
     protected $hidden = ['access_token', 'refresh_token'];
@@ -47,7 +48,32 @@ class TenantPosConnection extends Model
         'setup_options'    => 'array',
         'items_edits'      => 'boolean',
         'payment_types'    => 'array',
+        'auto_link'        => 'boolean',
+        'import_state'     => 'array',
+        'items_marked_at'  => 'datetime',
+        'switched_at'      => 'datetime',
     ];
+
+    // MARKER-CONNECTED-POS-SECTION: the two modes a connection can be in.
+    public const TWO_WAY   = 'two_way';
+    public const READ_ONLY = 'read_only';
+
+    /** 2 Way Data: Intake reads from the Connected POS and sends to it. Reading Only: it only reads. */
+    public function isTwoWay(): bool
+    {
+        return ($this->mode ?: self::TWO_WAY) !== self::READ_ONLY;
+    }
+
+    public function modeLabel(): string
+    {
+        return $this->isTwoWay() ? '2 Way Data' : 'Reading Only';
+    }
+
+    /** The Connected POS sets price and stock on linked items: only in 2 Way Data, with sync on. */
+    public function ownsPriceAndStock(): bool
+    {
+        return $this->isTwoWay() && (bool) $this->sync_enabled;
+    }
 
     public function tenant(): BelongsTo
     {

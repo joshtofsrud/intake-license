@@ -59,6 +59,26 @@
 
   <p class="dc-sub">Connect each distributor you buy from to unlock your cost and live availability.</p>
 
+  {{-- MARKER-CONNECTED-POS-SECTION: the shop's own outside POS is a connection too; it has a section of its own --}}
+  @if(tenant()->connected_pos_enabled && auth('tenant')->user()?->canAccessSection('connected_pos'))
+    @php $cpConn = \App\Models\Tenant\TenantPosConnection::where('tenant_id', tenant()->id)->first(); @endphp
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;padding:12px 0;margin-bottom:18px;border-top:.5px solid var(--ia-border);border-bottom:.5px solid var(--ia-border);font-size:13px">
+      <div>
+        <span style="font-weight:600">Connected POS</span>
+        <span class="dc-dim" style="margin-left:8px">
+          @if($cpConn)
+            {{ \App\Models\PlatformPosAdapter::forCode($cpConn->adapter_code)->displayLabel() }} · {{ $cpConn->status === 'connected' ? 'connected' : 'needs attention' }} · {{ $cpConn->modeLabel() }}
+            · {{ number_format(\Illuminate\Support\Facades\DB::table('tenant_pos_items')->where('tenant_id', tenant()->id)->whereNull('removed_at')->whereNotNull('inventory_item_id')->count()) }} linked,
+            {{ number_format(\Illuminate\Support\Facades\DB::table('tenant_pos_items')->where('tenant_id', tenant()->id)->whereNull('removed_at')->whereNull('inventory_item_id')->count()) }} waiting in Import
+          @else
+            The POS your shop already uses. Not connected yet.
+          @endif
+        </span>
+      </div>
+      <a href="{{ route('tenant.cpos.home') }}" style="color:var(--ia-accent);text-decoration:none;white-space:nowrap">Open Connected POS →</a>
+    </div>
+  @endif
+
   <div class="dc-note">Turn on the distributors you buy from. Your <b>own</b> key
   unlocks <b>your cost</b> and <b>live availability</b> — per-account, never shared between shops.</div>
 

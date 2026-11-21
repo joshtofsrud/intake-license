@@ -22,8 +22,14 @@
   $invTabs[] = ['route' => 'tenant.inventory.categories.index', 'label' => 'Categories',        'match' => 'tenant.inventory.categories'];
   $invTabs[] = ['route' => 'tenant.inventory.receiving.index',  'label' => 'Receiving',         'match' => 'tenant.inventory.receiving'];
   $invTabs[] = ['route' => 'tenant.inventory.reports',          'label' => 'Reports',           'match' => 'tenant.inventory.reports'];
+  // MARKER-CONNECTED-POS-SECTION: Import also brings items in from a shop's Connected POS. With
+  // distributors on, that is a source on the same Import tab; without them, Import opens on it.
+  $posOn = ($currentTenant->connected_pos_enabled ?? false);
+  if ($posOn && ! $distOn) {
+      $invTabs[] = ['route' => 'tenant.inventory.cpos',          'label' => 'Import',            'match' => 'tenant.inventory.cpos'];
+  }
   if ($distOn) {
-      $invTabs[] = ['route' => 'tenant.distributors.import',     'label' => 'Import',            'match' => 'tenant.distributors.import'];
+      $invTabs[] = ['route' => 'tenant.distributors.import',     'label' => 'Import',            'match' => 'tenant.distributors.import', 'also' => 'tenant.inventory.cpos'];
       $invTabs[] = ['route' => 'tenant.distributors.brands',     'label' => 'Brands',            'match' => 'tenant.distributors.brands'];
       $invTabs[] = ['route' => 'tenant.distributors.attention',  'label' => 'Catalog attention', 'match' => 'tenant.distributors.attention'];
       $invTabs[] = ['route' => 'tenant.distributors.connection', 'label' => 'Connection & sync', 'match' => 'tenant.distributors.connection'];
@@ -36,7 +42,7 @@
 <div class="ia-tabs-bar" style="display:flex;gap:4px;border-bottom:1px solid var(--ia-border);margin-bottom:22px;overflow-x:auto;white-space:nowrap">
   @foreach($invTabs as $t)
     @continue(! Route::has($t['route']))
-    @php $active = str_starts_with($cur, $t['match']); @endphp
+    @php $active = str_starts_with($cur, $t['match']) || (! empty($t['also']) && str_starts_with($cur, $t['also'])); @endphp
     <a href="{{ route($t['route']) }}" @if($active) data-tab-active @endif
        style="padding:9px 15px;font-size:13px;font-weight:600;text-decoration:none;flex-shrink:0;border-bottom:2px solid {{ $active ? 'var(--ia-accent)' : 'transparent' }};color:{{ $active ? 'var(--ia-text)' : 'var(--ia-text-dim)' }}">{{ $t['label'] }}</a>
   @endforeach

@@ -1,5 +1,5 @@
 {{-- inside one batch. --}}
-@extends('layouts.tenant')
+@extends('layouts.tenant.app')
 @section('title', 'Catalog change')
 
 @section('content')
@@ -11,7 +11,7 @@
 
   <p class="ch-hint">
     {{ number_format($batch->item_count) }} {{ \Illuminate\Support\Str::plural('item', $batch->item_count) }}
-    changed {{ $batch->created_at->diffForHumans() }}@if($batch->run_by) by {{ $batch->run_by }}@endif.
+    {{ $batch->isPosImport() ? 'brought in' : 'changed' }} {{ $batch->created_at->diffForHumans() }}@if($batch->run_by) by {{ $batch->run_by }}@endif.
     @if($rows->count() < $batch->item_count)
       Showing the first {{ number_format($rows->count()) }}.
     @endif
@@ -21,16 +21,25 @@
     @foreach($rows as $row)
       @php
         $item = $items[$row->item_id] ?? null;
-        $edited = $item ? $row->changedSince($item) : false;
+        // MARKER-CONNECTED-POS-SECTION: an import row is a link or a new item, not a field change
+        $posRow = ($row->before ?? [])['_pos'] ?? null;
+        $edited = $item ? ($posRow ? ($posRow === 'created' && app(\App\Services\Pos\PosImportService::class)->usedSince($item)) : $row->changedSince($item)) : false;
       @endphp
       <div class="ch-row">
         <div class="ch-row-name">
-          {{ $item?->name ?? 'deleted item' }}
+          {{ $item?->name ?? ($posRow ? (($row->before ?? [])['product'] ?? 'removed item') : 'deleted item') }}
           <div class="ch-row-meta">{{ $item?->sku }}</div>
         </div>
 
         <div class="ch-row-diff">
-          @foreach(($row->before ?? []) as $field => $was)
+          @if($posRow)
+            <div class="ch-field">
+              <span class="ch-field-k">Connected POS product</span>
+              <span class="ch-now">{{ ($row->before ?? [])['product'] ?? '' }}</span>
+              <span class="ch-note">{{ $posRow === 'created' ? 'This import made the item.' : 'Linked to an item you already had.' }}</span>
+            </div>
+          @endif
+          @foreach($posRow ? [] : ($row->before ?? []) as $field => $was)
             <div class="ch-field">
               <span class="ch-field-k">{{ str_replace('_', ' ', $field) }}</span>
               <span class="ch-was">{{ is_scalar($was) ? $was : json_encode($was) }}</span>
@@ -43,11 +52,11 @@
           @if($row->restored_at)
             <span class="ch-note">put back</span>
           @elseif($edited)
-            <span class="ch-note ch-kept">edited since — kept</span>
+            <span class="ch-note ch-kept">{{ $posRow ? 'sold or adjusted since — kept' : 'edited since — kept' }}</span>
           @elseif($item)
             <form method="POST" action="{{ route('tenant.distributors.attention.history.undo.item', [$batch->id, $row->item_id]) }}">
               @csrf
-              <button type="submit" class="ia-btn ia-btn--secondary ia-btn--sm">Put back</button>
+              <button type="submit" class="ia-btn ia-btn--secondary ia-btn--sm">{{ $posRow ? ($posRow === 'created' ? 'Remove' : 'Unlink') : 'Put back' }}</button>
             </form>
           @endif
         </div>

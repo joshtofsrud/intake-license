@@ -1,12 +1,16 @@
 {{-- what bulk changes have been made, and the way back. --}}
-@extends('layouts.tenant')
+@extends('layouts.tenant.app')
 @section('title', 'Catalog changes')
 
 @section('content')
 <div class="ia-page">
   <div class="ia-page-head">
     <h1 class="ia-page-title">Catalog changes</h1>
-    <a href="{{ route('tenant.distributors.attention') }}" class="ia-back-link">← Catalog attention</a>
+    @if(tenant()->distributor_sync_enabled)
+      <a href="{{ route('tenant.distributors.attention') }}" class="ia-back-link">← Catalog attention</a>
+    @else
+      <a href="{{ route('tenant.inventory.cpos') }}" class="ia-back-link">← Import</a>
+    @endif
   </div>
 
   <p class="ch-hint">
@@ -31,6 +35,9 @@
 
       <div class="ch-meta">
         {{ number_format($b->item_count) }} {{ \Illuminate\Support\Str::plural('item', $b->item_count) }}
+        @if($b->isPosImport())
+          · {{ ! empty($b->filter['picked']) ? 'picked one at a time' : (! empty($b->filter['ids']) ? 'ticked rows' : 'everything matching the filters') }}
+        @endif
         @if($b->filter['select_all'] ?? false)
           · every match for the filter
         @endif
@@ -42,7 +49,7 @@
         <div class="ch-meta">
           {{ number_format($b->restored_count) }} put back
           @if($b->kept_count > 0)
-            · <span class="ch-kept">{{ number_format($b->kept_count) }} kept because they were edited since</span>
+            · <span class="ch-kept">{{ number_format($b->kept_count) }} kept because they {{ $b->isPosImport() ? 'have been sold or adjusted since' : 'were edited since' }}</span>
           @endif
         </div>
       @endif
@@ -59,7 +66,7 @@
                 id="undo-{{ $b->id }}" style="display:inline">
             @csrf
             <button type="button" class="ia-btn ia-btn--danger ia-btn--sm"
-                    onclick="undoBatch('{{ $b->id }}', {{ (int) $b->item_count }})">
+                    onclick="undoBatch('{{ $b->id }}', {{ (int) $b->item_count }}, {{ $b->isPosImport() ? 'true' : 'false' }})">
               Undo this batch
             </button>
           </form>
@@ -101,12 +108,14 @@
 <script>
   // the app's own dialog. Undoing thousands of items is
   // exactly the moment a confirmation should look like it belongs here.
-  function undoBatch(id, count) {
+  function undoBatch(id, count, posImport) {
     var n = count.toLocaleString();
     IntakeConfirm.show({
-      title: 'Put back ' + n + ' item' + (count === 1 ? '' : 's') + '?',
-      message: 'They go back to the values they had before this batch. Anything edited since is left as it is, and you will be told how many.',
-      confirmText: 'Put them back',
+      title: (posImport ? 'Undo this import of ' : 'Put back ') + n + ' item' + (count === 1 ? '' : 's') + '?',
+      message: posImport
+        ? 'Links to items you already had are removed. Items this import made are removed too, with the stock your Connected POS gave them. Anything sold or adjusted since is kept, and you will be told how many. Nothing changes in your Connected POS.'
+        : 'They go back to the values they had before this batch. Anything edited since is left as it is, and you will be told how many.',
+      confirmText: posImport ? 'Undo the import' : 'Put them back',
       danger: true
     }).then(function (ok) {
       if (ok) { document.getElementById('undo-' + id).submit(); }

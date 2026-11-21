@@ -74,6 +74,9 @@ interface PosAdapter
      * (null = from the beginning). Cursors are opaque to Intake.
      *
      * Each item: id, parent_id, name, sku, upc, ean, mpn, brand, price_cents (int|null), active (bool).
+     * Optional, for Inventory › Import (MARKER-CONNECTED-POS-SECTION): category, supplier,
+     * supplier_code, cost_cents (int|null), track_stock (bool|null), description. Leave a key
+     * out when the POS doesn't share that field; a key that is present is taken as the truth.
      *
      * @return array{items: list<array>, cursor: ?string, more: bool}
      */

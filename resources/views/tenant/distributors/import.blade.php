@@ -56,9 +56,11 @@
        distributor, and there are thousands of each, so switching reloads
        rather than shipping every distributor's lists to filter in the
        browser. --}}
-  @if (count($importCodes) > 1)
+  {{-- MARKER-CONNECTED-POS-SECTION: the shop's Connected POS is a source too, beside its distributors --}}
+  @php $posSource = (tenant()->connected_pos_enabled ?? false) && \App\Models\Tenant\TenantPosConnection::where('tenant_id', tenant()->id)->exists(); @endphp
+  @if (count($importCodes) > 1 || $posSource)
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
-      <span style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ia-text-dim);font-weight:600">Distributor</span>
+      <span style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ia-text-dim);font-weight:600">{{ $posSource ? 'Source' : 'Distributor' }}</span>
       @foreach ($importCodes as $c)
         <a href="{{ route('tenant.distributors.import', ['code' => $c]) }}"
            style="padding:5px 13px;border-radius:20px;font-size:12.5px;font-weight:600;text-decoration:none;
@@ -66,6 +68,10 @@
                   background:{{ $c === $importCode ? 'var(--ia-text)' : 'var(--ia-surface-2)' }};
                   color:{{ $c === $importCode ? 'var(--ia-bg)' : 'var(--ia-text-dim)' }}">{{ $distLabel($c) }}</a>
       @endforeach
+      @if ($posSource)
+        <a href="{{ route('tenant.inventory.cpos') }}"
+           style="padding:5px 13px;border-radius:20px;font-size:12.5px;font-weight:600;text-decoration:none;border:1px solid var(--ia-border);background:var(--ia-surface-2);color:var(--ia-text-dim)">Connected POS</a>
+      @endif
     </div>
   @endif
   @include('layouts.tenant._inventory-tabs')

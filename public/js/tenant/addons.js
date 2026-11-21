@@ -61,7 +61,7 @@
 
     function priceString(cents, cadence) {
         if (cadence === 'one_time') return `$${(cents / 100).toFixed(0)} once`;
-        if (cents === 0) return '—';
+        if (cents === 0) return 'Free';
         return `$${(cents / 100).toFixed(0)}/mo`;
     }
 
@@ -72,28 +72,30 @@
         const cadence = card.dataset.addonCadence;
 
         const priceLine = priceString(price, cadence);
-        const stripeWarning = !STRIPE_LIVE
+        // MARKER-CONNECTED-POS-SECTION: a free add-on is switched on, not bought
+        const free = price === 0 && cadence !== 'one_time';
+        const stripeWarning = !STRIPE_LIVE && !free
             ? `<p class="addon-modal__banner" style="background:#1e3a5f;border-left:3px solid #60A5FA;color:#bfdbfe;padding:10px 12px;margin:12px 0;border-radius:4px;font-size:0.85rem;">Payment processing is not yet live. This addon will activate immediately and be billed on your next invoice.</p>`
             : '';
 
         const html = `
-            <h2>Add ${escapeHtml(name)}</h2>
-            <p>You're about to add ${escapeHtml(name)} to your subscription.</p>
+            <h2>${free ? 'Turn on' : 'Add'} ${escapeHtml(name)}</h2>
+            <p>${free ? escapeHtml(name) + ' is free. Nothing is added to your bill, and you can turn it off again here.' : "You're about to add " + escapeHtml(name) + ' to your subscription.'}</p>
             ${stripeWarning}
             <div class="addon-modal__price-summary">
                 <div class="addon-modal__price-row">
                     <span>${escapeHtml(name)}</span>
                     <span>${priceLine}</span>
                 </div>
-                <div class="addon-modal__price-row addon-modal__price-row--total">
+                ${free ? '' : `<div class="addon-modal__price-row addon-modal__price-row--total">
                     <span>Due ${cadence === 'one_time' ? 'today' : 'at next billing cycle'}</span>
                     <span>${priceLine}</span>
-                </div>
+                </div>`}
             </div>
             <div class="addon-modal__actions">
                 <button type="button" class="addon-modal__btn addon-modal__btn--secondary" data-close>Cancel</button>
                 <button type="button" class="addon-modal__btn addon-modal__btn--primary" id="confirmPurchase">
-                    Confirm & add
+                    ${free ? 'Turn on' : 'Confirm & add'}
                 </button>
             </div>
             <div class="addon-modal__error" id="purchaseError" style="display:none;"></div>
@@ -111,11 +113,12 @@
                 if (!res.ok) throw new Error(res.error || 'Something went wrong.');
                 closeModal();
                 showActivatedState(card, res.data);
+                if (free) { window.location.reload(); } // the menu gains its section
             } catch (e) {
                 errorBox.textContent = e.message || 'Could not complete purchase.';
                 errorBox.style.display = 'block';
                 btn.disabled = false;
-                btn.textContent = 'Confirm & add';
+                btn.textContent = free ? 'Turn on' : 'Confirm & add';
             }
         });
     }
@@ -133,13 +136,14 @@
         const name = card.dataset.addonName;
         const code = card.dataset.addonCode;
 
+        const free = (parseInt(card.dataset.addonPrice, 10) || 0) === 0 && card.dataset.addonCadence !== 'one_time';
         const html = `
             <h2>Manage ${escapeHtml(name)}</h2>
-            <p>Cancel this addon? You'll keep access until the end of your current billing period, after which it will be removed.</p>
+            <p>${free ? 'Turn off ' + escapeHtml(name) + '? It turns off right away. Nothing already in Intake is removed, and you can turn it back on here.' : "Cancel this addon? You'll keep access until the end of your current billing period, after which it will be removed."}</p>
             <div class="addon-modal__actions">
                 <button type="button" class="addon-modal__btn addon-modal__btn--secondary" data-close>Keep it</button>
                 <button type="button" class="addon-modal__btn addon-modal__btn--danger" id="confirmCancel">
-                    Cancel addon
+                    ${free ? 'Turn off' : 'Cancel addon'}
                 </button>
             </div>
             <div class="addon-modal__error" id="cancelError" style="display:none;"></div>
@@ -156,12 +160,13 @@
                 const res = await post(URL_CANCEL, { addon_code: code });
                 if (!res.ok) throw new Error(res.error || 'Could not cancel.');
                 closeModal();
+                if (free) { window.location.reload(); return; }
                 showCancelingState(card, res.data);
             } catch (e) {
                 errorBox.textContent = e.message || 'Could not cancel addon.';
                 errorBox.style.display = 'block';
                 btn.disabled = false;
-                btn.textContent = 'Cancel addon';
+                btn.textContent = free ? 'Turn off' : 'Cancel addon';
             }
         });
     }

@@ -17,6 +17,15 @@ class TenantNav
     {
       $navItems = [
         [
+          // MARKER-CONNECTED-POS-SECTION: top of the menu while a shop is moving over from another POS
+          'route'   => 'tenant.cpos.move',
+          'label'   => 'Move to Intake',
+          'icon'    => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7h9M7.5 3.5 11 7l-3.5 3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+          'group'   => null,
+          'section' => 'connected_pos',
+          'gate'    => 'moving_to_intake',
+        ],
+        [
           'route'  => 'tenant.dashboard',
           'label'  => 'Dashboard',
           'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="5" height="5" rx="1" fill="currentColor"/><rect x="8" y="1" width="5" height="5" rx="1" fill="currentColor"/><rect x="1" y="8" width="5" height="5" rx="1" fill="currentColor"/><rect x="8" y="8" width="5" height="5" rx="1" fill="currentColor"/></svg>',
@@ -108,6 +117,15 @@ class TenantNav
           'match_alt' => 'tenant.buying.',
           'section' => 'buying',
           'gate'    => 'retail_enabled',
+        ],
+        [
+          // MARKER-CONNECTED-POS-SECTION: the shop's outside POS. Shown once the add-on is on.
+          'route'   => 'tenant.cpos.home',
+          'label'   => 'Connected POS',
+          'icon'    => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="2" width="4.5" height="4.5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="8" y="7.5" width="4.5" height="4.5" rx="1" stroke="currentColor" stroke-width="1.2"/><path d="M6 4.2h2.2a2 2 0 0 1 2 2v1.3M8 9.8H5.8a2 2 0 0 1-2-2V6.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
+          'group'   => null,
+          'section' => 'connected_pos',
+          'gate'    => 'connected_pos_enabled',
         ],
         // /568 — online orders queue
         [

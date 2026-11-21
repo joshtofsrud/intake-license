@@ -17,7 +17,7 @@ use Illuminate\Support\HtmlString;
 
 /**
  * MARKER-POS-CONNECT: Intake's own app credentials for each POS adapter.
- * Shops never see these; they connect from E-commerce → Connected POS.
+ * Shops never see these; they connect from their Connected POS section.
  */
 class PosAdapters extends Page implements HasForms
 {

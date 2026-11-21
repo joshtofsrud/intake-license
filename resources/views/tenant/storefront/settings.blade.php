@@ -177,9 +177,6 @@
   @if(session('success'))<div class="ec-ok">{{ session('success') }}</div>@endif
   @if(session('error'))<div class="ec-err">{{ session('error') }}</div>@endif
   {{-- MARKER-POS-CONNECT: the POS sends the shop back here with the outcome --}}
-  @if(request('pos') === 'connected')<div class="ec-ok">Your POS is connected. Its outlets and payment types are listed under Connected POS.</div>@endif
-  @if(request('pos') === 'checkfailed')<div class="ec-err">Your POS approved Intake, but reading it failed. Details are under Connected POS.</div>@endif
-  @if(request('pos_error'))<div class="ec-err">{{ \Illuminate\Support\Str::limit((string) request('pos_error'), 220) }}</div>@endif
   @if($errors->any())<div class="ec-err">{{ $errors->first() }}</div>@endif
 
   <div class="ec-tabs" id="tabs">
@@ -192,7 +189,7 @@
     <button type="button" class="ec-tab {{ $tab === 'msg' ? 'on' : '' }}" data-p="msg">Messages</button>
     <button type="button" class="ec-tab {{ in_array($tab, ['goo','google']) ? 'on' : '' }}" data-p="goo">Google</button>
     {{-- MARKER-POS-CONNECT --}}
-    <button type="button" class="ec-tab {{ $tab === 'pos' ? 'on' : '' }}" data-p="pos">Connected POS @if($pos['conn'])<span class="pip {{ $pos['conn']->status === 'connected' ? '' : 'warn' }}">{{ $pos['conn']->status === 'connected' ? 'connected' : 'needs attention' }}</span>@endif</button>
+    <button type="button" class="ec-tab {{ $tab === 'pos' ? 'on' : '' }}" data-p="pos">Connected POS @if($pos['conn'])<span class="pip {{ $pos['conn']->status === 'connected' ? '' : 'warn' }}">{{ $pos['conn']->status !== 'connected' ? 'needs attention' : (! $pos['conn']->isTwoWay() ? 'reading only' : ($pos['conn']->orders_out ? 'sending orders' : 'not sending')) }}</span>@endif</button>
     <button type="button" class="ec-tab {{ $tab === 'gen' || $tab === 'general' ? 'on' : '' }}" data-p="gen">General</button>
   </div>
 

@@ -297,11 +297,13 @@
         @if($ps && $ps->status === 'failed')<div style="color:#A32D2D">Last send: {{ \Illuminate\Support\Str::limit($ps->last_error, 180) }}</div>@endif
       @elseif($ps && $ps->status === 'failed')
         <div style="color:#A32D2D">Not sent: {{ \Illuminate\Support\Str::limit($ps->last_error, 180) }}</div>
+      @elseif(! ($posState['two_way'] ?? true))
+        <div style="color:var(--ia-text-muted)">Not in your Connected POS. It is Reading Only, so nothing is sent to it.</div>
       @else
         <div style="color:var(--ia-text-muted)">Not in your Connected POS. It's created there automatically if an online order needs it, or send it now.</div>
       @endif
     </div>
-    @unless($ps && $ps->status === 'pending')
+    @unless(($ps && $ps->status === 'pending') || ! ($posState['two_way'] ?? true))
       <form method="POST" action="{{ route('tenant.inventory.pos_send', $item->id) }}">@csrf
         <button type="submit" class="ia-btn ia-btn--secondary ia-btn--sm">{{ $pl ? ((int) $pl->price_cents && ($pl->image_sent_at || !$item->itemImages()->exists()) ? 'Send again' : 'Finish sending') : 'Send to Connected POS' }}</button>
       </form>

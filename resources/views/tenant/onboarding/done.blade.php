@@ -69,6 +69,21 @@
     font-size: 11.5px; color: #888 !important; line-height: 1.5;
   }
 
+  /* MARKER-CONNECTED-POS-SECTION */
+  .pos-move-q { font-size: 15px; font-weight: 700; color: #f0f0f0 !important; margin-bottom: 4px; }
+  .pos-move-sub { font-size: 12.5px; color: #888 !important; line-height: 1.55; margin-bottom: 12px; }
+  .pos-move-opts { display: flex; gap: 8px; flex-wrap: wrap; }
+  .pos-move-opt {
+    background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px;
+    padding: 9px 14px; color: #c8c8c8 !important; font-family: inherit; font-size: 13px;
+    font-weight: 600; cursor: pointer; transition: border-color 0.15s;
+  }
+  .pos-move-opt:hover { border-color: #5a5a5a; }
+  .pos-move-opt.on { border-color: #D4FF3F; color: #f0f0f0 !important; }
+  .pos-move-note { font-size: 12.5px; color: #c8c8c8 !important; line-height: 1.55; margin-top: 12px; }
+  .pos-move-note b { color: #f0f0f0 !important; }
+  .summary-block.pos-move { margin-top: 16px; }
+
   .summary-block {
     margin-top: 28px; padding: 16px;
     background: #131313; border: 1px solid #1f1f1f;
@@ -150,6 +165,24 @@
     </a>
   </div>
 
+  {{-- MARKER-CONNECTED-POS-SECTION: a shop coming from another POS gets Connected POS and the Move to Intake checklist --}}
+  <div class="summary-block pos-move">
+    <div class="summary-label">One more question</div>
+    <div class="pos-move-q">Are you moving from another POS?</div>
+    <p class="pos-move-sub">If you are, Intake can connect to it and bring over the items you choose and your customers. Your current POS keeps working until you switch over, and nothing is copied until you ask for it.</p>
+    <div class="pos-move-opts" role="radiogroup" aria-label="Are you moving from another POS?">
+      <button type="button" class="pos-move-opt" data-move="1" role="radio" aria-checked="false">Yes, I'm moving from another POS</button>
+      <button type="button" class="pos-move-opt on" data-move="0" role="radio" aria-checked="true">No</button>
+    </div>
+    <p class="pos-move-note" id="pos-move-note" hidden>
+      @if($canConnectedPos ?? false)
+        Connected POS will be turned on for you. It's free. Finishing takes you to <b>Move to Intake</b>, where you connect your POS and bring things over step by step.
+      @else
+        Connected POS comes with the Branded plan and up, and you're on {{ ucfirst($planTier ?? 'starter') }}, so it stays off for now. When you upgrade, turn it on under Add-ons; it's free, and it will open on Move to Intake.
+      @endif
+    </p>
+  </div>
+
   <div class="actions">
     <a href="{{ route('tenant.onboarding.wizard.payment', []) }}" class="btn btn-ghost">← Back</a>
     <button type="button" class="btn btn-primary" id="ob-finish">Go to dashboard →</button>
@@ -185,14 +218,34 @@
     });
   });
 
+  // MARKER-CONNECTED-POS-SECTION: "Are you moving from another POS?"
+  const CAN_POS = @json((bool) ($canConnectedPos ?? false));
+  const moveNote = document.getElementById('pos-move-note');
+  const finishLabel = () => (moving && CAN_POS) ? 'Finish and move from my POS →' : 'Go to dashboard →';
+  let moving = false;
+  document.querySelectorAll('.pos-move-opt').forEach((b) => {
+    b.addEventListener('click', () => {
+      moving = b.dataset.move === '1';
+      document.querySelectorAll('.pos-move-opt').forEach((x) => {
+        x.classList.toggle('on', x === b);
+        x.setAttribute('aria-checked', x === b ? 'true' : 'false');
+      });
+      moveNote.hidden = !moving;
+      finish.textContent = finishLabel();
+    });
+  });
+
   finish.addEventListener('click', async () => {
     hideError();
     finish.disabled = true;
     finish.textContent = 'Finishing…';
 
     try {
+      const fd = new FormData();
+      fd.append('moving_from_pos', moving ? '1' : '0');
       const res = await fetch(COMPLETE_URL, {
         method: 'POST',
+        body: fd,
         headers: { 'X-CSRF-TOKEN': csrf(), 'Accept': 'application/json' },
         credentials: 'same-origin',
       });
@@ -205,7 +258,7 @@
     } catch (err) {
       showError(err.message || 'Something went wrong.');
       finish.disabled = false;
-      finish.textContent = 'Go to dashboard →';
+      finish.textContent = finishLabel();
     }
   });
 })();

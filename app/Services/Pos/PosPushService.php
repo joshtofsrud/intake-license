@@ -39,6 +39,17 @@ class PosPushService
     }
 
     /**
+     * MARKER-CONNECTED-POS-SECTION: the connection, only when Intake may send to it
+     * (2 Way Data). In Reading Only nothing is queued or sent.
+     */
+    public static function sendingFor(string $tenantId): ?TenantPosConnection
+    {
+        $c = self::connectionFor($tenantId);
+
+        return $c && $c->isTwoWay() ? $c : null;
+    }
+
+    /**
      * Queue a send once; returns the push row (existing one when already queued or done).
      *
      * MARKER-POS-DRAIN: a send is only a row. One paced worker per shop (PosDrainJob)
@@ -139,6 +150,11 @@ class PosPushService
         $conn = self::connectionFor($push->tenant_id);
         if (! $conn) {
             $this->mark($pushId, 'skipped', null, 'No Connected POS is connected.');
+            return;
+        }
+        if (! $conn->isTwoWay()) {
+            // MARKER-CONNECTED-POS-SECTION
+            $this->mark($pushId, 'skipped', null, 'Your Connected POS is Reading Only, so nothing is sent to it.');
             return;
         }
         DB::table('tenant_pos_pushes')->where('id', $pushId)->update(['attempts' => DB::raw('attempts + 1'), 'updated_at' => now()]);
@@ -634,7 +650,7 @@ class PosPushService
         // an online order became a sale
         TenantOrder::updated(function (TenantOrder $o) {
             if ($o->wasChanged('sale_id') && $o->sale_id && ! $o->getOriginal('sale_id')) {
-                $c = self::connectionFor($o->tenant_id);
+                $c = self::sendingFor($o->tenant_id);
                 if ($c && $c->orders_out) {
                     app(self::class)->queue($o->tenant_id, 'sale', (string) $o->id, 'Online order ' . $o->order_number);
                 }
@@ -646,7 +662,7 @@ class PosPushService
             if (! $s->refund_of_sale_id) {
                 return;
             }
-            $c = self::connectionFor($s->tenant_id);
+            $c = self::sendingFor($s->tenant_id);
             if (! $c || ! $c->orders_out) {
                 return;
             }
@@ -661,7 +677,7 @@ class PosPushService
             if (PosCatalogSync::$applying || ! $i->wasChanged(array_keys(self::SHARED))) {
                 return;
             }
-            $c = self::connectionFor($i->tenant_id);
+            $c = self::sendingFor($i->tenant_id);
             if ($c && $c->items_edits && DB::table('tenant_pos_items')->where('tenant_id', $i->tenant_id)->where('inventory_item_id', $i->id)->whereNull('removed_at')->exists()) {
                 app(self::class)->queue($i->tenant_id, 'item_update', (string) $i->id, 'Changes to ' . $i->name);
             }
@@ -672,7 +688,7 @@ class PosPushService
             if (PosCatalogSync::$applying || ! $i->wasChanged(['shop_brand', 'category_id', 'shop_cost_cents', 'received_cost_cents', 'shop_weight_oz'])) {
                 return;
             }
-            $c = self::connectionFor($i->tenant_id);
+            $c = self::sendingFor($i->tenant_id);
             if ($c && $c->items_edits && DB::table('tenant_pos_items')->where('tenant_id', $i->tenant_id)->where('inventory_item_id', $i->id)->whereNull('removed_at')->exists()) {
                 app(self::class)->queue($i->tenant_id, 'item_details', (string) $i->id, 'Details for ' . $i->name);
             }
@@ -683,7 +699,7 @@ class PosPushService
             if (PosCatalogSync::$applying) {
                 return;
             }
-            $c = self::connectionFor($i->tenant_id);
+            $c = self::sendingFor($i->tenant_id);
             if ($c && $c->items_create === 'always') {
                 app(self::class)->queue($i->tenant_id, 'item_create', (string) $i->id, 'New item ' . $i->name);
             }

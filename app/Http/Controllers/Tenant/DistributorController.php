@@ -28,6 +28,15 @@ class DistributorController extends Controller
         abort_unless(tenant()->distributor_sync_enabled, 403);
     }
 
+    /**
+     * MARKER-CONNECTED-POS-SECTION: catalog history also holds imports from a shop's
+     * Connected POS, so a shop with that and no distributor can still open it and undo.
+     */
+    private function guardHistory(): void
+    {
+        abort_unless(tenant()->distributor_sync_enabled || tenant()->connected_pos_enabled, 403);
+    }
+
     private function subscription(): TenantDistributorCatalogSubscription
     {
         return TenantDistributorCatalogSubscription::firstOrCreate(
@@ -1034,7 +1043,7 @@ class DistributorController extends Controller
      *
      * @return array<int,string>
      */
-    private function importableCodes(): array
+    public function importableCodes(): array
     {
         $supported = \App\Support\BrandDirect::visibleCodes((string) tenant()->id);
 
@@ -1216,7 +1225,7 @@ class DistributorController extends Controller
      */
     public function catalogHistory(\Illuminate\Http\Request $request)
     {
-        $this->guard();
+        $this->guardHistory();
 
         $batches = \App\Models\Tenant\CatalogChangeBatch::where('tenant_id', tenant()->id)
             ->orderByDesc('created_at')
@@ -1228,7 +1237,7 @@ class DistributorController extends Controller
 
     public function catalogHistoryShow(\Illuminate\Http\Request $request, string $batchId)
     {
-        $this->guard();
+        $this->guardHistory();
 
         $batch = \App\Models\Tenant\CatalogChangeBatch::where('tenant_id', tenant()->id)
             ->findOrFail($batchId);
@@ -1248,7 +1257,7 @@ class DistributorController extends Controller
 
     public function catalogUndo(\Illuminate\Http\Request $request, string $batchId)
     {
-        $this->guard();
+        $this->guardHistory();
 
         $batch = \App\Models\Tenant\CatalogChangeBatch::where('tenant_id', tenant()->id)
             ->findOrFail($batchId);
@@ -1261,7 +1270,7 @@ class DistributorController extends Controller
 
         $msg = number_format($result['restored']) . ' put back';
         if ($result['kept'] > 0) {
-            $msg .= ' · ' . number_format($result['kept']) . ' kept because they were edited since';
+            $msg .= ' · ' . number_format($result['kept']) . ($batch->isPosImport() ? ' kept because they have been sold or adjusted since' : ' kept because they were edited since');
         }
 
         return back()->with('success', $msg);
@@ -1269,7 +1278,7 @@ class DistributorController extends Controller
 
     public function catalogUndoItem(\Illuminate\Http\Request $request, string $batchId, string $itemId)
     {
-        $this->guard();
+        $this->guardHistory();
 
         $batch = \App\Models\Tenant\CatalogChangeBatch::where('tenant_id', tenant()->id)
             ->findOrFail($batchId);
@@ -1278,7 +1287,7 @@ class DistributorController extends Controller
 
         return back()->with(
             $result['restored'] ? 'success' : 'error',
-            $result['restored'] ? 'Put back.' : 'Left alone — it has been edited since.'
+            $result['restored'] ? ($batch->isPosImport() ? 'Undone.' : 'Put back.') : ($batch->isPosImport() ? 'Kept — it has been sold or adjusted since.' : 'Left alone — it has been edited since.')
         );
     }
 

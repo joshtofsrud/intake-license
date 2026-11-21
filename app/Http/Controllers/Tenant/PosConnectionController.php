@@ -11,20 +11,97 @@ use Illuminate\Support\Facades\Auth;
 use Throwable;
 
 /**
- * MARKER-POS-CONNECT: the E-commerce page's Connected POS tab — connect, check, disconnect.
+ * MARKER-CONNECTED-POS-SECTION: the Connected POS section — the shop's own outside POS.
+ * Connect, check and disconnect; what is read from it and what is sent to it; its two
+ * modes (2 Way Data, Reading Only) and switching over to Intake.
+ *
+ * Its items come into Intake through Inventory › Import (PosImportController). Sending
+ * online orders is an E-commerce setting (PosOrdersController).
  */
 class PosConnectionController extends Controller
 {
     private function guard(): void
     {
-        abort_unless(tenant()->online_store_enabled, 404);
+        abort_unless(tenant()->connected_pos_enabled, 404);
         $me = Auth::guard('tenant')->user();
-        abort_unless($me && $me->canAccessSection('storefront'), 403);
+        abort_unless($me && $me->canAccessSection('connected_pos'), 403);
     }
 
-    private function back(): RedirectResponse
+    private function back(string $tab = 'overview'): RedirectResponse
     {
-        return redirect()->route('tenant.storefront.settings', ['tab' => 'pos']);
+        // an action taken from the Move to Intake checklist returns to the checklist
+        if (str_contains((string) url()->previous(), '/connected-pos/move')) {
+            return redirect()->route('tenant.cpos.move');
+        }
+
+        return redirect()->route('tenant.cpos.home', ['tab' => $tab]);
+    }
+
+    private const TABS = ['overview', 'items', 'customers', 'sending', 'settings'];
+
+    /** GET /connected-pos — the section. ?part=sending returns just the sends list, for its live refresh. */
+    public function home(Request $request)
+    {
+        $this->guard();
+        $tenant = tenant();
+        $conn = \App\Support\ConnectedPosView::connection($tenant->id);
+        $pos = \App\Support\ConnectedPosView::data($tenant, $conn);
+        $tab = in_array($request->query('tab'), self::TABS, true) ? $request->query('tab') : 'overview';
+
+        if ($request->query('part') === 'sending') {
+            return $conn ? view('tenant.connected-pos._sending', ['pos' => $pos]) : response('', 204);
+        }
+
+        $new = collect();
+        if ($conn && $tab === 'items') {
+            $svc = app(\App\Services\Pos\PosImportService::class);
+            $rows = $svc->newQuery($conn)->orderByDesc('p.first_seen_at')->limit(10)->get();
+            $stock = \Illuminate\Support\Facades\DB::table('tenant_pos_stock')->where('tenant_id', $tenant->id)
+                ->whereIn('external_item_id', $rows->pluck('external_id'))->selectRaw('external_item_id, SUM(qty) q')->groupBy('external_item_id')->pluck('q', 'external_item_id');
+            $matcher = $rows->isEmpty() ? null : \App\Services\Pos\PosMatcher::forTenant($tenant->id);
+            $new = $rows->map(function ($p) use ($stock, $matcher) {
+                $hit = $matcher->find((array) $p);
+                $p->hit = $hit ? ['how' => $hit['how'], 'name' => $matcher->name($hit['id']), 'id' => $hit['id']] : null;
+                $p->stock = $p->track_stock ? (int) ($stock[$p->external_id] ?? 0) : null;
+                return $p;
+            });
+        }
+
+        return view('tenant.connected-pos.index', [
+            'pos'   => $pos,
+            'tab'   => $tab,
+            'new'   => $new,
+            'move'  => \App\Support\ConnectedPosView::moveSteps($conn, $pos['items']),
+        ]);
+    }
+
+    /** GET /connected-pos/move — the checklist for a shop moving to Intake. */
+    public function move()
+    {
+        $this->guard();
+        $tenant = tenant();
+        $conn = \App\Support\ConnectedPosView::connection($tenant->id);
+        $pos = \App\Support\ConnectedPosView::data($tenant, $conn);
+
+        return view('tenant.connected-pos.move', [
+            'pos'  => $pos,
+            'move' => \App\Support\ConnectedPosView::moveSteps($conn, $pos['items']),
+        ]);
+    }
+
+    /** How the shop uses its Connected POS: staying on it, or moving to Intake. */
+    public function setUse(Request $request): RedirectResponse
+    {
+        $this->guard();
+        $data = $request->validate(['use' => ['required', 'in:stay,move']]);
+        $tenant = tenant();
+        $settings = (array) ($tenant->settings ?? []);
+        $settings['connected_pos'] = array_merge((array) ($settings['connected_pos'] ?? []), ['use' => $data['use']]);
+        $tenant->forceFill(['settings' => $settings])->save();
+
+        return redirect()->route('tenant.cpos.home', ['tab' => 'overview'])->with('success', $data['use'] === 'move'
+            ? 'Set to Moving to Intake. The steps are below, and Move to Intake is at the top of the menu.'
+            : 'Set to Staying on your Connected POS.');
     }
 
     public function connect(Request $request, string $adapter, PosConnectionService $svc)
@@ -35,7 +112,7 @@ class PosConnectionController extends Controller
                 tenant(),
                 Auth::guard('tenant')->id(),
                 strtolower($adapter),
-                $request->getSchemeAndHttpHost() . '/admin/storefront?tab=pos'
+                route('tenant.cpos.home', ['tab' => 'overview'])
             );
         } catch (Throwable $e) {
             return $this->back()->with('error', $e->getMessage());
@@ -56,7 +133,7 @@ class PosConnectionController extends Controller
         return $this->back()->with($ok ? 'success' : 'error', $ok ? 'Connection checked — everything below is current.' : 'The check failed: ' . $conn->last_error);
     }
 
-    /** MARKER-CONNECTED-POS-CATALOG: outlet → location map, removal rule, sync on/off. */
+    /** Outlets → locations, keeping linked items in sync, linking matches, and the removed-item rule. */
     public function settings(Request $request): RedirectResponse
     {
         $this->guard();
@@ -66,6 +143,7 @@ class PosConnectionController extends Controller
             'map.*'        => ['nullable', 'string', 'max:36'],
             'removal_mode' => ['required', 'in:keep,hide,deactivate'],
             'sync_enabled' => ['nullable', 'boolean'],
+            'auto_link'    => ['nullable', 'boolean'],
         ]);
 
         $outlets = collect($conn->locations ?? [])->pluck('id')->map(fn ($v) => (string) $v)->all();
@@ -77,33 +155,40 @@ class PosConnectionController extends Controller
             }
         }
         if (count($map) !== count(array_unique($map))) {
-            return $this->back()->with('error', 'Two Connected POS outlets can\'t feed the same Intake location — each location keeps one count.');
+            return $this->back('settings')->with('error', 'Two Connected POS outlets can\'t feed the same Intake location — each location keeps one count.');
         }
         $wantsSync = (bool) ($data['sync_enabled'] ?? false);
-        if ($wantsSync && ! $map) {
-            return $this->back()->with('error', 'Map at least one Connected POS outlet to an Intake location before turning sync on.');
+        if ($wantsSync && $conn->isTwoWay() && ! $map) {
+            return $this->back('settings')->with('error', 'Map at least one Connected POS outlet to an Intake location before turning this on.');
         }
 
-        $conn->forceFill(['location_map' => $map, 'removal_mode' => $data['removal_mode'], 'sync_enabled' => $wantsSync])->save();
+        $was = (bool) $conn->sync_enabled;
+        $conn->forceFill([
+            'location_map' => $map, 'removal_mode' => $data['removal_mode'],
+            'sync_enabled' => $wantsSync, 'auto_link' => (bool) ($data['auto_link'] ?? false),
+        ])->save();
 
-        return $this->back()->with('success', 'Connected POS settings saved.');
+        return $this->back('settings')->with('success', 'Connected POS settings saved.' . ($wantsSync && ! $was ? ' Reading starts within a minute.' : ''));
     }
 
-    /** Start a full import now (also how a shop re-reads everything). */
-    public function import(\App\Services\Pos\PosCatalogSync $sync): RedirectResponse
+    /**
+     * Read the whole catalog now. Reading records every product and links the ones that
+     * are plainly items the shop already carries. It never creates an item.
+     */
+    public function read(\App\Services\Pos\PosCatalogSync $sync): RedirectResponse
     {
         $this->guard();
-        $conn = TenantPosConnection::where('tenant_id', tenant()->id)->firstOrFail();
-        if (! $conn->sync_enabled) {
-            return $this->back()->with('error', 'Turn sync on and save before importing.');
+        $conn = TenantPosConnection::where('tenant_id', tenant()->id)->where('status', 'connected')->first();
+        if (! $conn) {
+            return $this->back('items')->with('error', 'Reconnect your Connected POS first.');
         }
         if (($conn->sync_state['running'] ?? false) && $conn->updated_at?->gt(now()->subMinutes(15))) {
-            return $this->back()->with('success', 'An import is already running — progress is shown below.');
+            return $this->back('items')->with('success', 'The catalog is already being read — progress is shown below.');
         }
         $sync->start($conn, true);
         \App\Jobs\PosCatalogSyncJob::dispatch($conn->id);
 
-        return $this->back()->with('success', 'Import started — progress is shown below.');
+        return $this->back('items')->with('success', 'Reading your catalog — progress is shown below.');
     }
 
     /** Live progress for the Connected POS tab. */
@@ -115,6 +200,9 @@ class PosConnectionController extends Controller
         return response()->json([
             'state'          => $conn?->sync_state ?? null,
             'customers'      => $conn?->customer_sync ?? null, // MARKER-POS-CUSTOMERS-IN
+            'import'         => $conn?->import_state ?? null,
+            'items'          => $conn ? app(\App\Services\Pos\PosImportService::class)->counts($conn) : null,
+            'mode'           => $conn?->mode,
             'last_synced_at' => $conn?->last_synced_at?->diffForHumans(),
             'linked'         => $conn ? \Illuminate\Support\Facades\DB::table('tenant_pos_items')->where('tenant_id', $conn->tenant_id)->whereNotNull('inventory_item_id')->whereNull('removed_at')->count() : 0,
             // MARKER-CONNECTED-POS-PUSH
@@ -122,69 +210,75 @@ class PosConnectionController extends Controller
         ]);
     }
 
-    /** MARKER-CONNECTED-POS-PUSH: orders out + what sales are recorded with, items out rules. */
-    public function pushSettings(Request $request): RedirectResponse
+    /** What Intake sends about items: creating them there, and the shop's edits. (Orders: E-commerce.) */
+    public function itemSettings(Request $request): RedirectResponse
     {
         $this->guard();
         $conn = TenantPosConnection::where('tenant_id', tenant()->id)->firstOrFail();
         $data = $request->validate([
-            'orders_out'      => ['nullable', 'boolean'],
-            'register_id'     => ['nullable', 'string', 'max:100'],
-            'user_id'         => ['nullable', 'string', 'max:100'],
-            'payment_type_id' => ['nullable', 'string', 'max:100'],
-            'tax_id'          => ['nullable', 'string', 'max:100'],
-            'registers'       => ['nullable', 'array'],
-            'registers.*'     => ['nullable', 'string', 'max:100'],
-            'items_create'    => ['required', 'in:orders,always'],
-            'items_edits'     => ['nullable', 'boolean'],
+            'items_create' => ['required', 'in:orders,always'],
+            'items_edits'  => ['nullable', 'boolean'],
         ]);
-        $opts = (array) ($conn->setup_options ?? []);
-        $valid = fn (string $list, ?string $id) => $id === null || $id === '' || collect($opts[$list] ?? ($list === 'payment_types' ? $conn->payment_types : []) ?? [])->pluck('id')->map(fn ($v) => (string) $v)->contains($id);
-        if (! $valid('registers', $data['register_id'] ?? null) || ! $valid('users', $data['user_id'] ?? null)
-            || ! $valid('payment_types', $data['payment_type_id'] ?? null) || ! $valid('taxes', $data['tax_id'] ?? null)) {
-            return $this->back()->with('error', 'One of those choices is no longer in your Connected POS. Click Check connection to refresh the lists.');
-        }
-        $setup = array_filter([
-            'register_id' => $data['register_id'] ?? null, 'user_id' => $data['user_id'] ?? null,
-            'payment_type_id' => $data['payment_type_id'] ?? null, 'tax_id' => $data['tax_id'] ?? null,
-        ]);
-        // MARKER-POS-REGISTER-PER-OUTLET: a register for each mapped outlet, when there is more than one
-        $regIds = collect($opts['registers'] ?? [])->pluck('id')->map(fn ($v) => (string) $v);
-        $perOutlet = [];
-        foreach ((array) ($data['registers'] ?? []) as $outlet => $reg) {
-            if (filled($reg) && isset(((array) $conn->location_map)[$outlet]) && $regIds->contains((string) $reg)) {
-                $perOutlet[(string) $outlet] = (string) $reg;
-            }
-        }
-        if ($perOutlet) {
-            $setup['registers'] = $perOutlet;
-        }
-        // kept across saves: the item online shipping is sold as
-        if (! empty(((array) $conn->order_setup)['charge_item_id'])) {
-            $setup['charge_item_id'] = ((array) $conn->order_setup)['charge_item_id'];
-        }
-        $out = (bool) ($data['orders_out'] ?? false);
-        $wasOut = (bool) $conn->orders_out;
-        if ($out) {
-            $missing = [];
-            foreach (['register_id' => 'register', 'user_id' => 'staff member', 'payment_type_id' => 'payment type'] as $k => $label) {
-                if (empty($setup[$k])) { $missing[] = $label; }
-            }
-            if (! empty($opts['taxes']) && empty($setup['tax_id'])) { $missing[] = 'tax'; }
-            if ($missing) {
-                return $this->back()->with('error', 'To send online orders, choose the ' . implode(', ', $missing) . ' they are recorded with.');
-            }
-            if (empty($conn->location_map)) {
-                return $this->back()->with('error', 'Map at least one outlet to an Intake location under Sync before sending orders.');
-            }
-        }
-        $conn->forceFill([
-            'orders_out' => $out, 'order_setup' => $setup,
-            'items_create' => $data['items_create'], 'items_edits' => (bool) ($data['items_edits'] ?? false),
-        ])->save();
+        $conn->forceFill(['items_create' => $data['items_create'], 'items_edits' => (bool) ($data['items_edits'] ?? false)])->save();
 
-        $catch = $out && ! $wasOut ? \App\Services\Pos\PosPushService::catchupOrders($conn->tenant_id)->count() : 0;
-        return $this->back()->with('success', 'Orders and items settings saved.' . ($catch ? ' ' . $catch . ' paid ' . ($catch === 1 ? 'order' : 'orders') . ' from the last 7 days went out before this was on — send them from Sending below.' : ''));
+        return $this->back('settings')->with('success', 'Saved.');
+    }
+
+    /** Products first seen since the last import are no longer flagged as new. */
+    public function markSeen(): RedirectResponse
+    {
+        $this->guard();
+        TenantPosConnection::where('tenant_id', tenant()->id)->update(['items_marked_at' => now()]);
+
+        return $this->back('items')->with('success', 'Marked as seen. They are still waiting in Inventory › Import.');
+    }
+
+    /**
+     * Switch over to Intake. Reads the Connected POS one last time (final prices and counts
+     * onto linked items), then the connection becomes Reading Only: nothing more is sent
+     * to it, and Intake owns price and stock from then on.
+     */
+    public function switchOver(\App\Services\Pos\PosCatalogSync $sync): RedirectResponse
+    {
+        $this->guard();
+        $conn = TenantPosConnection::where('tenant_id', tenant()->id)->where('status', 'connected')->first();
+        if (! $conn) {
+            return $this->back()->with('error', 'Reconnect your Connected POS first, so its last prices and counts can be read.');
+        }
+        if (! $conn->isTwoWay()) {
+            return $this->back()->with('success', 'Already switched over. Your Connected POS is Reading Only.');
+        }
+        $waiting = \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', $conn->tenant_id)->where('status', 'pending')->count();
+        if ($waiting) {
+            return redirect()->route('tenant.cpos.home', ['tab' => 'sending'])->with('error', number_format($waiting) . ' ' . ($waiting === 1 ? 'send is' : 'sends are')
+                . ' still waiting to go to your Connected POS. Let them finish or stop them here, then switch over.');
+        }
+        if ((($conn->import_state ?? [])['running'] ?? false)) {
+            return $this->back()->with('error', 'An import from your Connected POS is still running. Let it finish or stop it, then switch over.');
+        }
+        if (! $conn->sync_enabled || empty($conn->location_map)) {
+            // nothing to level: no outlet is mapped, or sync was never on
+            $conn->forceFill(['mode' => TenantPosConnection::READ_ONLY, 'switched_at' => now()])->save();
+
+            return $this->back()->with('success', 'Switched over. Your Connected POS is now Reading Only, and Intake owns price and stock.');
+        }
+        $sync->start($conn, true, true);
+        \App\Jobs\PosCatalogSyncJob::dispatch($conn->id);
+
+        return redirect()->route('tenant.cpos.home', ['tab' => 'items'])->with('success', 'Switching over: reading your Connected POS one last time. It becomes Reading Only as soon as that finishes — progress is below.');
+    }
+
+    /** Back to 2 Way Data: the Connected POS sets price and stock on linked items again. */
+    public function switchBack(): RedirectResponse
+    {
+        $this->guard();
+        $conn = TenantPosConnection::where('tenant_id', tenant()->id)->firstOrFail();
+        if ($conn->isTwoWay()) {
+            return $this->back('settings')->with('success', 'Your Connected POS is already 2 Way Data.');
+        }
+        $conn->forceFill(['mode' => TenantPosConnection::TWO_WAY, 'switched_at' => null])->save();
+
+        return $this->back('settings')->with('success', 'Back to 2 Way Data. Linked items take your Connected POS\'s prices and counts again from the next read.');
     }
 
     /** Settle a Needs review field. */
@@ -193,32 +287,16 @@ class PosConnectionController extends Controller
         $this->guard();
         $conn = TenantPosConnection::where('tenant_id', tenant()->id)->where('status', 'connected')->firstOrFail();
         $data = $request->validate(['pos_item' => ['required', 'integer'], 'field' => ['required', 'in:name,sku,upc,description'], 'keep' => ['required', 'in:intake,pos']]);
+        if ($data['keep'] === 'intake' && ! $conn->isTwoWay()) {
+            return $this->back('sending')->with('error', 'Your Connected POS is Reading Only, so Intake\'s value can\'t be sent to it. Choose the Connected POS\'s value, or leave this as it is.');
+        }
         try {
             $push->resolve($conn, (int) $data['pos_item'], $data['field'], $data['keep']);
         } catch (Throwable $e) {
-            return $this->back()->with('error', $e->getMessage());
+            return $this->back('sending')->with('error', $e->getMessage());
         }
 
-        return $this->back()->with('success', $data['keep'] === 'intake' ? 'Sent Intake\'s value to your Connected POS.' : 'Took your Connected POS\'s value into Intake.');
-    }
-
-    /** MARKER-POS-CATCHUP: send the paid orders from the last 7 days that went out before orders were switched on. */
-    public function sendRecentOrders(\App\Services\Pos\PosPushService $push): RedirectResponse
-    {
-        $this->guard();
-        $conn = TenantPosConnection::where('tenant_id', tenant()->id)->where('status', 'connected')->firstOrFail();
-        if (! $conn->orders_out) {
-            return $this->back()->with('error', 'Turn on Send paid online orders and save first.');
-        }
-        $n = 0;
-        foreach (\App\Services\Pos\PosPushService::catchupOrders($conn->tenant_id)->orderBy('created_at')->get(['id', 'order_number']) as $o) {
-            $push->queue($conn->tenant_id, 'sale', (string) $o->id, 'Online order ' . $o->order_number, false);
-            $n++;
-        }
-        if ($n) {
-            \App\Services\Pos\PosPushService::kick($conn->tenant_id);
-        }
-        return $this->back()->with('success', $n ? 'Sending ' . $n . ' paid ' . ($n === 1 ? 'order' : 'orders') . ' to your Connected POS. Watch them under Sending.' : 'Every paid order from the last 7 days is already sent.');
+        return $this->back('sending')->with('success', $data['keep'] === 'intake' ? 'Sent Intake\'s value to your Connected POS.' : 'Took your Connected POS\'s value into Intake.');
     }
 
     /**
@@ -230,6 +308,9 @@ class PosConnectionController extends Controller
     {
         $this->guard();
         $conn = TenantPosConnection::where('tenant_id', tenant()->id)->where('status', 'connected')->firstOrFail();
+        if (! $conn->isTwoWay()) {
+            return $this->back('sending')->with('error', 'Your Connected POS is Reading Only, so nothing is sent to it.');
+        }
         $n = 0;
         \Illuminate\Support\Facades\DB::table('tenant_pos_items')
             ->join('tenant_inventory_items as ii', 'ii.id', '=', 'tenant_pos_items.inventory_item_id')
@@ -244,7 +325,7 @@ class PosConnectionController extends Controller
         if ($n) {
             \App\Services\Pos\PosPushService::kick($conn->tenant_id);
         }
-        return $this->back()->with('success', $n ? 'Filling in details for ' . number_format($n) . ' items. Watch them under Sending — Stop works here too.' : 'Every item in your Connected POS already has its details.');
+        return $this->back('sending')->with('success', $n ? 'Filling in details for ' . number_format($n) . ' items. Watch them under Sending — Stop works here too.' : 'Every item in your Connected POS already has its details.');
     }
 
     /** MARKER-POS-CUSTOMERS-IN: turn bringing in customers on or off. Turning it on starts the first import. */
@@ -258,9 +339,9 @@ class PosConnectionController extends Controller
         if ($on && ! $was && empty(($conn->customer_sync ?? [])['last_done'])) {
             $sync->start($conn, true);
             \App\Jobs\PosCustomerSyncJob::dispatch($conn->id);
-            return $this->back()->with('success', 'Bringing in customers — progress is shown below.');
+            return $this->back('customers')->with('success', 'Bringing in customers — progress is shown below.');
         }
-        return $this->back()->with('success', $on ? 'Customers keep coming in about every minute.' : 'Customers no longer come in. Those already brought in stay.');
+        return $this->back('customers')->with('success', $on ? 'Customers keep coming in about every minute.' : 'Customers no longer come in. Those already brought in stay.');
     }
 
     /** Re-read every customer (fills blanks on matches, adds anyone new). */
@@ -269,14 +350,14 @@ class PosConnectionController extends Controller
         $this->guard();
         $conn = TenantPosConnection::where('tenant_id', tenant()->id)->where('status', 'connected')->firstOrFail();
         if (! $conn->customers_in) {
-            return $this->back()->with('error', 'Turn on Bring in customers first.');
+            return $this->back('customers')->with('error', 'Turn on Bring in customers first.');
         }
         if (($conn->customer_sync['running'] ?? false) && $conn->updated_at?->gt(now()->subMinutes(15))) {
-            return $this->back()->with('success', 'Customers are already coming in — progress is shown below.');
+            return $this->back('customers')->with('success', 'Customers are already coming in — progress is shown below.');
         }
         $sync->start($conn, true);
         \App\Jobs\PosCustomerSyncJob::dispatch($conn->id);
-        return $this->back()->with('success', 'Reading every customer again — progress is shown below.');
+        return $this->back('customers')->with('success', 'Reading every customer again — progress is shown below.');
     }
 
     public function customersStop(): RedirectResponse
@@ -286,7 +367,7 @@ class PosConnectionController extends Controller
         $st = (array) ($conn->customer_sync ?? []);
         $st['running'] = false; $st['stopped'] = true; $st['finished_at'] = now()->toIso8601String();
         $conn->forceFill(['customer_sync' => $st])->save();
-        return $this->back()->with('success', 'Stopped after page ' . number_format($st['pages'] ?? 0) . '. Resume carries on from there.');
+        return $this->back('customers')->with('success', 'Stopped after page ' . number_format($st['pages'] ?? 0) . '. Resume carries on from there.');
     }
 
     public function customersResume(): RedirectResponse
@@ -294,13 +375,13 @@ class PosConnectionController extends Controller
         $this->guard();
         $conn = TenantPosConnection::where('tenant_id', tenant()->id)->firstOrFail();
         if (! $conn->customers_in) {
-            return $this->back()->with('error', 'Turn on Bring in customers first.');
+            return $this->back('customers')->with('error', 'Turn on Bring in customers first.');
         }
         $st = (array) ($conn->customer_sync ?? []);
         $st['running'] = true; $st['stopped'] = false; $st['error'] = null; $st['finished_at'] = null;
         $conn->forceFill(['customer_sync' => $st])->save();
         \App\Jobs\PosCustomerSyncJob::dispatch($conn->id);
-        return $this->back()->with('success', 'Resumed from page ' . number_format($st['pages'] ?? 0) . '.');
+        return $this->back('customers')->with('success', 'Resumed from page ' . number_format($st['pages'] ?? 0) . '.');
     }
 
     /** MARKER-POS-STOP-SENDS: stop everything still waiting to send. Nothing already sent is touched. */
@@ -310,31 +391,29 @@ class PosConnectionController extends Controller
         $tid = tenant()->id;
         $n = \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', $tid)->where('status', 'pending')
             ->update(['status' => 'skipped', 'last_error' => 'Stopped by you before it was sent.', 'updated_at' => now()]);
-        return $this->back()->with('success', $n ? 'Stopped ' . number_format($n) . ' sends. Resume picks them up from where they stopped.' : 'Nothing was waiting to send.');
+        return $this->back('sending')->with('success', $n ? 'Stopped ' . number_format($n) . ' sends. Resume picks them up from where they stopped.' : 'Nothing was waiting to send.');
     }
 
     /** MARKER-POS-STOP-RESUME: stop an import where it is; it keeps its place. */
-    public function importStop(): RedirectResponse
+    public function readStop(): RedirectResponse
     {
         $this->guard();
         $conn = TenantPosConnection::where('tenant_id', tenant()->id)->firstOrFail();
         $st = (array) ($conn->sync_state ?? []);
         $st['running'] = false;
         $st['stopped'] = true;
+        $st['switch_after'] = false; // a stopped last read doesn't switch over
         $st['finished_at'] = now()->toIso8601String();
         $conn->forceFill(['sync_state' => $st])->save();
 
-        return $this->back()->with('success', 'Import stopped after page ' . number_format($st['pages'] ?? 0) . '. Automatic sync is paused too. Resume carries on from there.');
+        return $this->back('items')->with('success', 'Stopped after page ' . number_format($st['pages'] ?? 0) . '. Automatic reading is paused too. Resume carries on from there.');
     }
 
     /** Carry on a stopped import from its saved place (and switch automatic sync back on). */
-    public function importResume(): RedirectResponse
+    public function readResume(): RedirectResponse
     {
         $this->guard();
         $conn = TenantPosConnection::where('tenant_id', tenant()->id)->firstOrFail();
-        if (! $conn->sync_enabled) {
-            return $this->back()->with('error', 'Turn on Bring in products and save first.');
-        }
         $st = (array) ($conn->sync_state ?? []);
         $st['running'] = true;
         $st['stopped'] = false;
@@ -344,7 +423,7 @@ class PosConnectionController extends Controller
         $conn->forceFill(['sync_state' => $st])->save();
         \App\Jobs\PosCatalogSyncJob::dispatch($conn->id);
 
-        return $this->back()->with('success', 'Import resumed from page ' . number_format($st['pages'] ?? 0) . '.');
+        return $this->back('items')->with('success', 'Resumed from page ' . number_format($st['pages'] ?? 0) . '.');
     }
 
     /** Put stopped sends back in line — only those; nothing already sent goes again. */
@@ -358,7 +437,7 @@ class PosConnectionController extends Controller
             \App\Services\Pos\PosPushService::kick($tid);
         }
 
-        return $this->back()->with('success', $n ? 'Resumed ' . number_format($n) . ' sends from where they stopped.' : 'Nothing was stopped.');
+        return $this->back('sending')->with('success', $n ? 'Resumed ' . number_format($n) . ' sends from where they stopped.' : 'Nothing was stopped.');
     }
 
     /** Try a failed send again. */
@@ -370,7 +449,7 @@ class PosConnectionController extends Controller
         \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('id', $row->id)->update(['status' => 'pending', 'attempts' => 0, 'last_error' => null, 'updated_at' => now()]);
         \App\Services\Pos\PosPushService::kick($row->tenant_id); // MARKER-POS-DRAIN
 
-        return $this->back()->with('success', 'Sending again — the list below updates as it goes.');
+        return $this->back('sending')->with('success', 'Sending again — the list below updates as it goes.');
     }
 
     /** Remove stopped and skipped sends from the list (nothing in the Connected POS changes). */
@@ -379,7 +458,7 @@ class PosConnectionController extends Controller
         $this->guard();
         $n = \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', tenant()->id)->where('status', 'skipped')->delete();
 
-        return $this->back()->with('success', $n ? 'Cleared ' . number_format($n) . ' stopped sends from the list.' : 'Nothing to clear.');
+        return $this->back('sending')->with('success', $n ? 'Cleared ' . number_format($n) . ' stopped sends from the list.' : 'Nothing to clear.');
     }
 
     /** Remove failed sends from the list after you've looked at them (nothing in the Connected POS changes). */
@@ -388,7 +467,7 @@ class PosConnectionController extends Controller
         $this->guard();
         $n = \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', tenant()->id)->where('status', 'failed')->whereIn('kind', ['item_create', 'item_update', 'item_details'])->delete();
 
-        return $this->back()->with('success', $n ? 'Cleared ' . number_format($n) . ' failed item sends. Orders and refunds that failed stay until they are sent.' : 'Nothing to clear.');
+        return $this->back('sending')->with('success', $n ? 'Cleared ' . number_format($n) . ' failed item sends. Orders and refunds that failed stay until they are sent.' : 'Nothing to clear.');
     }
 
     public function disconnect(PosConnectionService $svc): RedirectResponse

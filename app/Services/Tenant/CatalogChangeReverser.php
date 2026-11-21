@@ -20,6 +20,13 @@ class CatalogChangeReverser
 
     public function revert(?string $onlyItemId = null): array
     {
+        // MARKER-CONNECTED-POS-SECTION: an import is undone by removing its links and the
+        // items it made, not by writing old field values back.
+        if ($this->batch->isPosImport()) {
+            return app(\App\Services\Pos\PosImportService::class)
+                ->undo($this->batch, $onlyItemId, Auth::guard('tenant')->user()?->email);
+        }
+
         $restored = 0;
         $kept     = 0;
         $keptItems = [];

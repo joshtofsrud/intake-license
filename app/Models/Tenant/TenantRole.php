@@ -62,8 +62,9 @@ class TenantRole extends Model
                 ['tenant_id' => $tenantId, 'name' => $name],
                 // MARKER-SEC-SECTIONS: a new Staff role starts with every area but
                 // Discounts and Storefront, which were managers-only before they
-                // became areas; Owner and Manager start with everything
-                ['sections' => $name === 'Staff' ? array_values(array_diff(array_keys(\App\Support\SectionRegistry::all()), ['discounts', 'storefront'])) : null, 'is_system' => true]
+                // became areas, and Connected POS (connecting, disconnecting and
+                // switching over are not a counter job); Owner and Manager start with everything
+                ['sections' => $name === 'Staff' ? array_values(array_diff(array_keys(\App\Support\SectionRegistry::all()), ['discounts', 'storefront', 'connected_pos'])) : null, 'is_system' => true]
             );
         }
 

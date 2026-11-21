@@ -555,31 +555,49 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::post('/storefront/tax-test', [TenantControllers\StorefrontSettingsController::class, 'testTax'])->name('storefront.settings.tax_test')->middleware('throttle:10,1'); // MARKER-DESTINATION-TAX
                 Route::post('/storefront/carrier-test', [TenantControllers\StorefrontSettingsController::class, 'testCarrier'])->name('storefront.settings.carrier_test')->middleware('throttle:10,1'); // MARKER-SHIPPING-RATES
                 Route::post('/storefront/item/{id}', [TenantControllers\StorefrontSettingsController::class, 'toggleItem'])->name('storefront.item.toggle');
-                // MARKER-POS-CONNECT: the shop's own POS (Shop POS tab)
-                Route::post('/storefront/pos/connect/{adapter}', [TenantControllers\PosConnectionController::class, 'connect'])->name('storefront.pos.connect')->where('adapter', '[a-z0-9-]+')->middleware('throttle:10,1');
-                Route::post('/storefront/pos/check',      [TenantControllers\PosConnectionController::class, 'check'])->name('storefront.pos.check')->middleware('throttle:10,1');
-                Route::post('/storefront/pos/disconnect', [TenantControllers\PosConnectionController::class, 'disconnect'])->name('storefront.pos.disconnect');
-                // MARKER-CONNECTED-POS-CATALOG
-                Route::post('/storefront/pos/settings', [TenantControllers\PosConnectionController::class, 'settings'])->name('storefront.pos.settings');
-                Route::post('/storefront/pos/import',   [TenantControllers\PosConnectionController::class, 'import'])->name('storefront.pos.import')->middleware('throttle:6,1');
-                Route::get('/storefront/pos/status',    [TenantControllers\PosConnectionController::class, 'status'])->name('storefront.pos.status');
-                // MARKER-CONNECTED-POS-PUSH
-                Route::post('/storefront/pos/push-settings', [TenantControllers\PosConnectionController::class, 'pushSettings'])->name('storefront.pos.push_settings');
-                Route::post('/storefront/pos/resolve',       [TenantControllers\PosConnectionController::class, 'resolve'])->name('storefront.pos.resolve');
-                Route::post('/storefront/pos/import-stop',   [TenantControllers\PosConnectionController::class, 'importStop'])->name('storefront.pos.import_stop'); // MARKER-POS-STOP-RESUME
-                Route::post('/storefront/pos/import-resume', [TenantControllers\PosConnectionController::class, 'importResume'])->name('storefront.pos.import_resume');
-                Route::post('/storefront/pos/sends-resume',  [TenantControllers\PosConnectionController::class, 'sendsResume'])->name('storefront.pos.sends_resume');
-                Route::post('/storefront/pos/clear-stopped', [TenantControllers\PosConnectionController::class, 'clearStopped'])->name('storefront.pos.clear_stopped'); // MARKER-POS-TAB-V2
-                Route::post('/storefront/pos/clear-failed',  [TenantControllers\PosConnectionController::class, 'clearFailed'])->name('storefront.pos.clear_failed');
+                // MARKER-CONNECTED-POS-SECTION: E-commerce keeps the one part that is about the online
+                // store: sending paid orders to the Connected POS as sales.
+                Route::post('/storefront/pos/orders',             [TenantControllers\PosOrdersController::class, 'settings'])->name('storefront.pos.orders');
+                Route::post('/storefront/pos/send-recent-orders', [TenantControllers\PosOrdersController::class, 'sendRecentOrders'])->name('storefront.pos.send_recent_orders'); // MARKER-POS-CATCHUP
+
+                // MARKER-CONNECTED-POS-SECTION: the Connected POS section (the shop's own outside POS)
+                Route::get('/connected-pos',                  [TenantControllers\PosConnectionController::class, 'home'])->name('cpos.home');
+                Route::get('/connected-pos/move',             [TenantControllers\PosConnectionController::class, 'move'])->name('cpos.move');
+                Route::get('/connected-pos/status',           [TenantControllers\PosConnectionController::class, 'status'])->name('cpos.status');
+                Route::post('/connected-pos/use',             [TenantControllers\PosConnectionController::class, 'setUse'])->name('cpos.use');
+                Route::post('/connected-pos/connect/{adapter}', [TenantControllers\PosConnectionController::class, 'connect'])->name('cpos.connect')->where('adapter', '[a-z0-9-]+')->middleware('throttle:10,1');
+                Route::post('/connected-pos/check',           [TenantControllers\PosConnectionController::class, 'check'])->name('cpos.check')->middleware('throttle:10,1');
+                Route::post('/connected-pos/disconnect',      [TenantControllers\PosConnectionController::class, 'disconnect'])->name('cpos.disconnect');
+                Route::post('/connected-pos/settings',        [TenantControllers\PosConnectionController::class, 'settings'])->name('cpos.settings');
+                Route::post('/connected-pos/item-settings',   [TenantControllers\PosConnectionController::class, 'itemSettings'])->name('cpos.item_settings');
+                Route::post('/connected-pos/read',            [TenantControllers\PosConnectionController::class, 'read'])->name('cpos.read')->middleware('throttle:6,1');
+                Route::post('/connected-pos/read-stop',       [TenantControllers\PosConnectionController::class, 'readStop'])->name('cpos.read_stop'); // MARKER-POS-STOP-RESUME
+                Route::post('/connected-pos/read-resume',     [TenantControllers\PosConnectionController::class, 'readResume'])->name('cpos.read_resume');
+                Route::post('/connected-pos/mark-seen',       [TenantControllers\PosConnectionController::class, 'markSeen'])->name('cpos.mark_seen');
+                Route::post('/connected-pos/switch-over',     [TenantControllers\PosConnectionController::class, 'switchOver'])->name('cpos.switch_over');
+                Route::post('/connected-pos/switch-back',     [TenantControllers\PosConnectionController::class, 'switchBack'])->name('cpos.switch_back');
+                Route::post('/connected-pos/resolve',         [TenantControllers\PosConnectionController::class, 'resolve'])->name('cpos.resolve');
                 // MARKER-POS-CUSTOMERS-IN
-                Route::post('/storefront/pos/customers',        [TenantControllers\PosConnectionController::class, 'customersSettings'])->name('storefront.pos.customers');
-                Route::post('/storefront/pos/customers/import', [TenantControllers\PosConnectionController::class, 'customersImport'])->name('storefront.pos.customers_import')->middleware('throttle:6,1');
-                Route::post('/storefront/pos/customers/stop',   [TenantControllers\PosConnectionController::class, 'customersStop'])->name('storefront.pos.customers_stop');
-                Route::post('/storefront/pos/customers/resume', [TenantControllers\PosConnectionController::class, 'customersResume'])->name('storefront.pos.customers_resume');
-                Route::post('/storefront/pos/fill-details', [TenantControllers\PosConnectionController::class, 'fillDetails'])->name('storefront.pos.fill_details'); // MARKER-POS-ITEM-DETAILS
-                Route::post('/storefront/pos/send-recent-orders', [TenantControllers\PosConnectionController::class, 'sendRecentOrders'])->name('storefront.pos.send_recent_orders'); // MARKER-POS-CATCHUP
-                Route::post('/storefront/pos/stop-sends',    [TenantControllers\PosConnectionController::class, 'stopSends'])->name('storefront.pos.stop_sends'); // MARKER-POS-STOP-SENDS
-                Route::post('/storefront/pos/retry/{push}',  [TenantControllers\PosConnectionController::class, 'retry'])->name('storefront.pos.retry')->whereNumber('push');
+                Route::post('/connected-pos/customers',        [TenantControllers\PosConnectionController::class, 'customersSettings'])->name('cpos.customers');
+                Route::post('/connected-pos/customers/import', [TenantControllers\PosConnectionController::class, 'customersImport'])->name('cpos.customers_import')->middleware('throttle:6,1');
+                Route::post('/connected-pos/customers/stop',   [TenantControllers\PosConnectionController::class, 'customersStop'])->name('cpos.customers_stop');
+                Route::post('/connected-pos/customers/resume', [TenantControllers\PosConnectionController::class, 'customersResume'])->name('cpos.customers_resume');
+                Route::post('/connected-pos/fill-details',    [TenantControllers\PosConnectionController::class, 'fillDetails'])->name('cpos.fill_details'); // MARKER-POS-ITEM-DETAILS
+                Route::post('/connected-pos/stop-sends',      [TenantControllers\PosConnectionController::class, 'stopSends'])->name('cpos.stop_sends'); // MARKER-POS-STOP-SENDS
+                Route::post('/connected-pos/sends-resume',    [TenantControllers\PosConnectionController::class, 'sendsResume'])->name('cpos.sends_resume');
+                Route::post('/connected-pos/clear-stopped',   [TenantControllers\PosConnectionController::class, 'clearStopped'])->name('cpos.clear_stopped');
+                Route::post('/connected-pos/clear-failed',    [TenantControllers\PosConnectionController::class, 'clearFailed'])->name('cpos.clear_failed');
+                Route::post('/connected-pos/retry/{push}',    [TenantControllers\PosConnectionController::class, 'retry'])->name('cpos.retry')->whereNumber('push');
+
+                // MARKER-CONNECTED-POS-SECTION: Inventory › Import, with the Connected POS as the source
+                Route::get('/inventory-import/connected-pos',          [TenantControllers\PosImportController::class, 'page'])->name('inventory.cpos');
+                Route::post('/inventory-import/connected-pos/preview', [TenantControllers\PosImportController::class, 'preview'])->name('inventory.cpos.preview')->middleware('throttle:20,1');
+                Route::get('/inventory-import/connected-pos/plan',     [TenantControllers\PosImportController::class, 'plan'])->name('inventory.cpos.plan');
+                Route::get('/inventory-import/connected-pos/status',   [TenantControllers\PosImportController::class, 'status'])->name('inventory.cpos.status');
+                Route::post('/inventory-import/connected-pos/one',     [TenantControllers\PosImportController::class, 'one'])->name('inventory.cpos.one')->middleware('throttle:120,1');
+                Route::post('/inventory-import/connected-pos/run',     [TenantControllers\PosImportController::class, 'run'])->name('inventory.cpos.run');
+                Route::post('/inventory-import/connected-pos/stop',    [TenantControllers\PosImportController::class, 'stop'])->name('inventory.cpos.stop');
+                Route::post('/inventory-import/connected-pos/resume',  [TenantControllers\PosImportController::class, 'resume'])->name('inventory.cpos.resume');
                 // MARKER-ECOM-AVAILABILITY: what is for sale online / may be oversold
                 Route::get('/storefront/availability/summary',    [TenantControllers\StorefrontAvailabilityController::class, 'summaryJson'])->name('storefront.availability.summary'); // MARKER-ECOM-FAST-LOAD
                 Route::get('/storefront/availability/items',      [TenantControllers\StorefrontAvailabilityController::class, 'items'])->name('storefront.availability.items');

@@ -69,6 +69,42 @@ class AddonCatalogController extends Controller
             return response()->json(['ok' => false, 'error' => 'You already have access to this feature.'], 422);
         }
 
+        // MARKER-CONNECTED-POS-SECTION: an add-on with no price has nothing to bill, so it is
+        // switched on directly. The plan floor is still enforced (and said plainly).
+        if ($addon->currentPriceCents() <= 0) {
+            try {
+                // the audit log's actor id is a number (a master-admin user); a shop user's id is
+                // not, so who did it is recorded by name and email instead
+                $me = Auth::guard('tenant')->user();
+                $this->manager->activate($tenant, $code, [
+                    'source' => 'self_serve',
+                    'actor_type' => 'tenant',
+                    'actor_id' => null,
+                    'actor_label' => $me ? trim($me->name . ' <' . $me->email . '>') : ('tenant ' . $tenant->id),
+                    'reason' => 'self-serve, free add-on',
+                ]);
+            } catch (\InvalidArgumentException $e) {
+                return response()->json([
+                    'ok' => false,
+                    'error' => $addon->min_plan_tier
+                        ? $addon->name . ' needs the ' . ucfirst($addon->min_plan_tier) . ' plan or higher.'
+                        : 'This add-on could not be turned on. Contact support.',
+                ], 422);
+            }
+
+            return response()->json([
+                'ok' => true,
+                'data' => [
+                    'addon_code' => $code,
+                    'name' => $addon->name,
+                    'status' => 'active',
+                    'current_period_end' => null,
+                    'proration_amount' => 0,
+                    'stripe_live' => $this->stripe->isLive(),
+                ],
+            ]);
+        }
+
         try {
             $stripeResult = $this->stripe->addSubscriptionItem($tenant, (object) $addon->toArray());
         } catch (\Throwable $e) {
@@ -131,6 +167,15 @@ class AddonCatalogController extends Controller
             return response()->json(['ok' => false, 'error' => "You don't have an active subscription to this addon."], 404);
         }
 
+        // MARKER-CONNECTED-POS-SECTION: turning this off with a POS still connected would leave
+        // it syncing and sending with nowhere to see or stop it.
+        if ($code === 'connected_pos' && \App\Models\Tenant\TenantPosConnection::where('tenant_id', $tenant->id)->exists()) {
+            return response()->json([
+                'ok' => false,
+                'error' => 'Your Connected POS is still connected. Open Connected POS and click Disconnect first, then turn this off.',
+            ], 422);
+        }
+
         if ($row->source !== 'self_serve') {
             return response()->json([
                 'ok' => false,
@@ -144,8 +189,8 @@ class AddonCatalogController extends Controller
 
         $updated = $this->manager->cancel($tenant, $code, [
             'actor_type' => 'tenant',
-            'actor_id' => Auth::id(),
-            'actor_label' => Auth::user()?->name ?? ('tenant ' . $tenant->id),
+            'actor_id' => is_int(Auth::id()) ? Auth::id() : null, // the audit log's actor id is a number; a shop user's is not
+            'actor_label' => Auth::guard('tenant')->user()?->name ?? Auth::user()?->name ?? ('tenant ' . $tenant->id),
             'reason' => $validated['reason'] ?? null,
         ]);
 

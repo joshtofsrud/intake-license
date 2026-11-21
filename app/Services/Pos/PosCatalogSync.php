@@ -10,20 +10,23 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
- * MARKER-CONNECTED-POS-CATALOG: brings a shop's Connected POS products, prices and
- * stock into Intake.
+ * MARKER-CONNECTED-POS-CATALOG: reads a shop's Connected POS catalog, and keeps the
+ * price and stock of linked items in step with it.
  *
- * Runs in steps (a few pages at a time) so a big first import never outlives a
+ * Runs in steps (a few pages at a time) so a big first read never outlives a
  * queue job; the job re-queues itself until caught up. Progress lives in the
- * connection's sync_state so the Connected POS tab can show it live.
+ * connection's sync_state so the Connected POS page can show it live.
  *
  * Rules (decided with the shop owner in mind):
- *  - Each POS product links to one Intake item: an existing link, else a match by
- *    UPC/EAN, then MPN, then SKU, else a new item. New items start OFF the online
- *    store and can't be oversold; the shop chooses what goes online.
- *  - The Connected POS owns price: its price sets the item's sell price.
- *  - The Connected POS owns stock at each mapped outlet: its count is written as a
- *    'pos_sync' movement, so stock history shows where the change came from.
+ *  - MARKER-CONNECTED-POS-SECTION: reading NEVER creates an Intake item. Every product
+ *    is recorded; one that is plainly an item the shop already carries (same barcode
+ *    or part number) is linked when "link matches on their own" is on. Everything
+ *    else waits in Inventory › Import until someone adds it.
+ *  - In 2 Way Data with sync on, the Connected POS owns price and stock on linked
+ *    items: its price sets the sell price, and its count at each mapped outlet is
+ *    written as a 'pos_sync' movement, so stock history shows where a change came from.
+ *  - In Reading Only the catalog is still read (so Import stays current) but no
+ *    Intake item is touched: Intake owns price and stock.
  *  - When a product leaves the POS, the shop's removal setting decides what happens
  *    in Intake; nothing is deleted.
  */
@@ -34,12 +37,16 @@ class PosCatalogSync
     /** MARKER-CONNECTED-POS-PUSH: true while Intake writes what came from the POS, so those writes aren't sent back. */
     public static bool $applying = false;
 
+    /** Built the first time a step meets a product with no link, then reused for that step. */
+    private ?PosMatcher $matcher = null;
+
     public function __construct(private PosAdapterRegistry $registry, private PosConnectionService $conns) {}
 
     /** Begin a run. A full run re-reads everything from the start; otherwise it picks up from the last cursors. */
-    public function start(TenantPosConnection $conn, bool $full): void
+    public function start(TenantPosConnection $conn, bool $full, bool $thenSwitchOver = false): void
     {
         $st = (array) ($conn->sync_state ?? []);
+        $st['switch_after'] = $thenSwitchOver; // Switch over: go to Reading Only when this read finishes
         $st = array_merge($st, [
             'running'     => true,
             'stopped'     => false,
@@ -49,7 +56,7 @@ class PosCatalogSync
             'finished_at' => null,
             'error'       => null,
             'pages'       => 0,
-            'items_seen'  => 0, 'matched' => 0, 'created' => 0, 'price_updates' => 0, 'removed' => 0,
+            'items_seen'  => 0, 'matched' => 0, 'waiting' => 0, 'created' => 0, 'price_updates' => 0, 'removed' => 0,
             'stock_rows'  => 0, 'stock_changes' => 0, 'stock_unmapped' => 0, 'conflicts' => 0,
         ]);
         if ($full) {
@@ -63,6 +70,7 @@ class PosCatalogSync
     public function step(TenantPosConnection $conn): bool
     {
         $st = (array) $conn->sync_state;
+        $this->matcher = null;
         $adapter = $this->registry->make($conn->adapter_code);
         $ctx = (array) ($conn->context ?? []);
         $acct = (string) $conn->external_account_id;
@@ -92,12 +100,37 @@ class PosCatalogSync
                 }
             }
             $st['pages']++;
+            // MARKER-POS-STOP-RESUME: a Stop pressed while this page was being read must not be
+            // written over by this page's progress. Keep the stop, and the place.
+            $now = (array) json_decode((string) DB::table('tenant_pos_connections')->where('id', $conn->id)->value('sync_state'), true);
+            if (! empty($now['stopped'])) {
+                $st['running'] = false;
+                $st['stopped'] = true;
+                $st['switch_after'] = false;
+                $st['finished_at'] = now()->toIso8601String();
+                $conn->forceFill(['sync_state' => $st])->save();
+
+                return false;
+            }
             $conn->forceFill(['sync_state' => $st])->save();
 
             if ($st['phase'] === 'done') {
                 $st['running'] = false;
                 $st['finished_at'] = now()->toIso8601String();
-                $conn->forceFill(['sync_state' => $st, 'last_synced_at' => now()])->save();
+                $fill = ['sync_state' => $st, 'last_synced_at' => now()];
+                // the first catalog ever read is the starting point, not a list of "new" products
+                if (! $conn->items_marked_at) {
+                    $fill['items_marked_at'] = now();
+                }
+                // MARKER-CONNECTED-POS-SECTION: Switch over waits for this last read, so Intake
+                // starts with the Connected POS's final prices and counts
+                if (! empty($st['switch_after'])) {
+                    unset($st['switch_after']);
+                    $fill['sync_state'] = $st;
+                    $fill['mode'] = TenantPosConnection::READ_ONLY;
+                    $fill['switched_at'] = now();
+                }
+                $conn->forceFill($fill)->save();
 
                 return false;
             }
@@ -122,23 +155,42 @@ class PosCatalogSync
         $tenantId = $conn->tenant_id;
         $existing = DB::table('tenant_pos_items')->where('tenant_id', $tenantId)->where('external_id', $it['id'])->first();
 
-        DB::table('tenant_pos_items')->updateOrInsert(
-            ['tenant_id' => $tenantId, 'external_id' => $it['id']],
-            [
-                'adapter_code'       => $conn->adapter_code,
-                'parent_external_id' => $it['parent_id'],
-                'name'               => $it['name'] ? Str::limit($it['name'], 250, '') : null,
-                'sku'                => $it['sku'] ? Str::limit($it['sku'], 100, '') : null,
-                'upc'                => $it['upc'] ? Str::limit($it['upc'], 40, '') : null,
-                'ean'                => $it['ean'] ? Str::limit($it['ean'], 40, '') : null,
-                'mpn'                => $it['mpn'] ? Str::limit($it['mpn'], 100, '') : null,
-                'brand'              => $it['brand'] ? Str::limit($it['brand'], 150, '') : null,
-                'price_cents'        => $it['price_cents'] ?: null, // 0 = no price yet
-                'active'             => $it['active'],
-                'removed_at'         => $it['active'] ? null : ($existing->removed_at ?? now()),
-                'synced_at'          => now(),
-            ]
-        );
+        $row = [
+            'adapter_code'       => $conn->adapter_code,
+            'parent_external_id' => $it['parent_id'],
+            'name'               => $it['name'] ? Str::limit($it['name'], 250, '') : null,
+            'sku'                => $it['sku'] ? Str::limit($it['sku'], 100, '') : null,
+            'upc'                => $it['upc'] ? Str::limit($it['upc'], 40, '') : null,
+            'ean'                => $it['ean'] ? Str::limit($it['ean'], 40, '') : null,
+            'mpn'                => $it['mpn'] ? Str::limit($it['mpn'], 100, '') : null,
+            'brand'              => $it['brand'] ? Str::limit($it['brand'], 150, '') : null,
+            'price_cents'        => $it['price_cents'] ?: null, // 0 = no price yet
+            'active'             => $it['active'],
+            'removed_at'         => $it['active'] ? null : ($existing->removed_at ?? now()),
+            'synced_at'          => now(),
+        ];
+        // MARKER-CONNECTED-POS-SECTION: what Import needs to bring an item in whole. Only
+        // written when the Connected POS sent the field, so a POS that doesn't share one
+        // never blanks what is already recorded.
+        foreach (['category' => 190, 'supplier' => 190, 'supplier_code' => 100] as $k => $max) {
+            if (array_key_exists($k, $it)) {
+                $row[$k] = filled($it[$k]) ? Str::limit(trim((string) $it[$k]), $max, '') : null;
+            }
+        }
+        if (array_key_exists('cost_cents', $it)) {
+            $row['cost_cents'] = ($it['cost_cents'] !== null && (int) $it['cost_cents'] > 0) ? (int) $it['cost_cents'] : null;
+        }
+        if (array_key_exists('track_stock', $it) && $it['track_stock'] !== null) {
+            $row['track_stock'] = (bool) $it['track_stock'];
+        }
+        if (array_key_exists('description', $it) && $it['description'] !== null) {
+            $row['description'] = $it['description'] !== '' ? $it['description'] : null;
+        }
+        if (! $existing) {
+            $row['first_seen_at'] = now();
+        }
+
+        DB::table('tenant_pos_items')->updateOrInsert(['tenant_id' => $tenantId, 'external_id' => $it['id']], $row);
 
         $itemId = $existing->inventory_item_id ?? null;
         $item = $itemId ? TenantInventoryItem::where('tenant_id', $tenantId)->find($itemId) : null;
@@ -154,24 +206,36 @@ class PosCatalogSync
     private function applyItemInner(TenantPosConnection $conn, array $it, ?object $existing, ?TenantInventoryItem $item, array &$st): void
     {
         $tenantId = $conn->tenant_id;
+        $owns = $conn->ownsPriceAndStock();
 
         if (! $it['active']) {
-            if ($item && ! ($existing && $existing->removed_at)) {
+            if ($owns && $item && ! ($existing && $existing->removed_at)) {
                 $this->applyRemoval($conn, $item, $it['id']);
                 $st['removed']++;
             }
             return;
         }
 
+        // MARKER-CONNECTED-POS-SECTION: no link yet. Link it only when it is plainly an item
+        // the shop already carries; otherwise it waits in Inventory › Import. Never created here.
         if (! $item) {
-            $item = $this->match($tenantId, $it);
-            if ($item) {
-                $st['matched']++;
-            } else {
-                $item = $this->create($tenantId, $it);
-                $st['created']++;
+            $hit = $conn->auto_link ? $this->matcher($tenantId)->find($it) : null;
+            if (! $hit || ! in_array($hit['how'], PosMatcher::STRONG, true)) {
+                $st['waiting'] = ($st['waiting'] ?? 0) + 1;
+                return;
+            }
+            $item = TenantInventoryItem::where('tenant_id', $tenantId)->find($hit['id']);
+            if (! $item) {
+                $st['waiting'] = ($st['waiting'] ?? 0) + 1;
+                return;
             }
             DB::table('tenant_pos_items')->where('tenant_id', $tenantId)->where('external_id', $it['id'])->update(['inventory_item_id' => $item->id]);
+            $this->matcher($tenantId)->take((string) $item->id);
+            $st['matched']++;
+        }
+
+        if (! $owns) {
+            return; // Reading Only, or sync off: Intake's price, stock and fields are left alone
         }
 
         // the Connected POS owns price
@@ -182,6 +246,42 @@ class PosCatalogSync
         }
 
         $this->reconcileShared($conn, $it, $item, $st);
+    }
+
+    private function matcher(string $tenantId): PosMatcher
+    {
+        return $this->matcher ??= PosMatcher::forTenant($tenantId);
+    }
+
+    /**
+     * MARKER-CONNECTED-POS-SECTION: bring a just-linked item level with its Connected POS
+     * product — the price, and the count at each mapped outlet. Used by Import, where the
+     * shop asked for this item. $openingStock is for Reading Only, where a brand-new item
+     * takes the last count read as its starting stock and Intake owns it from then on.
+     */
+    public function levelWith(TenantPosConnection $conn, TenantInventoryItem $item, object $pos, bool $isNew): void
+    {
+        $was = self::$applying;
+        self::$applying = true;
+        try {
+            if (! $conn->ownsPriceAndStock() && ! $isNew) {
+                return; // an item the shop already had keeps its own price and stock
+            }
+            if ($pos->price_cents && (int) $item->shop_sell_price_cents !== (int) $pos->price_cents) {
+                $item->forceFill(['shop_sell_price_cents' => (int) $pos->price_cents])->save();
+            }
+            if (! $item->is_stock_tracked) {
+                return;
+            }
+            $map = (array) ($conn->location_map ?? []);
+            foreach (DB::table('tenant_pos_stock')->where('tenant_id', $conn->tenant_id)->where('external_item_id', $pos->external_id)->get() as $s) {
+                if ($loc = $map[$s->external_location_id] ?? null) {
+                    $this->setCount($conn->tenant_id, (string) $item->id, (string) $loc, max(0, (int) $s->qty), (string) $pos->external_id);
+                }
+            }
+        } finally {
+            self::$applying = $was;
+        }
     }
 
     /**
@@ -241,72 +341,6 @@ class PosCatalogSync
         return $sku === '' || TenantInventoryItem::withTrashed()->where('tenant_id', $tenantId)->where('sku', $sku)->where('id', '!=', $exceptId)->exists();
     }
 
-    /** An Intake item not already linked to another POS product: barcode, then MPN, then SKU. */
-    private function match(string $tenantId, array $it): ?TenantInventoryItem
-    {
-        $linked = DB::table('tenant_pos_items')->where('tenant_id', $tenantId)->whereNotNull('inventory_item_id')
-            ->where('external_id', '!=', $it['id'])->select('inventory_item_id');
-        $base = fn () => TenantInventoryItem::where('tenant_id', $tenantId)->whereNotIn('id', $linked);
-
-        $codes = array_values(array_filter([$it['upc'], $it['ean']]));
-        if ($codes) {
-            $hit = $base()->where(fn ($q) => $q->whereIn('catalog_upc', $codes)->orWhereIn('catalog_ean', $codes))->orderByDesc('is_active')->first();
-            if ($hit) {
-                return $hit;
-            }
-        }
-        if ($it['mpn']) {
-            $hit = $base()->where('catalog_mpn', $it['mpn'])->orderByDesc('is_active')->first();
-            if ($hit) {
-                return $hit;
-            }
-        }
-        if ($it['sku']) {
-            return $base()->where('sku', $it['sku'])->first();
-        }
-
-        return null;
-    }
-
-    private function create(string $tenantId, array $it): TenantInventoryItem
-    {
-        $sku = $this->freeSku($tenantId, $it['sku'] ?: 'POS-' . strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $it['id']), 0, 12)));
-        $code = $it['upc'] ?: $it['ean'];
-        $catalogId = $code
-            ? DB::table('platform_distributor_catalogs')->where('upc', $code)->where('is_active', true)->value('id')
-            : null;
-
-        return TenantInventoryItem::create([
-            'tenant_id'              => $tenantId,
-            'sku'                    => $sku,
-            'name'                   => $it['name'] ?: $sku,
-            'catalog_upc'            => $it['upc'] ? substr($it['upc'], 0, 20) : null,
-            'catalog_ean'            => $it['ean'] ?: null,
-            'catalog_mpn'            => $it['mpn'] ?: null,
-            'shop_brand'             => $it['brand'] ?: null,
-            'description'            => ($it['description'] ?? null) ?: null,
-            'shop_sell_price_cents'  => $it['price_cents'],
-            'distributor_catalog_id' => $catalogId,
-            'is_active'              => true,
-            'show_online'            => false,
-            'allow_oversell'         => false,
-            'is_stock_tracked'       => true,
-            'computed_stock_count'   => 0,
-        ]);
-    }
-
-    /** SKUs are unique per shop, archived items included. */
-    private function freeSku(string $tenantId, string $want): string
-    {
-        $want = Str::limit($want, 60, '');
-        $sku = $want;
-        for ($n = 2; TenantInventoryItem::withTrashed()->where('tenant_id', $tenantId)->where('sku', $sku)->exists(); $n++) {
-            $sku = Str::limit($want, 56, '') . '-' . $n;
-        }
-
-        return $sku;
-    }
-
     /** The shop's choice for a product that left the Connected POS. Its POS stock goes to zero either way. */
     private function applyRemoval(TenantPosConnection $conn, TenantInventoryItem $item, string $externalId): void
     {
@@ -331,6 +365,9 @@ class PosCatalogSync
             ['qty' => $row['qty'], 'synced_at' => now()]
         );
 
+        if (! $conn->ownsPriceAndStock()) {
+            return; // recorded above for Import; Intake's own counts are not touched
+        }
         $locationId = ((array) ($conn->location_map ?? []))[$row['location_id']] ?? null;
         $itemId = DB::table('tenant_pos_items')->where('tenant_id', $conn->tenant_id)->where('external_id', $row['item_id'])
             ->whereNull('removed_at')->value('inventory_item_id');

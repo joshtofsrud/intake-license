@@ -284,7 +284,7 @@ class InventoryController extends Controller
         // actually merge; the endpoints check the same capability themselves.
         $canMergeItems = (bool) optional(\Illuminate\Support\Facades\Auth::guard('tenant')->user())
             ->can('inventory.items.merge');
-        $posConnected = (bool) \App\Services\Pos\PosPushService::connectionFor($tenant->id); // MARKER-POS-ITEM-SEND
+        $posConnected = (bool) \App\Services\Pos\PosPushService::sendingFor($tenant->id); // MARKER-POS-ITEM-SEND (2 Way Data only)
 
         $total = $deferList ? 0 : (clone $q)->count();
         $items = $deferList ? collect() : $q->forPage($page, $perPage)->get();
@@ -1801,12 +1801,14 @@ class InventoryController extends Controller
             ->where('is_active', true)->orderBy('name')->get();
 
         // MARKER-CONNECTED-POS-PUSH: a linked item's price belongs to the shop's Connected POS
-        $posPrice = \App\Services\Pos\PosPushService::connectionFor($tenant->id)
+        // MARKER-CONNECTED-POS-SECTION: only while it sets prices (2 Way Data, sync on)
+        $posPrice = (bool) \App\Services\Pos\PosPushService::connectionFor($tenant->id)?->ownsPriceAndStock()
             && \Illuminate\Support\Facades\DB::table('tenant_pos_items')->where('tenant_id', $tenant->id)->where('inventory_item_id', $item->id)->whereNull('removed_at')->exists();
 
         // MARKER-POS-ITEM-SEND: where this item stands with the Connected POS
         $posConn = \App\Services\Pos\PosPushService::connectionFor($tenant->id);
         $posState = $posConn ? [
+            'two_way' => $posConn->isTwoWay(), // MARKER-CONNECTED-POS-SECTION
             'link' => \Illuminate\Support\Facades\DB::table('tenant_pos_items')->where('tenant_id', $tenant->id)->where('inventory_item_id', $item->id)->whereNull('removed_at')->first(),
             'send' => \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', $tenant->id)->whereIn('kind', ['item_create', 'item_update'])->where('ref_id', $item->id)->orderByDesc('updated_at')->first(),
         ] : null;
@@ -1892,7 +1894,7 @@ class InventoryController extends Controller
             'size'                   => $data['size'] ?? null,
             'shop_cost_cents'        => isset($data['shop_cost_dollars']) ? (int) round($data['shop_cost_dollars'] * 100) : null,
             // MARKER-CONNECTED-POS-PUSH: price is the Connected POS's on a linked item
-            'shop_sell_price_cents'  => (\App\Services\Pos\PosPushService::connectionFor($tenant->id) && \Illuminate\Support\Facades\DB::table('tenant_pos_items')->where('tenant_id', $tenant->id)->where('inventory_item_id', $item->id)->whereNull('removed_at')->exists())
+            'shop_sell_price_cents'  => (\App\Services\Pos\PosPushService::connectionFor($tenant->id)?->ownsPriceAndStock() && \Illuminate\Support\Facades\DB::table('tenant_pos_items')->where('tenant_id', $tenant->id)->where('inventory_item_id', $item->id)->whereNull('removed_at')->exists())
                 ? $item->shop_sell_price_cents
                 : (isset($data['shop_sell_price_dollars']) ? (int) round($data['shop_sell_price_dollars'] * 100) : null),
             'compare_at_cents'       => isset($data['compare_at_dollars']) && $data['compare_at_dollars'] !== '' ? (int) round($data['compare_at_dollars'] * 100) : null,
@@ -2069,10 +2071,13 @@ class InventoryController extends Controller
 
             case 'pos_send':
                 // MARKER-POS-ITEM-SEND: queue the ticked items for the Connected POS; the shop's one
-                // paced sender does the work, and E-commerce → Connected POS shows it live
+                // paced sender does the work, and Connected POS › Sending shows it live
                 $conn = \App\Services\Pos\PosPushService::connectionFor($tenant->id);
                 if (! $conn) {
-                    return back()->with('flash', ['type' => 'error', 'message' => 'There is no Connected POS. Connect one under E-commerce → Connected POS.']);
+                    return back()->with('flash', ['type' => 'error', 'message' => 'There is no Connected POS. Connect one under Connected POS.']);
+                }
+                if (! $conn->isTwoWay()) {
+                    return back()->with('flash', ['type' => 'error', 'message' => 'Your Connected POS is Reading Only, so nothing is sent to it.']);
                 }
                 $linked = \Illuminate\Support\Facades\DB::table('tenant_pos_items')->where('tenant_id', $tenant->id)->whereNull('removed_at')->whereIn('inventory_item_id', $ids)->pluck('inventory_item_id')->all();
                 $svc = app(\App\Services\Pos\PosPushService::class);
@@ -2084,7 +2089,7 @@ class InventoryController extends Controller
                     \App\Services\Pos\PosPushService::kick($tenant->id);
                 }
                 $already = count($linked);
-                $msg = 'Sending ' . $n . ' ' . \Illuminate\Support\Str::plural('item', $n) . ' to your Connected POS — follow along under E-commerce → Connected POS.'
+                $msg = 'Sending ' . $n . ' ' . \Illuminate\Support\Str::plural('item', $n) . ' to your Connected POS — follow along under Connected POS › Sending.'
                     . ($already ? ' ' . $already . ' ' . \Illuminate\Support\Str::plural('was', $already) . ' already there.' : '');
                 if (! $n) {
                     return back()->with('flash', ['type' => 'info', 'message' => 'All ' . $already . ' already in your Connected POS.']);
@@ -2118,8 +2123,12 @@ class InventoryController extends Controller
         $tenant = tenant();
         $this->assertRetailEnabled($tenant);
         $item = TenantInventoryItem::where('tenant_id', $tenant->id)->findOrFail($id);
-        if (! \App\Services\Pos\PosPushService::connectionFor($tenant->id)) {
-            return back()->with('flash', ['type' => 'error', 'message' => 'There is no Connected POS. Connect one under E-commerce → Connected POS.']);
+        $posConn = \App\Services\Pos\PosPushService::connectionFor($tenant->id);
+        if (! $posConn) {
+            return back()->with('flash', ['type' => 'error', 'message' => 'There is no Connected POS. Connect one under Connected POS.']);
+        }
+        if (! $posConn->isTwoWay()) {
+            return back()->with('flash', ['type' => 'error', 'message' => 'Your Connected POS is Reading Only, so nothing is sent to it.']);
         }
         app(\App\Services\Pos\PosPushService::class)->queue($tenant->id, 'item_create', (string) $item->id, 'New item ' . $item->name);
         \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', $tenant->id)->where('kind', 'item_create')->where('ref_id', $item->id)->where('status', 'done')

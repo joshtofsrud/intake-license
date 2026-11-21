@@ -122,7 +122,8 @@ class LightspeedRClient implements PosAdapter
     public function pullItems(string $accessToken, string $accountId, array $context, ?string $cursor): array
     {
         $c = $this->cursor($cursor);
-        $q = ['limit' => 100, 'offset' => $c['offset'], 'sort' => 'timeStamp', 'load_relations' => '["ItemPrices"]'];
+        // MARKER-CONNECTED-POS-SECTION: category and brand come along for Inventory › Import
+        $q = ['limit' => 100, 'offset' => $c['offset'], 'sort' => 'timeStamp', 'load_relations' => '["ItemPrices","Category","Manufacturer"]'];
         if ($c['since']) {
             $q['timeStamp'] = '>,' . $c['since'];
         }
@@ -236,10 +237,15 @@ class LightspeedRClient implements PosAdapter
             'upc'         => filled($r['upc'] ?? null) ? (string) $r['upc'] : null,
             'ean'         => filled($r['ean'] ?? null) ? (string) $r['ean'] : null,
             'mpn'         => filled($r['manufacturerSku'] ?? null) ? (string) $r['manufacturerSku'] : null,
-            'brand'       => null,
+            'brand'       => filled($r['Manufacturer']['name'] ?? null) ? trim((string) $r['Manufacturer']['name']) : null,
             'description' => null,
             'price_cents' => $price,
             'active'      => ! in_array(strtolower((string) ($r['archived'] ?? 'false')), ['true', '1'], true),
+            // MARKER-CONNECTED-POS-SECTION (not yet tried against a real R-Series account)
+            'category'    => filled($r['Category']['fullPathName'] ?? null) ? trim((string) $r['Category']['fullPathName'])
+                                : (filled($r['Category']['name'] ?? null) ? trim((string) $r['Category']['name']) : null),
+            'cost_cents'  => is_numeric($r['defaultCost'] ?? null) ? (int) round(((float) $r['defaultCost']) * 100) : null,
+            'track_stock' => isset($r['itemType']) ? ! in_array(strtolower((string) $r['itemType']), ['non_inventory', 'non-inventory'], true) : null,
         ];
     }
 

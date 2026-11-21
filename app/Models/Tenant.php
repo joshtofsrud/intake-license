@@ -438,6 +438,32 @@ class Tenant extends Model
             || \App\Models\Tenant\TenantGiftCard::where('tenant_id', $this->id)->exists();
     }
 
+    // MARKER-CONNECTED-POS-SECTION: the shop's outside POS, as an add-on of its own.
+    public function getConnectedPosEnabledAttribute(): bool
+    {
+        return app(\App\Services\FeatureAccessService::class)->hasAddon($this, 'connected_pos');
+    }
+
+    /** How the shop uses its Connected POS: 'stay' (keeps it) or 'move' (moving to Intake). */
+    public function connectedPosUse(): string
+    {
+        return ((($this->settings ?? [])['connected_pos'] ?? [])['use'] ?? 'stay') === 'move' ? 'move' : 'stay';
+    }
+
+    /** Shows "Move to Intake" in the menu: moving, and not switched over yet. */
+    public function getMovingToIntakeAttribute(): bool
+    {
+        if (! $this->connected_pos_enabled || $this->connectedPosUse() !== 'move') {
+            return false;
+        }
+        static $done = [];
+        if (! array_key_exists($this->id, $done)) {
+            $done[$this->id] = \App\Models\Tenant\TenantPosConnection::where('tenant_id', $this->id)->where('mode', 'read_only')->exists();
+        }
+
+        return ! $done[$this->id];
+    }
+
     // distributor catalog/sync addon gate.
     public function getDistributorSyncEnabledAttribute(): bool
     {
