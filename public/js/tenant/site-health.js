@@ -200,7 +200,11 @@
     }
   });
 
-  window.addEventListener('resize', function () { if (picked) pick(picked, true); });
+  // the header stays at the top on a wide screen: once the page scrolls under it, it frosts so nothing shows through
+  function frost() { var h = $('#shHead'); if (h) h.classList.toggle('frost', window.scrollY > 24 && window.innerWidth > 1023); }
+  window.addEventListener('scroll', frost, { passive: true });
+  window.addEventListener('resize', function () { frost(); if (picked) pick(picked, true); });
+  frost();
   applyFilter();
   if (location.hash === '#reviews' && $('#reviews')) $('#reviews').scrollIntoView();
   if (root.dataset.running === '1' || root.dataset.googleRunning === '1') poll();
