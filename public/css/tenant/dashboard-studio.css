@@ -308,7 +308,7 @@ html.sd-motion .sd-ny:not(.on) .sd-chip { opacity: 0; transform: translateY(8px)
    beside the calendar and today; a picked job's details open under its row.
    Phone (640 and under): no greeting; layout + Customize behind one button;
    tiles as one compact row (number and one line, no charts; a 4th swipes);
-   this week in place of the month; finished jobs folded; the job under the name
+   the month as one swipeable row of days, opening on this week; finished jobs folded; the job under the name
    in the queue; a picked job's details in a sheet from the bottom.
    ========================================================================== */
 .sd-week, .sd-donebtn, .sd-viewbtn, .sd-sheet-x, .sd-scrim { display: none; }
@@ -354,10 +354,13 @@ html.sd-motion .sd-ny:not(.on) .sd-chip { opacity: 0; transform: translateY(8px)
   .sd-dash .sd-big b { font-size: 22px; }
   .sd-dash .sd-big small { font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
   .sd-dash .dash-row { gap: 22px; }
-  /* this week, in place of the month */
+  /* the month as a row of days that swipes; a week shows at a time */
   .sd-dash .sd-cal { display: none; }
   .sd-dash .sd-week { display: block; margin-bottom: 18px; }
-  .sd-week-g { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; margin-top: 10px; }
+  .sd-week-g { display: flex; gap: 6px; margin: 10px -12px 0; padding: 0 12px 2px; overflow-x: auto; scroll-snap-type: x proximity; scroll-padding: 0 12px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .sd-week-g::-webkit-scrollbar { display: none; }
+  .sd-week-g a { flex: 0 0 calc((100% - 36px) / 7); min-width: 40px; }
+  .sd-week-g a.mon { scroll-snap-align: start; }
   .sd-week-g a { display: grid; justify-items: center; gap: 3px; padding: 7px 0 8px; border-radius: 12px; font-size: 14px; font-weight: 600; text-decoration: none; color: var(--ia-text); background: color-mix(in srgb, var(--sd-t3) calc(var(--f) * 42%), var(--ia-surface)); }
   .sd-week-g a small { font-size: 9.5px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: var(--ia-text-muted); }
   .sd-week-g a.t { background: var(--ia-accent); color: var(--ia-accent-text, #0d0d0d); } .sd-week-g a.t small { color: inherit; opacity: .7; }
@@ -375,5 +378,12 @@ html.sd-motion .sd-ny:not(.on) .sd-chip { opacity: 0; transform: translateY(8px)
   .sd-dash .sd-detail h3 { padding-right: 38px; }
   .sd-scrim.on { display: block; position: fixed; inset: 0; z-index: 1000; background: rgba(0, 0, 0, .5); }
   .sd-dash .sd-sheet-x { display: grid; position: absolute; right: 12px; top: 12px; width: 30px; height: 30px; padding: 0; place-content: center; border-radius: 50%; background: var(--ia-hover); border: 0; color: var(--ia-text); font-size: 15px; cursor: pointer; }
+}
+/* phone: a long list stops at 10, with a button for the rest (dashboard-studio.js marks the rows past 10 with .cap) */
+.sd-capbtn { display: none; }
+@media (max-width: 640px) {
+  .sd-dash .capped > .cap { display: none !important; }
+  .sd-dash .sd-capbtn { display: block; width: 100%; margin: 8px 0 0; padding: 10px; border-radius: 10px; border: 1px solid var(--ia-border); background: none; color: var(--ia-text); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; }
+  .sd-dash .capped > .sd-end { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .sd-dash .sd-detail { transition: none; } }

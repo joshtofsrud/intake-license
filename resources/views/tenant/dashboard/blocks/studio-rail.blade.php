@@ -9,36 +9,18 @@
   $assetP = $studio['assetP'] ?? 'items';
 @endphp
 @if ($rail)
-@php
-  // phone: the week that holds today, from the same days the month draws (days of a neighbouring month are left blank)
-  $wkToday = collect($rail['days'])->firstWhere('today', true);
-  $wkDays = [];
-  if ($wkToday) {
-      $wkByDate = collect($rail['days'])->keyBy('date');
-      $wkStart = \Illuminate\Support\Carbon::parse($wkToday['date'])->startOfWeek(\Illuminate\Support\Carbon::MONDAY);
-      for ($wi = 0; $wi < 7; $wi++) {
-          $wd = $wkStart->copy()->addDays($wi);
-          $wkDays[] = ['at' => $wd, 'day' => $wkByDate[$wd->toDateString()] ?? null];
-      }
-  }
-@endphp
 <aside class="sd-rail sd-in" style="--d:140ms" data-sd-live="rail">
-  @if ($wkDays)
-    <div class="sd-week">
-      <div class="sd-cal-h"><b>This week</b><a href="{{ route('tenant.calendar.index') }}" class="sd-link">Open calendar →</a></div>
-      <div class="sd-week-g">
-        @foreach ($wkDays as $w)
-          @php $d = $w['day']; @endphp
-          @if ($d)
-            <a href="{{ $d['url'] }}" class="{{ $d['today'] ? 't' : '' }}{{ $d['closed'] ? ' x' : '' }}" style="--f:{{ $d['fill'] }}"
-               aria-label="{{ $w['at']->format('l, M j') }}: {{ $d['closed'] ? 'closed' : $d['n'] . ' ' . \Illuminate\Support\Str::plural('booking', $d['n']) }}"><small>{{ $w['at']->format('D') }}</small>{{ $d['d'] }}</a>
-          @else
-            <a href="{{ route('tenant.calendar.index') }}" class="o" style="--f:0" aria-label="{{ $w['at']->format('l, M j') }}"><small>{{ $w['at']->format('D') }}</small>{{ $w['at']->day }}</a>
-          @endif
-        @endforeach
-      </div>
+  {{-- phone: the month as one row of days that swipes sideways, a week showing at a time, opening on this week --}}
+  <div class="sd-week">
+    <div class="sd-cal-h"><b>{{ $rail['month'] }}</b><a href="{{ route('tenant.calendar.index') }}" class="sd-link">Open calendar →</a></div>
+    <div class="sd-week-g" data-sd-week>
+      @foreach ($rail['days'] as $d)
+        @php $wkAt = \Illuminate\Support\Carbon::parse($d['date']); @endphp
+        <a href="{{ $d['url'] }}" class="{{ $d['today'] ? 't' : '' }}{{ $d['closed'] ? ' x' : '' }}{{ $wkAt->dayOfWeekIso === 1 ? ' mon' : '' }}" style="--f:{{ $d['fill'] }}"
+           aria-label="{{ $wkAt->format('l, M j') }}: {{ $d['closed'] ? 'closed' : $d['n'] . ' ' . \Illuminate\Support\Str::plural('booking', $d['n']) }}"><small>{{ $wkAt->format('D') }}</small>{{ $d['d'] }}</a>
+      @endforeach
     </div>
-  @endif
+  </div>
   <div class="sd-cal">
     <div class="sd-cal-h"><b>{{ $rail['month'] }}</b><a href="{{ route('tenant.calendar.index') }}" class="sd-link">Open calendar →</a></div>
     <div class="sd-cal-g">

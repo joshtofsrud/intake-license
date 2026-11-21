@@ -134,6 +134,7 @@
       end.querySelector('span').textContent = (filter === 'all' ? 'End of the list' : 'End of ' + name) + ' · ' + shown + ' ' + (shown === 1 ? word.replace(/s$/, '') : word);
       requestAnimationFrame(endCap);
     }
+    if (typeof capAll === 'function') { capOpen.queue = false; capAll(); }
     var selRow = $('.sd-row[data-i="' + sel + '"]', list);
     if (!selRow || selRow.hidden) { if (firstShown !== null) pick(firstShown); else detail(-1); }
   }
@@ -175,6 +176,31 @@
     if (!scrim) { scrim = document.createElement('div'); scrim.className = 'sd-scrim'; document.body.appendChild(scrim); scrim.addEventListener('click', function () { sheet(false); }); }
     box.classList.toggle('open', sheetOpen); scrim.classList.toggle('on', sheetOpen);
   }
+  // phone: a long list stops at CAP rows, with one button for the rest. Used by the queue and by Today.
+  // Rows already hidden (by a filter, or the done-earlier fold) don't count toward the ten.
+  var CAP = 10, capOpen = {};
+  function capList(box, rowSel, key, word) {
+    if (!box || !isDash) return;
+    var rows = $$(rowSel, box).filter(function (r) { return !r.hidden && !(r.classList.contains('done') && !box.classList.contains('all') && $('[data-sd-done]')); });
+    $$(rowSel, box).forEach(function (r) { r.classList.remove('cap'); });
+    var btn = box.parentElement.querySelector('.sd-capbtn[data-cap="' + key + '"]');
+    var over = rows.length - CAP;
+    if (over <= 0 || !isPhone()) { box.classList.remove('capped'); if (btn) btn.remove(); return; }
+    rows.slice(CAP).forEach(function (r) { r.classList.add('cap'); });
+    if (!btn) { btn = document.createElement('button'); btn.type = 'button'; btn.className = 'sd-capbtn'; btn.dataset.cap = key; box.after(btn); }
+    var open = !!capOpen[key];
+    box.classList.toggle('capped', !open);
+    btn.textContent = open ? 'Show the first ' + CAP : 'Show all ' + rows.length + ' ' + word;
+  }
+  function capAll() { capList($('#sdList'), '.sd-row', 'queue', 'open'); capList($('.sd-rail .sd-tl'), '.sd-tl-r', 'today', 'today'); }
+  // the day strip opens on the week that holds today
+  function weekHome() {
+    var g = $('[data-sd-week]'); if (!g || !g.offsetParent) return;
+    var t = $('a.t', g); if (!t) return;
+    var m = t; while (m && !m.classList.contains('mon')) m = m.previousElementSibling;
+    m = m || g.firstElementChild;
+    g.scrollLeft = Math.max(0, m.offsetLeft - g.offsetLeft - 12);
+  }
   function headBar(open) {
     var bar = $('#sdHeadBar'), btn = $('[data-sd-view]'); if (!bar || !btn) return;
     bar.classList.toggle('open', open); btn.setAttribute('aria-expanded', open ? 'true' : 'false');
@@ -182,12 +208,15 @@
   document.addEventListener('click', function (e) {
     if (!isDash) return;
     if (e.target.closest('.sd-sheet-x')) { sheet(false); return; }
+    var cb = e.target.closest('.sd-capbtn');
+    if (cb) { capOpen[cb.dataset.cap] = !capOpen[cb.dataset.cap]; capAll(); return; }
     var done = e.target.closest('[data-sd-done]');
     if (done) {
       var tl = done.parentElement.querySelector('.sd-tl'); if (!tl) return;
       var all = tl.classList.toggle('all'), n = done.dataset.n;
       done.setAttribute('aria-expanded', all ? 'true' : 'false');
       done.textContent = all ? 'Hide the ' + n + ' done' : n + ' done earlier today · show';
+      capAll();
       return;
     }
     var vb = e.target.closest('[data-sd-view]'), bar = $('#sdHeadBar');
@@ -196,7 +225,9 @@
   });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { sheet(false); headBar(false); } });
   var smT = 0;
-  addEventListener('resize', function () { clearTimeout(smT); smT = setTimeout(function () { placeDetail(); if (!isPhone()) sheet(false); if (innerWidth > 640) headBar(false); }, 120); });
+  addEventListener('resize', function () { clearTimeout(smT); smT = setTimeout(function () { placeDetail(); capAll(); if (!isPhone()) sheet(false); if (innerWidth > 640) headBar(false); }, 120); });
+  setTimeout(capAll, 0);
+  setTimeout(weekHome, 60);
   root.addEventListener('click', function (e) {
     var m = e.target.closest('.sd-multi');
     if (m) { e.preventDefault(); e.stopPropagation(); popFor === m ? hidePop() : showPop(m); return; }
@@ -316,6 +347,8 @@
         $$('.sd-row').forEach(function (r) { r.classList.toggle('sel', +r.dataset.i === sel); });
         detail(sel);
         placeDetail();
+        weekHome();
+        capAll();
         if (wasSheet) sheet(true);
         if (doneAll) { var db = $('[data-sd-done]'); if (db) db.click(); }
       })
