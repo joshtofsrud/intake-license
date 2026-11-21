@@ -198,7 +198,16 @@
     align-items: center;
     justify-content: space-between;
     padding: 4px 20px 10px;
+    /* stays put while the list scrolls under it, so Close is always in reach */
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    padding-top: 10px;
+    background: #ffffff;
   }
+  .ia-theme-a .ia-drawer-header,
+  .ia-theme-c .ia-drawer-header { background: #171717; }
+  .ia-drawer-close { min-width: 36px; min-height: 36px; justify-content: center; margin-right: -6px; }
 
   .ia-drawer-title {
     font-size: 14px;
