@@ -2,6 +2,7 @@
    (dashboard-studio.css). Only what that file doesn't already have lives here. */
 .sh [hidden] { display: none !important; }
 .sh-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); column-gap: 28px; align-items: start; }
+.sh-grid.solo { grid-template-columns: minmax(0, 1fr); } .sh-grid.solo > .sd-rail { display: none; }
 .sh .sd-head { grid-template-columns: minmax(0, 1fr) auto; }
 .sh .sd-list { max-height: none; }
 .sh-row { grid-template-columns: 34px minmax(0, 1.2fr) minmax(0, 1.5fr) 118px; }
@@ -27,14 +28,27 @@
 .sh-link { border: 0; background: none; padding: 0; font: inherit; color: var(--ia-accent); cursor: pointer; }
 .sh-v { text-align: right; font: 600 12.5px var(--ia-font-mono, monospace); color: var(--ia-text); } .sh-v small { display: block; font: 400 10px Inter, sans-serif; color: var(--ia-text-muted); }
 
-/* before the first check */
-.sh-first { padding: 46px 0 30px; text-align: center; }
-.sh-first h2 { margin: 18px 0 6px; font-size: 17px; font-weight: 600; } .sh-first p { margin: 0; font-size: 13px; color: var(--ia-text-muted); }
-.sh-first-art { display: flex; gap: 10px; justify-content: center; align-items: flex-end; height: 64px; }
-.sh-first-art span { width: 46px; border-radius: 12px; }
-.sh-first-art span:nth-child(1) { height: 60%; background: color-mix(in srgb, var(--sd-t3) 55%, transparent); }
-.sh-first-art span:nth-child(2) { height: 100%; background: color-mix(in srgb, var(--sd-t2) 55%, transparent); }
-.sh-first-art span:nth-child(3) { height: 40%; background: color-mix(in srgb, var(--sd-t1) 55%, transparent); }
+/* before the first check: a dimmed picture of the page to come, with one button over it */
+.sh-ghost { position: relative; }
+.sh-ghost-art { opacity: .28; filter: saturate(.7); pointer-events: none; user-select: none; -webkit-mask-image: linear-gradient(#000 55%, transparent); mask-image: linear-gradient(#000 55%, transparent); }
+.sh-ghost-art .sd-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 14px; } .sh-ghost-art .sd-tiles.sd-n3 > .sd-tile, .sh-ghost-art .sd-tiles.sd-n3 > .sd-tile:last-child { grid-column: auto; min-height: 128px; }
+.sh-ghost-row { display: grid; grid-template-columns: 34px 1fr 1.5fr 90px; gap: 14px; align-items: center; padding: 14px 10px; border-bottom: 1px solid var(--ia-border); }
+.sh-ghost-row i { width: 34px; height: 34px; border-radius: 50%; background: var(--ia-surface-2); }
+.sh-ghost-row span { height: 10px; border-radius: 99px; background: var(--ia-surface-2); } .sh-ghost-row em { height: 20px; border-radius: 99px; background: var(--ia-surface-2); }
+.sh-ghost-cta { position: absolute; inset: 150px 0 0 0; background: radial-gradient(ellipse at center, var(--ia-bg) 0, transparent 62%); display: grid; place-content: center; justify-items: center; text-align: center; padding: 20px; }
+.sh-ghost-cta h2 { margin: 0 0 6px; font-size: 22px; font-weight: 600; letter-spacing: -.01em; } .sh-ghost-cta p { margin: 0 0 18px; font-size: 13.5px; color: var(--ia-text-muted); }
+.sh-ghost-cta .ia-btn { padding: 10px 22px; font-size: 14px; }
+
+/* the first check as it runs */
+.sh-live { padding: 8px 0 26px; }
+.sh-live-n { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.sh-live-n b { font: 600 56px/1 var(--ia-font-mono, monospace); letter-spacing: -.03em; font-variant-numeric: tabular-nums; } .sh-live-n > span { font-size: 14px; color: var(--ia-text-muted); }
+.sh-tally { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 22px; }
+.sh-tally span { padding: 12px 14px; border-radius: 14px; font-size: 12px; color: var(--ia-text-muted); background: color-mix(in srgb, var(--c) 16%, var(--ia-surface)); }
+.sh-tally b { display: block; font: 600 22px/1.2 var(--ia-font-mono, monospace); color: var(--ia-text); font-variant-numeric: tabular-nums; }
+.sh-live .sh-cap b { color: var(--ia-text); font-weight: 600; }
+.sh-row.new { animation: shin .5s ease; } @keyframes shin { from { opacity: 0; transform: translateY(6px); } }
+@media (prefers-reduced-motion: reduce) { .sh-row.new, .sh-dot { animation: none; } }
 
 /* a title or description, and how it looks in search */
 .sh-cmp { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 4px 0 14px; }
@@ -140,6 +154,8 @@
   .sh-row .sd-st { grid-column: 3; grid-row: 1; }
   .sh-row .sd-age { display: none; }
   .sh-cmp { grid-template-columns: 1fr; }
+  .sh-live-n b { font-size: 40px; } .sh-tally { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sh-ghost-art .sd-tiles > .sd-tile { min-height: 0; } .sh-ghost-art .sd-bars, .sh-ghost-art .sd-stack, .sh-ghost-art .sd-meter { display: none; } .sh-ghost-cta { inset: 76px 0 0 0; } .sh-ghost-cta h2 { font-size: 19px; }
   .sh .sd-detail { margin: 6px 0 10px; padding: 16px; }
   .sh .sd-detail h3 { flex-direction: column; gap: 4px; }
   .sh .sd-seg { display: flex; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; max-width: 100%; } .sh .sd-seg button { white-space: nowrap; }

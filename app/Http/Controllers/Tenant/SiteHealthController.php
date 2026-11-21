@@ -51,7 +51,12 @@ class SiteHealthController extends Controller
         $conn = GoogleSiteData::available() ? $this->conn() : null;
         $gRunning = (bool) (($conn?->state ?? [])['running'] ?? false) && $conn->updated_at?->gt(now()->subMinutes(6));
 
-        return response()->json(['run' => $run, 'checked' => (bool) $h?->checked_at, 'google' => ['running' => $gRunning]]);
+        $found = array_fill_keys(array_keys(SiteHealthView::GROUPS), 0);
+        foreach (TenantSiteIssue::where('tenant_id', tenant()->id)->where('status', 'open')->selectRaw('grp, COUNT(*) as n')->groupBy('grp')->pluck('n', 'grp') as $g => $n) {
+            $found[$g] = (int) $n;
+        }
+
+        return response()->json(['run' => $run, 'checked' => (bool) $h?->checked_at, 'google' => ['running' => $gRunning], 'live' => SiteHealthView::live($st, $found)]);
     }
 
     public function check(SiteChecker $checker): JsonResponse

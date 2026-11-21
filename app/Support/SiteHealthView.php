@@ -64,7 +64,7 @@ class SiteHealthView
         }
 
         return [
-            'health' => $h, 'checked' => (bool) $h?->checked_at, 'run' => $run,
+            'health' => $h, 'checked' => (bool) $h?->checked_at, 'run' => $run, 'live' => self::live($st, $counts),
             'open' => $open, 'done' => $rows->where('status', '!=', 'open')->values(), 'counts' => $counts,
             'tiles' => $h?->checked_at ? self::tiles($tenant, $h, $open, $conn) : [],
             'basics' => (array) ($h?->basics ?? []),
@@ -72,6 +72,19 @@ class SiteHealthView
             'google' => self::google($tenant, $conn),
             'has_visits' => (bool) $visits,
         ];
+    }
+
+    /** What a running check has found so far: rows by kind, and items counted but not yet written up as rows. */
+    public static function live(array $st, array $counts): array
+    {
+        $photo = 0; $words = 0;
+        foreach ((array) ($st['cats'] ?? []) as $c) {
+            $photo += (int) ($c['photo_n'] ?? 0);
+            $words += (int) ($c['words_n'] ?? 0);
+        }
+        unset($counts['all']);
+
+        return ['found' => $counts, 'photo' => $photo, 'words' => $words];
     }
 
     private static function tiles(Tenant $tenant, TenantSiteHealth $h, $open, ?TenantGoogleConnection $conn): array

@@ -79,14 +79,19 @@
       .then(function (html) { var el = document.getElementById(id); if (el) el.innerHTML = html; });
   }
   function refreshMain() {
-    var keep = picked, f = filter;
+    var keep = picked, f = filter, had = {};
+    rows().forEach(function (r) { had[r.dataset.id] = 1; });
     return swap('main', 'shMain').then(function () {
+      if (Object.keys(had).length) rows().forEach(function (r) { if (!had[r.dataset.id]) r.classList.add('new'); });
       filter = $('#shSeg button[data-f="' + f + '"]') ? f : 'all';
       picked = $('#shList .sh-row[data-id="' + keep + '"]') ? keep : null;
       applyFilter(); if (picked) pick(picked, true);
     }).catch(function () { location.reload(); });
   }
-  function refreshRail() { return swap('rail', 'shRail').catch(function () {}); }
+  function refreshRail() {
+    // with nothing beside the list (no basics yet, Google off) the list takes the full width
+    return swap('rail', 'shRail').then(function () { $('#shGrid').classList.toggle('solo', !$('#shRail').children.length); }).catch(function () {});
+  }
 
   // ---- a running check ------------------------------------------------
   function showRun(run) {
@@ -99,11 +104,23 @@
     $('#shCheck').textContent = run.stopped ? 'Start over' : 'Check now';
     var err = $('#shErr'); if (err) err.hidden = running || !run.error;
   }
+  var liveRows = -1;
+  function showLive(s) {
+    var box = $('#shLive'); if (!box || !s.live) return;
+    $('#shLiveN').textContent = s.run.done.toLocaleString('en-US'); $('#shLiveT').textContent = s.run.total.toLocaleString('en-US');
+    var total = 0;
+    Object.keys(s.live.found).forEach(function (g) { total += s.live.found[g]; var el = $('[data-sh-tally="' + g + '"]', box); if (el) el.textContent = s.live.found[g].toLocaleString('en-US'); });
+    ['photo', 'words'].forEach(function (k) { var el = $('[data-sh-tally="' + k + '"]', box); if (el) el.textContent = s.live[k].toLocaleString('en-US'); });
+    $('#shLiveItems').hidden = !(s.live.photo || s.live.words);
+    // new rows have been written since the list was drawn: bring them in
+    if (liveRows !== -1 && total !== liveRows && s.run.running) refreshMain();
+    liveRows = total;
+  }
   function poll() {
     clearTimeout(timer);
     fetch(URLS.status, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } }).then(function (r) { return r.json(); }).then(function (s) {
       var was = root.dataset.running === '1', gWas = root.dataset.googleRunning === '1';
-      showRun(s.run);
+      showRun(s.run); showLive(s);
       root.dataset.running = s.run.running ? '1' : '0'; root.dataset.googleRunning = s.google.running ? '1' : '0';
       if (was && !s.run.running) {
         refreshMain(); refreshRail();
@@ -119,7 +136,9 @@
       root.dataset.running = '1';
       $('#shRun').hidden = false; $('#shBar').hidden = false; $('#shCheck').hidden = true; $('#shResume').hidden = true;
       if (firstWord) { $('#shN').textContent = '0'; $('#shBar i').style.width = '0%'; }
-      poll();
+      liveRows = -1;
+      // the page says what is happening now, not what was true when it loaded
+      if ($('.sh-ghost') || $('#shLive')) refreshMain().then(poll); else poll();
     }).catch(function (e) { toast.error(e.message); }).then(function () { busy = false; });
   }
 
@@ -128,7 +147,7 @@
     var t = e.target;
     var seg = t.closest('#shSeg button'); if (seg) { filter = seg.dataset.f; applyFilter(); return; }
     var row = t.closest('#shList .sh-row'); if (row) { pick(row.dataset.id); return; }
-    if (t.closest('#shCheck')) { start(URLS.check, true); return; }
+    if (t.closest('#shCheck') || t.closest('[data-sh-check]')) { start(URLS.check, true); return; }
     if (t.closest('#shResume')) { start(URLS.resume, false); return; }
     if (t.closest('#shStop')) { t.closest('#shStop').disabled = true; post(URLS.stop).then(poll).catch(function (er) { toast.error(er.message); }).then(function () { $('#shStop').disabled = false; }); return; }
 

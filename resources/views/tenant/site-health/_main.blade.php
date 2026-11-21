@@ -5,50 +5,44 @@
   $studio = ['tiles' => $sh['tiles']];
 @endphp
 
-@if (! $sh['checked'])
-  <section class="sh-first">
-    <div class="sh-first-art" aria-hidden="true"><span></span><span></span><span></span></div>
-    <h2>{{ $sh['run']['running'] ? 'Checking your site now' : 'Your site has not been checked yet' }}</h2>
-    <p>{{ $sh['run']['running'] ? 'The list fills in when it finishes.' : 'Press Check now. It reads your public pages and items and changes nothing.' }}</p>
+@php $run = $sh['run']; $live = $sh['live']; @endphp
+@if (! $sh['checked'] && ! $run['running'] && ! $run['stopped'])
+  {{-- before the first check: a dimmed picture of the page to come, and one button --}}
+  <section class="sh-ghost">
+    <div class="sh-ghost-art" aria-hidden="true">
+      <div class="sd-tiles sd-n3">
+        <div class="sd-tile sd-t3"><div class="sd-tile-h"><span>Site health</span></div><div class="sd-big"><b>–</b></div><div class="sd-bars">@foreach ([40, 46, 52, 50, 64, 78] as $bh)<span style="--h:{{ $bh }}%"></span>@endforeach</div></div>
+        <div class="sd-tile sd-t2"><div class="sd-tile-h"><span>To fix</span></div><div class="sd-big"><b>–</b></div><div class="sd-stack"><span class="p1" style="--w:44%"></span><span class="p2" style="--w:22%"></span><span class="p3" style="--w:22%"></span><span class="p4 bad" style="--w:12%"></span></div></div>
+        <div class="sd-tile sd-t1"><div class="sd-tile-h"><span>Pages and items checked</span></div><div class="sd-big"><b>–</b></div><div class="sd-meter"><span style="--w:100%"></span></div></div>
+      </div>
+      @foreach ([62, 48, 70, 40, 56] as $w)
+        <div class="sh-ghost-row"><i></i><span style="width:{{ $w * 0.4 }}%"></span><span style="width:{{ $w }}%"></span><em></em></div>
+      @endforeach
+    </div>
+    <div class="sh-ghost-cta">
+      <h2>See what to fix first</h2>
+      <p>Reads your public pages and items. Changes nothing.</p>
+      <button type="button" class="ia-btn ia-btn--primary" data-sh-check>Check now</button>
+    </div>
   </section>
+
+@elseif (! $sh['checked'])
+  {{-- the first check, as it runs: how far it has read and what it has found so far --}}
+  <section class="sh-live" id="shLive">
+    <div class="sh-live-n">
+      <b id="shLiveN">{{ number_format($run['done']) }}</b>
+      <span>of <span id="shLiveT">{{ number_format($run['total']) }}</span> pages and items {{ $run['running'] ? 'read' : 'read before it stopped' }}</span>
+    </div>
+    <div class="sh-tally">
+      @foreach ($groups as $g => $name)
+        <span style="--c:{{ $tone[$g] }}"><b data-sh-tally="{{ $g }}">{{ number_format($live['found'][$g]) }}</b>{{ $name }}</span>
+      @endforeach
+    </div>
+    <p class="sh-cap" id="shLiveItems" @if (! $live['photo'] && ! $live['words']) hidden @endif>Items so far: <b data-sh-tally="photo">{{ number_format($live['photo']) }}</b> with no photo · <b data-sh-tally="words">{{ number_format($live['words']) }}</b> with almost no description</p>
+  </section>
+  @include('tenant.site-health._list')
+
 @else
   @include('tenant.dashboard.blocks.studio-tiles')
-
-  <section class="sd-queue" id="shFix">
-    <div class="sd-sec-h">
-      <div><h2>To fix</h2><span>Biggest effect first</span></div>
-      <div class="sd-seg" role="tablist" id="shSeg">
-        <button type="button" class="on" data-f="all">All {{ $sh['counts']['all'] }}</button>
-        @foreach ($groups as $g => $name)
-          @if ($sh['counts'][$g] > 0)<button type="button" data-f="{{ $g }}">{{ $name }} {{ $sh['counts'][$g] }}</button>@endif
-        @endforeach
-        @if ($sh['done']->count() > 0)<button type="button" data-f="done">Done and set aside {{ $sh['done']->count() }}</button>@endif
-      </div>
-    </div>
-
-    <div class="sd-list sh-list {{ $sh['has_visits'] ? 'has-v' : '' }}" id="shList">
-      @foreach ($sh['open']->concat($sh['done']) as $r)
-        @php $isDone = $r['status'] !== 'open'; @endphp
-        <div class="sd-row sh-row" style="--c:{{ $tone[$r['grp']] }}" data-id="{{ $r['id'] }}" data-group="{{ $isDone ? 'done' : $r['grp'] }}" tabindex="0" role="button" @if ($isDone) hidden @endif>
-          <div class="sd-av">{{ mb_substr($r['kind'], 0, 1) }}</div>
-          <div class="sd-who"><b>{{ $r['label'] }}</b><small>{{ $r['items'] ? 'items online' : ($r['path'] ?? 'site-wide') }}</small></div>
-          <div class="sd-job">{{ $r['problem'] }}</div>
-          <div class="sd-st {{ ! $isDone && $r['impact'] === 'high' ? 'late' : '' }}">{{ $isDone ? ($r['status'] === 'fixed' ? 'Fixed' : 'Set aside') : ($r['impact'] === 'high' ? 'High impact' : $r['kind']) }}</div>
-          <div class="sd-age">@if ($r['visits'])<span class="sh-v">{{ number_format($r['visits']) }}<small>visits / mo</small></span>@endif</div>
-        </div>
-        <template data-for="{{ $r['id'] }}">@include('tenant.site-health._detail', ['r' => $r])</template>
-      @endforeach
-
-      <div class="sd-none" id="shNone" @if ($sh['open']->count() > 0) hidden @endif>
-        Nothing to fix right now.
-        @if (($sh['google']['available'] ?? false) && ! ($sh['google']['connected'] ?? false))
-          <a href="#shGoogle">Connect Google</a> to see what people search to find you.
-        @else
-          The next check runs tonight.
-        @endif
-      </div>
-    </div>
-
-    <section class="sd-detail sh-detail" id="shDetail" aria-live="polite" hidden></section>
-  </section>
+  @include('tenant.site-health._list')
 @endif
