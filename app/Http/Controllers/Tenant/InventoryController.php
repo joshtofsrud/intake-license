@@ -42,10 +42,21 @@ class InventoryController extends Controller
     ) {
     }
 
-    public function index(Request $request): View
+    public function index(Request $request): View|\Illuminate\Http\JsonResponse
     {
         $tenant = tenant();
         $this->assertRetailEnabled($tenant);
+
+        // MARKER-INV-FAST-LOAD: the page opens at once with what's on hand; the list, the
+        // numbers strip and the brand/vendor filters arrive in the background.
+        //   (none)   the page, without the list
+        //   list     the same page with the list, for the browser to lift the list out of
+        //   summary  the strip's counts            filters  brand and vendor choices
+        $frame = (string) $request->query('frame', '');
+        if ($frame === 'filters') {
+            return response()->json($this->filterOptions($tenant));
+        }
+        $deferList = $frame !== 'list';
 
         $search   = trim((string) $request->input('s', ''));
         $category = $request->input('category');
@@ -145,7 +156,7 @@ class InventoryController extends Controller
         $searchUsed = '';
         $searchCorrected = null;
         $searchMissing = [];
-        if ($search !== '') {
+        if ($search !== '' && ! $deferList) {
             $searchHit = \App\Support\InventorySearch::apply($q, $tenant->id, $search);
             $searchUsed = $searchHit['used'];
             $searchCorrected = $searchHit['corrected'];
@@ -163,54 +174,11 @@ class InventoryController extends Controller
 
         // Stock filter — patch-98: keyed off CURRENT LOCATION's stock row
         // when multi-location, falls back to item-level total otherwise.
-        if ($stock === 'low') {
-            if ($hereLocId) {
-                // match the dashboard low-stock count. An item is
-                // low at this location if its location row's stock is <= the EFFECTIVE
-                // threshold (location override, else item-level), OR — when it has no
-                // row at this location yet — it qualifies at the item level. The old
-                // check required a location-level threshold, so item-level-only items
-                // were counted on the dashboard but missing here (empty page).
-                $q->where(function ($outer) use ($hereLocId) {
-                    $outer->whereHas('locations', function ($w) use ($hereLocId) {
-                        $w->where('location_id', $hereLocId)
-                          ->whereRaw('COALESCE(tenant_inventory_item_locations.shop_reorder_threshold, tenant_inventory_items.shop_reorder_threshold) IS NOT NULL')
-                          ->whereRaw('tenant_inventory_item_locations.computed_stock_count <= COALESCE(tenant_inventory_item_locations.shop_reorder_threshold, tenant_inventory_items.shop_reorder_threshold)');
-                    })->orWhere(function ($q2) use ($hereLocId) {
-                        $q2->whereDoesntHave('locations', function ($w) use ($hereLocId) {
-                                $w->where('location_id', $hereLocId);
-                            })
-                           ->whereNotNull('shop_reorder_threshold')
-                           ->whereColumn('computed_stock_count', '<=', 'shop_reorder_threshold');
-                    });
-                });
-            } else {
-                $q->whereNotNull('shop_reorder_threshold')
-                  ->whereColumn('computed_stock_count', '<=', 'shop_reorder_threshold');
-            }
-        } elseif ($stock === 'out') {
-            if ($hereLocId) {
-                $q->whereHas('locations', function ($w) use ($hereLocId) {
-                    $w->where('location_id', $hereLocId)
-                      ->where('computed_stock_count', '<=', 0);
-                });
-            } else {
-                $q->where('computed_stock_count', '<=', 0);
-            }
-        } elseif ($stock === 'in') {
-            // what the shop actually holds. Mirrors the
-            // 'out' branch: with a location in scope the question is about
-            // THAT location's shelf, not the sum across the company. An item
-            // with no row at this location has never been stocked here, so it
-            // is correctly absent rather than counted as zero.
-            if ($hereLocId) {
-                $q->whereHas('locations', function ($w) use ($hereLocId) {
-                    $w->where('location_id', $hereLocId)
-                      ->where('computed_stock_count', '>', 0);
-                });
-            } else {
-                $q->where('computed_stock_count', '>', 0);
-            }
+        self::applyStockFilter($q, $stock, $hereLocId);
+
+        // MARKER-INV-FAST-LOAD: the strip's numbers, for the category in view
+        if ($frame === 'summary') {
+            return response()->json($this->stripCounts($tenant, $category ? ($includeSubs ? self::descendantCategoryIds($allCats, $category) : [$category]) : null, $hereLocId));
         }
 
         // brand lives on the linked catalog row.
@@ -318,8 +286,8 @@ class InventoryController extends Controller
             ->can('inventory.items.merge');
         $posConnected = (bool) \App\Services\Pos\PosPushService::connectionFor($tenant->id); // MARKER-POS-ITEM-SEND
 
-        $total = (clone $q)->count();
-        $items = $q->forPage($page, $perPage)->get();
+        $total = $deferList ? 0 : (clone $q)->count();
+        $items = $deferList ? collect() : $q->forPage($page, $perPage)->get();
 
         // a blank filtered list is a dead end unless it
         // says what WOULD work. These run only when the result is empty.
@@ -336,7 +304,7 @@ class InventoryController extends Controller
         $suggestBrands     = [];
         $suggestCategories = [];
 
-        if ($total === 0) {
+        if ($total === 0 && ! $deferList) {
             if ($search !== '') {
                 $emptyReason = 'search';
             } else {
@@ -416,49 +384,10 @@ class InventoryController extends Controller
             }
         }
 
-        // built from what this tenant carries, not the
-        // whole shared catalog, so the dropdown stays usable.
-        // 1.9s cold / 867ms warm on a 55k-item tenant,
-        // recomputed on every click. Indexes are already present; the cost is
-        // genuine work, so the fix is not doing it 60 times a minute.
-        $brandOptions = \Illuminate\Support\Facades\Cache::remember(
-            'inv:brands:v2:' . $tenant->id,
-            60,
-            fn () => \App\Models\PlatformDistributorCatalog::query()
-                ->whereIn('id', function ($w) {
-                    $w->select('distributor_catalog_id')
-                      ->from('tenant_inventory_items')
-                      ->where('tenant_id', tenant()->id)
-                      ->whereNotNull('distributor_catalog_id');
-                })
-                ->whereNotNull('manufacturer')->where('manufacturer', '!=', '')
-                ->distinct()->orderBy('manufacturer')->pluck('manufacturer')
-                // plus the shop's own brands, which no
-                // catalog knows about. Union, sorted, deduplicated case-wise.
-                ->concat(
-                    \App\Models\Tenant\TenantInventoryItem::where('tenant_id', tenant()->id)
-                        ->whereNotNull('shop_brand')->where('shop_brand', '!=', '')
-                        ->distinct()->orderBy('shop_brand')->pluck('shop_brand')
-                )
-                ->unique(fn ($b) => mb_strtolower(trim((string) $b)))
-                ->sort(fn ($a, $b) => strcasecmp((string) $a, (string) $b))
-                ->values()
-        );
-
-        // ~1.1s to return two values.
-        $distributorOptions = \Illuminate\Support\Facades\Cache::remember(
-            'inv:vendors:v2:' . $tenant->id,
-            60,
-            // every vendor that has items, not
-            // only the ones with a catalog feed. Keyed by id, labelled by
-            // name, so the option value is stable if a vendor is renamed.
-            fn () => \Illuminate\Support\Facades\DB::table('tenant_inventory_item_vendors as iv')
-                ->join('tenant_inventory_items as it', 'it.id', '=', 'iv.inventory_item_id')
-                ->join('tenant_vendors as v', 'v.id', '=', 'iv.vendor_id')
-                ->where('it.tenant_id', tenant()->id)
-                ->distinct()->orderBy('v.name')
-                ->pluck('v.name', 'v.id')
-        );
+        // MARKER-INV-FAST-LOAD: filled in after the page opens (frame=filters). The current
+        // choice is kept so the filter shows what's applied straight away.
+        $brandOptions       = collect($brand !== '' ? [$brand] : []);
+        $distributorOptions = collect();
 
         $categories    = $allCats;
         $hasCategories = $categories->isNotEmpty();
@@ -528,8 +457,130 @@ class InventoryController extends Controller
             'emptyReason', 'suggestBrands', 'suggestCategories',
             'brand', 'distributor', 'brandOptions', 'distributorOptions',
             'posCap',
-            'currentLocation', 'isMultiLocation', 'hereStocks'
+            'currentLocation', 'isMultiLocation', 'hereStocks',
+            'deferList', 'catCounts'
         ));
+    }
+
+    /** The stock-level filter: '', 'in', 'low', 'out' (archived is handled by the caller). */
+    private static function applyStockFilter($q, string $stock, ?string $hereLocId): void
+    {
+        if ($stock === 'low') {
+            if ($hereLocId) {
+                // match the dashboard low-stock count. An item is
+                // low at this location if its location row's stock is <= the EFFECTIVE
+                // threshold (location override, else item-level), OR — when it has no
+                // row at this location yet — it qualifies at the item level. The old
+                // check required a location-level threshold, so item-level-only items
+                // were counted on the dashboard but missing here (empty page).
+                $q->where(function ($outer) use ($hereLocId) {
+                    $outer->whereHas('locations', function ($w) use ($hereLocId) {
+                        $w->where('location_id', $hereLocId)
+                          ->whereRaw('COALESCE(tenant_inventory_item_locations.shop_reorder_threshold, tenant_inventory_items.shop_reorder_threshold) IS NOT NULL')
+                          ->whereRaw('tenant_inventory_item_locations.computed_stock_count <= COALESCE(tenant_inventory_item_locations.shop_reorder_threshold, tenant_inventory_items.shop_reorder_threshold)');
+                    })->orWhere(function ($q2) use ($hereLocId) {
+                        $q2->whereDoesntHave('locations', function ($w) use ($hereLocId) {
+                                $w->where('location_id', $hereLocId);
+                            })
+                           ->whereNotNull('shop_reorder_threshold')
+                           ->whereColumn('computed_stock_count', '<=', 'shop_reorder_threshold');
+                    });
+                });
+            } else {
+                $q->whereNotNull('shop_reorder_threshold')
+                  ->whereColumn('computed_stock_count', '<=', 'shop_reorder_threshold');
+            }
+        } elseif ($stock === 'out') {
+            if ($hereLocId) {
+                $q->whereHas('locations', function ($w) use ($hereLocId) {
+                    $w->where('location_id', $hereLocId)
+                      ->where('computed_stock_count', '<=', 0);
+                });
+            } else {
+                $q->where('computed_stock_count', '<=', 0);
+            }
+        } elseif ($stock === 'in') {
+            // what the shop actually holds. Mirrors the
+            // 'out' branch: with a location in scope the question is about
+            // THAT location's shelf, not the sum across the company. An item
+            // with no row at this location has never been stocked here, so it
+            // is correctly absent rather than counted as zero.
+            if ($hereLocId) {
+                $q->whereHas('locations', function ($w) use ($hereLocId) {
+                    $w->where('location_id', $hereLocId)
+                      ->where('computed_stock_count', '>', 0);
+                });
+            } else {
+                $q->where('computed_stock_count', '>', 0);
+            }
+        }
+    }
+
+    /**
+     * MARKER-INV-FAST-LOAD: the numbers strip: every active item, and how many are in stock,
+     * low and out, counted the same way the stock filter lists them.
+     */
+    private function stripCounts($tenant, ?array $catIds, ?string $hereLocId): array
+    {
+        $base = function () use ($tenant, $catIds) {
+            $q = TenantInventoryItem::where('tenant_id', $tenant->id)->where('is_active', true);
+            if ($catIds) {
+                $q->whereIn('category_id', $catIds);
+            }
+            return $q;
+        };
+        $out = ['items' => $base()->count()];
+        foreach (['in', 'low', 'out'] as $k) {
+            $q = $base();
+            self::applyStockFilter($q, $k, $hereLocId);
+            $out[$k] = $q->count();
+        }
+
+        return $out;
+    }
+
+    /**
+     * MARKER-INV-FAST-LOAD: brand and vendor choices for the filter row. Slow on a big
+     * catalog (about 2 and 1 seconds cold), so the page asks for them after it opens, and
+     * they're kept 10 minutes.
+     */
+    private function filterOptions($tenant): array
+    {
+        $brands = \Illuminate\Support\Facades\Cache::remember(
+            'inv:brands:v3:' . $tenant->id,
+            600,
+            fn () => \App\Models\PlatformDistributorCatalog::query()
+                ->whereIn('id', function ($w) use ($tenant) {
+                    $w->select('distributor_catalog_id')
+                      ->from('tenant_inventory_items')
+                      ->where('tenant_id', $tenant->id)
+                      ->whereNotNull('distributor_catalog_id');
+                })
+                ->whereNotNull('manufacturer')->where('manufacturer', '!=', '')
+                ->distinct()->orderBy('manufacturer')->pluck('manufacturer')
+                // plus the shop's own brands, which no catalog knows about
+                ->concat(
+                    TenantInventoryItem::where('tenant_id', $tenant->id)
+                        ->whereNotNull('shop_brand')->where('shop_brand', '!=', '')
+                        ->distinct()->orderBy('shop_brand')->pluck('shop_brand')
+                )
+                ->unique(fn ($b) => mb_strtolower(trim((string) $b)))
+                ->sort(fn ($a, $b) => strcasecmp((string) $a, (string) $b))
+                ->values()->all()
+        );
+        // every vendor that has items, keyed by id so a renamed vendor keeps its filter
+        $vendors = \Illuminate\Support\Facades\Cache::remember(
+            'inv:vendors:v3:' . $tenant->id,
+            600,
+            fn () => \Illuminate\Support\Facades\DB::table('tenant_inventory_item_vendors as iv')
+                ->join('tenant_inventory_items as it', 'it.id', '=', 'iv.inventory_item_id')
+                ->join('tenant_vendors as v', 'v.id', '=', 'iv.vendor_id')
+                ->where('it.tenant_id', $tenant->id)
+                ->distinct()->orderBy('v.name')
+                ->pluck('v.name', 'v.id')->all()
+        );
+
+        return ['brands' => $brands, 'vendors' => collect($vendors)->map(fn ($n, $id) => ['id' => (string) $id, 'name' => (string) $n])->values()->all()];
     }
 
     /**

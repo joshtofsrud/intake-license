@@ -150,6 +150,36 @@
 .inv-row-price, .inv-row-cost { text-align: right; font-variant-numeric: tabular-nums; }
 .inv-row-cost { color: var(--ia-text-muted); }
 </style>
+
+/* MARKER-INV-FAST-LOAD: numbers strip, chart, placeholders */
+.ivp{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) minmax(0,1.6fr);border:.5px solid var(--ia-border);border-radius:var(--ia-r-lg);margin-bottom:10px;overflow:hidden}
+.ivp>a,.ivp>div{padding:13px 16px;border-right:.5px solid var(--ia-border);min-width:0;text-decoration:none;color:inherit}
+.ivp>:last-child{border-right:0}
+.ivp-t{transition:background .15s}
+.ivp-t:hover{background:var(--ia-hover)}
+.ivp-t.on{box-shadow:inset 0 -2px 0 var(--ia-accent)}
+.ivp .l{font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ia-text-muted)}
+.ivp .v{font-size:24px;font-weight:600;font-variant-numeric:tabular-nums;margin-top:4px;line-height:1.2}
+.ivp .v.wait{color:var(--ia-text-dim)}
+.ivp .w .v:not(.wait){color:#EF9F27}
+.ivp .s{font-size:11.5px;color:var(--ia-text-muted);margin-top:2px}
+.ivp .bars{display:flex;flex-direction:column;gap:3px;margin-top:6px}
+.ivp .bar{display:grid;grid-template-columns:112px 1fr 52px;gap:8px;align-items:center;font-size:11px;line-height:1.35;text-decoration:none;color:inherit}
+.ivp .bar .n{color:var(--ia-text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ivp .bar:hover .n{color:var(--ia-text)}
+.ivp .bar .t{height:7px;border-radius:99px;background:var(--ia-hover);overflow:hidden}
+.ivp .bar .f{display:block;height:100%;width:0;border-radius:99px;background:var(--ia-accent);transition:width .9s cubic-bezier(.2,.8,.2,1)}
+.ivp .bar .p{text-align:right;font-variant-numeric:tabular-nums;color:var(--ia-text-muted)}
+.ivp-status{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ia-text-muted);margin:0 0 14px}
+.ivp-dot{width:7px;height:7px;border-radius:50%;background:var(--ia-accent);animation:ivpp 1s infinite}
+.ivp-status.done .ivp-dot{animation:none;opacity:.5}
+@keyframes ivpp{0%,100%{opacity:1}50%{opacity:.25}}
+.ivp-sk{display:block;height:10px;border-radius:5px;background:linear-gradient(90deg,var(--ia-hover) 25%,color-mix(in srgb,var(--ia-text) 9%,transparent) 50%,var(--ia-hover) 75%);background-size:200% 100%;animation:ivpsk 1.2s infinite linear}
+@keyframes ivpsk{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.ivp-in{animation:ivpin .3s ease both}
+@keyframes ivpin{from{opacity:0}to{opacity:1}}
+@media(max-width:1100px){.ivp{grid-template-columns:repeat(2,minmax(0,1fr))}.ivp>*{border-bottom:.5px solid var(--ia-border)}.ivp-chart{grid-column:1/-1}}
+@media(max-width:640px){.ivp-chart{display:none}.ivp .v{font-size:20px}}
 @endpush
 
 @section('content')
@@ -158,7 +188,7 @@
 <div class="ia-page-head">
   <div class="ia-page-head-left">
     <h1 class="ia-page-title">Inventory</h1>
-    <p class="ia-page-subtitle">{{ number_format($total) }} {{ Str::plural('item', $total) }}</p>
+    <p class="ia-page-subtitle" id="inv-sub">@if($deferList ?? false)Counting items…@else{{ number_format($total) }} {{ Str::plural('item', $total) }}@endif</p>
   </div>
   <div class="ia-page-actions">
     {{-- Categories, Receiving and Reports are tabs in
@@ -242,6 +272,45 @@
   </div>
 @else
 
+{{-- MARKER-INV-FAST-LOAD: the numbers strip. Drawn at once; the counts arrive in the
+     background and count up. Each number is the stock filter of the same name. --}}
+@unless($archived)
+@php
+  $ivpLink = fn ($st) => route('tenant.inventory.index', array_filter(['s' => $search, 'category' => $category, 'stock' => $st], fn ($v) => $v !== null && $v !== '') + ['stock' => $st]);
+  $ivpTiles = [
+    ['k' => 'items', 'st' => '',    'l' => 'Items',        'd' => 'active in your inventory'],
+    ['k' => 'in',    'st' => 'in',  'l' => 'In stock',     'd' => 'with at least one on hand'],
+    ['k' => 'low',   'st' => 'low', 'l' => 'Low stock',    'd' => 'at or under reorder point'],
+    ['k' => 'out',   'st' => 'out', 'l' => 'Out of stock', 'd' => 'none on hand'],
+  ];
+  $ivpRoots = collect($categoryTree)->where('depth', 0)->sortByDesc('count')->take(5)->values();
+  $ivpMax = max(1, (int) ($ivpRoots->max('count') ?? 1));
+  $ivpScope = $category ? (collect($categoryTree)->first(fn ($n) => $n['cat']->id === $category)['cat']->name ?? null) : null;
+@endphp
+<div class="ivp" id="ivp">
+  @foreach($ivpTiles as $t)
+    <a class="ivp-t {{ (string) $stock === $t['st'] ? 'on' : '' }} {{ $t['k'] === 'low' || $t['k'] === 'out' ? 'w' : '' }}" href="{{ $ivpLink($t['st']) }}" title="Show {{ strtolower($t['l']) }}">
+      <div class="l">{{ $t['l'] }}</div>
+      <div class="v wait" data-k="{{ $t['k'] }}">—</div>
+      <div class="s">{{ $t['d'] }}</div>
+    </a>
+  @endforeach
+  <div class="ivp-chart">
+    <div class="l">Items by category</div>
+    <div class="bars">
+      @foreach($ivpRoots as $r)
+        <a class="bar" href="{{ route('tenant.inventory.index', ['category' => $r['cat']->id]) }}" title="Show {{ $r['cat']->name }}">
+          <span class="n">{{ $r['cat']->name }}</span>
+          <span class="t"><span class="f" data-w="{{ round($r['count'] / $ivpMax * 100, 1) }}"></span></span>
+          <span class="p">{{ number_format($r['count']) }}</span>
+        </a>
+      @endforeach
+    </div>
+  </div>
+</div>
+<div class="ivp-status" id="ivp-status"><span class="ivp-dot"></span><span id="ivp-status-t">Counting{{ $ivpScope ? ' ' . $ivpScope : '' }} items…</span></div>
+@endunless
+
 {{-- reachable, because nobody guesses a URL parameter
      when an item goes missing. --}}
 @if($archived)
@@ -275,22 +344,23 @@
   </div>
   @unless($includeSubs)<input type="hidden" name="subs" value="0">@endunless
 
-  @if($brandOptions->isNotEmpty())
-    <div style="min-width:170px">
+  {{-- MARKER-INV-FAST-LOAD: brand and vendor choices are filled in after the page opens --}}
+  @if(true)
+    <div style="min-width:170px" id="inv-f-brand" @if($brandOptions->isEmpty()) hidden @endif>
       <x-tenant.searchable-select name="brand" :options="$brandOptions->values()->all()"
         :selected="(string) ($brand ?? '')" any="All brands" noun="brands"
         :searchable="$brandOptions->count() >= 12" />
     </div>
   @endif
 
-  @if($distributorOptions->count() > 1)
+  @if(true)
     {{-- vendors, not only catalog feeds: a shop's own
          vendor could never appear while this listed distributor codes. --}}
     @php
       $sselDist = [];
       foreach ($distributorOptions as $dId => $dName) { $sselDist[(string) $dId] = 'From ' . $dName; }
     @endphp
-    <div style="min-width:180px">
+    <div style="min-width:180px" id="inv-f-vendor" @if($distributor === '') hidden @endif>
       <x-tenant.searchable-select name="distributor" :options="$sselDist" :assoc="true"
         :selected="(string) ($distributor ?? '')" any="All vendors" noun="vendors"
         :searchable="true" />
@@ -364,6 +434,7 @@
 @endif
 
 {{-- a misspelt word was swapped for the nearest real one. --}}
+<div id="inv-search-note">
 @if(!empty($searchMissing))
   <div style="margin:0 0 12px;font-size:13px;color:var(--ia-text-muted)">
     No match for every word — showing results without
@@ -374,6 +445,7 @@
     Nothing matched <strong style="color:var(--ia-text)">{{ $search }}</strong> — showing results for <strong style="color:var(--ia-text)">{{ $searchCorrected }}</strong>.
   </div>
 @endif
+</div>
 
 {{-- the hierarchy the category admin already builds,
      finally visible where items are browsed. Plain links keep filters
@@ -668,6 +740,18 @@
   </div>
 @endif
 
+<div id="inv-list-desk">
+@if($deferList ?? false)
+  {{-- MARKER-INV-FAST-LOAD: placeholder rows until the list arrives --}}
+  <div class="ia-card inv-desk-card"><div class="ia-table-wrap"><table class="ia-table">
+    <thead><tr><th style="width:4px;padding:0"></th><th style="width:30px"></th><th>Item</th><th>UPC</th><th style="text-align:right">Stock</th><th style="text-align:right">Price</th><th style="text-align:right">Cost</th></tr></thead>
+    <tbody>
+      @for($i = 0; $i < 8; $i++)
+        <tr><td style="padding:0"></td><td></td><td><span class="ivp-sk" style="width:{{ [72, 58, 80, 64, 70, 55, 76, 61][$i] }}%"></span><span class="ivp-sk" style="width:28%;height:8px;margin-top:7px"></span></td><td><span class="ivp-sk" style="width:80%"></span></td><td><span class="ivp-sk" style="width:26px;margin-left:auto"></span></td><td><span class="ivp-sk" style="width:52px;margin-left:auto"></span></td><td><span class="ivp-sk" style="width:46px;margin-left:auto"></span></td></tr>
+      @endfor
+    </tbody>
+  </table></div></div>
+@else
 <div class="ia-card inv-desk-card">
   @include('tenant.inventory._partials.pager', ['pagerWhere' => 'top'])
   @if($items->isEmpty())
@@ -714,12 +798,21 @@
   @endif
   @include('tenant.inventory._partials.pager', ['pagerWhere' => 'bottom'])
 </div>
+@endif
+</div>{{-- /inv-list-desk --}}
 </div>{{-- /flex:1 --}}
 </div>{{-- /inv-split --}}
 
 {{-- Mobile card list (≤640px). Same data, different shape. --}}
+<div id="inv-list-mobile">
 <div class="inv-mobile">
-  @if($items->isEmpty())
+  @if($deferList ?? false)
+    <div class="inv-mobile-list">
+      @for($i = 0; $i < 6; $i++)
+        <div style="padding:14px 4px;border-bottom:.5px solid var(--ia-border)"><span class="ivp-sk" style="width:{{ [70, 55, 78, 62, 68, 50][$i] }}%"></span><span class="ivp-sk" style="width:30%;height:8px;margin-top:8px"></span></div>
+      @endfor
+    </div>
+  @elseif($items->isEmpty())
     <div class="inv-mobile-list">
       @include('tenant.inventory._partials.empty-state', ['emptyVariant' => 'mobile'])
     </div>
@@ -775,8 +868,9 @@
       @endforeach
     </div>
   @endif
-  @include('tenant.inventory._partials.pager', ['pagerWhere' => 'mobile'])
+  @unless($deferList ?? false)@include('tenant.inventory._partials.pager', ['pagerWhere' => 'mobile'])@endunless
 </div>
+</div>{{-- /inv-list-mobile --}}
 
 {{-- Filter sheet (mobile) --}}
 <div class="inv-sheet-overlay" id="inv-sheet-overlay" onclick="invCloseSheet()"></div>
@@ -866,6 +960,69 @@
 
 </div>
 @include('tenant.inventory._labels')
+
+@push('scripts')
+<script>
+/* MARKER-INV-FAST-LOAD: fill the page in after it opens */
+(function () {
+  var here = new URL(location.href);
+  function url(frame) { var u = new URL(here); u.searchParams.set('frame', frame); return u.toString(); }
+  function get(frame, as) {
+    return fetch(url(frame), { headers: { 'Accept': as === 'json' ? 'application/json' : 'text/html', 'X-Intake-Background': '1' }, credentials: 'same-origin' })
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return as === 'json' ? r.json() : r.text(); });
+  }
+  function fmt(n) { return Number(n).toLocaleString(); }
+  function countUp(el, to) {
+    el.classList.remove('wait');
+    var start = performance.now();
+    (function step(t) { var k = Math.min(1, (t - start) / 700); el.textContent = fmt(Math.round(to * (1 - Math.pow(1 - k, 3)))); if (k < 1) requestAnimationFrame(step); })(start);
+  }
+
+  // the chart's bars fill as the page opens: their numbers are already on the page
+  requestAnimationFrame(function () {
+    document.querySelectorAll('.ivp .bar .f').forEach(function (f, i) { setTimeout(function () { f.style.width = f.dataset.w + '%'; }, 120 + i * 90); });
+  });
+
+  // the strip's counts
+  if (document.getElementById('ivp')) {
+    get('summary', 'json').then(function (c) {
+      document.querySelectorAll('.ivp [data-k]').forEach(function (el) { if (c[el.dataset.k] !== undefined) countUp(el, c[el.dataset.k]); });
+      var st = document.getElementById('ivp-status'); st.classList.add('done');
+      document.getElementById('ivp-status-t').textContent = 'Up to date · counted just now';
+    }).catch(function () {
+      document.getElementById('ivp-status-t').textContent = 'Couldn\u2019t count just now. Reload to try again.';
+    });
+  }
+
+  // the list
+  @if($deferList ?? false)
+  get('list', 'html').then(function (html) {
+    var doc = new DOMParser().parseFromString(html, 'text/html');
+    ['inv-list-desk', 'inv-list-mobile', 'inv-search-note', 'inv-sub'].forEach(function (id) {
+      var fresh = doc.getElementById(id), cur = document.getElementById(id);
+      if (fresh && cur) { cur.replaceWith(fresh); fresh.classList.add('ivp-in'); }
+    });
+  }).catch(function () {
+    var d = document.getElementById('inv-list-desk');
+    if (d) d.innerHTML = '<div class="ia-card"><div class="ia-card-body">Couldn\u2019t load your items. <a href="' + location.href + '">Reload</a></div></div>';
+  });
+  @endif
+
+  // brand and vendor choices
+  get('filters', 'json').then(function (o) {
+    var b = document.getElementById('inv-f-brand'), v = document.getElementById('inv-f-vendor');
+    var bApi = b && b.querySelector('.ssel') && b.querySelector('.ssel').__sselApi;
+    if (bApi && o.brands.length) { bApi.setOptions(o.brands); b.hidden = false; }
+    var vApi = v && v.querySelector('.ssel') && v.querySelector('.ssel').__sselApi;
+    if (vApi && o.vendors.length > 1) {
+      var cur = vApi.getValue();
+      o.vendors.forEach(function (x) { vApi.addOption(x.id, 'From ' + x.name, x.id === cur); });
+      v.hidden = false;
+    }
+  }).catch(function () {});
+})();
+</script>
+@endpush
 @endsection
 
 @push('scripts')
