@@ -114,6 +114,7 @@ class PosConnectionController extends Controller
 
         return response()->json([
             'state'          => $conn?->sync_state ?? null,
+            'customers'      => $conn?->customer_sync ?? null, // MARKER-POS-CUSTOMERS-IN
             'last_synced_at' => $conn?->last_synced_at?->diffForHumans(),
             'linked'         => $conn ? \Illuminate\Support\Facades\DB::table('tenant_pos_items')->where('tenant_id', $conn->tenant_id)->whereNotNull('inventory_item_id')->whereNull('removed_at')->count() : 0,
             // MARKER-CONNECTED-POS-PUSH
@@ -244,6 +245,62 @@ class PosConnectionController extends Controller
             \App\Services\Pos\PosPushService::kick($conn->tenant_id);
         }
         return $this->back()->with('success', $n ? 'Filling in details for ' . number_format($n) . ' items. Watch them under Sending — Stop works here too.' : 'Every item in your Connected POS already has its details.');
+    }
+
+    /** MARKER-POS-CUSTOMERS-IN: turn bringing in customers on or off. Turning it on starts the first import. */
+    public function customersSettings(Request $request, \App\Services\Pos\PosCustomerSync $sync): RedirectResponse
+    {
+        $this->guard();
+        $conn = TenantPosConnection::where('tenant_id', tenant()->id)->where('status', 'connected')->firstOrFail();
+        $on = $request->boolean('customers_in');
+        $was = (bool) $conn->customers_in;
+        $conn->forceFill(['customers_in' => $on])->save();
+        if ($on && ! $was && empty(($conn->customer_sync ?? [])['last_done'])) {
+            $sync->start($conn, true);
+            \App\Jobs\PosCustomerSyncJob::dispatch($conn->id);
+            return $this->back()->with('success', 'Bringing in customers — progress is shown below.');
+        }
+        return $this->back()->with('success', $on ? 'Customers keep coming in about every minute.' : 'Customers no longer come in. Those already brought in stay.');
+    }
+
+    /** Re-read every customer (fills blanks on matches, adds anyone new). */
+    public function customersImport(\App\Services\Pos\PosCustomerSync $sync): RedirectResponse
+    {
+        $this->guard();
+        $conn = TenantPosConnection::where('tenant_id', tenant()->id)->where('status', 'connected')->firstOrFail();
+        if (! $conn->customers_in) {
+            return $this->back()->with('error', 'Turn on Bring in customers first.');
+        }
+        if (($conn->customer_sync['running'] ?? false) && $conn->updated_at?->gt(now()->subMinutes(15))) {
+            return $this->back()->with('success', 'Customers are already coming in — progress is shown below.');
+        }
+        $sync->start($conn, true);
+        \App\Jobs\PosCustomerSyncJob::dispatch($conn->id);
+        return $this->back()->with('success', 'Reading every customer again — progress is shown below.');
+    }
+
+    public function customersStop(): RedirectResponse
+    {
+        $this->guard();
+        $conn = TenantPosConnection::where('tenant_id', tenant()->id)->firstOrFail();
+        $st = (array) ($conn->customer_sync ?? []);
+        $st['running'] = false; $st['stopped'] = true; $st['finished_at'] = now()->toIso8601String();
+        $conn->forceFill(['customer_sync' => $st])->save();
+        return $this->back()->with('success', 'Stopped after page ' . number_format($st['pages'] ?? 0) . '. Resume carries on from there.');
+    }
+
+    public function customersResume(): RedirectResponse
+    {
+        $this->guard();
+        $conn = TenantPosConnection::where('tenant_id', tenant()->id)->firstOrFail();
+        if (! $conn->customers_in) {
+            return $this->back()->with('error', 'Turn on Bring in customers first.');
+        }
+        $st = (array) ($conn->customer_sync ?? []);
+        $st['running'] = true; $st['stopped'] = false; $st['error'] = null; $st['finished_at'] = null;
+        $conn->forceFill(['customer_sync' => $st])->save();
+        \App\Jobs\PosCustomerSyncJob::dispatch($conn->id);
+        return $this->back()->with('success', 'Resumed from page ' . number_format($st['pages'] ?? 0) . '.');
     }
 
     /** MARKER-POS-STOP-SENDS: stop everything still waiting to send. Nothing already sent is touched. */

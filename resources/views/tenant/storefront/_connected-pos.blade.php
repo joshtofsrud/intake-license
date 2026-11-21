@@ -38,7 +38,8 @@
     <li><b>Goes out to your Connected POS</b> (only what you turn on under Sending): paid online orders as completed sales, their refunds, items an order needs that it doesn't have, items you choose to send from Inventory, and — if you choose — your edits to names, SKUs, barcodes and descriptions. Price is never sent except for a brand-new item.</li>
     <li>When both sides changed the same field, nothing is overwritten; it waits under <b>Needs review</b>.</li>
     <li>Items new to Intake start <b>off</b> the online store — choose what to sell under Availability.</li>
-    <li><b>Not yet:</b> customers and purchase history.</li>
+    <li><b>Customers</b> (with Bring in customers on): matched to yours by email, then phone. A match only has its blank fields filled; nobody is opted in to marketing.</li>
+    <li><b>Not yet:</b> purchase history.</li>
   </ul>
 </details>
 
@@ -131,6 +132,62 @@
     </div>
     <p class="ec-note" id="psPhase">@if(($ss['running'] ?? false) && !$importWaiting) Step: {{ ($ss['phase'] ?? '') === 'stock' ? 'reading stock counts' : 'reading products' }} · page {{ $ss['pages'] ?? 0 }} @endif</p>
   </div>
+
+  {{-- MARKER-POS-CUSTOMERS-IN: customers coming in, with live progress and Stop/Resume --}}
+  @php $cs = (array) ($pc->customer_sync ?? []); $csRunning = (bool) ($cs['running'] ?? false); @endphp
+  <div class="ec-sec" id="posCust" data-running="{{ $csRunning ? 1 : 0 }}">
+    <h3>Customers from your Connected POS</h3>
+    <form method="POST" action="{{ route('tenant.storefront.pos.customers') }}" class="ec-row">
+      @csrf
+      <div><div class="t">Bring in customers</div><div class="d">The first time, every customer is read; after that, new and changed ones come in about every minute. Each is matched to an Intake customer by email, then phone, and only blank fields are filled. No one is opted in to marketing, and "do not email" there means opted out here.</div></div>
+      <div class="ctl"><label class="tg"><input type="hidden" name="customers_in" value="0"><input type="checkbox" name="customers_in" value="1" @checked($pc->customers_in) onchange="this.form.submit()"><i></i></label></div>
+    </form>
+    @if($pc->customers_in || $cs)
+      <div class="ec-row">
+        <div>
+          <div class="t" id="pcHead">@if($csRunning) Bringing in customers… @elseif($cs['stopped'] ?? false) Stopped @elseif(! empty($cs['error'])) Last run stopped with an error @elseif(! empty($cs['last_done'])) Up to date @else Not started @endif</div>
+          <div class="av-sum" style="margin-top:8px" id="pcNums">
+            <div>Read<b data-k="seen">{{ number_format($cs['seen'] ?? 0) }}</b></div>
+            <div>Matched<b data-k="matched">{{ number_format($cs['matched'] ?? 0) }}</b></div>
+            <div>New<b data-k="created">{{ number_format($cs['created'] ?? 0) }}</b></div>
+            <div>Filled in<b data-k="filled">{{ number_format($cs['filled'] ?? 0) }}</b></div>
+            <div>Skipped<b data-k="skipped">{{ number_format($cs['skipped'] ?? 0) }}</b></div>
+          </div>
+          <div class="d" id="pcErr" style="color:#A32D2D">{{ $cs['error'] ?? '' }}</div>
+          <div class="d">Skipped: deleted in your Connected POS, or no name, email or phone to know them by.</div>
+        </div>
+        <div class="ctl">
+          @if($csRunning)
+            <form method="POST" action="{{ route('tenant.storefront.pos.customers_stop') }}">@csrf<button class="ia-btn ia-btn--secondary ia-btn--sm" type="submit">Stop</button></form>
+          @elseif($cs['stopped'] ?? false)
+            <form method="POST" action="{{ route('tenant.storefront.pos.customers_resume') }}">@csrf<button class="ia-btn ia-btn--primary ia-btn--sm" type="submit">Resume from page {{ number_format($cs['pages'] ?? 0) }}</button></form>
+          @endif
+          @if($pc->customers_in && ! $csRunning)
+            <form method="POST" action="{{ route('tenant.storefront.pos.customers_import') }}">@csrf<button class="ia-btn ia-btn--secondary ia-btn--sm" type="submit">Read every customer again</button></form>
+          @endif
+        </div>
+      </div>
+    @endif
+  </div>
+  <script>
+  /* MARKER-POS-CUSTOMERS-IN: live progress while customers come in */
+  (function(){
+    var box=document.getElementById('posCust'); if(!box || box.dataset.running!=='1') return;
+    var url=@json(route('tenant.storefront.pos.status'));
+    function tick(){
+      fetch(url,{headers:{'Accept':'application/json','X-Intake-Background':'1'},credentials:'same-origin'})
+        .then(function(r){ return r.ok ? r.json() : null; })
+        .then(function(j){
+          var s=j && j.customers; if(!s) return;
+          box.querySelectorAll('#pcNums [data-k]').forEach(function(b){ b.textContent=(s[b.dataset.k]||0).toLocaleString(); });
+          document.getElementById('pcErr').textContent=s.error||'';
+          if(!s.running){ location.reload(); return; }
+          setTimeout(tick,2000);
+        }).catch(function(){ setTimeout(tick,4000); });
+    }
+    setTimeout(tick,1500);
+  })();
+  </script>
 
   {{-- going out --}}
   <form method="POST" action="{{ route('tenant.storefront.pos.push_settings') }}" class="ec-sec">

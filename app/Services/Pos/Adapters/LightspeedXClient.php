@@ -140,6 +140,39 @@ class LightspeedXClient implements PosAdapter
         return ['items' => $items, 'cursor' => $max !== null ? (string) $max : $cursor, 'more' => count($rows) > 0];
     }
 
+    /** MARKER-POS-CUSTOMERS-IN */
+    public function pullCustomers(string $accessToken, string $accountId, array $context, ?string $cursor): array
+    {
+        $prefix = $this->prefix((string) ($context['domain_prefix'] ?? ''));
+        $body = $this->get($accessToken, $this->api($prefix, 'customers'), ['after' => (int) ($cursor ?? 0), 'page_size' => 1000, 'deleted' => 'true']);
+        $rows = (array) ($body['data'] ?? []);
+        $max = $body['version']['max'] ?? null;
+
+        $out = [];
+        foreach ($rows as $r) {
+            if (! is_array($r) || empty($r['id'])) {
+                continue;
+            }
+            $out[] = [
+                'id'           => (string) $r['id'],
+                'first_name'   => trim((string) ($r['first_name'] ?? '')),
+                'last_name'    => trim((string) ($r['last_name'] ?? '')),
+                'email'        => trim((string) ($r['email'] ?? '')),
+                'phone'        => trim((string) (($r['mobile'] ?? '') ?: ($r['phone'] ?? ''))),
+                'address1'     => trim((string) ($r['physical_address_1'] ?? $r['physical_address1'] ?? '')),
+                'address2'     => trim((string) ($r['physical_address_2'] ?? $r['physical_address2'] ?? '')),
+                'city'         => trim((string) ($r['physical_city'] ?? '')),
+                'state'        => trim((string) ($r['physical_state'] ?? '')),
+                'postcode'     => trim((string) ($r['physical_postcode'] ?? '')),
+                'country'      => trim((string) ($r['physical_country_id'] ?? '')),
+                'no_marketing' => ! empty($r['do_not_email']),
+                'deleted'      => ! empty($r['deleted_at']),
+            ];
+        }
+
+        return ['customers' => $out, 'cursor' => $max !== null ? (string) $max : $cursor, 'more' => count($rows) > 0];
+    }
+
     public function pullStock(string $accessToken, string $accountId, array $context, ?string $cursor): array
     {
         $prefix = $this->prefix((string) ($context['domain_prefix'] ?? ''));

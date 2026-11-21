@@ -22,6 +22,7 @@ class TenantPosConnection extends Model
         'external_account_id', 'external_account_name', 'context', 'locations', 'payment_types',
         'connected_by', 'connected_at', 'last_checked_at', 'last_error',
         'location_map', 'removal_mode', 'sync_enabled', 'sync_state', 'last_synced_at', // MARKER-CONNECTED-POS-CATALOG
+        'customers_in', 'customer_sync', // MARKER-POS-CUSTOMERS-IN
         'orders_out', 'order_setup', 'setup_options', 'items_create', 'items_edits', // MARKER-CONNECTED-POS-PUSH
     ];
 
@@ -37,6 +38,8 @@ class TenantPosConnection extends Model
         'context'          => 'array', // MARKER-POS-CONTEXT
         'location_map'     => 'array',
         'sync_state'       => 'array',
+        'customers_in'     => 'boolean',
+        'customer_sync'    => 'array',
         'sync_enabled'     => 'boolean',
         'last_synced_at'   => 'datetime',
         'orders_out'       => 'boolean',

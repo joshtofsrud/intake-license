@@ -143,4 +143,13 @@ interface PosAdapter
      * postcode, country. Null when this POS can't attach customers yet.
      */
     public function findOrCreateCustomer(string $accessToken, string $accountId, array $context, array $c): ?string;
+
+    /**
+     * MARKER-POS-CUSTOMERS-IN: one page of customers, changed since the cursor (null = from the
+     * beginning). Each: id, first_name, last_name, email, phone, address1, address2, city,
+     * state, postcode, country, no_marketing (bool), deleted (bool).
+     *
+     * @return array{customers: list<array>, cursor: ?string, more: bool}
+     */
+    public function pullCustomers(string $accessToken, string $accountId, array $context, ?string $cursor): array;
 }

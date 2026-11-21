@@ -34,6 +34,20 @@ class PosSync extends Command
             PosCatalogSyncJob::dispatch($conn->id);
         });
 
+        // MARKER-POS-CUSTOMERS-IN: customers changed since the last run, for shops that bring them in
+        TenantPosConnection::where('customers_in', true)->where('status', 'connected')->each(function (TenantPosConnection $conn) use ($full) {
+            $st = (array) ($conn->customer_sync ?? []);
+            if (($st['stopped'] ?? false) || empty($st['last_done'])) {
+                return; // stopped by the shop, or the first import hasn't finished: Import / Resume handle those
+            }
+            $stuck = ($st['running'] ?? false) && $conn->updated_at && $conn->updated_at->lt(now()->subMinutes(15));
+            if (($st['running'] ?? false) && ! $stuck) {
+                return;
+            }
+            app(\App\Services\Pos\PosCustomerSync::class)->start($conn, $full);
+            \App\Jobs\PosCustomerSyncJob::dispatch($conn->id);
+        });
+
         return self::SUCCESS;
     }
 }

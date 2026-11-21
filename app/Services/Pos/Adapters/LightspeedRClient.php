@@ -141,6 +141,41 @@ class LightspeedRClient implements PosAdapter
         return $this->advance($c, count($rows), 100) + ['items' => $items];
     }
 
+    /** MARKER-POS-CUSTOMERS-IN: not yet tried against a real R-Series account. */
+    public function pullCustomers(string $accessToken, string $accountId, array $context, ?string $cursor): array
+    {
+        $c = $this->cursor($cursor);
+        $q = ['limit' => 100, 'offset' => $c['offset'], 'sort' => 'timeStamp', 'load_relations' => '["Contact"]', 'archived' => 'true'];
+        if ($c['since']) {
+            $q['timeStamp'] = '>,' . $c['since'];
+        }
+        $rows = $this->rows(($this->get($accessToken, $this->url($accountId, 'Customer.json'), $q))['Customer'] ?? null);
+
+        $out = [];
+        foreach ($rows as $r) {
+            if (! isset($r['customerID'])) {
+                continue;
+            }
+            $c['max'] = max($c['max'] ?? '', (string) ($r['timeStamp'] ?? ''));
+            $ct = (array) ($r['Contact'] ?? []);
+            $email = '';
+            foreach ($this->rows($ct['Emails']['ContactEmail'] ?? null) as $e) { $email = $email ?: trim((string) ($e['address'] ?? '')); }
+            $phone = '';
+            foreach ($this->rows($ct['Phones']['ContactPhone'] ?? null) as $ph) { $phone = $phone ?: trim((string) ($ph['number'] ?? '')); }
+            $ad = $this->rows($ct['Addresses']['ContactAddress'] ?? null)[0] ?? [];
+            $out[] = [
+                'id' => (string) $r['customerID'], 'first_name' => trim((string) ($r['firstName'] ?? '')), 'last_name' => trim((string) ($r['lastName'] ?? '')),
+                'email' => $email, 'phone' => $phone,
+                'address1' => trim((string) ($ad['address1'] ?? '')), 'address2' => trim((string) ($ad['address2'] ?? '')), 'city' => trim((string) ($ad['city'] ?? '')),
+                'state' => trim((string) ($ad['state'] ?? '')), 'postcode' => trim((string) ($ad['zip'] ?? '')), 'country' => trim((string) ($ad['countryCode'] ?? '')),
+                'no_marketing' => ($ct['noEmail'] ?? 'false') === 'true',
+                'deleted' => ($r['archived'] ?? 'false') === 'true',
+            ];
+        }
+
+        return $this->advance($c, count($rows), 100) + ['customers' => $out];
+    }
+
     public function pullStock(string $accessToken, string $accountId, array $context, ?string $cursor): array
     {
         $c = $this->cursor($cursor);

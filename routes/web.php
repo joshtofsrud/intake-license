@@ -571,6 +571,11 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::post('/storefront/pos/sends-resume',  [TenantControllers\PosConnectionController::class, 'sendsResume'])->name('storefront.pos.sends_resume');
                 Route::post('/storefront/pos/clear-stopped', [TenantControllers\PosConnectionController::class, 'clearStopped'])->name('storefront.pos.clear_stopped'); // MARKER-POS-TAB-V2
                 Route::post('/storefront/pos/clear-failed',  [TenantControllers\PosConnectionController::class, 'clearFailed'])->name('storefront.pos.clear_failed');
+                // MARKER-POS-CUSTOMERS-IN
+                Route::post('/storefront/pos/customers',        [TenantControllers\PosConnectionController::class, 'customersSettings'])->name('storefront.pos.customers');
+                Route::post('/storefront/pos/customers/import', [TenantControllers\PosConnectionController::class, 'customersImport'])->name('storefront.pos.customers_import')->middleware('throttle:6,1');
+                Route::post('/storefront/pos/customers/stop',   [TenantControllers\PosConnectionController::class, 'customersStop'])->name('storefront.pos.customers_stop');
+                Route::post('/storefront/pos/customers/resume', [TenantControllers\PosConnectionController::class, 'customersResume'])->name('storefront.pos.customers_resume');
                 Route::post('/storefront/pos/fill-details', [TenantControllers\PosConnectionController::class, 'fillDetails'])->name('storefront.pos.fill_details'); // MARKER-POS-ITEM-DETAILS
                 Route::post('/storefront/pos/send-recent-orders', [TenantControllers\PosConnectionController::class, 'sendRecentOrders'])->name('storefront.pos.send_recent_orders'); // MARKER-POS-CATCHUP
                 Route::post('/storefront/pos/stop-sends',    [TenantControllers\PosConnectionController::class, 'stopSends'])->name('storefront.pos.stop_sends'); // MARKER-POS-STOP-SENDS
