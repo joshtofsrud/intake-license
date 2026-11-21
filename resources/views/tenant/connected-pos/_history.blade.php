@@ -102,7 +102,11 @@
       <div>To<b>{{ $hDay($hsum['last']) }}</b></div>
     </div>
     <div class="cp-actions">
-      <a class="ia-btn ia-btn--secondary ia-btn--sm" href="{{ route('tenant.reports.custom') }}">Open reports</a><button type="button" class="ia-tip" aria-label="What this does">i</button><span class="ia-tip-text" hidden>In reports, pick <b>Connected POS sales</b> as the data, or open the <b>Connected POS sales by month</b> template.</span>
+      @php
+        // opens the builder straight on Connected POS sales by month (the builder reads ?cfg=, base64 JSON)
+        $hCfg = rtrim(strtr(base64_encode(json_encode(['ds' => 'pos', 'measures' => ['rev', 'tickets', 'avg'], 'dim' => 'month', 'range' => 'Last 12 months'])), '+/', '-_'), '=');
+      @endphp
+      <a class="ia-btn ia-btn--secondary ia-btn--sm" href="{{ route('tenant.reports.custom', ['cfg' => $hCfg]) }}">Open the report</a>
       <a class="ia-btn ia-btn--secondary ia-btn--sm" href="{{ route('tenant.buying') }}">Open Buying</a>
       @unless($hRunning)
         <form method="POST" action="{{ route('tenant.cpos.sales_clear') }}">@csrf<button class="ia-btn ia-btn--ghost ia-btn--sm" type="submit" data-confirm="Remove all {{ number_format($hsum['sales']) }} Connected POS sales from Intake? They disappear from customer pages, Buying, reports and Recovery. Your Connected POS, your stock and your own Intake sales are not touched, and you can read the history in again.">Remove sales history</button></form>
