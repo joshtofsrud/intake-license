@@ -161,29 +161,60 @@ class WarehouseRegistry
         return $out;
     }
 
-    /** How many of the shop's items each warehouse shows stock for ("dist|code" => n). Cached briefly. */
+    /**
+     * How many of the shop's items each warehouse shows stock for ("dist|code" => n).
+     *
+     * MARKER-WH-COUNT-FAST: this count reads every distributor link the shop has, so it is
+     * never made to wait for twice. It is fresh for 10 minutes; after that the page gets the
+     * count it already has straight away and a new one is worked out once the page has gone
+     * out (kept up to a day). Only the very first load for a shop counts while it waits.
+     */
     public static function stockCounts(Tenant $tenant): array
     {
-        return Cache::remember('wh_stock_counts:' . $tenant->id, 600, function () use ($tenant) {
-            $out = [];
-            DB::table('tenant_inventory_item_vendors as iv')
-                ->join('tenant_inventory_items as i', 'i.id', '=', 'iv.inventory_item_id')
-                ->where('i.tenant_id', $tenant->id)->where('i.is_active', true)
-                ->whereNotNull('iv.live_warehouses')->whereNotNull('iv.distributor_code')
-                ->select('iv.id', 'iv.distributor_code', 'iv.live_warehouses')
-                ->orderBy('iv.id')
-                ->chunk(2000, function ($rows) use (&$out) {
-                    foreach ($rows as $r) {
-                        foreach ((array) json_decode((string) $r->live_warehouses, true) as $w) {
-                            if ((int) ($w['q'] ?? 0) > 0) {
-                                $k = strtoupper($r->distributor_code) . '|' . trim((string) ($w['c'] ?? ''));
-                                $out[$k] = ($out[$k] ?? 0) + 1;
-                            }
+        return Cache::flexible('wh_stock_counts:v2:' . $tenant->id, [600, 86400], fn () => self::countStock($tenant));
+    }
+
+    /**
+     * Count again now and keep the result. For background work that has just changed the
+     * numbers (the end of a distributor sync), so the next person to open a page gets the new
+     * count without waiting for it. (Forgetting the kept count there made that person wait.)
+     */
+    public static function refreshStockCounts(Tenant $tenant): array
+    {
+        $key = 'wh_stock_counts:v2:' . $tenant->id;
+        $out = self::countStock($tenant);
+        Cache::putMany([$key => $out, "illuminate:cache:flexible:created:{$key}" => now()->getTimestamp()], 86400);
+
+        return $out;
+    }
+
+    /**
+     * The count itself. Walks the shop's active items by id, a thousand at a time, and reads
+     * only their distributor links. (It used to page through the links with OFFSET behind a
+     * join, which re-read everything before each page: about a second a page, 18 seconds for
+     * a 40,000-item shop.)
+     */
+    public static function countStock(Tenant $tenant): array
+    {
+        $out = [];
+        DB::table('tenant_inventory_items')->where('tenant_id', $tenant->id)->where('is_active', true)
+            ->select('id')
+            ->chunkById(1000, function ($items) use (&$out) {
+                $rows = DB::table('tenant_inventory_item_vendors')
+                    ->whereIn('inventory_item_id', $items->pluck('id')->all())
+                    ->whereNotNull('live_warehouses')->whereNotNull('distributor_code')
+                    ->get(['distributor_code', 'live_warehouses']);
+                foreach ($rows as $r) {
+                    foreach ((array) json_decode((string) $r->live_warehouses, true) as $w) {
+                        if ((int) ($w['q'] ?? 0) > 0) {
+                            $k = strtoupper($r->distributor_code) . '|' . trim((string) ($w['c'] ?? ''));
+                            $out[$k] = ($out[$k] ?? 0) + 1;
                         }
                     }
-                });
-            return $out;
-        });
+                }
+            }, 'id');
+
+        return $out;
     }
 
     /**
@@ -204,7 +235,6 @@ class WarehouseRegistry
         foreach ($valid as $id) {
             if (! isset($seen[$id])) self::putSelection($tenant, $id, ! empty($ticked[$id]), $pos++);
         }
-        Cache::forget('wh_stock_counts:' . $tenant->id);
     }
 
     private static function putSelection(Tenant $tenant, string $wid, bool $on, int $pos): void
@@ -234,7 +264,6 @@ class WarehouseRegistry
         $pos = $row ? (int) $row->priority
             : 1 + (int) DB::table('tenant_warehouse_selections')->where('tenant_id', $tenant->id)->max('priority');
         self::putSelection($tenant, $wid, $on, $pos);
-        Cache::forget('wh_stock_counts:' . $tenant->id);
         return true;
     }
 

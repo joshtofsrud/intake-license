@@ -22,7 +22,14 @@ class FinishTenantDistributorSyncJob implements ShouldQueue
     public function handle(): void
     {
         DistributorSyncRuns::close($this->tenantId, $this->runId);
-        // the box's warehouse stock counts read the fresh numbers straight away
-        \Illuminate\Support\Facades\Cache::forget('wh_stock_counts:' . $this->tenantId);
+        // MARKER-WH-COUNT-FAST: the warehouse stock counts are worked out here, in the background,
+        // so the next page that shows them has the fresh numbers without waiting on the count
+        try {
+            if ($tenant = \App\Models\Tenant::find($this->tenantId)) {
+                \App\Services\Distributors\WarehouseRegistry::refreshStockCounts($tenant);
+            }
+        } catch (\Throwable $e) {
+            report($e); // the sync itself is finished; a count that couldn't be refreshed keeps the last one
+        }
     }
 }

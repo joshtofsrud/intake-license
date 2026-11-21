@@ -198,7 +198,9 @@
     align-items: center;
     justify-content: space-between;
     padding: 4px 20px 10px;
-    /* stays put while the list scrolls under it, so Close is always in reach */
+    /* stays put while the list scrolls under it, so Close is always in reach.
+       The drawer's own top padding is taken off below: rows used to show through
+       that strip, above this header. */
     position: sticky;
     top: 0;
     z-index: 3;
@@ -207,6 +209,9 @@
   }
   .ia-theme-a .ia-drawer-header,
   .ia-theme-c .ia-drawer-header { background: #171717; }
+  .ia-drawer { padding-top: 0; }
+  .ia-drawer-handle { margin-top: 8px; }
+  .ia-drawer-header { border-top-left-radius: 18px; border-top-right-radius: 18px; }
   .ia-drawer-close { min-width: 36px; min-height: 36px; justify-content: center; margin-right: -6px; }
 
   .ia-drawer-title {
