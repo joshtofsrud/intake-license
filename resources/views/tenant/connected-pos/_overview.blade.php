@@ -20,6 +20,10 @@
   if (! empty($cs['finished_at']) && ! ($cs['running'] ?? false)) {
       $acts->push([$when($cs['finished_at']), 'Customers checked: ' . number_format($cs['created'] ?? 0) . ' new, ' . number_format($cs['filled'] ?? 0) . ' filled in']);
   }
+  $sh = (array) ($pc->sales_state ?? []);
+  if (! empty($sh['finished_at']) && ! ($sh['running'] ?? false) && ($sh['full'] ?? false)) {
+      $acts->push([$when($sh['finished_at']), 'Sales history' . (($sh['stopped'] ?? false) ? ' stopped' : ' read') . ': ' . number_format($sh['kept'] ?? 0) . ' sales, ' . number_format($sh['on_customers'] ?? 0) . ' on customers']);
+  }
   if (! empty($im['finished_at']) && ! ($im['running'] ?? false)) {
       $acts->push([$when($im['finished_at']), 'Import' . (($im['stopped'] ?? false) ? ' stopped' : '') . ': ' . number_format($im['created'] ?? 0) . ' new items, ' . number_format($im['linked'] ?? 0) . ' linked']);
   }
@@ -47,6 +51,10 @@
   <div><div class="k">Customers</div><div class="v">{{ $pc->customers_in || ! empty($cs['last_done']) ? number_format(\Illuminate\Support\Facades\DB::table('tenant_pos_customers')->where('tenant_id', $pc->tenant_id)->count()) : '—' }}</div>
     <div class="d">@if($cs['running'] ?? false) coming in now @elseif($pc->customers_in) brought in · new ones about every minute @elseif(! empty($cs['last_done'])) brought in · not coming in any more @else not brought in yet @endif</div>
     <a href="{{ route('tenant.cpos.home', ['tab' => 'customers']) }}">{{ $pc->customers_in || ! empty($cs['last_done']) ? 'Open' : 'Start' }} →</a></div>
+  @php $hs = (array) ($pc->sales_state ?? []); $hn = \App\Services\Pos\PosSalesSync::has($pc->tenant_id) ? \Illuminate\Support\Facades\DB::table('tenant_pos_sales')->where('tenant_id', $pc->tenant_id)->count() : 0; $hReading = ($hs['running'] ?? false) && ($hs['full'] ?? false); @endphp
+  <div><div class="k">Sales history</div><div class="v">@if($hReading)<span data-live="sales.kept">{{ number_format($hs['kept'] ?? 0) }}</span>@else{{ $hn ? number_format($hn) : '—' }}@endif</div>
+    <div class="d">@if($hReading) coming in now · <span data-live="sales.reached">{{ \App\Services\Pos\PosSalesSync::reached($hs, tenant()->timezone()) ?: 'starting' }}</span> @elseif($hs['stopped'] ?? false) stopped part-way @elseif($hn && $pc->sales_in && $pc->isTwoWay()) brought in · new sales about every minute @elseif($hn) brought in @else not brought in yet @endif</div>
+    <a href="{{ route('tenant.cpos.home', ['tab' => 'history']) }}">{{ $hn || $hs ? 'Open' : 'Start' }} →</a></div>
   <div><div class="k">Sending</div><div class="v">{{ $pc->isTwoWay() ? number_format((int) ($cnt['pending'] ?? 0)) : '—' }}</div>
     <div class="d">@if($pc->isTwoWay()) waiting · {{ number_format((int) ($cnt['failed'] ?? 0)) }} failed<br>{{ $pos['last_sale'] ? 'last order sent ' . $when($pos['last_sale'])->diffForHumans() : 'no orders sent yet' }} @else Reading Only: nothing is sent @endif</div>
     <a href="{{ route('tenant.cpos.home', ['tab' => 'sending']) }}">Open →</a></div>

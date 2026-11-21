@@ -582,6 +582,11 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::post('/connected-pos/customers/import', [TenantControllers\PosConnectionController::class, 'customersImport'])->name('cpos.customers_import')->middleware('throttle:6,1');
                 Route::post('/connected-pos/customers/stop',   [TenantControllers\PosConnectionController::class, 'customersStop'])->name('cpos.customers_stop');
                 Route::post('/connected-pos/customers/resume', [TenantControllers\PosConnectionController::class, 'customersResume'])->name('cpos.customers_resume');
+                // MARKER-POS-SALES-HISTORY
+                Route::post('/connected-pos/sales',            [TenantControllers\PosConnectionController::class, 'sales'])->name('cpos.sales')->middleware('throttle:12,1');
+                Route::post('/connected-pos/sales/stop',       [TenantControllers\PosConnectionController::class, 'salesStop'])->name('cpos.sales_stop');
+                Route::post('/connected-pos/sales/resume',     [TenantControllers\PosConnectionController::class, 'salesResume'])->name('cpos.sales_resume');
+                Route::post('/connected-pos/sales/clear',      [TenantControllers\PosConnectionController::class, 'salesClear'])->name('cpos.sales_clear');
                 Route::post('/connected-pos/fill-details',    [TenantControllers\PosConnectionController::class, 'fillDetails'])->name('cpos.fill_details'); // MARKER-POS-ITEM-DETAILS
                 Route::post('/connected-pos/stop-sends',      [TenantControllers\PosConnectionController::class, 'stopSends'])->name('cpos.stop_sends'); // MARKER-POS-STOP-SENDS
                 Route::post('/connected-pos/sends-resume',    [TenantControllers\PosConnectionController::class, 'sendsResume'])->name('cpos.sends_resume');

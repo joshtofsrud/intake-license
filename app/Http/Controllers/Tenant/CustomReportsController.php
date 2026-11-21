@@ -69,7 +69,7 @@ class CustomReportsController extends Controller
                 })->count()
             : 0;
         $templates = array_map(fn ($t) => ['name' => $t[0], 'desc' => $t[1], 'icon' => $t[2]],
-            array_values(array_filter(ReportCatalog::templates(), fn ($t) => ($t[3]['mode'] ?? '') !== 'timeline' && ($t[3]['ds'] ?? '') !== 'dist')));
+            array_values(array_filter(ReportCatalog::templates(), fn ($t) => ($t[3]['mode'] ?? '') !== 'timeline' && ! in_array($t[3]['ds'] ?? '', ['dist', 'pos'], true))));
         return view('tenant.reports.custom_locked', ['templates' => $templates, 'savedCount' => $saved]);
     }
 
@@ -439,7 +439,7 @@ class CustomReportsController extends Controller
         $c = DB::table('tenant_customers')->where('tenant_id', $tid)->where('id', $cfg['tcust'])->whereNull('erased_at')->first();
         if (!$c) return ['customer' => null, 'events' => [], 'stats' => null];
 
-        $map = ['sale' => 'sale', 'appointment' => 'appt', 'message_thread' => 'msg', 'quality_signal' => 'note',
+        $map = ['sale' => 'sale', 'pos_sale' => 'sale', 'appointment' => 'appt', 'message_thread' => 'msg', 'quality_signal' => 'note',
             'class_registration' => 'class', 'pack_grant' => 'class', 'membership_grant' => 'class', 'rental' => 'rental', 'lease' => 'rental'];
         $events = [];
         foreach (app(CustomerTimelineService::class)->buildForCustomer($tid, $c->id) as $e) {

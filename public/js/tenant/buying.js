@@ -103,7 +103,7 @@
       else if (D.canPo) act = '<button type="button" class="ia-btn ia-btn--secondary ia-btn--sm" data-add="' + r.id + '">Add to PO</button>';
       var days = r.onHand <= 0 ? '0d' : (r.days == null ? '<span class="dash">&mdash;</span>' : (r.days >= 999 ? '999+' : Math.round(r.days) + 'd'));
       return '<tr class="click" data-id="' + r.id + '"><td class="mk-item">' + esc(r.name) + '<small>' + esc(r.sku) + (r.brand ? ' · ' + esc(r.brand) : '') + '</small></td>' +
-        '<td><span class="mk-sold">' + spark(r.wk.slice(-Math.max(D.w, 8))) + '<b style="font-weight:500">' + r.sold + '</b></span></td>' +
+        '<td><span class="mk-sold">' + spark(r.wk.slice(-Math.max(D.w, 8))) + '<b style="font-weight:500">' + r.sold + '</b>' + (r.pos ? '<span class="mk-pos" title="' + r.pos + ' of these sold in your Connected POS">POS</span>' : '') + '</span></td>' +
         '<td class="ia-num">' + r.pace.toFixed(1) + '</td><td class="ia-num">' + r.onHand + '</td><td class="ia-num">' + days + '</td>' +
         '<td>' + poCell(r) + '</td>' + (V.report_on ? '<td>' + distCell(r) + '</td>' : '') +
         '<td><span class="rb-pill ' + ST[r.st][1] + '">' + ST[r.st][0] + '</span></td><td style="text-align:right">' + act + '</td></tr>';
@@ -164,6 +164,7 @@
     $('#d-chart').innerHTML = '<svg viewBox="0 0 400 110" width="100%" role="img" aria-label="Weekly units sold">' + w.map(function (v, i) { var h = v / m * 80; return '<rect x="' + (i * 30.5 + 4) + '" y="' + (96 - h) + '" width="24" height="' + h + '" rx="3" fill="' + (i >= 13 - D.set.pace_weeks ? 'var(--ia-accent)' : 'var(--ia-border-strong)') + '"/><text x="' + (i * 30.5 + 16) + '" y="' + (90 - h) + '" text-anchor="middle" font-size="9" fill="currentColor" opacity=".7">' + v + '</text>'; }).join('') + '<line x1="0" y1="96.5" x2="400" y2="96.5" stroke="currentColor" opacity=".15"/></svg>';
     var kv = [['On hand' + (D.loc ? '' : ', all locations'), r.onHand], ['Per week (last ' + D.set.pace_weeks + ')', r.pace.toFixed(1)], ['Days of stock', r.onHand <= 0 ? '0' : (r.days == null ? '—' : Math.round(r.days))], ['Sold, ' + D.window, r.sold],
       ['On order for stock', r.forStock || '—'], d ? ['At ' + d.code, d.avail <= 0 ? 'out' : d.avail.toLocaleString()] : ['Lead time', lead != null ? lead + ' days' : '—']];
+    if (r.pos) kv.splice(4, 0, ['From Connected POS', r.pos + ' of ' + r.sold]);
     if (D.canCost) kv.push(['Cost', money(r.cost)], ['Price', money(r.price)]);
     $('#d-kv').innerHTML = kv.map(function (k) { return '<div><small>' + esc(k[0]) + '</small><b>' + esc(k[1]) + '</b></div>'; }).join('');
     $('#d-onpo').innerHTML = r.lines.length ? 'Already owed: ' + r.lines.map(function (l) { var u = poUrl(l.poId); return '<b>' + l.qty + '</b> on ' + (u ? '<a href="' + u + '">' + esc(l.po) + '</a>' : esc(l.po)) + ' (' + esc(l.loc) + ', ' + (l.due == null ? 'no date yet' : (l.due < 0 ? (-l.due) + 'd late' : 'due ' + esc(l.date))) + (l.cust ? ', ' + l.cust + ' for customers' : '') + ')'; }).join('; ') + '. The suggestion counts these.' : 'Nothing on order for this item.';

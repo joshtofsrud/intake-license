@@ -70,6 +70,10 @@ class ReportCatalog
         // MARKER-ONLINE-REPORTS
         $out['ship'] = new ShipmentsSource($tenant, $p);
         $out['carts'] = new CartsSource($tenant, $p);
+        // MARKER-POS-SALES-HISTORY: only for a shop that has brought Connected POS sales in
+        if (\App\Services\Pos\PosSalesSync::has($tenant->id)) {
+            $out['pos'] = new \App\Services\Tenant\ReportBuilder\Sources\PosHistorySource($tenant, $p);
+        }
         return $out;
     }
 
@@ -260,6 +264,9 @@ class ReportCatalog
             ['Shipping charged against cost', 'What customers paid for shipping and what it cost you, by carrier.', 'truck', ['ds' => 'ship', 'measures' => ['ships', 'charged', 'cost', 'net', 'recover'], 'dim' => 'carrier', 'range' => 'Last 90 days']],
             ['Dropship share', 'How much of what you ship comes from your shop and how much from suppliers.', 'boxes', ['ds' => 'ship', 'measures' => ['ships', 'units', 'supshare'], 'dim' => 'source', 'range' => 'Last 90 days']],
             ['Abandoned carts by item', 'What shoppers put in a cart and walked away from.', 'archive', ['ds' => 'carts', 'measures' => ['aband', 'abandval', 'abandp'], 'dim' => 'item', 'range' => 'Last 90 days', 'limit' => 25]],
+            // MARKER-POS-SALES-HISTORY: shown only when the shop has Connected POS sales (templates follow their data)
+            ['Connected POS sales by month', 'What your Connected POS sold before you moved: revenue, sales and average sale, month by month.', 'history', ['ds' => 'pos', 'measures' => ['rev', 'tickets', 'avg'], 'dim' => 'month', 'range' => 'Last 12 months']],
+            ['Connected POS best sellers', 'The 25 items that sold most in your Connected POS, with what they brought in.', 'trending-up', ['ds' => 'pos', 'measures' => ['items', 'rev', 'marginp'], 'dim' => 'item', 'range' => 'Last 12 months', 'limit' => 25]],
             ['Dead stock by vendor', 'What\'s tied up and unsold, and who sold it to you.', 'archive', ['ds' => 'inv', 'measures' => ['dead', 'cost', 'cover'], 'dim' => 'vend']],
         ];
     }

@@ -177,6 +177,56 @@ class LightspeedRClient implements PosAdapter
         return $this->advance($c, count($rows), 100) + ['customers' => $out];
     }
 
+    /** MARKER-POS-SALES-HISTORY: not yet tried against a real R-Series account. */
+    public function pullSales(string $accessToken, string $accountId, array $context, ?string $cursor): array
+    {
+        $c = $this->cursor($cursor);
+        $q = ['limit' => 100, 'offset' => $c['offset'], 'sort' => 'timeStamp', 'load_relations' => '["SaleLines","SaleLines.Item"]'];
+        if ($c['since']) {
+            $q['timeStamp'] = '>,' . $c['since'];
+        }
+        $rows = $this->rows(($this->get($accessToken, $this->url($accountId, 'Sale.json'), $q))['Sale'] ?? null);
+
+        $cents = fn ($v) => is_numeric($v) ? (int) round(((float) $v) * 100) : 0;
+        $yes = fn ($v) => in_array(strtolower((string) $v), ['true', '1'], true);
+        $out = [];
+        foreach ($rows as $r) {
+            if (! isset($r['saleID'])) {
+                continue;
+            }
+            $c['max'] = max($c['max'] ?? '', (string) ($r['timeStamp'] ?? ''));
+            $lines = [];
+            foreach ($this->rows($r['SaleLines']['SaleLine'] ?? null) as $l) {
+                $item = (array) ($l['Item'] ?? []);
+                $cost = $l['avgCost'] ?? $l['fifoCost'] ?? null;
+                $lines[] = [
+                    'product_id'       => ! empty($l['itemID']) && $l['itemID'] !== '0' ? (string) $l['itemID'] : null,
+                    'name'             => filled($item['description'] ?? null) ? (string) $item['description'] : (filled($l['Note']['note'] ?? null) ? (string) $l['Note']['note'] : null),
+                    'sku'              => filled($item['customSku'] ?? null) ? (string) $item['customSku'] : (filled($item['systemSku'] ?? null) ? (string) $item['systemSku'] : null),
+                    'quantity'         => (float) ($l['unitQuantity'] ?? 0),
+                    'unit_price_cents' => $cents($l['unitPrice'] ?? 0),
+                    'total_cents'      => $cents($l['calcSubtotal'] ?? 0),
+                    'discount_cents'   => $cents($l['calcLineDiscount'] ?? 0),
+                    'tax_cents'        => $cents($l['calcTax1'] ?? 0) + $cents($l['calcTax2'] ?? 0),
+                    'unit_cost_cents'  => is_numeric($cost) ? (int) round(((float) $cost) * 100) : null,
+                ];
+            }
+            $out[] = [
+                'id'             => (string) $r['saleID'],
+                'number'         => filled($r['ticketNumber'] ?? null) ? (string) $r['ticketNumber'] : null,
+                'sold_at'        => (string) ($r['completeTime'] ?? $r['timeStamp'] ?? ''),
+                'outlet_id'      => filled($r['shopID'] ?? null) ? (string) $r['shopID'] : null,
+                'customer_id'    => ! empty($r['customerID']) && $r['customerID'] !== '0' ? (string) $r['customerID'] : null,
+                'state'          => ($yes($r['voided'] ?? 'false') || $yes($r['archived'] ?? 'false')) ? 'void' : ($yes($r['completed'] ?? 'false') ? 'done' : 'open'),
+                'subtotal_cents' => $cents($r['calcSubtotal'] ?? 0) - $cents($r['calcDiscount'] ?? 0),
+                'tax_cents'      => $cents($r['calcTax1'] ?? 0) + $cents($r['calcTax2'] ?? 0),
+                'lines'          => $lines,
+            ];
+        }
+
+        return $this->advance($c, count($rows), 100) + ['sales' => $out];
+    }
+
     public function pullStock(string $accessToken, string $accountId, array $context, ?string $cursor): array
     {
         $c = $this->cursor($cursor);

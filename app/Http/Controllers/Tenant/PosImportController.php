@@ -115,13 +115,13 @@ class PosImportController extends Controller
             if ($tab === 'todo' && $r['action'] === 'linked') {
                 return false;
             }
-            if (in_array($tab, ['new', 'merge', 'linked', 'skip'], true) && $r['action'] !== $tab) {
+            if (in_array($tab, ['new', 'merge', 'linked', 'twin'], true) && $r['action'] !== $tab) {
                 return false;
             }
             if ($q === '') {
                 return true;
             }
-            if (str_contains(mb_strtolower($r['name'] . ' ' . $r['brand'] . ' ' . ($r['item_name'] ?? '')), $q)) {
+            if (str_contains(mb_strtolower($r['name'] . ' ' . $r['brand'] . ' ' . ($r['item_name'] ?? '') . ' ' . implode(' ', array_column($r['twins'] ?? [], 'name'))), $q)) {
                 return true;
             }
             foreach ([$r['part'], $r['mpn'], $r['code']] as $id) {
@@ -150,7 +150,7 @@ class PosImportController extends Controller
     public function one(Request $request, PosImportService $svc): JsonResponse
     {
         $this->guard();
-        $data = $request->validate(['id' => ['required', 'integer'], 'key' => ['nullable', 'string', 'max:200']]);
+        $data = $request->validate(['id' => ['required', 'integer'], 'key' => ['nullable', 'string', 'max:200'], 'as' => ['nullable', 'in:follow,own']]);
         $conn = $this->conn();
         if (! $conn) {
             return response()->json(['ok' => false, 'error' => 'There is no Connected POS.'], 422);
@@ -160,7 +160,7 @@ class PosImportController extends Controller
         }
 
         try {
-            $res = $svc->importOne($conn, (int) $data['id'], Auth::guard('tenant')->user()?->email);
+            $res = $svc->importOne($conn, (int) $data['id'], Auth::guard('tenant')->user()?->email, $data['as'] ?? null);
         } catch (\Throwable $e) {
             \App\Support\JobFailureReporter::report(self::class, 'A Connected POS product could not be brought in', $e, ['pos_item' => $data['id']], tenant()->id);
 
@@ -169,24 +169,36 @@ class PosImportController extends Controller
         if ($res['did'] === 'missing') {
             return response()->json(['ok' => false, 'error' => 'That product is no longer in your Connected POS list. Read the catalog again.'], 422);
         }
+        if ($res['did'] === 'choose') {
+            // MARKER-POS-TWINS
+            return response()->json(['ok' => false, 'error' => 'Your Connected POS has this product more than once. Preview in Import, open "There more than once", and choose what to do with this copy.'], 422);
+        }
         if ($res['did'] === 'skip') {
-            return response()->json(['ok' => false, 'error' => 'This is the same product as one already linked. Your Connected POS has it twice; merge the two there.'], 422);
+            return response()->json(['ok' => false, 'error' => 'The item this would link to is no longer in Intake. Preview again.'], 422);
         }
 
         $key = (string) ($data['key'] ?? '');
+        $replan = false;
         if ($res['item'] && $this->mine($key) && is_array($cached = Cache::get($key))) {
-            foreach ($cached['rows'] as &$r) {
-                if ((int) $r['id'] === (int) $data['id']) {
-                    $r['action'] = 'linked';
-                    $r['item'] = (string) $res['item'];
-                    $r['is_new'] = false;
+            if (! empty($data['as'])) {
+                // a choice about one copy changes what its twins' rows say, so work the preview out again
+                $plan = $svc->plan($conn, (array) $cached['filters']);
+                $cached = ['rows' => $plan['rows'], 'counts' => $plan['counts'], 'filters' => $cached['filters']];
+                $replan = true;
+            } else {
+                foreach ($cached['rows'] as &$r) {
+                    if ((int) $r['id'] === (int) $data['id']) {
+                        $r['action'] = 'linked';
+                        $r['item'] = (string) $res['item'];
+                        $r['is_new'] = false;
+                    }
                 }
+                unset($r);
             }
-            unset($r);
             Cache::put($key, $cached, now()->addMinutes(30));
         }
 
-        return response()->json(['ok' => true, 'did' => $res['did'], 'url' => $res['item'] ? route('tenant.inventory.show', $res['item']) : null]);
+        return response()->json(['ok' => true, 'did' => $res['did'], 'reload' => $replan, 'url' => $res['item'] ? route('tenant.inventory.show', $res['item']) : null]);
     }
 
     /** POST — start a run: everything the preview matched, or just the ticked rows. */

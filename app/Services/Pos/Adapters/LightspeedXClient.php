@@ -173,6 +173,109 @@ class LightspeedXClient implements PosAdapter
         return ['customers' => $out, 'cursor' => $max !== null ? (string) $max : $cursor, 'more' => count($rows) > 0];
     }
 
+    /**
+     * MARKER-POS-SALES-HISTORY: sales, oldest change first (the same version cursor as
+     * products and customers). A sale and each line carry their amounts under more than
+     * one name depending on the store's API version, so each is read from whichever is there.
+     */
+    public function pullSales(string $accessToken, string $accountId, array $context, ?string $cursor): array
+    {
+        $prefix = $this->prefix((string) ($context['domain_prefix'] ?? ''));
+        $body = $this->get($accessToken, $this->api($prefix, 'sales'), ['after' => (int) ($cursor ?? 0), 'page_size' => 200]);
+        $rows = (array) ($body['data'] ?? []);
+        $max = $body['version']['max'] ?? null;
+
+        $walkIn = $this->walkInCustomerId($accessToken, $prefix);
+        $cents = fn ($v) => is_numeric($v) ? (int) round(((float) $v) * 100) : null;
+        $first = function (array $r, array $keys) {
+            foreach ($keys as $k) {
+                if (isset($r[$k]) && is_numeric($r[$k])) {
+                    return $r[$k];
+                }
+            }
+            return null;
+        };
+        $out = [];
+        foreach ($rows as $r) {
+            if (! is_array($r) || empty($r['id'])) {
+                continue;
+            }
+            $status = strtoupper((string) ($r['status'] ?? ''));
+            $state = (! empty($r['deleted_at']) || $status === 'VOIDED') ? 'void' : (str_ends_with($status, 'CLOSED') ? 'done' : 'open');
+
+            $lines = [];
+            $sub = 0;
+            $tax = 0;
+            foreach ((array) ($r['line_items'] ?? $r['register_sale_products'] ?? []) as $l) {
+                if (! is_array($l)) {
+                    continue;
+                }
+                $qty = (float) ($l['quantity'] ?? 0);
+                $unit = $cents($first($l, ['unit_price', 'price'])) ?? 0;
+                $lineTotal = $cents($first($l, ['total_price', 'price_total'])) ?? (int) round($unit * $qty);
+                $lineTax = $cents($first($l, ['total_tax', 'tax_total']));
+                if ($lineTax === null) {
+                    $unitTax = $cents($first($l, ['unit_tax', 'tax']));
+                    $lineTax = $unitTax !== null ? (int) round($unitTax * $qty) : 0;
+                }
+                $disc = $cents($first($l, ['total_discount', 'discount_total']));
+                if ($disc === null) {
+                    $unitDisc = $cents($first($l, ['unit_discount', 'discount']));
+                    $disc = $unitDisc !== null ? (int) round($unitDisc * $qty) : 0;
+                }
+                $lines[] = [
+                    'product_id'       => filled($l['product_id'] ?? null) ? (string) $l['product_id'] : null,
+                    'name'             => filled($l['name'] ?? null) ? (string) $l['name'] : null,
+                    'sku'              => filled($l['sku'] ?? null) ? (string) $l['sku'] : null,
+                    'quantity'         => $qty,
+                    'unit_price_cents' => $unit,
+                    'total_cents'      => $lineTotal,
+                    'discount_cents'   => $disc,
+                    'tax_cents'        => $lineTax,
+                    'unit_cost_cents'  => $cents($first($l, ['unit_cost', 'cost'])),
+                ];
+                $sub += $lineTotal;
+                $tax += $lineTax;
+            }
+
+            $out[] = [
+                'id'             => (string) $r['id'],
+                'number'         => filled($r['invoice_number'] ?? null) ? (string) $r['invoice_number'] : (filled($r['receipt_number'] ?? null) ? (string) $r['receipt_number'] : null),
+                'sold_at'        => (string) ($r['sale_date'] ?? $r['created_at'] ?? ''),
+                'outlet_id'      => filled($r['outlet_id'] ?? null) ? (string) $r['outlet_id'] : null,
+                // a sale to nobody in particular is recorded there against one "walk-in" customer
+                'customer_id'    => filled($r['customer_id'] ?? null) && (string) $r['customer_id'] !== $walkIn ? (string) $r['customer_id'] : null,
+                'state'          => $state,
+                'subtotal_cents' => $cents($r['total_price'] ?? null) ?? $sub,
+                'tax_cents'      => $cents($r['total_tax'] ?? null) ?? $tax,
+                'lines'          => $lines,
+            ];
+        }
+
+        return ['sales' => $out, 'cursor' => $max !== null ? (string) $max : $cursor, 'more' => count($rows) > 0];
+    }
+
+    /**
+     * The store's built-in "walk-in" customer (customer code WALKIN), which every sale with
+     * no customer chosen is recorded against. Looked up once a day; when it can't be found,
+     * no sale is treated as anonymous.
+     */
+    private function walkInCustomerId(string $accessToken, string $prefix): string
+    {
+        return (string) \Illuminate\Support\Facades\Cache::remember('posx:' . $prefix . ':walkin', 86400, function () use ($accessToken, $prefix) {
+            try {
+                foreach ((array) ($this->get($accessToken, $this->api($prefix, 'search'), ['type' => 'customers', 'customer_code' => 'WALKIN'])['data'] ?? []) as $c) {
+                    if (is_array($c) && ! empty($c['id']) && strtoupper((string) ($c['customer_code'] ?? '')) === 'WALKIN') {
+                        return (string) $c['id'];
+                    }
+                }
+            } catch (\Throwable $e) {
+                // not every store lets this be searched; sales then keep whatever customer they carry
+            }
+            return '';
+        });
+    }
+
     public function pullStock(string $accessToken, string $accountId, array $context, ?string $cursor): array
     {
         $prefix = $this->prefix((string) ($context['domain_prefix'] ?? ''));

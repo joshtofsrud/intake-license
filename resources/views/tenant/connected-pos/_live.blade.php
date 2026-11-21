@@ -1,4 +1,4 @@
-{{-- MARKER-CONNECTED-POS-SECTION: live numbers for whatever is running (catalog read, customers, import).
+{{-- MARKER-CONNECTED-POS-SECTION: live numbers for whatever is running (catalog read, customers, import, sales history).
      [data-live="state.items_seen"] takes that value from the status reply; [data-live-bar="import"] is a
      progress bar. When something starts or finishes, the page reloads so its buttons match — never while a
      dialog is open or a setting is part-way changed. --}}
@@ -6,14 +6,17 @@
   $lpc = $pos['conn'] ?? null;
   $lsig = $lpc ? implode('|', [
     (int) (($lpc->sync_state ?? [])['running'] ?? 0), (int) (($lpc->customer_sync ?? [])['running'] ?? 0),
-    (int) (($lpc->import_state ?? [])['running'] ?? 0), $lpc->mode,
+    (int) (($lpc->import_state ?? [])['running'] ?? 0),
+    // MARKER-POS-SALES-HISTORY: only a history read the shop started; the every-minute check is silent
+    (int) ((($lpc->sales_state ?? [])['running'] ?? false) && (($lpc->sales_state ?? [])['full'] ?? false)),
+    $lpc->mode,
   ]) : '';
 @endphp
 @if($lpc)
 <script>
 (function(){
   var url = @json(route('tenant.cpos.status')), sig = @json($lsig);
-  var busy = sig.split('|').slice(0, 3).indexOf('1') !== -1;
+  var busy = sig.split('|').slice(0, 4).indexOf('1') !== -1;
   var dirty = false;
   document.addEventListener('input', function(){ dirty = true; }, true);
   function open(){ return !!document.querySelector('.ia-confirm-backdrop'); }
@@ -33,9 +36,13 @@
           var s = j[el.dataset.liveBar];
           if (s && s.total) { el.style.width = Math.min(100, Math.round(100 * (s.done || 0) / s.total)) + '%'; }
         });
-        var now = [(j.state && j.state.running) ? 1 : 0, (j.customers && j.customers.running) ? 1 : 0, (j.import && j.import.running) ? 1 : 0, j.mode || ''].join('|');
+        document.querySelectorAll('[data-live-pct]').forEach(function(el){
+          var v = get(j, el.dataset.livePct);
+          if (typeof v === 'number') { el.style.width = Math.max(0, Math.min(100, v)) + '%'; }
+        });
+        var now = [(j.state && j.state.running) ? 1 : 0, (j.customers && j.customers.running) ? 1 : 0, (j.import && j.import.running) ? 1 : 0, (j.sales && j.sales.visible) ? 1 : 0, j.mode || ''].join('|');
         if (now !== sig && !dirty && !open()) { location.reload(); return; }
-        busy = now.split('|').slice(0, 3).indexOf('1') !== -1;
+        busy = now.split('|').slice(0, 4).indexOf('1') !== -1;
       })
       .catch(function(){})
       .finally(function(){ setTimeout(tick, busy ? 2500 : 20000); });

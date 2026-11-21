@@ -50,7 +50,7 @@ class ConnectedPosView
 
     /**
      * The Move to Intake checklist: each step, whether it is done, and what to do next.
-     * History is not a step yet; it joins this list when it can be brought in.
+     * Six steps: connect, read, items, customers, sales history, switch over.
      *
      * @return array{steps: list<array<string,mixed>>, done: int, total: int}
      */
@@ -60,6 +60,7 @@ class ConnectedPosView
         $read = $connected && $conn->last_synced_at !== null;
         $cs = (array) ($conn->customer_sync ?? []);
         $imp = (array) ($conn->import_state ?? []);
+        $hs = (array) ($conn->sales_state ?? []);
         $switched = $conn && ! $conn->isTwoWay();
         $finished = ! empty($imp['finished_at']) && empty($imp['stopped']) && empty($imp['error']); // a stopped run isn't a finished one
         $itemsDone = $read && ! ($imp['running'] ?? false) && ($items['waiting'] === 0 || $finished || $switched);
@@ -69,6 +70,8 @@ class ConnectedPosView
             ['key' => 'read',      'done' => $read],
             ['key' => 'items',     'done' => $itemsDone],
             ['key' => 'customers', 'done' => $connected && ! empty($cs['last_done'])],
+            // MARKER-POS-SALES-HISTORY: done once a history read has finished (a stopped one hasn't)
+            ['key' => 'history',   'done' => $connected && ! empty($hs['last_done']) && empty($hs['stopped'])],
             ['key' => 'switch',    'done' => $switched],
         ];
         $now = null;

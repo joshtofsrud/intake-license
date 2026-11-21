@@ -8,7 +8,7 @@
   $stopped = ! $running && ! empty($st['stopped']);
   $pct = ($st['total'] ?? 0) ? min(100, (int) round(100 * ($st['done'] ?? 0) / $st['total'])) : 0;
   $todo = $plan ? $plan['new'] + $plan['merge'] : 0;
-  $planJs = $plan ?: ['new' => 0, 'merge' => 0, 'check' => 0, 'linked' => 0, 'skip' => 0]; // built here: @json can't take a nested array inline
+  $planJs = $plan ?: ['new' => 0, 'merge' => 0, 'check' => 0, 'linked' => 0, 'twin' => 0]; // built here: @json can't take a nested array inline
 @endphp
 
 @push('styles')
@@ -42,6 +42,7 @@
       <li>A product that only shares a <b>SKU</b> with one of your items is a suggestion. It is linked when you press Link on its row or tick it; "import everything" leaves those for you to check.</li>
       <li>Anything else becomes a <b>new item</b>, off the online store, with your Connected POS's name, identifiers, brand, supplier, cost, price and stock. It takes your category of the same name when you have one; otherwise it lands in Uncategorized.</li>
       <li>@if($conn && $conn->isTwoWay()) <b>2 Way Data:</b> once linked, an item takes your Connected POS's price and stock at each mapped location, and keeps following them. @else <b>Reading Only:</b> a new item starts with the last price and count read from your Connected POS; after that, Intake owns them. An item you already had keeps its own. @endif</li>
+      <li>A product your Connected POS has <b>more than once</b> (same barcode, or same part number and brand) is never decided for you, because each copy can hold its own stock. You pick which copy your item follows, or make a copy an item of its own. "Import everything" leaves those alone.</li>
       <li>Every run lands on one batch you can <b>undo</b>, below and in catalog history. Nothing is ever changed in your Connected POS by importing.</li>
     </ul>
   </details>
@@ -88,7 +89,7 @@
           <div>Linked to yours<b data-k="linked">{{ number_format($st['linked'] ?? 0) }}</b></div>
           <div>In Uncategorized<b data-k="uncategorized">{{ number_format($st['uncategorized'] ?? 0) }}</b></div>
           <div class="w">Left for you to check<b data-k="check">{{ number_format($st['check'] ?? 0) }}</b></div>
-          <div class="w">Skipped<b data-k="skipped">{{ number_format($st['skipped'] ?? 0) }}</b></div>
+          <div class="w">There more than once<b data-k="twins">{{ number_format($st['twins'] ?? 0) }}</b></div>
           <div class="w">Couldn't bring in<b data-k="errors">{{ number_format($st['errors'] ?? 0) }}</b></div>
         </div>
         <p class="im-sub" style="margin:0">
@@ -97,7 +98,7 @@
           @else
             @if(($st['uncategorized'] ?? 0) > 0)<a class="cpx-lnk" href="{{ route('tenant.inventory.uncategorized') }}">Sort the {{ number_format($st['uncategorized']) }} in Uncategorized →</a> · @endif
             @if(($st['check'] ?? 0) > 0) {{ number_format($st['check']) }} share only a SKU with one of your items: preview, open <b>Links to yours</b>, and press Link on the ones that are right. · @endif
-            @if(($st['skipped'] ?? 0) > 0) {{ number_format($st['skipped']) }} are in your Connected POS twice; merge them there. · @endif
+            @if(($st['twins'] ?? 0) > 0) {{ number_format($st['twins']) }} are in your Connected POS more than once and were left alone: preview, open <b>There more than once</b>, and choose for each. · @endif
             @if(($st['errors'] ?? 0) > 0) {{ number_format($st['errors']) }} couldn't be brought in and have been reported. · @endif
             It can be undone under Recent imports below.
           @endif
@@ -135,15 +136,15 @@
           <div class="im-stat"><div class="v">{{ number_format($plan['new']) }}</div><div class="k">New items</div></div>
           <div class="im-stat"><div class="v">{{ number_format($plan['merge']) }}</div><div class="k">Link to yours</div>@if($plan['check'])<div class="s">{{ number_format($plan['check']) }} by SKU only: yours to check</div>@endif</div>
           <div class="im-stat"><div class="v">{{ number_format($plan['linked']) }}</div><div class="k">Already linked</div></div>
-          @if($plan['skip'])<div class="im-stat"><div class="v">{{ number_format($plan['skip']) }}</div><div class="k">Skipped</div><div class="s">in your Connected POS twice</div></div>@endif
+          @if($plan['twin'])<div class="im-stat"><div class="v">{{ number_format($plan['twin']) }}</div><div class="k">There more than once</div><div class="s">yours to choose, one at a time</div></div>@endif
         </div>
 
         <div class="ip-bar">
           <div class="ip-tabs" role="tablist">
-            <button type="button" class="on" data-tab="todo">To bring in {{ number_format($todo) }}</button>
+            <button type="button" class="on" data-tab="todo">To bring in {{ number_format($todo + $plan['twin']) }}</button>
             <button type="button" data-tab="new">New {{ number_format($plan['new']) }}</button>
             <button type="button" data-tab="merge">Links to yours {{ number_format($plan['merge']) }}</button>
-            @if($plan['skip'])<button type="button" data-tab="skip">Skipped {{ number_format($plan['skip']) }}</button>@endif
+            @if($plan['twin'])<button type="button" data-tab="twin">There more than once {{ number_format($plan['twin']) }}</button>@endif
             <button type="button" data-tab="linked">Already linked {{ number_format($plan['linked']) }}</button>
           </div>
           <input type="search" class="im-input" style="flex:1;min-width:220px;width:auto" data-ip-q placeholder="Search name, SKU, part number or barcode">
@@ -163,7 +164,7 @@
           @else
             <button type="button" class="im-btn primary" data-ip-run-all @disabled($todo - $plan['check'] <= 0)>Import all {{ number_format(max(0, $todo - $plan['check'])) }}</button>
             <button type="button" class="im-btn" data-ip-run-ticked disabled>Import ticked (0)</button>
-            <span class="im-sub" style="margin:0">@if($plan['check']) "Import all" leaves the {{ number_format($plan['check']) }} SKU-only matches for you to check. @endif It runs in the background and shows its progress at the top of this page.</span>
+            <span class="im-sub" style="margin:0">@if($plan['check']) "Import all" leaves the {{ number_format($plan['check']) }} SKU-only matches for you to check. @endif @if($plan['twin']) It also leaves the {{ number_format($plan['twin']) }} your Connected POS has more than once. @endif It runs in the background and shows its progress at the top of this page.</span>
           @endif
         </form>
       </div>
@@ -251,9 +252,18 @@
     if (r.action === 'linked') {
       return 'Already linked' + (r.item_url ? ' · <a href="' + r.item_url + '">' + esc(r.item_name || 'open item') + '</a>' : '');
     }
-    if (r.action === 'skip') {
-      return 'Skipped: the same product as ' + (r.item_url ? '<a href="' + r.item_url + '">' + esc(r.item_name || 'another item') + '</a>' : esc(r.item_name || 'another one in this list'))
-        + ', which has its Connected POS product already. It is in your Connected POS twice.';
+    if (r.action === 'twin') {
+      /* MARKER-POS-TWINS: every copy, with its stock, so the choice is an informed one */
+      var copies = (r.twins || []).map(function (t) {
+        return '<div class="m" style="margin-top:2px">' + esc(t.name) + (t.sku ? ' · SKU ' + esc(t.sku) : '') + ' · ' + (t.stock == null ? 'non-stock' : 'stock ' + t.stock.toLocaleString())
+          + (t.linked ? ' · <span style="color:var(--ia-accent)">your item follows this one now</span>' : ' · waiting') + '</div>';
+      }).join('');
+      var about = r.item
+        ? (r.kind === 'held' ? 'Your item <a href="' + r.item_url + '">' + esc(r.item_name || 'open item') + '</a> follows another copy now.'
+                             : 'Your item <a href="' + r.item_url + '">' + esc(r.item_name || 'open item') + '</a> isn\'t following any copy yet.')
+        : 'No copy is in Intake yet.';
+      return 'In your Connected POS ' + ((r.twins || []).length + 1) + ' times<span class="ip-tag part">you choose</span><div style="margin-top:4px">' + about + '</div>'
+        + '<div class="m" style="margin-top:6px;font-family:inherit">The other ' + ((r.twins || []).length === 1 ? 'copy' : 'copies') + ':</div>' + copies;
     }
     if (r.action === 'merge') {
       return 'Links to <a href="' + r.item_url + '">' + esc(r.item_name || 'your item') + '</a>'
@@ -265,6 +275,10 @@
   }
   function button(r) {
     if (r.action === 'linked') { return r.item_url ? '<a class="im-btn" href="' + r.item_url + '">Open</a>' : ''; }
+    if (r.action === 'twin') {
+      return '<button type="button" class="im-btn" data-ip-twin="follow" data-id="' + r.id + '" data-item="' + esc(r.item_name || '') + '" data-held="' + (r.kind === 'held' ? 1 : 0) + '">Use this one</button> '
+        + '<button type="button" class="im-btn" data-ip-twin="own" data-id="' + r.id + '">Own item</button>';
+    }
     if (!can(r)) { return ''; }
     return '<button type="button" class="im-btn" data-ip-one="' + r.id + '">' + (r.action === 'new' ? 'Import' : 'Link') + '</button>';
   }
@@ -351,6 +365,35 @@
       .catch(function (err) {
         b.disabled = false; b.textContent = was;
         out.innerHTML = ''; var s = document.createElement('span'); s.style.color = '#f0a3a3'; s.textContent = err.message; out.appendChild(s);
+      });
+  });
+
+  /* MARKER-POS-TWINS: one copy of a product the Connected POS has more than once */
+  body.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-ip-twin]'); if (!b) { return; }
+    var as = b.dataset.ipTwin, tr = b.closest('tr'), out = tr.querySelector('[data-ip-out]');
+    var twoWay = @json((bool) ($conn?->isTwoWay() ?? true));
+    var msg = as === 'own'
+      ? 'This copy becomes a new item of its own, with its own price and stock. The other ' + 'copies are left as they are. Both items will carry the same barcode, so they may show under Duplicates.'
+      : (b.dataset.held === '1'
+          ? '“' + b.dataset.item + '” stops following the copy it follows now and follows this one instead.' + (twoWay ? ' Its price and stock become this copy\'s.' : '') + ' The other copy goes back to waiting; its stock is no longer counted.'
+          : (b.dataset.item ? '“' + b.dataset.item + '” follows this copy.' + (twoWay ? ' Its price and stock become this copy\'s.' : '') : 'A new item is made from this copy.') + ' The other copies keep waiting; their stock is not counted.');
+    IntakeConfirm.show({ title: as === 'own' ? 'Make this copy its own item?' : 'Have your item follow this copy?', message: msg + ' You can undo it under Recent imports.', confirmText: as === 'own' ? 'Make the item' : 'Use this one' })
+      .then(function (ok) {
+        if (!ok) { return; }
+        tr.querySelectorAll('[data-ip-twin]').forEach(function (x) { x.disabled = true; });
+        fetch(oneUrl, { method: 'POST', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
+          body: JSON.stringify({ id: parseInt(b.dataset.id, 10), key: box.dataset.key, as: as }) })
+          .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+          .then(function (res) {
+            if (!res.ok || !res.j.ok) { throw new Error((res.j && res.j.error) || 'That could not be done.'); }
+            location.reload(); // the other copies' rows, and the counts, all change
+          })
+          .catch(function (err) {
+            tr.querySelectorAll('[data-ip-twin]').forEach(function (x) { x.disabled = false; });
+            var sp = document.createElement('div'); sp.style.color = '#f0a3a3'; sp.style.marginTop = '6px'; sp.textContent = err.message; out.appendChild(sp);
+          });
       });
   });
 

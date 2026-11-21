@@ -63,6 +63,7 @@ class CustomerTimelineService
         $events = $events
             ->concat($this->loadAppointments($tenantId, $customerId))
             ->concat($this->loadSales($tenantId, $customerId))
+            ->concat($this->loadPosSales($tenantId, $customerId))
             ->concat($this->loadClassRegistrations($tenantId, $customerId))
             ->concat($this->loadPackGrants($tenantId, $customerId))
             ->concat($this->loadMembershipGrants($tenantId, $customerId))
@@ -349,6 +350,67 @@ class CustomerTimelineService
                     'href'         => null, // sales open in a modal via openSaleModal(sale_id)
                 ];
             });
+    }
+
+    /**
+     * MARKER-POS-SALES-HISTORY: sales this customer made in the shop's Connected POS, read in
+     * as history (kind 'pos_sale'). Found through the customer link, so someone brought in
+     * after the sales were read still gets theirs. Marked "From Connected POS"; they are not
+     * Intake sales.
+     */
+    private function loadPosSales(string $tenantId, string $customerId): Collection
+    {
+        if (! \App\Services\Pos\PosSalesSync::has($tenantId)) {
+            return collect();
+        }
+        $sales = self::posSalesQuery($tenantId, $customerId)
+            ->orderByDesc('s.sold_at')->limit(500)
+            ->get(['s.id', 's.number', 's.sale_date', 's.total_cents']);
+        if ($sales->isEmpty()) {
+            return collect();
+        }
+        $lines = \Illuminate\Support\Facades\DB::table('tenant_pos_sale_lines')->where('tenant_id', $tenantId)
+            ->whereIn('pos_sale_id', $sales->pluck('id'))->orderBy('id')->get(['pos_sale_id', 'name', 'sku', 'quantity'])->groupBy('pos_sale_id');
+
+        return $sales->map(function ($s) use ($lines) {
+            $mine = $lines[$s->id] ?? collect();
+            $names = $mine->map(function ($l) {
+                $q = abs((float) $l->quantity);
+                $name = $l->name ?: ($l->sku ?: 'Unnamed line');
+
+                return ($q != 1.0 ? rtrim(rtrim(number_format($q, 3, '.', ''), '0'), '.') . ' × ' : '') . $name;
+            });
+            $return = (int) $s->total_cents < 0;
+
+            return [
+                'kind'         => 'pos_sale',
+                'date'         => Carbon::parse($s->sale_date),
+                'title'        => $return ? 'Connected POS return' : 'Connected POS sale',
+                'identifier'   => $s->number ? '#' . $s->number : null,
+                'subtitle'     => $names->isEmpty() ? 'No line items' : $names->take(4)->implode(', ') . ($names->count() > 4 ? ', +' . ($names->count() - 4) . ' more' : ''),
+                'status'       => 'From Connected POS',
+                'status_tone'  => 'neutral',
+                'amount_cents' => (int) $s->total_cents,
+                'is_refunded'  => $return,
+                'href'         => null,
+            ];
+        });
+    }
+
+    /** A customer's Connected POS sales, through the customer link. */
+    public static function posSalesQuery(string $tenantId, string $customerId)
+    {
+        return \Illuminate\Support\Facades\DB::table('tenant_pos_sales as s')
+            ->join('tenant_pos_customers as pc', function ($j) {
+                $j->on('pc.tenant_id', '=', 's.tenant_id')->on('pc.external_id', '=', 's.external_customer_id');
+            })
+            ->where('s.tenant_id', $tenantId)->where('pc.customer_id', $customerId);
+    }
+
+    /** What a customer spent in the Connected POS (returns taken off), kept apart from Intake's own total. */
+    public static function posSpendCents(string $tenantId, string $customerId): int
+    {
+        return \App\Services\Pos\PosSalesSync::has($tenantId) ? (int) self::posSalesQuery($tenantId, $customerId)->sum('s.total_cents') : 0;
     }
 
     private function loadClassRegistrations(string $tenantId, string $customerId): Collection

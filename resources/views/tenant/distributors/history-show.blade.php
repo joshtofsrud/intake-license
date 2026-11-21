@@ -36,7 +36,7 @@
             <div class="ch-field">
               <span class="ch-field-k">Connected POS product</span>
               <span class="ch-now">{{ ($row->before ?? [])['product'] ?? '' }}</span>
-              <span class="ch-note">{{ $posRow === 'created' ? 'This import made the item.' : 'Linked to an item you already had.' }}</span>
+              <span class="ch-note">{{ ['created' => 'This import made the item.', 'moved' => 'Your item was moved to follow this copy of the product.'][$posRow] ?? 'Linked to an item you already had.' }}</span>
             </div>
           @endif
           @foreach($posRow ? [] : ($row->before ?? []) as $field => $was)
@@ -56,7 +56,7 @@
           @elseif($item)
             <form method="POST" action="{{ route('tenant.distributors.attention.history.undo.item', [$batch->id, $row->item_id]) }}">
               @csrf
-              <button type="submit" class="ia-btn ia-btn--secondary ia-btn--sm">{{ $posRow ? ($posRow === 'created' ? 'Remove' : 'Unlink') : 'Put back' }}</button>
+              <button type="submit" class="ia-btn ia-btn--secondary ia-btn--sm">{{ $posRow ? (['created' => 'Remove', 'moved' => 'Move back'][$posRow] ?? 'Unlink') : 'Put back' }}</button>
             </form>
           @endif
         </div>

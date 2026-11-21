@@ -155,4 +155,19 @@ interface PosAdapter
      * @return array{customers: list<array>, cursor: ?string, more: bool}
      */
     public function pullCustomers(string $accessToken, string $accountId, array $context, ?string $cursor): array;
+
+    /**
+     * MARKER-POS-SALES-HISTORY: one page of sales changed since $cursor (null = from the
+     * beginning), oldest change first. Read-only: nothing is written to the POS.
+     *
+     * Each sale: id, number (?string), sold_at (UTC, any format Carbon reads), outlet_id (?string),
+     * customer_id (?string), state ('done' a finished sale or return | 'void' cancelled or
+     * deleted | 'open' not finished yet), subtotal_cents (before tax), tax_cents, and
+     * lines: list of product_id (?string), name (?string), sku (?string), quantity (float,
+     * negative on a return), unit_price_cents (before tax), total_cents (the line, before
+     * tax, after its discount), discount_cents, tax_cents, unit_cost_cents (?int).
+     *
+     * @return array{sales: list<array>, cursor: ?string, more: bool}
+     */
+    public function pullSales(string $accessToken, string $accountId, array $context, ?string $cursor): array;
 }

@@ -20,7 +20,8 @@ use Illuminate\Support\Facades\DB;
  *                suggestion: it never links on its own.
  *
  * An item already linked to another Connected POS product is never offered again:
- * one Intake item, one Connected POS product.
+ * one Intake item, one Connected POS product. When the Connected POS has the same
+ * product more than once (twins()), the shop picks which one the item follows.
  */
 class PosMatcher
 {
@@ -123,29 +124,77 @@ class PosMatcher
     }
 
     /**
-     * The item this product plainly is (barcode or part number) when that item already
-     * has a Connected POS product of its own — the same thing entered twice in the POS.
+     * MARKER-POS-TWINS: products that are in the Connected POS more than once — the same
+     * barcode, or the same part number under the same brand. One Intake item can follow
+     * only one of them, and which one is the shop's call (they may hold different stock),
+     * so nothing here is linked or skipped on its own.
+     *
+     * @param  iterable<object> $products rows with id, upc, ean, mpn, brand
+     * @return array<int, list<int>> product id => the ids of its twins (itself left out)
      */
-    public function findTaken(array $p): ?string
+    public static function twins(iterable $products): array
     {
-        foreach (Barcode::keys($p['upc'] ?? null, $p['ean'] ?? null) as $k) {
-            foreach ($this->byBarcode[$k] ?? [] as $id) {
-                if (isset($this->taken[$id])) {
-                    return $id;
-                }
+        $byKey = [];
+        foreach ($products as $p) {
+            foreach (self::strongKeys((array) $p) as $k) {
+                $byKey[$k][] = (int) $p->id;
             }
         }
-        $part = self::squash($p['mpn'] ?? null);
-        if ($part !== '' && strlen($part) >= 4) {
-            $brand = self::squash($p['brand'] ?? null);
-            foreach ($this->byPart[$part] ?? [] as [$id, $itemBrand]) {
-                if (isset($this->taken[$id]) && $brand !== '' && $brand === $itemBrand) {
-                    return $id;
-                }
+        // union the products that share any key (A–B by barcode, B–C by part number → one group)
+        $parent = [];
+        $find = function (int $x) use (&$parent, &$find): int {
+            $parent[$x] ??= $x;
+            return $parent[$x] === $x ? $x : ($parent[$x] = $find($parent[$x]));
+        };
+        foreach ($byKey as $ids) {
+            if (count($ids) < 2) {
+                continue;
+            }
+            $root = $find($ids[0]);
+            foreach ($ids as $id) {
+                $parent[$find($id)] = $root;
+            }
+        }
+        $groups = [];
+        foreach (array_keys($parent) as $id) {
+            $groups[$find($id)][] = $id;
+        }
+        $out = [];
+        foreach ($groups as $ids) {
+            foreach ($ids as $id) {
+                $out[$id] = array_values(array_diff($ids, [$id]));
             }
         }
 
-        return null;
+        return $out;
+    }
+
+    /** What makes two products plainly the same thing. A SKU alone never does. */
+    public static function strongKeys(array $p): array
+    {
+        $keys = [];
+        foreach (Barcode::keys($p['upc'] ?? null, $p['ean'] ?? null) as $k) {
+            $keys[] = 'b:' . $k;
+        }
+        $part = self::squash($p['mpn'] ?? null);
+        $brand = self::squash($p['brand'] ?? null);
+        if ($part !== '' && strlen($part) >= 4 && $brand !== '') {
+            $keys[] = 'p:' . $brand . '|' . $part;
+        }
+
+        return $keys;
+    }
+
+    /** The Intake item a product matches, whether or not it already has a Connected POS product. */
+    public function findAny(array $p): ?array
+    {
+        $taken = $this->taken;
+        $this->taken = [];
+        try {
+            return $this->find($p);
+        } finally {
+            $this->taken = $taken;
+        }
     }
 
     /** @param list<string> $ids */

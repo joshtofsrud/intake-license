@@ -30,6 +30,8 @@ body{--mk-red:var(--rb-bad);--mk-amber:var(--rb-warn);--mk-green:var(--rb-good);
 .mk-item{font-weight:500}.mk-item small{display:block;font-weight:400;color:var(--ia-text-muted);font-size:11px;font-family:var(--ia-font-mono)}
 .mk-sold{display:flex;align-items:center;gap:10px;font-variant-numeric:tabular-nums}
 .mk-sold svg{display:block}
+/* MARKER-POS-SALES-HISTORY: some of this row's units were sold in the Connected POS */
+.mk-pos{font-size:9.5px;letter-spacing:.08em;font-weight:600;padding:1px 5px;border-radius:4px;border:.5px solid var(--ia-border-strong);color:var(--ia-text-muted);vertical-align:middle}
 .mk-dist b{font-weight:600;font-variant-numeric:tabular-nums}.mk-dist small{display:block;color:var(--ia-text-muted);font-size:11px}
 .mk-dist .low{color:var(--rb-warn)}
 .mk-arr small{display:block;font-size:11px;color:var(--ia-text-muted)}

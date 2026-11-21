@@ -26,6 +26,10 @@ use Illuminate\Support\Str;
  *  - anything else becomes a new item, off the online store, with the Connected POS's
  *    name, identifiers, brand, category (when the shop has one by that name), supplier,
  *    cost, price and stock
+ *  - MARKER-POS-TWINS: a product the Connected POS has more than once (same barcode, or
+ *    same part number and brand) is never decided here. Each copy may hold its own
+ *    stock, so the shop picks which one the Intake item follows, or makes a copy an item
+ *    of its own. "Import everything" leaves them, and says how many.
  *
  * A run works through the list in steps, keeps its place, and can be stopped and
  * resumed. Everything a run does is written to one batch in catalog history, where it
@@ -121,6 +125,21 @@ class PosImportService
         return ['brands' => $col('brand'), 'categories' => $col('category')];
     }
 
+    // ── products the Connected POS has more than once ───────────
+
+    /**
+     * Every live product, and which of them are the same thing as another.
+     *
+     * @return array{0: array<int, list<int>>, 1: \Illuminate\Support\Collection} twins by product id, all products by id
+     */
+    public function twinMap(TenantPosConnection $conn): array
+    {
+        $all = DB::table('tenant_pos_items')->where('tenant_id', $conn->tenant_id)->whereNull('removed_at')
+            ->get(['id', 'external_id', 'inventory_item_id', 'name', 'sku', 'upc', 'ean', 'mpn', 'brand', 'track_stock'])->keyBy('id');
+
+        return [PosMatcher::twins($all), $all];
+    }
+
     // ── preview ─────────────────────────────────────────────────
 
     /**
@@ -137,9 +156,10 @@ class PosImportService
         $matcher = PosMatcher::forTenant($tenantId);
         $stock = DB::table('tenant_pos_stock')->where('tenant_id', $tenantId)->selectRaw('external_item_id, SUM(qty) q')->groupBy('external_item_id')->pluck('q', 'external_item_id');
         $marked = $conn->items_marked_at;
+        [$twins, $all] = $this->twinMap($conn);
 
         $rows = [];
-        $counts = ['new' => 0, 'merge' => 0, 'linked' => 0, 'check' => 0, 'skip' => 0];
+        $counts = ['new' => 0, 'merge' => 0, 'linked' => 0, 'check' => 0, 'twin' => 0];
         foreach ($this->base($conn, $f)->orderBy('p.id')->cursor() as $p) {
             $row = [
                 'id'       => (int) $p->id,
@@ -153,13 +173,39 @@ class PosImportService
                 'is_new'   => ! $p->inventory_item_id && $marked && $p->first_seen_at && $p->first_seen_at > $marked->toDateTimeString(),
                 'removed'  => $p->removed_at !== null,
                 'category' => (string) ($p->category ?? ''),
-                'item'     => null, 'item_name' => null, 'kind' => null, 'cat_to' => null,
+                'item'     => null, 'item_name' => null, 'kind' => null, 'cat_to' => null, 'twins' => [],
             ];
 
             if ($p->inventory_item_id) {
                 $row['action'] = 'linked';
                 $row['item'] = (string) $p->inventory_item_id;
                 $row['item_name'] = $matcher->name((string) $p->inventory_item_id);
+            } elseif (! empty($twins[$p->id])) {
+                // MARKER-POS-TWINS: in the Connected POS more than once. Shown with every copy and
+                // its stock; the shop chooses.
+                $row['action'] = 'twin';
+                foreach ($twins[$p->id] as $tid) {
+                    $t = $all[$tid] ?? null;
+                    if (! $t) {
+                        continue;
+                    }
+                    $row['twins'][] = [
+                        'id'     => (int) $t->id,
+                        'name'   => (string) ($t->name ?: $t->sku ?: 'Unnamed product'),
+                        'sku'    => (string) ($t->sku ?? ''),
+                        'stock'  => $t->track_stock ? (int) ($stock[$t->external_id] ?? 0) : null,
+                        'linked' => (bool) $t->inventory_item_id,
+                    ];
+                    if ($t->inventory_item_id && ! $row['item']) {
+                        $row['item'] = (string) $t->inventory_item_id;       // the item one of its copies has now
+                        $row['kind'] = 'held';
+                    }
+                }
+                if (! $row['item'] && ($hit = $matcher->findAny((array) $p))) {
+                    $row['item'] = $hit['id'];                               // an item of the shop's no copy has yet
+                    $row['kind'] = 'free';
+                }
+                $row['item_name'] = $row['item'] ? $matcher->name($row['item']) : null;
             } elseif ($hit = $matcher->find((array) $p)) {
                 $row['action'] = 'merge';
                 $row['item'] = $hit['id'];
@@ -170,18 +216,10 @@ class PosImportService
                 } else {
                     $counts['check']++;
                 }
-            } elseif ($dupe = $matcher->findTaken((array) $p)) {
-                // the same product twice in the Connected POS: one Intake item can't be both
-                $row['action'] = 'skip';
-                $row['kind'] = 'same';
-                $row['item'] = str_starts_with($dupe, 'dry:') ? null : $dupe;
-                $row['item_name'] = $matcher->name($dupe);
             } else {
                 $row['action'] = 'new';
                 $cat = $this->categoryFor($tenantId, $p->category);
                 $row['cat_to'] = $cat['label'] ?? null;
-                $matcher->learn('dry:' . $p->id, $row['name'], $p->sku, $p->upc, $p->ean, $p->mpn, $p->brand);
-                $matcher->take('dry:' . $p->id);
             }
             $counts[$row['action']]++;
             $rows[] = $row;
@@ -208,7 +246,7 @@ class PosImportService
             'batch_id' => $batch->id, 'filters' => $f, 'explicit' => ! empty($f['ids']),
             'total' => $this->base($conn, $f)->whereNull('p.inventory_item_id')->count(),
             'done' => 0, 'last_id' => 0,
-            'created' => 0, 'linked' => 0, 'uncategorized' => 0, 'check' => 0, 'skipped' => 0, 'errors' => 0,
+            'created' => 0, 'linked' => 0, 'uncategorized' => 0, 'check' => 0, 'twins' => 0, 'skipped' => 0, 'errors' => 0,
             'started_at' => now()->toIso8601String(), 'finished_at' => null,
         ]])->save();
     }
@@ -222,20 +260,23 @@ class PosImportService
             ->orderBy('p.id')->limit(self::STEP)->get();
 
         $matcher = $rows->isEmpty() ? null : PosMatcher::forTenant($conn->tenant_id);
+        $twins = $rows->isEmpty() ? [] : $this->twinMap($conn)[0];
         foreach ($rows as $p) {
             // a Stop pressed mid-step takes effect at the next product, and the place is kept
             if ($this->stopped($conn)) {
                 return false;
             }
             try {
-                $did = $this->importRow($conn, $p, $matcher, (string) $st['batch_id'], ! empty($st['explicit']));
+                $did = ! empty($twins[$p->id])
+                    ? 'twin' // in the Connected POS more than once: the shop picks, one at a time
+                    : $this->importRow($conn, $p, $matcher, (string) $st['batch_id'], ! empty($st['explicit']));
             } catch (\Throwable $e) {
                 $did = 'error';
                 if (($st['errors'] ?? 0) === 0) {
                     \App\Support\JobFailureReporter::report(self::class, 'Connected POS import is skipping products it cannot bring in', $e, ['pos_item' => $p->id], $conn->tenant_id);
                 }
             }
-            $key = ['created' => 'created', 'created_uncat' => 'created', 'linked' => 'linked', 'check' => 'check', 'skip' => 'skipped', 'error' => 'errors'][$did] ?? null;
+            $key = ['created' => 'created', 'created_uncat' => 'created', 'linked' => 'linked', 'check' => 'check', 'twin' => 'twins', 'skip' => 'skipped', 'error' => 'errors'][$did] ?? null;
             if ($key) {
                 $st[$key] = ($st[$key] ?? 0) + 1;
             }
@@ -300,9 +341,13 @@ class PosImportService
     /**
      * Bring in one product the shop picked from the list.
      *
+     * $as only matters for a product the Connected POS has more than once:
+     *   'follow'  the Intake item follows THIS copy (taken off whichever copy has it now)
+     *   'own'     this copy becomes an Intake item of its own
+     *
      * @return array{did: string, item: ?string}
      */
-    public function importOne(TenantPosConnection $conn, int $posItemId, ?string $runBy): array
+    public function importOne(TenantPosConnection $conn, int $posItemId, ?string $runBy, ?string $as = null): array
     {
         $p = DB::table('tenant_pos_items as p')->where('p.tenant_id', $conn->tenant_id)->where('p.id', $posItemId)->first();
         if (! $p) {
@@ -310,6 +355,12 @@ class PosImportService
         }
         if ($p->inventory_item_id) {
             return ['did' => 'already', 'item' => (string) $p->inventory_item_id];
+        }
+
+        [$twins, $all] = $p->removed_at ? [[], collect()] : $this->twinMap($conn);
+        $isTwin = ! empty($twins[$p->id]);
+        if ($isTwin && ! in_array($as, ['follow', 'own'], true)) {
+            return ['did' => 'choose', 'item' => null];
         }
 
         // picks made one after another share a batch, so they can be undone together
@@ -320,8 +371,11 @@ class PosImportService
             'tenant_id' => $conn->tenant_id, 'action' => 'pos_import', 'filter' => ['picked' => true], 'item_count' => 0, 'run_by' => $runBy,
         ]);
 
-        $did = $this->importRow($conn, $p, PosMatcher::forTenant($conn->tenant_id), (string) $batch->id, true);
-        if (in_array($did, ['created', 'created_uncat', 'linked'], true)) {
+        $matcher = PosMatcher::forTenant($conn->tenant_id);
+        $did = $isTwin
+            ? $this->importTwin($conn, $p, $matcher, (string) $batch->id, $as, array_map(fn ($id) => $all[$id] ?? null, $twins[$p->id]))
+            : $this->importRow($conn, $p, $matcher, (string) $batch->id, true);
+        if (in_array($did, ['created', 'created_uncat', 'linked', 'moved'], true)) {
             $batch->increment('item_count');
         }
 
@@ -332,9 +386,79 @@ class PosImportService
     }
 
     /**
+     * MARKER-POS-TWINS: a product the Connected POS has more than once, as the shop chose.
+     *
+     * @param  list<?object> $copies the other copies of this product
+     * @return string created | created_uncat | linked | moved
+     */
+    private function importTwin(TenantPosConnection $conn, object $p, PosMatcher $matcher, string $batchId, string $as, array $copies): string
+    {
+        $tenantId = $conn->tenant_id;
+
+        return DB::transaction(function () use ($conn, $p, $matcher, $batchId, $as, $copies, $tenantId) {
+            $was = PosCatalogSync::$applying;
+            PosCatalogSync::$applying = true;
+            try {
+                $item = null;
+                $kind = null;
+                $from = null;
+
+                if ($as === 'follow') {
+                    // the copy that has the item now gives it up
+                    foreach (array_filter($copies) as $c) {
+                        if ($c->inventory_item_id && ($item = TenantInventoryItem::where('tenant_id', $tenantId)->find($c->inventory_item_id))) {
+                            DB::table('tenant_pos_items')->where('id', $c->id)->update(['inventory_item_id' => null, 'snapshot' => null, 'conflict' => null]);
+                            $kind = 'moved';
+                            $from = (int) $c->id;
+                            break;
+                        }
+                    }
+                    // or an item of the shop's that no copy has yet
+                    if (! $item && ($hit = $matcher->find((array) $p)) && in_array($hit['how'], PosMatcher::STRONG, true)) {
+                        $item = TenantInventoryItem::where('tenant_id', $tenantId)->find($hit['id']);
+                        $kind = $item ? 'linked' : null;
+                    }
+                    if ($item) {
+                        $this->fillBlanks($item, $p);
+                    }
+                }
+
+                if (! $item) {
+                    $cat = $this->categoryFor($tenantId, $p->category);
+                    $item = $this->create($tenantId, $p, $cat['id'] ?? null);
+                    $kind = ($cat['id'] ?? null) ? 'created' : 'created_uncat';
+                }
+
+                DB::table('tenant_pos_items')->where('id', $p->id)->update(['inventory_item_id' => $item->id, 'snapshot' => null, 'conflict' => null]);
+                $this->supplier($tenantId, $item, $p);
+                // the item now follows this copy: its price and its count
+                $this->sync->levelWith($conn, $item, $p, in_array($kind, ['created', 'created_uncat'], true));
+
+                CatalogChangeItem::create([
+                    'batch_id'  => $batchId,
+                    'tenant_id' => $tenantId,
+                    'item_id'   => $item->id,
+                    'before'    => array_filter([
+                        '_pos'    => $kind === 'moved' ? 'moved' : ($kind === 'linked' ? 'linked' : 'created'),
+                        'product' => (string) ($p->name ?: $p->sku),
+                        'ext'     => (string) $p->external_id,
+                        'pos_id'  => (int) $p->id,
+                        'from'    => $from, // the copy it followed before
+                    ], fn ($v) => $v !== null),
+                    'after'     => null,
+                ]);
+
+                return $kind;
+            } finally {
+                PosCatalogSync::$applying = $was;
+            }
+        });
+    }
+
+    /**
      * One product: link it to the item it is, or make the item.
      *
-     * @return string created | created_uncat | linked | check | skip
+     * @return string created | created_uncat | linked | check | skip (its item has gone)
      */
     private function importRow(TenantPosConnection $conn, object $p, PosMatcher $matcher, string $batchId, bool $explicit): string
     {
@@ -343,9 +467,6 @@ class PosImportService
 
         if ($hit && ! $explicit && ! in_array($hit['how'], PosMatcher::STRONG, true)) {
             return 'check'; // shares only a SKU with an item: left for the shop to decide
-        }
-        if (! $hit && $matcher->findTaken((array) $p)) {
-            return 'skip'; // the same product twice in the Connected POS; its twin already has the item
         }
 
         return DB::transaction(function () use ($conn, $p, $matcher, $batchId, $hit, $tenantId) {
@@ -375,7 +496,7 @@ class PosImportService
                     'batch_id'  => $batchId,
                     'tenant_id' => $tenantId,
                     'item_id'   => $item->id,
-                    'before'    => ['_pos' => $kind === 'linked' ? 'linked' : 'created', 'product' => (string) ($p->name ?: $p->sku), 'ext' => (string) $p->external_id],
+                    'before'    => ['_pos' => $kind === 'linked' ? 'linked' : 'created', 'product' => (string) ($p->name ?: $p->sku), 'ext' => (string) $p->external_id, 'pos_id' => (int) $p->id],
                     'after'     => null,
                 ]);
 
@@ -540,7 +661,9 @@ class PosImportService
             ->when($onlyItemId, fn ($q) => $q->where('item_id', $onlyItemId))->cursor();
 
         foreach ($rows as $row) {
-            $made = (($row->before ?? [])['_pos'] ?? '') === 'created';
+            $b = (array) ($row->before ?? []);
+            $made = ($b['_pos'] ?? '') === 'created';
+            $moved = ($b['_pos'] ?? '') === 'moved';
             $item = TenantInventoryItem::withTrashed()->where('tenant_id', $batch->tenant_id)->find($row->item_id);
 
             if ($made && $item && $this->usedSince($item)) {
@@ -552,9 +675,14 @@ class PosImportService
             }
 
             try {
-              DB::transaction(function () use ($batch, $row, $item, $made) {
+              DB::transaction(function () use ($batch, $row, $item, $made, $moved, $b) {
                 DB::table('tenant_pos_items')->where('tenant_id', $batch->tenant_id)->where('inventory_item_id', $row->item_id)
                     ->update(['inventory_item_id' => null, 'snapshot' => null, 'conflict' => null]);
+                // MARKER-POS-TWINS: the item goes back to following the copy it followed before
+                if ($moved && $item && ! empty($b['from'])) {
+                    DB::table('tenant_pos_items')->where('tenant_id', $batch->tenant_id)->where('id', (int) $b['from'])
+                        ->whereNull('inventory_item_id')->update(['inventory_item_id' => $item->id]);
+                }
                 if ($made && $item) {
                     DB::table('tenant_inventory_movements')->where('tenant_id', $batch->tenant_id)->where('inventory_item_id', $item->id)->delete();
                     DB::table('tenant_inventory_item_locations')->where('inventory_item_id', $item->id)->delete();

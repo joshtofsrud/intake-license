@@ -341,6 +341,8 @@ class CustomerController extends Controller
         // Unified activity timeline. Service merges appointments, sales,
         // class registrations, and pack/membership grants into a single
         // chronological feed grouped by month.
+        // MARKER-POS-SALES-HISTORY: spend in the shop's Connected POS, shown on its own line
+        $posSpend        = \App\Services\Tenant\CustomerTimelineService::posSpendCents($tenant->id, $customer->id);
         $timelineService = app(\App\Services\Tenant\CustomerTimelineService::class);
         $timelineEvents  = $timelineService->buildForCustomer($tenant->id, $customer->id);
         $timelineMonths  = $timelineService->groupByMonth($timelineEvents);
@@ -420,7 +422,7 @@ class CustomerController extends Controller
         return view('tenant.customers.show', compact(
             'customerTags', 'allTags',
             'customer', 'appointments', 'notes',
-            'totalSpend', 'lastService', 'updateUrl',
+            'totalSpend', 'posSpend', 'lastService', 'updateUrl',
             'customerMemberships', 'customerPacks',
             'membershipProducts', 'packProducts',
             'timelineMonths', 'timelineCount', 'specialOrdersOpen', 'specialOrdersClosed', 'soVendors',

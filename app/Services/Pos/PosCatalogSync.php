@@ -20,7 +20,8 @@ use Illuminate\Support\Str;
  * Rules (decided with the shop owner in mind):
  *  - MARKER-CONNECTED-POS-SECTION: reading NEVER creates an Intake item. Every product
  *    is recorded; one that is plainly an item the shop already carries (same barcode
- *    or part number) is linked when "link matches on their own" is on. Everything
+ *    or part number) is linked when "link matches on their own" is on — unless the
+ *    Connected POS has that product more than once, which is the shop's call. Everything
  *    else waits in Inventory › Import until someone adds it.
  *  - In 2 Way Data with sync on, the Connected POS owns price and stock on linked
  *    items: its price sets the sell price, and its count at each mapped outlet is
@@ -86,6 +87,13 @@ class PosCatalogSync
                 $st['items_seen'] += count($page['items']);
                 $st['cursor_items'] = $page['cursor'];
                 if (! $page['more']) {
+                    $st['phase'] = 'link';
+                    $st['link_after'] = 0;
+                }
+            } elseif ($st['phase'] === 'link') {
+                // MARKER-POS-TWINS: linking waits until every product of this read is recorded, so a
+                // product the Connected POS has twice is seen as two before either could take the item
+                if (! $this->linkPage($conn, $st)) {
                     $st['phase'] = 'stock';
                 }
             } else {
@@ -131,6 +139,12 @@ class PosCatalogSync
                     $fill['switched_at'] = now();
                 }
                 $conn->forceFill($fill)->save();
+
+                // MARKER-POS-SALES-HISTORY: at Switch over, one last look for sales made there
+                // since the last minute's check. After this, new sales no longer come in.
+                if (isset($fill['mode'])) {
+                    app(PosSalesSync::class)->lastLook($conn);
+                }
 
                 return false;
             }
@@ -216,22 +230,11 @@ class PosCatalogSync
             return;
         }
 
-        // MARKER-CONNECTED-POS-SECTION: no link yet. Link it only when it is plainly an item
-        // the shop already carries; otherwise it waits in Inventory › Import. Never created here.
+        // MARKER-CONNECTED-POS-SECTION: no link yet. Nothing is created here, ever. Whether it
+        // is plainly an item the shop already carries is settled in the link step, once the
+        // whole read is recorded.
         if (! $item) {
-            $hit = $conn->auto_link ? $this->matcher($tenantId)->find($it) : null;
-            if (! $hit || ! in_array($hit['how'], PosMatcher::STRONG, true)) {
-                $st['waiting'] = ($st['waiting'] ?? 0) + 1;
-                return;
-            }
-            $item = TenantInventoryItem::where('tenant_id', $tenantId)->find($hit['id']);
-            if (! $item) {
-                $st['waiting'] = ($st['waiting'] ?? 0) + 1;
-                return;
-            }
-            DB::table('tenant_pos_items')->where('tenant_id', $tenantId)->where('external_id', $it['id'])->update(['inventory_item_id' => $item->id]);
-            $this->matcher($tenantId)->take((string) $item->id);
-            $st['matched']++;
+            return;
         }
 
         if (! $owns) {
@@ -248,9 +251,48 @@ class PosCatalogSync
         $this->reconcileShared($conn, $it, $item, $st);
     }
 
-    private function matcher(string $tenantId): PosMatcher
+    /**
+     * The link step: products this read met that have no Intake item yet. One that is plainly
+     * an item the shop already carries (same barcode or part number) is linked, when "link
+     * matches on their own" is on. One the Connected POS has more than once is left for the
+     * shop to choose. Everything else waits in Inventory › Import. Returns true while there
+     * are more to look at.
+     */
+    private function linkPage(TenantPosConnection $conn, array &$st): bool
     {
-        return $this->matcher ??= PosMatcher::forTenant($tenantId);
+        $tenantId = $conn->tenant_id;
+        $rows = DB::table('tenant_pos_items')->where('tenant_id', $tenantId)->whereNull('removed_at')->whereNull('inventory_item_id')
+            ->where('id', '>', (int) ($st['link_after'] ?? 0))
+            ->when(! empty($st['started_at']), fn ($q) => $q->where('synced_at', '>=', \Illuminate\Support\Carbon::parse($st['started_at'])->subMinute()))
+            ->orderBy('id')->limit(2000)->get();
+        if ($rows->isEmpty()) {
+            return false;
+        }
+
+        if ($conn->auto_link) {
+            $this->matcher ??= PosMatcher::forTenant($tenantId);
+            $twins = PosMatcher::twins(DB::table('tenant_pos_items')->where('tenant_id', $tenantId)->whereNull('removed_at')->get(['id', 'upc', 'ean', 'mpn', 'brand']));
+        }
+        foreach ($rows as $p) {
+            $st['link_after'] = (int) $p->id;
+            $hit = ($conn->auto_link && empty($twins[$p->id])) ? $this->matcher->find((array) $p) : null;
+            $item = ($hit && in_array($hit['how'], PosMatcher::STRONG, true)) ? TenantInventoryItem::where('tenant_id', $tenantId)->find($hit['id']) : null;
+            if (! $item) {
+                $st['waiting'] = ($st['waiting'] ?? 0) + 1;
+                continue;
+            }
+            DB::table('tenant_pos_items')->where('id', $p->id)->update(['inventory_item_id' => $item->id]);
+            $this->matcher->take((string) $item->id);
+            $st['matched'] = ($st['matched'] ?? 0) + 1;
+            if ($conn->ownsPriceAndStock()) {
+                if ($p->price_cents && (int) $item->shop_sell_price_cents !== (int) $p->price_cents) {
+                    $st['price_updates'] = ($st['price_updates'] ?? 0) + 1;
+                }
+                $this->levelWith($conn, $item, $p, false);
+            }
+        }
+
+        return $rows->count() === 2000;
     }
 
     /**

@@ -26,7 +26,7 @@
       </div>
       <div class="d">Reads every product, links the ones that are plainly items you already carry, and adds the rest to the Import list. Nothing is created. @if($pc->sync_enabled) New and changed products are picked up about every minute, with a full read each night. @else Automatic reading is off; turn it on under Settings, or read when you need to. @endif</div>
       @if(! empty($ss['error']))<div class="d" style="color:#F26D6D">{{ $ss['error'] }}</div>@endif
-      @if($reading && ! $readWaiting)<div class="d">Step: {{ ($ss['phase'] ?? '') === 'stock' ? 'reading stock counts' : 'reading products' }} · page <span data-live="state.pages">{{ $ss['pages'] ?? 0 }}</span></div>@endif
+      @if($reading && ! $readWaiting)<div class="d">Step: {{ ['stock' => 'reading stock counts', 'link' => 'linking the ones you already carry'][$ss['phase'] ?? ''] ?? 'reading products' }} · page <span data-live="state.pages">{{ $ss['pages'] ?? 0 }}</span></div>@endif
     </div>
     <div class="ctl">
       {{-- MARKER-POS-STOP-RESUME --}}
@@ -78,12 +78,19 @@
             <td><div>{{ $p->name ?: $p->sku ?: 'Unnamed product' }}</div>
               <div class="m">{{ collect([$p->brand, $p->sku ? 'SKU ' . $p->sku : null, $p->mpn ? 'MPN ' . $p->mpn : null, $p->upc ?: $p->ean])->filter()->implode(' · ') }}</div></td>
             <td class="ip-out" data-out>
-              @if($p->hit) Links to <a href="{{ route('tenant.inventory.show', $p->hit['id']) }}">{{ $p->hit['name'] ?: 'your item' }}</a><span class="ip-tag {{ $p->hit['how'] === 'sku' ? 'part' : '' }}">{{ $how[$p->hit['how']] ?? '' }}</span>
+              @if($p->twin) In your Connected POS more than once <span class="ip-tag part">you choose</span>
+              @elseif($p->hit) Links to <a href="{{ route('tenant.inventory.show', $p->hit['id']) }}">{{ $p->hit['name'] ?: 'your item' }}</a><span class="ip-tag {{ $p->hit['how'] === 'sku' ? 'part' : '' }}">{{ $how[$p->hit['how']] ?? '' }}</span>
               @else New item @if(! $p->track_stock)<span class="ip-tag">non-stock</span>@endif @endif
             </td>
             <td class="r">{{ $p->price_cents !== null ? '$' . number_format($p->price_cents / 100, 2) : '—' }}</td>
             <td class="r">{{ $p->stock === null ? '—' : number_format($p->stock) }}</td>
-            <td class="r" data-btn><button type="button" class="im-btn" data-one="{{ $p->id }}">{{ $p->hit ? 'Link' : 'Import' }}</button></td>
+            <td class="r" data-btn>
+              @if($p->twin)
+                <a class="im-btn" href="{{ route('tenant.inventory.cpos', ['new' => 1]) }}" style="text-decoration:none">Choose in Import</a>
+              @else
+                <button type="button" class="im-btn" data-one="{{ $p->id }}">{{ $p->hit ? 'Link' : 'Import' }}</button>
+              @endif
+            </td>
           </tr>
         @endforeach
       </tbody>

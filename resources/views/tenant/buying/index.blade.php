@@ -107,6 +107,7 @@
   <section class="mk-pane {{ $tab === 'moving' ? 'on' : '' }}" id="pane-moving">
     <div class="mk-legend">
       <b>What this shows.</b> Items that sold in the last {{ \App\Services\Tenant\BuyingService::WINDOWS[$w] }}{{ $loc ? ' at ' . $locs->firstWhere('id', $loc)?->name : '' }}: register and online sales and parts used on work orders, refunds taken off.
+      @if(\App\Services\Pos\PosSalesSync::has(tenant()->id))<b>From Connected POS:</b> sales made in your Connected POS are counted too, for items linked to it{{ $loc ? ' and outlets matched to this location' : '' }}. A row marked <span class="mk-pos">POS</span> has some; open it to see how many. Products you haven't imported aren't Intake items, so they don't show here.@endif
       <b>Per week</b> is the average of the last {{ $set['pace_weeks'] }} weeks.
       <b>On order</b> is what's still owed on purchase orders you've placed, with each line's expected date. Units held for a customer's special order are shown but don't count as stock.
       @if($velocity['report_on'])Distributor figures cover only items in your inventory, and distributor pace is how fast <i>their</i> stock is dropping, not your sales.@endif

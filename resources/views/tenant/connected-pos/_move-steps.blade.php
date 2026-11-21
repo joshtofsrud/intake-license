@@ -75,13 +75,45 @@
     @endif
   </div>
 
-  {{-- 5 --}}
+  {{-- 5: MARKER-POS-SALES-HISTORY --}}
+  @php
+    $hs = (array) ($pc?->sales_state ?? []);
+    $hReading = ($hs['running'] ?? false) && ($hs['full'] ?? false);
+    $hAt = \App\Services\Pos\PosSalesSync::reached($hs, tenant()->timezone());
+  @endphp
+  <div class="cpx-st {{ $cls('history') }}"><span class="n">{{ $num('history') }}</span>
+    <div class="b"><div class="t">Bring in sales history</div>
+      <div class="d">
+        @if($hReading) Reading sales · <span data-live="sales.reached">{{ $hAt ?: 'starting' }}</span>. <b data-live="sales.kept">{{ number_format($hs['kept'] ?? 0) }}</b> in so far.
+        @elseif($hs['stopped'] ?? false) Stopped{{ $hAt ? ' at ' . $hAt : '' }} with {{ number_format($hs['kept'] ?? 0) }} sales in. Resume carries on from there.
+        @elseif($by['history']['done']) {{ number_format($hs['kept'] ?? 0) }} sales in. @if($pc->sales_in && $pc->isTwoWay()) New ones keep coming until you switch over. @endif
+        @else So customer pages, Buying and reports start with your past sales. Stock, the cash drawer and your ledger are not touched. @endif
+      </div>
+      @if($hReading)<div class="cpx-prog"><i data-live-pct="sales.percent" style="width:{{ \App\Services\Pos\PosSalesSync::percent($hs) }}%"></i></div>@endif
+    </div>
+    @if($by['connect']['done'])
+      <div class="ctl">
+        @if($hReading)
+          <form method="POST" action="{{ route('tenant.cpos.sales_stop') }}">@csrf<button class="ia-btn ia-btn--secondary ia-btn--sm" type="submit">Stop</button></form>
+        @elseif($hs['stopped'] ?? false)
+          <form method="POST" action="{{ route('tenant.cpos.sales_resume') }}">@csrf<button class="ia-btn ia-btn--primary ia-btn--sm" type="submit">Resume</button></form>
+        @elseif(! $by['history']['done'])
+          <a class="ia-btn ia-btn--ghost ia-btn--sm" href="{{ route('tenant.cpos.home', ['tab' => 'history']) }}">Options</a>
+          <form method="POST" action="{{ route('tenant.cpos.sales') }}">@csrf<input type="hidden" name="go" value="start"><button class="ia-btn {{ $by['history']['now'] ? 'ia-btn--primary' : 'ia-btn--secondary' }} ia-btn--sm" type="submit" title="Reads the {{ strtolower(\App\Services\Pos\PosSalesSync::RANGES[\App\Services\Pos\PosSalesSync::options($pc)['range']]) }}. Change that under Options first if you want.">Start</button></form>
+        @else
+          <a class="ia-btn ia-btn--secondary ia-btn--sm" href="{{ route('tenant.cpos.home', ['tab' => 'history']) }}">Open</a>
+        @endif
+      </div>
+    @endif
+  </div>
+
+  {{-- 6 --}}
   <div class="cpx-st {{ $cls('switch') }}"><span class="n">{{ $num('switch') }}</span>
     <div class="b"><div class="t">Switch over</div>
       <div class="d">
         @if($by['switch']['done']) Switched over {{ $pc->switched_at?->diffForHumans() }}. Your Connected POS is Reading Only: nothing is sent to it, and Intake owns price and stock. Disconnect when you no longer need to look anything up.
         @elseif($switching) Reading your Connected POS one last time: <b data-live="state.items_seen">{{ number_format($ss['items_seen'] ?? 0) }}</b> products. It becomes Reading Only as soon as this finishes.
-        @else Intake reads your Connected POS one last time, so linked items start with its final prices and counts. Then it becomes Reading Only: nothing more is sent to it, and Intake owns price and stock. @endif
+        @else Intake reads your Connected POS one last time, so linked items start with its final prices and counts. Then it becomes Reading Only: nothing more is sent to it, Intake owns price and stock, and new sales stop coming in from it. @endif
       </div></div>
     @if(! $by['switch']['done'] && ! $switching)
       <div class="ctl">

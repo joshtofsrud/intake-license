@@ -7,7 +7,7 @@
 
 @section('content')
 {{-- MARKER-CONNECTED-POS-SECTION: the shop's own outside POS (not the Intake Register), as a section of its own.
-     Tabs: Overview · Items · Customers · Sending · Settings. Items come into Intake through Inventory › Import;
+     Tabs: Overview · Items · Customers · Sales history · Sending · Settings. Items come into Intake through Inventory › Import;
      sending online orders is set in E-commerce. --}}
 @php
   $pc = $pos['conn'];
@@ -19,6 +19,7 @@
     'overview'  => ['Overview', null, false],
     'items'     => ['Items', $pos['items']['new'] ? number_format($pos['items']['new']) . ' new' : null, false],
     'customers' => ['Customers', null, false],
+    'history'   => ['Sales history', ($pc && (($pc->sales_state ?? [])['running'] ?? false) && (($pc->sales_state ?? [])['full'] ?? false)) ? 'reading' : null, false],
     'sending'   => ['Sending', $failed ? number_format($failed) . ' failed' : ($waiting ? number_format($waiting) . ' waiting' : null), (bool) $failed],
     'settings'  => ['Settings', null, false],
   ];
@@ -65,7 +66,7 @@
       <li><b>Reading Only:</b> after you switch over to Intake. The catalog and customers can still be read, nothing is sent, and Intake owns price and stock.</li>
       <li><b>Customers</b> come in only when you turn them on. A match by email or phone only has its blank fields filled; nobody is opted in to marketing.</li>
       <li>When both sides changed the same field on an item, nothing is overwritten; it waits under <b>Sending › Needs review</b>.</li>
-      <li><b>Not yet:</b> sales history.</li>
+      <li><b>Sales history</b> comes in only when you start it. Past sales show on customer pages, Buying, reports and Recovery, marked From Connected POS. They never change stock, the cash drawer or your ledger.</li>
     </ul>
   </details>
 

@@ -28,7 +28,7 @@
       <li>Steps can be done in any order after connecting, stopped part-way, and picked up again.</li>
       <li><b>Switch over</b> is the moment Intake becomes your POS: your Connected POS is read one last time, then becomes <b>Reading Only</b>. You can go back to 2 Way Data under Connected POS › Settings.</li>
       <li>This page leaves the menu once you've switched over, or if you set <i>How you use it</i> back to Staying on Connected POS. Everything on it is also under <b>Connected POS</b>.</li>
-      <li><b>Not yet:</b> sales history.</li>
+      <li><b>Sales history</b> is copied in for customer pages, Buying, reports and Recovery, marked From Connected POS. It never changes stock, the cash drawer or your ledger. New sales keep coming in until you switch over.</li>
     </ul>
   </details>
 

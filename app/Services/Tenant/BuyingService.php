@@ -86,6 +86,23 @@ class BuyingService
             $series[$r->id] ??= array_fill(0, self::HISTORY_WEEKS, 0);
             $series[$r->id][self::HISTORY_WEEKS - 1 - $wk] += (int) $r->units;
         }
+        // MARKER-POS-SALES-HISTORY: units sold in the shop's Connected POS, for items linked to it.
+        // Those sales never made an Intake sale movement (in 2 Way Data their stock change arrives
+        // as a count, not a sale), and the ones Intake sent there are left out of the history, so
+        // nothing is counted twice.
+        $fromPos = [];
+        foreach ($this->posWeekly($tenant, $locationId, $today, $since) as $r) {
+            $wk = (int) $r->wk;
+            if ($wk < 0 || $wk >= self::HISTORY_WEEKS) {
+                continue;
+            }
+            $units = (int) round((float) $r->units);
+            $series[$r->id] ??= array_fill(0, self::HISTORY_WEEKS, 0);
+            $series[$r->id][self::HISTORY_WEEKS - 1 - $wk] += $units;
+            if ($wk < $weeks) {
+                $fromPos[$r->id] = ($fromPos[$r->id] ?? 0) + $units;
+            }
+        }
         // moving = sold more than came back in the window
         $series = array_filter($series, fn ($a) => array_sum(array_slice($a, -$weeks)) > 0);
         if (! $series) {
@@ -162,6 +179,7 @@ class BuyingService
                 'wk'      => $wk,
                 'pace'    => round($pace, 2),
                 'sold'    => array_sum(array_slice($wk, -$weeks)),
+                'pos'     => (int) ($fromPos[$id] ?? 0), // of those, sold in the Connected POS
                 'onHand'  => $onHand,
                 'held'    => $held,
                 'days'    => $days === null ? null : round($days, 1),
@@ -187,6 +205,36 @@ class BuyingService
         usort($out, fn ($a, $b) => [$order[$a['st']], $a['days'] ?? INF] <=> [$order[$b['st']], $b['days'] ?? INF]);
 
         return $out;
+    }
+
+    /**
+     * MARKER-POS-SALES-HISTORY: weekly units sold in the Connected POS per linked Intake item
+     * (returns taken off). With a location chosen, only the outlets mapped to it count.
+     */
+    private function posWeekly(Tenant $tenant, ?string $locationId, $today, $since)
+    {
+        if (! \App\Services\Pos\PosSalesSync::has($tenant->id)) {
+            return collect();
+        }
+        $q = DB::table('tenant_pos_sale_lines as l')
+            ->join('tenant_pos_sales as s', 's.id', '=', 'l.pos_sale_id')
+            ->join('tenant_pos_items as pi', function ($j) {
+                $j->on('pi.tenant_id', '=', 'l.tenant_id')->on('pi.external_id', '=', 'l.external_product_id');
+            })
+            ->where('s.tenant_id', $tenant->id)->where('l.tenant_id', $tenant->id)
+            ->whereNotNull('pi.inventory_item_id')
+            ->where('s.sale_date', '>=', $since->toDateString());
+        if ($locationId) {
+            $map = (array) (\App\Models\Tenant\TenantPosConnection::where('tenant_id', $tenant->id)->value('location_map') ?? []);
+            $outlets = array_map('strval', array_keys(array_filter($map, fn ($loc) => (string) $loc === (string) $locationId)));
+            if (! $outlets) {
+                return collect();
+            }
+            $q->whereIn('s.external_outlet_id', $outlets);
+        }
+
+        return $q->selectRaw('pi.inventory_item_id as id, FLOOR(DATEDIFF(?, s.sale_date) / 7) as wk, SUM(l.quantity) as units', [$today->toDateString()])
+            ->groupBy('pi.inventory_item_id', 'wk')->get();
     }
 
     /** Owed on placed POs, per item: [po, id, loc, qty, cust, due(days from today, <0 late), date] */

@@ -37,7 +37,7 @@ class PosConnectionController extends Controller
         return redirect()->route('tenant.cpos.home', ['tab' => $tab]);
     }
 
-    private const TABS = ['overview', 'items', 'customers', 'sending', 'settings'];
+    private const TABS = ['overview', 'items', 'customers', 'history', 'sending', 'settings'];
 
     /** GET /connected-pos — the section. ?part=sending returns just the sends list, for its live refresh. */
     public function home(Request $request)
@@ -59,8 +59,10 @@ class PosConnectionController extends Controller
             $stock = \Illuminate\Support\Facades\DB::table('tenant_pos_stock')->where('tenant_id', $tenant->id)
                 ->whereIn('external_item_id', $rows->pluck('external_id'))->selectRaw('external_item_id, SUM(qty) q')->groupBy('external_item_id')->pluck('q', 'external_item_id');
             $matcher = $rows->isEmpty() ? null : \App\Services\Pos\PosMatcher::forTenant($tenant->id);
-            $new = $rows->map(function ($p) use ($stock, $matcher) {
-                $hit = $matcher->find((array) $p);
+            $twins = $rows->isEmpty() ? [] : $svc->twinMap($conn)[0];
+            $new = $rows->map(function ($p) use ($stock, $matcher, $twins) {
+                $p->twin = ! empty($twins[$p->id]); // MARKER-POS-TWINS: in the Connected POS more than once
+                $hit = $p->twin ? null : $matcher->find((array) $p);
                 $p->hit = $hit ? ['how' => $hit['how'], 'name' => $matcher->name($hit['id']), 'id' => $hit['id']] : null;
                 $p->stock = $p->track_stock ? (int) ($stock[$p->external_id] ?? 0) : null;
                 return $p;
@@ -201,6 +203,7 @@ class PosConnectionController extends Controller
             'state'          => $conn?->sync_state ?? null,
             'customers'      => $conn?->customer_sync ?? null, // MARKER-POS-CUSTOMERS-IN
             'import'         => $conn?->import_state ?? null,
+            'sales'          => $conn && $conn->sales_state ? $this->salesLive($conn) : null, // MARKER-POS-SALES-HISTORY
             'items'          => $conn ? app(\App\Services\Pos\PosImportService::class)->counts($conn) : null,
             'mode'           => $conn?->mode,
             'last_synced_at' => $conn?->last_synced_at?->diffForHumans(),
@@ -259,6 +262,7 @@ class PosConnectionController extends Controller
         if (! $conn->sync_enabled || empty($conn->location_map)) {
             // nothing to level: no outlet is mapped, or sync was never on
             $conn->forceFill(['mode' => TenantPosConnection::READ_ONLY, 'switched_at' => now()])->save();
+            app(\App\Services\Pos\PosSalesSync::class)->lastLook($conn); // MARKER-POS-SALES-HISTORY
 
             return $this->back()->with('success', 'Switched over. Your Connected POS is now Reading Only, and Intake owns price and stock.');
         }
@@ -382,6 +386,111 @@ class PosConnectionController extends Controller
         $conn->forceFill(['customer_sync' => $st])->save();
         \App\Jobs\PosCustomerSyncJob::dispatch($conn->id);
         return $this->back('customers')->with('success', 'Resumed from page ' . number_format($st['pages'] ?? 0) . '.');
+    }
+
+    // ── MARKER-POS-SALES-HISTORY ────────────────────────────────
+
+    /** The run's numbers for the live poll, with how far it has got worked out. */
+    private function salesLive(TenantPosConnection $conn): array
+    {
+        $st = (array) $conn->sales_state;
+        $skipped = (int) ($st['ours'] ?? 0) + (int) ($st['older'] ?? 0) + (int) ($st['no_customer'] ?? 0) + (int) ($st['voided'] ?? 0) + (int) ($st['open'] ?? 0);
+
+        return $st + [
+            'percent'  => \App\Services\Pos\PosSalesSync::percent($st),
+            'reached'  => \App\Services\Pos\PosSalesSync::reached($st, tenant()->timezone()) ?? 'starting',
+            'left_out' => $skipped,
+            'visible'  => (bool) (($st['running'] ?? false) && ($st['full'] ?? false)),
+        ];
+    }
+
+    /**
+     * Save the Sales history choices, and (go=start) read the history. The first read and
+     * "Read again" both start from the beginning: a sale already in is updated, not doubled.
+     */
+    public function sales(Request $request, \App\Services\Pos\PosSalesSync $sync): RedirectResponse
+    {
+        $this->guard();
+        $conn = TenantPosConnection::where('tenant_id', tenant()->id)->where('status', 'connected')->first();
+        if (! $conn) {
+            return $this->back('history')->with('error', 'Reconnect your Connected POS first.');
+        }
+        $data = $request->validate([
+            'range'       => ['nullable', 'in:12m,24m,all'],
+            'no_customer' => ['nullable', 'in:in,skip'],
+            'sales_in'    => ['nullable', 'boolean'],
+            'go'          => ['nullable', 'in:save,start'],
+        ]);
+        $st = (array) ($conn->sales_state ?? []);
+        $running = ($st['running'] ?? false) && ($st['full'] ?? false) && $conn->updated_at?->gt(now()->subMinutes(15));
+        if ($running) {
+            return $this->back('history')->with('success', 'Sales history is already coming in — progress is shown below. Stop it to change these.');
+        }
+        $was = \App\Services\Pos\PosSalesSync::options($conn);
+        $opt = ['range' => $data['range'] ?? $was['range'], 'no_customer' => $data['no_customer'] ?? $was['no_customer']];
+        // from the checklist's Start there is no switch on the form: new sales keep coming unless the shop said otherwise
+        $keep = $request->has('sales_in') ? $request->boolean('sales_in') : ($conn->sales_options === null ? true : (bool) $conn->sales_in);
+        $conn->forceFill(['sales_options' => $opt, 'sales_in' => $keep])->save();
+
+        if (($data['go'] ?? 'save') === 'start') {
+            if (($st['running'] ?? false) && $conn->updated_at?->gt(now()->subMinutes(2))) {
+                // the every-minute check for new sales is mid-run; starting over underneath it would lose one of the two
+                return $this->back('history')->with('error', 'Intake is checking for new sales right now. Give it a few seconds, then press it again. Your choices were saved.');
+            }
+            $sync->start($conn, true);
+            \App\Jobs\PosSalesSyncJob::dispatch($conn->id);
+
+            return $this->back('history')->with('success', 'Reading your sales history — progress is shown below.');
+        }
+        $changed = $opt != $was && ! empty($st['last_done']);
+
+        return $this->back('history')->with('success', $changed
+            ? 'Saved. Read again to apply it to the sales already brought in.'
+            : 'Saved.' . ($conn->isTwoWay() ? ($keep ? ' New sales keep coming in until you switch over.' : ' New sales no longer come in.') : ''));
+    }
+
+    public function salesStop(): RedirectResponse
+    {
+        $this->guard();
+        $conn = TenantPosConnection::where('tenant_id', tenant()->id)->firstOrFail();
+        $st = (array) ($conn->sales_state ?? []);
+        if (! $st) {
+            return $this->back('history')->with('error', 'Nothing is being read.');
+        }
+        $st['running'] = false; $st['stopped'] = true; $st['finished_at'] = now()->toIso8601String();
+        $conn->forceFill(['sales_state' => $st])->save();
+        $at = \App\Services\Pos\PosSalesSync::reached($st, tenant()->timezone());
+
+        return $this->back('history')->with('success', 'Stopped. Everything read so far is kept; Resume carries on from ' . ($at ?: 'where it stopped') . '.');
+    }
+
+    public function salesResume(): RedirectResponse
+    {
+        $this->guard();
+        $conn = TenantPosConnection::where('tenant_id', tenant()->id)->where('status', 'connected')->first();
+        $st = (array) ($conn?->sales_state ?? []);
+        if (! $conn || ! $st) {
+            return $this->back('history')->with('error', $conn ? 'There is nothing to resume.' : 'Reconnect your Connected POS first.');
+        }
+        $st['running'] = true; $st['stopped'] = false; $st['error'] = null; $st['finished_at'] = null;
+        $conn->forceFill(['sales_state' => $st])->save();
+        \App\Jobs\PosSalesSyncJob::dispatch($conn->id);
+        $at = \App\Services\Pos\PosSalesSync::reached($st, tenant()->timezone());
+
+        return $this->back('history')->with('success', 'Resumed' . ($at ? ' from ' . $at : '') . '.');
+    }
+
+    /** Take every Connected POS sale back out of Intake. Nothing else is touched. */
+    public function salesClear(\App\Services\Pos\PosSalesSync $sync): RedirectResponse
+    {
+        $this->guard();
+        $conn = TenantPosConnection::where('tenant_id', tenant()->id)->firstOrFail();
+        if ((($conn->sales_state ?? [])['running'] ?? false) && $conn->updated_at?->gt(now()->subMinutes(15))) {
+            return $this->back('history')->with('error', 'Sales are being read right now. Stop that first, then remove them.');
+        }
+        $n = $sync->clear($conn);
+
+        return $this->back('history')->with('success', $n ? number_format($n) . ' Connected POS ' . ($n === 1 ? 'sale' : 'sales') . ' removed from Intake. Your Connected POS, your stock and your own sales were not touched.' : 'There was no sales history to remove.');
     }
 
     /** MARKER-POS-STOP-SENDS: stop everything still waiting to send. Nothing already sent is touched. */

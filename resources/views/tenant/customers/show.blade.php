@@ -163,6 +163,7 @@
 .act-icon--class_registration { background: rgba(117,168,224,.18); color: #75A8E0; }
 .act-icon--pack_grant         { background: rgba(190,242,100,.15); color: var(--ia-accent); }
 .act-icon--membership_grant   { background: rgba(244,115,115,.15); color: #F47373; }
+.act-icon--pos_sale           { background: var(--ia-hover); color: var(--ia-text-muted); } /* MARKER-POS-SALES-HISTORY */
 .act-date {
   font-size: 11px; color: var(--ia-text-muted);
   font-variant-numeric: tabular-nums; white-space: nowrap;
@@ -1176,6 +1177,10 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
       <div class="cmd-stat-label">Since</div>
     </div>
   </div>
+  @if(($posSpend ?? 0) != 0)
+    {{-- MARKER-POS-SALES-HISTORY --}}
+    <div style="font-size:12px;color:var(--ia-text-muted);padding:0 2px 10px">Plus {{ format_money((int) $posSpend) }} in your Connected POS, not counted in Lifetime.</div>
+  @endif
 
   {{-- MEMBERSHIP CARD (conditional) --}}
   @if($mobActiveMembership)
@@ -1213,7 +1218,7 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
             @php
               $iconClass = match($e['kind']) {
                 'appointment' => 'cmd-act-icon--appt',
-                'sale' => 'cmd-act-icon--sale',
+                'sale', 'pos_sale' => 'cmd-act-icon--sale',
                 'class_registration' => 'cmd-act-icon--class',
                 'pack_grant', 'membership_grant' => 'cmd-act-icon--member',
                 default => '',
@@ -1897,6 +1902,7 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
             <option value="all">All activity</option>
             <option value="appointment">Appointments</option>
             <option value="sale">Sales</option>
+            @if($timelineMonths->contains(fn ($m) => $m['events']->contains('kind', 'pos_sale')))<option value="pos_sale">Connected POS sales</option>@endif
             <option value="class_registration">Class registrations</option>
             <option value="grant">Memberships &amp; packs</option>
           </select>
@@ -1926,6 +1932,7 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
                     ? 'grant' : $e['kind'];
                   $iconMap = [
                     'sale'              => 'ti-cash',
+                    'pos_sale'          => 'ti-history',
                     'appointment'       => 'ti-calendar',
                     'class_registration'=> 'ti-users',
                     'pack_grant'        => 'ti-ticket',
@@ -1979,6 +1986,13 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
         <span class="cust-stat-label">Total spend</span>
         <span class="cust-stat-value">{{ format_money((int)$totalSpend) }}</span>
       </div>
+      @if(($posSpend ?? 0) != 0)
+        {{-- MARKER-POS-SALES-HISTORY: kept apart from Total spend, which is Intake's own payment ledger --}}
+        <div class="cust-stat" title="Sales this customer made in your Connected POS, brought in as history. Not part of Total spend.">
+          <span class="cust-stat-label">In your Connected POS</span>
+          <span class="cust-stat-value">{{ format_money((int) $posSpend) }}</span>
+        </div>
+      @endif
       <div class="cust-stat">
         <span class="cust-stat-label">Appointments</span>
         <span class="cust-stat-value">{{ $appointments->count() }}</span>

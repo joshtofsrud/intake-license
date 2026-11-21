@@ -54,6 +54,26 @@ class PosSync extends Command
             \App\Jobs\PosCustomerSyncJob::dispatch($conn->id);
         });
 
+        // MARKER-POS-SALES-HISTORY: new sales made in the Connected POS, for shops that keep them
+        // coming. Only in 2 Way Data (it stops at Switch over), and only once the first history
+        // read has finished. The nightly --full does not re-read history; this is always "since last time".
+        TenantPosConnection::where('sales_in', true)->where('status', 'connected')->where('mode', TenantPosConnection::TWO_WAY)->each(function (TenantPosConnection $conn) {
+            if (! $this->addonOn($conn)) {
+                return;
+            }
+            $st = (array) ($conn->sales_state ?? []);
+            if (($st['stopped'] ?? false) || empty($st['last_done'])) {
+                return; // stopped by the shop, or the first read hasn't finished: Start / Resume on the Sales history tab handle those
+            }
+            // a check that failed (the Connected POS was briefly unreachable) is simply tried again from where it was
+            $stuck = ($st['running'] ?? false) && $conn->updated_at && $conn->updated_at->lt(now()->subMinutes(15));
+            if (($st['running'] ?? false) && ! $stuck) {
+                return;
+            }
+            app(\App\Services\Pos\PosSalesSync::class)->start($conn, false);
+            \App\Jobs\PosSalesSyncJob::dispatch($conn->id);
+        });
+
         return self::SUCCESS;
     }
 

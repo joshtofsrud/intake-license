@@ -25,6 +25,7 @@ class TenantPosConnection extends Model
         'customers_in', 'customer_sync', // MARKER-POS-CUSTOMERS-IN
         'orders_out', 'order_setup', 'setup_options', 'items_create', 'items_edits', // MARKER-CONNECTED-POS-PUSH
         'mode', 'auto_link', 'import_state', 'items_marked_at', 'switched_at', // MARKER-CONNECTED-POS-SECTION
+        'sales_in', 'sales_options', 'sales_state', // MARKER-POS-SALES-HISTORY
     ];
 
     protected $hidden = ['access_token', 'refresh_token'];
@@ -52,6 +53,9 @@ class TenantPosConnection extends Model
         'import_state'     => 'array',
         'items_marked_at'  => 'datetime',
         'switched_at'      => 'datetime',
+        'sales_in'         => 'boolean',
+        'sales_options'    => 'array',
+        'sales_state'      => 'array',
     ];
 
     // MARKER-CONNECTED-POS-SECTION: the two modes a connection can be in.

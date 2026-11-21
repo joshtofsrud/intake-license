@@ -37,14 +37,29 @@ class AtRiskCustomerService
             ->get(['id', 'customer_id', 'appointment_date'])
             ->groupBy('customer_id');
 
+        // MARKER-POS-SALES-HISTORY: a day the customer bought something in the shop's Connected
+        // POS is a visit too, so a regular from before the move isn't missing their rhythm.
+        // A day that already has an appointment isn't counted a second time.
+        $posDays = $this->posVisitDays($tenantId, $today->copy()->subMonths(18));
+        $customerIds = array_unique(array_merge($visitsByCustomer->keys()->all(), array_keys($posDays)));
+
         $atRisk = collect();
 
-        foreach ($visitsByCustomer as $customerId => $visits) {
-            if ($visits->count() < $minVisits) {
+        foreach ($customerIds as $customerId) {
+            $dates = ($visitsByCustomer[$customerId] ?? collect())->pluck('appointment_date')->values();
+            $have = $dates->map(fn ($d) => $d->toDateString())->flip();
+            $posVisits = 0;
+            foreach ($posDays[$customerId] ?? [] as $d) {
+                if (! isset($have[$d])) {
+                    $dates->push(\Illuminate\Support\Carbon::parse($d));
+                    $posVisits++;
+                }
+            }
+            if ($dates->count() < $minVisits) {
                 continue;
             }
-
-            $dates = $visits->pluck('appointment_date')->values();
+            $dates = $dates->sortBy(fn ($d) => $d->timestamp)->values();
+            $visits = $dates;
             $gaps  = [];
             for ($i = 1; $i < $dates->count(); $i++) {
                 $g = $dates[$i - 1]->diffInDays($dates[$i]);
@@ -75,6 +90,7 @@ class AtRiskCustomerService
                 'days_since'   => (int) $daysSince,
                 'last_visit'   => $last,
                 'visit_count'  => $visits->count(),
+                'pos_visits'   => $posVisits, // of those, days known only from Connected POS sales
                 'reason'       => $signal ? $this->reasonLabel($signal) : null,
                 'reason_type'  => $signal?->type,
             ]);
@@ -95,6 +111,32 @@ class AtRiskCustomerService
         return $atRisk
             ->sortByDesc(fn ($c) => ($prioritize && $c['reason'] ? 1_000_000 : 0) + $c['days_since'])
             ->values();
+    }
+
+    /**
+     * MARKER-POS-SALES-HISTORY: customer id => the days they bought in the Connected POS
+     * (returns don't count as a visit), through the customer link.
+     *
+     * @return array<string, list<string>>
+     */
+    private function posVisitDays(string $tenantId, $since): array
+    {
+        if (! \App\Services\Pos\PosSalesSync::has($tenantId)) {
+            return [];
+        }
+        $out = [];
+        $rows = \Illuminate\Support\Facades\DB::table('tenant_pos_sales as s')
+            ->join('tenant_pos_customers as pc', function ($j) {
+                $j->on('pc.tenant_id', '=', 's.tenant_id')->on('pc.external_id', '=', 's.external_customer_id');
+            })
+            ->where('s.tenant_id', $tenantId)->whereNotNull('pc.customer_id')
+            ->where('s.total_cents', '>', 0)->where('s.sale_date', '>=', $since->toDateString())
+            ->distinct()->get(['pc.customer_id', 's.sale_date']);
+        foreach ($rows as $r) {
+            $out[$r->customer_id][] = substr((string) $r->sale_date, 0, 10);
+        }
+
+        return $out;
     }
 
     protected function reasonLabel(TenantCustomerSignal $signal): string
