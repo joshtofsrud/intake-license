@@ -26,7 +26,7 @@
 @endphp
 <h3>
   <span class="sh-h">{{ $r['problem'] }}@if ($why)<button type="button" class="ia-tip" aria-label="Why it matters">i</button><span class="ia-tip-text" hidden>{{ $why }}</span>@endif</span>
-  <span>{{ $r['label'] }}</span>
+  <span class="sh-h-r">{{ $r['label'] }}<button type="button" class="sh-x" data-sh-shut aria-label="Close">&times;</button></span>
 </h3>
 <div class="sd-tags"><span>{{ ucfirst($r['impact']) }} impact</span>@if ($r['suggest'])<span>Suggestion ready</span>@endif @if ($r['status'] === 'fixed')<span>Fixed</span>@elseif ($r['status'] === 'hidden')<span>Set aside</span>@endif</div>
 

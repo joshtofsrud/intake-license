@@ -9,7 +9,7 @@
   var URLS = JSON.parse(root.dataset.urls || '{}');
   var csrf = (document.querySelector('meta[name=csrf-token]') || {}).content || '';
   var toast = window.IntakeToast || { success: function () {}, error: function () {}, info: function () {} };
-  var filter = 'all', picked = null, timer = null, busy = false;
+  var filter = 'all', picked = null, timer = null, busy = false, shutByHand = false;
 
   function $(s, c) { return (c || document).querySelector(s); }
   function $$(s, c) { return Array.prototype.slice.call((c || document).querySelectorAll(s)); }
@@ -42,12 +42,21 @@
     $$('#shSeg button').forEach(function (b) { b.classList.toggle('on', b.dataset.f === filter); });
     var none = $('#shNone'); if (none) none.hidden = shown > 0;
     var cur = picked && $('#shList .sh-row[data-id="' + picked + '"]');
+    // nothing is opened for someone who has just closed the details themselves
+    if (shutByHand && !cur) return;
     if (!cur || cur.hidden) { var first = rows().filter(function (r) { return !r.hidden; })[0]; pick(first ? first.dataset.id : null, true); }
+  }
+  // close the open details: the x on the card, the row pressed again, or Escape
+  function shut() {
+    var box = $('#shDetail'); if (!box) return;
+    rows().forEach(function (r) { r.classList.remove('sel'); r.setAttribute('aria-expanded', 'false'); });
+    box.hidden = true; box.innerHTML = ''; picked = null; shutByHand = true;
   }
   function pick(id, quiet) {
     var box = $('#shDetail'); if (!box) return;
+    if (!quiet) shutByHand = false;
     picked = id;
-    rows().forEach(function (r) { r.classList.toggle('sel', r.dataset.id === id); });
+    rows().forEach(function (r) { r.classList.toggle('sel', r.dataset.id === id); r.setAttribute('aria-expanded', r.dataset.id === id ? 'true' : 'false'); });
     var tpl = id && $('#shList template[data-for="' + id + '"]');
     if (!tpl) { box.hidden = true; box.innerHTML = ''; return; }
     box.innerHTML = ''; box.appendChild(tpl.content.cloneNode(true)); box.hidden = false;
@@ -153,7 +162,9 @@
   document.addEventListener('click', function (e) {
     var t = e.target;
     var seg = t.closest('#shSeg button'); if (seg) { filter = seg.dataset.f; applyFilter(); return; }
-    var row = t.closest('#shList .sh-row'); if (row) { pick(row.dataset.id); return; }
+    if (t.closest('[data-sh-shut]')) { var was = picked && $('#shList .sh-row[data-id="' + picked + '"]'); shut(); if (was) was.focus(); return; }
+    // pressing the open row again closes it
+    var row = t.closest('#shList .sh-row'); if (row) { if (row.dataset.id === picked) shut(); else pick(row.dataset.id); return; }
     if (t.closest('#shCheck') || t.closest('[data-sh-check]')) { start(URLS.check, true); return; }
     if (t.closest('#shResume')) { start(URLS.resume, false); return; }
     if (t.closest('#shStop')) { t.closest('#shStop').disabled = true; post(URLS.stop).then(poll).catch(function (er) { toast.error(er.message); }).then(function () { $('#shStop').disabled = false; }); return; }
@@ -206,7 +217,8 @@
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && $('#shScrim') && !$('#shScrim').hidden) { $('#shScrim').hidden = true; return; }
     var row = e.target.closest && e.target.closest('#shList .sh-row');
-    if (row && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); pick(row.dataset.id); }
+    if (row && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); if (row.dataset.id === picked) shut(); else pick(row.dataset.id); return; }
+    if (e.key === 'Escape' && picked && !(e.target.matches && e.target.matches('input, textarea'))) shut();
   });
 
   document.addEventListener('submit', function (e) {
