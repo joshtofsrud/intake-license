@@ -255,6 +255,9 @@
   window.addEventListener('resize', stuck);
   stuck();
   applyFilter();
+  // a link from the dashboard names the row to open
+  var want = new URLSearchParams(location.search).get('open');
+  if (want && $('#shList .sh-row[data-id="' + want + '"]')) { pick(want, true); var wb = $('#shDetail'); if (wb && wb.scrollIntoView) wb.scrollIntoView({ block: 'center' }); }
   if (location.hash === '#reviews' && $('#reviews')) $('#reviews').scrollIntoView();
   if (root.dataset.running === '1' || root.dataset.googleRunning === '1') poll();
 })();

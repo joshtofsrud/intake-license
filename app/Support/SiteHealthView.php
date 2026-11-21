@@ -181,6 +181,20 @@ class SiteHealthView
         return $out;
     }
 
+    /** The wide Reviews tile's side: the newest reviews still waiting for a reply, else the newest ones. */
+    private static function reviewsWide(array $reviews): array
+    {
+        $waiting = array_values(array_filter($reviews, fn ($r) => ($r['reply'] ?? null) === null));
+        $pick = array_slice($waiting ?: $reviews, 0, 2);
+        $url = route('tenant.site_health.index') . '#reviews';
+
+        return [
+            'title' => $waiting ? 'Waiting for a reply' : 'Latest reviews',
+            'rows' => array_map(fn ($r) => ['a' => $r['who'] . ' · ' . str_repeat('★', (int) $r['stars']), 'b' => Str::limit($r['text'] !== '' ? $r['text'] : 'No words, stars only.', 80), 'url' => $url], $pick),
+            'none' => 'No reviews yet.', 'foot' => null,
+        ];
+    }
+
     /** "2 days ago", "last week" for a review. */
     public static function ago(?string $iso): string
     {
@@ -196,13 +210,28 @@ class SiteHealthView
         if (! $h) {
             return null;
         }
-        $open = TenantSiteIssue::where('tenant_id', $tenant->id)->where('status', 'open')->count();
+        $rows = TenantSiteIssue::where('tenant_id', $tenant->id)->where('status', 'open')->get(['id', 'grp', 'label', 'problem', 'impact', 'weight']);
+        $open = $rows->count();
+        $high = $rows->where('impact', 'high')->count();
+        $parts = [];
+        foreach (self::SHORT as $g => $label) {
+            $parts[] = ['label' => $label, 'n' => $rows->where('grp', $g)->count(), 'bad' => $g === 'links'];
+        }
+        $next = $rows->sort(fn ($a, $b) => [self::ORDER[$a->impact], -$a->weight, $a->label] <=> [self::ORDER[$b->impact], -$b->weight, $b->label])->take(3)
+            ->map(fn ($i) => ['a' => $i->label, 'b' => $i->problem, 'url' => route('tenant.site_health.index', ['open' => $i->id])])->values()->all();
+        $gsc = GoogleSiteData::available() ? (array) ((TenantGoogleConnection::where('tenant_id', $tenant->id)->value('data') ?? [])['gsc'] ?? []) : [];
+        $foot = null;
+        if ($gsc) {
+            $now = (int) $gsc['clicks']; $was = (int) $gsc['clicks_prev'];
+            $foot = number_format($now) . ' visits from search in 4 weeks' . ($was > 0 ? ', ' . ($now >= $was ? 'up ' : 'down ') . abs((int) round(($now - $was) / $was * 100)) . '%' : '');
+        }
 
         return [
             'key' => 'site_health', 'title' => 'Site health', 'tone' => 4, 'value' => (int) $h->score, 'pre' => '',
-            'sub' => $open ? $open . ' ' . Str::plural('thing', $open) . ' to fix' : 'nothing to fix',
+            'sub' => ($open ? $open . ' to fix' . ($high ? ' · ' . $high . ' high impact' : '') : 'nothing to fix') . ' · checked ' . $h->checked_at->diffForHumans(null, true, true) . ' ago',
             'link' => route('tenant.site_health.index'), 'say' => 'Opening Site health',
-            'chart' => ['type' => 'ring', 'pct' => (int) $h->score, 'label' => 'checked ' . $h->checked_at->diffForHumans()],
+            'chart' => ['type' => 'stack', 'parts' => $parts],
+            'wide' => ['title' => 'Next up', 'rows' => $next, 'none' => 'Nothing to fix right now.', 'foot' => $foot],
         ];
     }
 
@@ -223,6 +252,7 @@ class SiteHealthView
             'sub' => number_format((int) $g['total']) . ' on Google' . ($w ? ' · ' . $w . ' ' . ($w === 1 ? 'needs' : 'need') . ' a reply' : ''),
             'link' => route('tenant.site_health.index') . '#reviews', 'say' => 'Opening Site health',
             'chart' => ['type' => 'dist', 'dist' => $g['dist'], 'of' => max(1, (int) $g['dist_of'])],
+            'wide' => self::reviewsWide((array) ($g['reviews'] ?? [])),
         ];
     }
 }

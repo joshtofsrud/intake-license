@@ -6,10 +6,17 @@
 <section class="sd-tiles sd-n{{ count($sdTiles) }}" data-sd-live="tiles">
   @foreach ($sdTiles as $i => $t)
     @php $c = $t['chart'] ?? []; @endphp
-    @php $tag = isset($t['tip']) ? 'div' : 'a'; @endphp{{-- a tile that explains itself (tip) is not a link: a button inside a link would follow the link --}}
-    <{{ $tag }} class="sd-tile sd-t{{ $t['tone'] }} sd-in" style="--d:{{ $i * 90 }}ms" @if ($tag === 'a') href="{{ $t['link'] }}" @endif aria-label="{{ $t['title'] }}: {{ $t['pre'] }}{{ number_format($t['value'], $t['decimals'] ?? 0) }}, {{ $t['sub'] }}">
-      <div class="sd-tile-h"><span>{{ $t['title'] }}</span>@if ($tag === 'div')<span class="sd-tile-tip"><button type="button" class="ia-tip" aria-label="How this is worked out">i</button><span class="ia-tip-text" hidden>{{ $t['tip'] }}</span></span>@else<i aria-hidden="true">↗</i>@endif</div>
+    @php
+      // a tile that explains itself (tip) or that carries its own links when wide is not one big link:
+      // a button or link inside a link would follow the outer one. A wide-capable tile gets a cover link instead.
+      $wide = $t['wide'] ?? null;
+      $tag = (isset($t['tip']) || $wide) ? 'div' : 'a';
+    @endphp
+    <{{ $tag }} class="sd-tile sd-t{{ $t['tone'] }} sd-in {{ $wide ? 'sd-tile-w' : '' }}" style="--d:{{ $i * 90 }}ms" @if ($tag === 'a') href="{{ $t['link'] }}" @endif aria-label="{{ $t['title'] }}: {{ $t['pre'] }}{{ number_format($t['value'], $t['decimals'] ?? 0) }}, {{ $t['sub'] }}">
+      @if ($wide)<a class="sd-tile-go" href="{{ $t['link'] }}" aria-label="Open {{ $t['title'] }}"></a><div class="sd-w">@endif
+      <div class="sd-tile-h"><span>{{ $t['title'] }}</span>@if (isset($t['tip']))<span class="sd-tile-tip"><button type="button" class="ia-tip" aria-label="How this is worked out">i</button><span class="ia-tip-text" hidden>{{ $t['tip'] }}</span></span>@else<i aria-hidden="true">↗</i>@endif</div>
       <div class="sd-big"><b data-count="{{ $t['value'] }}" data-pre="{{ $t['pre'] }}" data-dec="{{ $t['decimals'] ?? 0 }}">{{ $t['pre'] }}{{ number_format($t['value'], $t['decimals'] ?? 0) }}</b><small>{{ $t['sub'] }}</small></div>
+      @if ($wide)<div class="sd-w-mid">@endif
 
       @if (($c['type'] ?? '') === 'bars')
         <div class="sd-bars" aria-hidden="true">
@@ -58,6 +65,19 @@
           @foreach ($c['dist'] as $star => $n)
             <span><small>{{ $star }}</small><i><u style="width:{{ round($n / $c['of'] * 100) }}%"></u></i></span>
           @endforeach
+        </div>
+      @endif
+      @if ($wide)
+        </div>
+        {{-- MARKER-TILE-WIDE: only shown when the tile is wide enough (it is the odd one out on its row) --}}
+        <div class="sd-w-side">
+          <div class="sd-w-t">{{ $wide['title'] }}</div>
+          @foreach ($wide['rows'] as $wr)
+            <a class="sd-w-row" href="{{ $wr['url'] }}"><b>{{ $wr['a'] }}</b><span>{{ $wr['b'] }}</span></a>
+          @endforeach
+          @if (! $wide['rows'])<div class="sd-w-none">{{ $wide['none'] ?? 'Nothing waiting.' }}</div>@endif
+          @if (! empty($wide['foot']))<div class="sd-w-foot">{{ $wide['foot'] }}</div>@endif
+        </div>
         </div>
       @endif
     </{{ $tag }}>
