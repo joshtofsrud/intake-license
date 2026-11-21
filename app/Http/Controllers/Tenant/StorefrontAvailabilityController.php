@@ -153,6 +153,18 @@ class StorefrontAvailabilityController extends Controller
         ];
     }
 
+    /** GET /storefront/availability/summary — MARKER-ECOM-FAST-LOAD: the counts the settings page fills in after it opens */
+    public function summaryJson(): JsonResponse
+    {
+        $this->guard();
+
+        return response()->json([
+            'ok'      => true,
+            'summary' => $this->summary(),
+            'exempt'  => (clone $this->base())->where('tax_class_code', 'exempt')->count(),
+        ]);
+    }
+
     /** GET /storefront/availability/items */
     public function items(Request $r): JsonResponse
     {

@@ -54,6 +54,7 @@
   function setSummary(s) {
     if (!s) return;
     $('sOnline').textContent = s.online; $('sOver').textContent = s.oversell; $('sOut').textContent = s.out; $('sOff').textContent = s.offline;
+    ['sOnline', 'sOver', 'sOut', 'sOff'].forEach(function (k) { $(k).classList.remove('ec-counting'); });
     var pip = $('pipOut'); pip.textContent = s.out; pip.classList.toggle('warn', s.out > 0);
   }
 

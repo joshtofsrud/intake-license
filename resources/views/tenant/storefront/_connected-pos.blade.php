@@ -314,7 +314,7 @@
     function dialogOpen(){ return !!document.querySelector('.ia-confirm-backdrop'); }
     function refresh(){
       if (dialogOpen() || document.hidden) { setTimeout(refresh, 2000); return; }
-      fetch(location.pathname + '?tab=pos', {headers:{'X-Intake-Background':'1'}, credentials:'same-origin'})
+      fetch(location.pathname + '?panel=pos', {headers:{'X-Intake-Background':'1'}, credentials:'same-origin'})
         .then(function(r){ return r.ok ? r.text() : null; })
         .then(function(html){
           if(!html || dialogOpen()) return;

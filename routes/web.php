@@ -573,6 +573,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::post('/storefront/pos/stop-sends',    [TenantControllers\PosConnectionController::class, 'stopSends'])->name('storefront.pos.stop_sends'); // MARKER-POS-STOP-SENDS
                 Route::post('/storefront/pos/retry/{push}',  [TenantControllers\PosConnectionController::class, 'retry'])->name('storefront.pos.retry')->whereNumber('push');
                 // MARKER-ECOM-AVAILABILITY: what is for sale online / may be oversold
+                Route::get('/storefront/availability/summary',    [TenantControllers\StorefrontAvailabilityController::class, 'summaryJson'])->name('storefront.availability.summary'); // MARKER-ECOM-FAST-LOAD
                 Route::get('/storefront/availability/items',      [TenantControllers\StorefrontAvailabilityController::class, 'items'])->name('storefront.availability.items');
                 Route::get('/storefront/availability/categories', [TenantControllers\StorefrontAvailabilityController::class, 'categories'])->name('storefront.availability.categories');
                 Route::patch('/storefront/availability/item/{id}', [TenantControllers\StorefrontAvailabilityController::class, 'updateItem'])->name('storefront.availability.item');

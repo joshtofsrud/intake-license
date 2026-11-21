@@ -25,7 +25,7 @@ class StorefrontSettingsController extends Controller
         abort_unless($me && $me->canAccessSection('storefront'), 403);
     }
 
-    public function show()
+    public function show(Request $request)
     {
         $this->guard();
         $tenant = tenant();
@@ -33,10 +33,6 @@ class StorefrontSettingsController extends Controller
         $oc = \App\Services\Tenant\OrderService::forTenant($tenant)->config();
         $w  = \App\Services\Tenant\OrderService::wording($tenant);
         $cents = fn ($c) => $c === null ? '' : number_format(((int) $c) / 100, 2, '.', '');
-
-        $itemBase = TenantInventoryItem::query()
-            ->where('tenant_id', $tenant->id)
-            ->where('is_active', true);
 
         // MARKER-SHIPPING-RATES: how shipping is priced, in the units a shopkeeper thinks in
         $rc = \App\Services\Shipping\ShippingRates::config($tenant);
@@ -63,30 +59,15 @@ class StorefrontSettingsController extends Controller
 
         // MARKER-POS-CONNECT: the Shop POS tab
         $posConn = \App\Models\Tenant\TenantPosConnection::where('tenant_id', $tenant->id)->with('connectedByUser')->first();
-        $pos = [
-            'conn'      => $posConn,
-            'label'     => $posConn ? \App\Models\PlatformPosAdapter::forCode($posConn->adapter_code)->displayLabel() : null,
-            'available' => app(\App\Services\Pos\Adapters\PosAdapterRegistry::class)->available(),
-            'intake_locations' => $tenant->activeLocations()->get(['id', 'name']), // MARKER-CONNECTED-POS-CATALOG
-            // MARKER-CONNECTED-POS-PUSH
-            'conflicts' => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_items as p')
-                ->join('tenant_inventory_items as i', 'i.id', '=', 'p.inventory_item_id')
-                ->where('p.tenant_id', $tenant->id)->whereNotNull('p.conflict')
-                ->orderBy('i.name')->limit(100)->get(['p.id', 'p.conflict', 'i.id as item_id', 'i.name as item_name']) : collect(),
-            // MARKER-POS-TAB-V2: what the Recent sends and send-button areas show
-            'counts'    => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', $tenant->id)->selectRaw('status, count(*) n')->groupBy('status')->pluck('n', 'status') : collect(),
-            'problems'  => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', $tenant->id)->where('status', 'failed')->orderByDesc('updated_at')->limit(10)->get() : collect(),
-            // MARKER-POS-SENDS-LIST: every kind and every status, newest first, so an order that
-            // failed or is retrying is never missing from the list
-            'latest'    => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', $tenant->id)->orderByDesc('updated_at')->limit(12)->get() : collect(),
-            // orders and refunds that failed stay pinned until they are sent: money records matter more than items
-            'money_failed' => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', $tenant->id)->whereIn('kind', ['sale', 'refund'])->where('status', 'failed')->orderByDesc('updated_at')->limit(20)->get() : collect(),
-            // MARKER-POS-ITEM-DETAILS: linked items still missing brand/category/supplier/cost, and the latest reason
-            'details_missing' => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_items')->where('tenant_id', $tenant->id)->whereNotNull('inventory_item_id')->whereNull('removed_at')->whereNull('details_sent_at')->count() : 0,
-            'details_error'   => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_items')->where('tenant_id', $tenant->id)->whereNotNull('details_error')->orderByDesc('id')->value('details_error') : null,
-            'catchup'   => $posConn ? \App\Services\Pos\PosPushService::catchupOrders($tenant->id)->count() : 0,
-            'linked'    => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_items')->where('tenant_id', $tenant->id)->whereNotNull('inventory_item_id')->whereNull('removed_at')->count() : 0,
-        ];
+        // MARKER-ECOM-FAST-LOAD: a background request for the Connected POS tab gets just that tab
+        if ($request->query('panel') === 'pos') {
+            return view('tenant.storefront._connected-pos', ['pos' => $this->posData($tenant, $posConn)]);
+        }
+        // the tab that opens first; only it is built now, the rest fill in when opened
+        $launchEv = \App\Support\Launch\Launch::evaluate($tenant, 'ecom');
+        $lcOpen = $launchEv && ($launchEv['req_left'] || $launchEv['broken'] || ($launchEv['state']->state ?? '') === 'paused');
+        $tab = (string) session('ecom_tab', $request->query('tab', $lcOpen ? 'launch' : 'avail'));
+        $pos = $tab === 'pos' ? $this->posData($tenant, $posConn) : ['conn' => $posConn, 'lazy' => true];
 
         return view('tenant.storefront.settings', [
             'pos' => $pos,
@@ -162,20 +143,43 @@ class StorefrontSettingsController extends Controller
                 'notify_ids' => array_map('strval', (array) ($s['notify_user_ids'] ?? [])),
             ],
             // MARKER-LAUNCH-CHECKLIST
-            'launch' => \App\Support\Launch\Launch::evaluate($tenant, 'ecom'),
+            'launch' => $launchEv,
+            'tab'    => $tab,
             'info' => [
                 'tax_rate'    => (float) ($tenant->default_tax_rate ?? 0),
-                'exempt'      => (clone $itemBase)->where('tax_class_code', 'exempt')->count(),
                 'card_ready'  => filled((new \App\Services\Tenant\DirectPaymentsService($tenant))->publishableKey()),
                 'shop_name'   => $tenant->name,
             ],
-            'counts' => [
-                'online'   => (clone $itemBase)->where('show_online', true)->count(),
-                'linkable' => (clone $itemBase)->whereNotNull('distributor_catalog_id')->count(),
-                'active'   => (clone $itemBase)->count(),
-                'out'      => (clone $itemBase)->where('show_online', true)->where('computed_stock_count', '<=', 0)->where('allow_oversell', false)->count(),
-            ],
         ]);
+    }
+
+    /** MARKER-ECOM-FAST-LOAD: everything the Connected POS tab shows. Built only when that tab is opened. */
+    private function posData($tenant, $posConn): array
+    {
+        return [
+            'conn'      => $posConn,
+            'label'     => $posConn ? \App\Models\PlatformPosAdapter::forCode($posConn->adapter_code)->displayLabel() : null,
+            'available' => app(\App\Services\Pos\Adapters\PosAdapterRegistry::class)->available(),
+            'intake_locations' => $tenant->activeLocations()->get(['id', 'name']), // MARKER-CONNECTED-POS-CATALOG
+            // MARKER-CONNECTED-POS-PUSH
+            'conflicts' => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_items as p')
+                ->join('tenant_inventory_items as i', 'i.id', '=', 'p.inventory_item_id')
+                ->where('p.tenant_id', $tenant->id)->whereNotNull('p.conflict')
+                ->orderBy('i.name')->limit(100)->get(['p.id', 'p.conflict', 'i.id as item_id', 'i.name as item_name']) : collect(),
+            // MARKER-POS-TAB-V2: what the Recent sends and send-button areas show
+            'counts'    => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', $tenant->id)->selectRaw('status, count(*) n')->groupBy('status')->pluck('n', 'status') : collect(),
+            'problems'  => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', $tenant->id)->where('status', 'failed')->orderByDesc('updated_at')->limit(10)->get() : collect(),
+            // MARKER-POS-SENDS-LIST: every kind and every status, newest first, so an order that
+            // failed or is retrying is never missing from the list
+            'latest'    => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', $tenant->id)->orderByDesc('updated_at')->limit(12)->get() : collect(),
+            // orders and refunds that failed stay pinned until they are sent: money records matter more than items
+            'money_failed' => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_pushes')->where('tenant_id', $tenant->id)->whereIn('kind', ['sale', 'refund'])->where('status', 'failed')->orderByDesc('updated_at')->limit(20)->get() : collect(),
+            // MARKER-POS-ITEM-DETAILS: linked items still missing brand/category/supplier/cost, and the latest reason
+            'details_missing' => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_items')->where('tenant_id', $tenant->id)->whereNotNull('inventory_item_id')->whereNull('removed_at')->whereNull('details_sent_at')->count() : 0,
+            'details_error'   => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_items')->where('tenant_id', $tenant->id)->whereNotNull('details_error')->orderByDesc('id')->value('details_error') : null,
+            'catchup'   => $posConn ? \App\Services\Pos\PosPushService::catchupOrders($tenant->id)->count() : 0,
+            'linked'    => $posConn ? \Illuminate\Support\Facades\DB::table('tenant_pos_items')->where('tenant_id', $tenant->id)->whereNotNull('inventory_item_id')->whereNull('removed_at')->count() : 0,
+        ];
     }
 
     /**

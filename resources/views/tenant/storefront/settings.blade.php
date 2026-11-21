@@ -1,9 +1,8 @@
 @extends('layouts.tenant.app')
 @php
   $pageTitle = 'E-commerce';
-  // MARKER-LAUNCH-CHECKLIST: the checklist opens first while anything required is left or broken
-  $lcOpen = $launch && ($launch['req_left'] || $launch['broken'] || ($launch['state']->state ?? '') === 'paused');
-  $tab = session('ecom_tab', request('tab', $lcOpen ? 'launch' : 'avail'));
+  // MARKER-LAUNCH-CHECKLIST: the checklist opens first while anything required is left or broken.
+  // MARKER-ECOM-FAST-LOAD: the controller decides the opening tab, since only that tab is built.
 @endphp
 
 @section('content')
@@ -17,6 +16,7 @@
 .ec-tab.on{color:var(--ia-text);border-bottom-color:var(--ia-accent);font-weight:500}
 .ec-tab .pip{font-size:10px;font-weight:600;padding:1px 6px;border-radius:99px;background:var(--ia-surface-2);color:var(--ia-text-muted)}
 .ec-tab .pip.warn{background:#FAEEDA;color:#854F0B}
+.ec-counting{font-size:12px !important;font-weight:400 !important;color:var(--ia-text-muted)}
 .ec-panel{display:none}.ec-panel.on{display:block}
 
 .ec-sec{padding:4px 0 22px;margin-bottom:22px;border-bottom:.5px solid var(--ia-border);max-width:760px}
@@ -185,7 +185,7 @@
   <div class="ec-tabs" id="tabs">
     @php $lcN = $launch ? count($launch['req_left']) : 0; @endphp
     <button type="button" class="ec-tab {{ $tab === 'launch' ? 'on' : '' }}" data-p="launch">Launch checklist <span class="pip {{ ($lcN || ($launch['broken'] ?? [])) ? 'warn' : '' }}">{{ ($launch['broken'] ?? []) ? 'needs attention' : ($lcN ? $lcN . ' to do' : 'done') }}</span></button>
-    <button type="button" class="ec-tab {{ $tab === 'avail' ? 'on' : '' }}" data-p="avail">Availability <span class="pip {{ $counts['out'] > 0 ? 'warn' : '' }}" id="pipOut">{{ $counts['out'] }}</span></button>
+    <button type="button" class="ec-tab {{ $tab === 'avail' ? 'on' : '' }}" data-p="avail">Availability <span class="pip" id="pipOut">…</span></button>
     <button type="button" class="ec-tab {{ $tab === 'ful' || $tab === 'fulfillment' ? 'on' : '' }}" data-p="ful">Fulfillment</button>
     <button type="button" class="ec-tab {{ $tab === 'tax' ? 'on' : '' }}" data-p="tax">Tax</button>
     <button type="button" class="ec-tab {{ $tab === 'pay' || $tab === 'payments' ? 'on' : '' }}" data-p="pay">Payments</button>
@@ -206,10 +206,11 @@
   {{-- ============ AVAILABILITY ============ --}}
   <section class="ec-panel {{ $tab === 'avail' ? 'on' : '' }}" id="p-avail">
     <div class="av-sum">
-      <div><b id="sOnline">{{ $counts['online'] }}</b>for sale online</div>
-      <div><b id="sOver">0</b>can be oversold</div>
-      <div class="w"><b id="sOut">{{ $counts['out'] }}</b>out of stock, can't be ordered</div>
-      <div><b id="sOff">{{ $counts['active'] - $counts['online'] }}</b>offline</div>
+      {{-- MARKER-ECOM-FAST-LOAD: counted in the background, so the page opens at once --}}
+      <div><b id="sOnline" class="ec-counting">Building item counts…</b>for sale online</div>
+      <div><b id="sOver" class="ec-counting">…</b>can be oversold</div>
+      <div class="w"><b id="sOut" class="ec-counting">…</b>out of stock, can't be ordered</div>
+      <div><b id="sOff" class="ec-counting">…</b>offline</div>
     </div>
 
     <details class="av-legend" id="legend" open>
@@ -447,7 +448,7 @@
       <div class="ec-sec">
         <h3>What gets taxed</h3>
         <div class="ec-row"><div><div class="t">Tax the delivery and shipping fees</div><div class="d">Off means delivery and shipping are untaxed. Some states tax them — check yours.</div></div><div class="ctl"><label class="tg"><input type="checkbox" name="tax_delivery_fee" value="1" @checked($cfg['tax_delivery_fee'])><i></i></label></div></div>
-        <div class="ec-row"><div><div class="t">Tax-exempt items</div><div class="d">Items marked exempt in Inventory are never taxed, online or in store.</div></div><div class="ctl"><span class="ec-note">{{ $info['exempt'] }} {{ $info['exempt'] === 1 ? 'item' : 'items' }}</span></div></div>
+        <div class="ec-row"><div><div class="t">Tax-exempt items</div><div class="d">Items marked exempt in Inventory are never taxed, online or in store.</div></div><div class="ctl"><span class="ec-note" id="sExempt">Building item count…</span></div></div>
         <div class="ec-row"><div><div class="t">Prices shown to customers</div><div class="d">Before tax. Tax is added at checkout.</div></div><div class="ctl"></div></div>
       </div>
       <div class="ec-actions"><button class="ia-btn ia-btn--primary" type="submit">Save tax</button></div>
@@ -662,8 +663,13 @@
 
   {{-- ============ GENERAL ============ --}}
   {{-- MARKER-POS-TAB-V2: the Connected POS tab lives in its own partial --}}
-  <section class="ec-panel {{ $tab === 'pos' ? 'on' : '' }}" id="p-pos">
-    @include('tenant.storefront._connected-pos')
+  <section class="ec-panel {{ $tab === 'pos' ? 'on' : '' }}" id="p-pos" @if(! empty($pos['lazy'])) data-lazy="{{ route('tenant.storefront.settings') }}?panel=pos" @endif>
+    @if(! empty($pos['lazy']))
+      {{-- MARKER-ECOM-FAST-LOAD: built when the tab is opened --}}
+      <div class="ec-note" style="padding:18px 0">Loading Connected POS…</div>
+    @else
+      @include('tenant.storefront._connected-pos')
+    @endif
   </section>
 
   <section class="ec-panel {{ in_array($tab, ['gen','general']) ? 'on' : '' }}" id="p-gen">
@@ -756,6 +762,38 @@
   if(so&&sb){var g=function(){sb.classList.toggle('hide',!so.checked)};so.addEventListener('change',g);g();}
   var on=document.getElementById('dsOn'),box=document.getElementById('dsBox');
   if(on&&box){var f=function(){box.classList.toggle('hide',!on.checked)};on.addEventListener('change',f);f();}
+})();
+</script>
+<script>
+/* MARKER-ECOM-FAST-LOAD: item counts arrive in the background; the Connected POS tab is
+   built the first time it's opened */
+(function(){
+  fetch(@json(route('tenant.storefront.availability.summary')), {headers:{'Accept':'application/json','X-Intake-Background':'1'}, credentials:'same-origin'})
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(j){
+      if(!j || !j.summary) return;
+      var s=j.summary, set=function(id,v){ var e=document.getElementById(id); if(e && e.classList.contains('ec-counting')){ e.textContent=v; e.classList.remove('ec-counting'); } };
+      set('sOnline', s.online); set('sOver', s.oversell); set('sOut', s.out); set('sOff', s.offline);
+      var pip=document.getElementById('pipOut'); if(pip && pip.textContent==='…'){ pip.textContent=s.out; pip.classList.toggle('warn', s.out>0); }
+      var ex=document.getElementById('sExempt'); if(ex) ex.textContent=j.exempt+(j.exempt===1?' item':' items');
+    })
+    .catch(function(){ var ex=document.getElementById('sExempt'); if(ex) ex.textContent='Could not count — reload to try again'; });
+
+  function loadPanel(p){
+    if(!p || !p.dataset.lazy || p.dataset.loading) return;
+    p.dataset.loading='1';
+    fetch(p.dataset.lazy, {headers:{'X-Intake-Background':'1'}, credentials:'same-origin'})
+      .then(function(r){ if(!r.ok) throw new Error(); return r.text(); })
+      .then(function(html){
+        p.innerHTML=html; delete p.dataset.lazy;
+        // scripts put in with innerHTML don't run on their own
+        p.querySelectorAll('script').forEach(function(old){ var n=document.createElement('script'); n.textContent=old.textContent; old.replaceWith(n); });
+      })
+      .catch(function(){ delete p.dataset.loading; p.innerHTML='<div class="ec-err">Couldn\'t load this tab. <a href="?tab=pos">Reload</a></div>'; });
+  }
+  document.querySelectorAll('#tabs .ec-tab').forEach(function(b){
+    b.addEventListener('click', function(){ loadPanel(document.getElementById('p-'+b.dataset.p)); });
+  });
 })();
 </script>
 <div class="toast" id="toast"><span id="toastT"></span><button type="button" id="toastU">Undo</button></div>
