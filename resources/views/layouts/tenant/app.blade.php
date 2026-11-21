@@ -170,6 +170,7 @@
      ================================================================ --}}
 @include('layouts.tenant._mobile-nav')
 @include('layouts.tenant._more-drawer')
+@include('layouts.tenant._nav-pins')
 @include('layouts.tenant._mobile-fab')
 @if(tenant()?->multi_asset_enabled)
   @include('layouts.tenant._asset-count')

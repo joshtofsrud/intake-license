@@ -405,4 +405,58 @@ class TenantNav
 
         return $navItems;
     }
+
+    /**
+     * MARKER-NAV-PINS: the items this person can see, in menu order. The add-on gates, role
+     * sections and capabilities are checked here once, so the sidebar, the phone's bottom
+     * bar and its More drawer can never disagree about what someone has.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public static function visible($tenant, $user): array
+    {
+        $out = [];
+        foreach (static::items() as $item) {
+            if (! \Illuminate\Support\Facades\Route::has($item['route'])) {
+                continue;
+            }
+            if (! empty($item['gate']) && ! $tenant->{$item['gate']}) {
+                continue;
+            }
+            $sec = $item['section'] ?? SectionRegistry::sectionForRoute($item['route']);
+            if ($sec && $user && ! $user->canAccessSection($sec)) {
+                continue;
+            }
+            if (! empty($item['capability']) && $user && ! $user->can($item['capability'])) {
+                continue;
+            }
+            if (! empty($item['hide_if_section']) && (! $user || $user->canAccessSection($item['hide_if_section']))) {
+                continue;
+            }
+            $out[] = $item;
+        }
+
+        return $out;
+    }
+
+    /**
+     * MARKER-NAV-PINS: this person's pinned routes, in their order, limited to what they
+     * can see right now (a pin for something their role or plan lost is kept but not shown).
+     *
+     * @param  array<int, array<string, mixed>>  $visible
+     * @return list<string>
+     */
+    public static function pins($user, array $visible): array
+    {
+        $can = array_column($visible, 'route');
+
+        return array_values(array_unique(array_filter((array) ($user->nav_pins ?? []), fn ($r) => is_string($r) && in_array($r, $can, true))));
+    }
+
+    /** Is this menu item the page being looked at? */
+    public static function isActive(array $item, string $current): bool
+    {
+        return str_starts_with($current, str_replace('.index', '', $item['route']))
+            || (! empty($item['match_alt']) && str_starts_with($current, $item['match_alt']));
+    }
 }

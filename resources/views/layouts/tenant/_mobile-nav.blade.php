@@ -40,6 +40,27 @@
     ];
   }
 
+  // MARKER-NAV-PINS: this person's pinned items come first in the bar (up to four); the usual
+  // tabs fill whatever room is left. A pinned item that is also a usual tab keeps that tab's
+  // icon, label and badge. With no pins the bar is exactly as it always was.
+  $mnVisible = \App\Support\TenantNav::visible($currentTenant, $authUser ?? null);
+  $mnPins = \App\Support\TenantNav::pins($authUser ?? null, $mnVisible);
+  if ($mnPins) {
+    $mnDefaults = collect($mobilePrimary)->keyBy('route');
+    $mnItems = collect($mnVisible)->keyBy('route');
+    $mnBar = [];
+    foreach ($mnPins as $r) {
+      $mnBar[$r] = $mnDefaults[$r] ?? [
+        'route' => $r, 'label' => $mnItems[$r]['label'], 'icon' => $mnItems[$r]['icon'],
+        'match' => implode('|', array_filter([str_replace('.index', '', $r), $mnItems[$r]['match_alt'] ?? null])),
+      ];
+    }
+    foreach ($mobilePrimary as $tab) {
+      $mnBar[$tab['route']] ??= $tab;
+    }
+    $mobilePrimary = array_slice(array_values($mnBar), 0, 4);
+  }
+
   // role section visibility on primary tabs.
   // A tab whose section is outside the user's role drops out; the
   // remaining tabs shift left and "More" still closes the row.

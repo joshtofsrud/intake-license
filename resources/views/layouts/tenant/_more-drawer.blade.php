@@ -5,12 +5,16 @@
   // Scale) surface exactly the items their feature gates allow.
   $current = request()->route()?->getName() ?? '';
 
-  // one list for the sidebar and the phone drawer.
-  $navItems = \App\Support\TenantNav::items();
+  // one list for the sidebar and the phone drawer; gates and role checks are done in TenantNav::visible.
+  // MARKER-NAV-PINS: nothing is left out of the drawer any more (it used to skip the four bottom-bar
+  // items), so every item can be reached and pinned from a phone.
+  $navItems = \App\Support\TenantNav::visible($currentTenant, $authUser ?? null);
+  $navPins = \App\Support\TenantNav::pins($authUser ?? null, $navItems);
+  $navByRoute = collect($navItems)->keyBy('route');
+  $navRoutes = array_column($navItems, 'route');
+  $drawerOpenSects = array_flip(array_map(fn ($i) => $i['group'] ?? 'workspace', array_filter($navItems, fn ($i) => ! in_array($i['route'], $navPins, true))));
 
   $drawerSections = ['workspace' => 'Workspace', 'manage' => 'Manage', 'website' => 'Website', 'marketing' => 'Marketing', 'messages' => 'Messages', 'settings' => 'Settings'];
-  // Already in the bottom tab bar — don't repeat them in the drawer:
-  $drawerSkip = ['tenant.dashboard', 'tenant.calendar.index', 'tenant.customers.index', 'tenant.inbox.index'];
   $lastSect = null;
 @endphp
 
@@ -27,28 +31,38 @@
     </div>
 
     <nav class="ia-drawer-nav" aria-label="All sections">
-      @foreach($navItems as $navItem)
-        @continue(in_array($navItem['route'], $drawerSkip, true))
-        @continue(!empty($navItem['gate']) && !$currentTenant->{$navItem['gate']})
-        @continue(!\Illuminate\Support\Facades\Route::has($navItem['route']))
-        {{-- role section visibility --}}
-        @php $dSec = $navItem['section'] ?? \App\Support\SectionRegistry::sectionForRoute($navItem['route']); @endphp
-        @continue($dSec && !empty($authUser) && !$authUser->canAccessSection($dSec))
-        @continue(!empty($navItem['capability']) && !empty($authUser) && !$authUser->can($navItem['capability']))
-        @continue(!empty($navItem['hide_if_section']) && (empty($authUser) || $authUser->canAccessSection($navItem['hide_if_section']))) {{-- MARKER-CLASSES-P10 --}}
-        @php $sect = $navItem['group'] ?? 'workspace'; @endphp
-        @if($sect !== $lastSect)
-          @if($lastSect !== null)<div class="ia-drawer-rule"></div>@endif
-          <div class="ia-drawer-sect">{{ $drawerSections[$sect] ?? \Illuminate\Support\Str::title($sect) }}</div>
-          @php $lastSect = $sect; @endphp
-        @endif
-        @php $isActive = str_starts_with($current, str_replace('.index', '', $navItem['route'])); @endphp
-        <a href="{{ route($navItem['route']) }}" class="ia-drawer-link {{ $isActive ? 'active' : '' }}">
+      {{-- MARKER-NAV-PINS: pinned first, in this person's order (drag the handle); tap a pin to add or remove one --}}
+      <div class="ia-drawer-pins" data-nav-pins @if(! $navPins) hidden @endif>
+        <div class="ia-drawer-sect">Pinned <span class="ia-drawer-sect-note">first 4 show in the bottom bar · drag to reorder</span></div>
+        @foreach($navPins as $r)
+          @php $navItem = $navByRoute[$r]; $idx = array_search($r, $navRoutes, true); @endphp
+        <a href="{{ route($navItem['route']) }}" class="ia-drawer-link {{ \App\Support\TenantNav::isActive($navItem, $current) ? 'active' : '' }}"
+           data-nav-row data-route="{{ $navItem['route'] }}" data-idx="{{ $idx }}" data-group="{{ $navItem['group'] ?? 'workspace' }}" draggable="false">
+          <span class="ia-drawer-grip ia-nav-grip" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 4.5h8M3 7h8M3 9.5h8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></span>
           <span class="ia-drawer-link-ic">{!! $navItem['icon'] !!}</span>
           <span class="ia-drawer-link-lb">{{ $navItem['label'] }}</span>
-          <span class="ia-drawer-link-ch" aria-hidden="true">&rsaquo;</span>
+          <span class="ia-drawer-pin" role="button" tabindex="0" data-nav-pin aria-label="Pin or unpin {{ $navItem['label'] }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5M9 3h6l-1 6 4 4H6l4-4-1-6z"/></svg></span>
+        </a>
+        @endforeach
+        <div class="ia-drawer-rule"></div>
+      </div>
+      <div data-nav-rest>
+      @foreach($navItems as $idx => $navItem)
+        @php $sect = $navItem['group'] ?? 'workspace'; @endphp
+        @if($sect !== $lastSect)
+          <div class="ia-drawer-sect" data-nav-head="{{ $sect }}" @if(! isset($drawerOpenSects[$sect])) hidden @endif>{{ $drawerSections[$sect] ?? \Illuminate\Support\Str::title($sect) }}</div>
+          @php $lastSect = $sect; @endphp
+        @endif
+        @continue(in_array($navItem['route'], $navPins, true))
+        <a href="{{ route($navItem['route']) }}" class="ia-drawer-link {{ \App\Support\TenantNav::isActive($navItem, $current) ? 'active' : '' }}"
+           data-nav-row data-route="{{ $navItem['route'] }}" data-idx="{{ $idx }}" data-group="{{ $navItem['group'] ?? 'workspace' }}" draggable="false">
+          <span class="ia-drawer-grip ia-nav-grip" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 4.5h8M3 7h8M3 9.5h8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></span>
+          <span class="ia-drawer-link-ic">{!! $navItem['icon'] !!}</span>
+          <span class="ia-drawer-link-lb">{{ $navItem['label'] }}</span>
+          <span class="ia-drawer-pin" role="button" tabindex="0" data-nav-pin aria-label="Pin or unpin {{ $navItem['label'] }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5M9 3h6l-1 6 4 4H6l4-4-1-6z"/></svg></span>
         </a>
       @endforeach
+      </div>
     </nav>
 
     {{-- DRAWER-USER v2 — split user info from sign-out to prevent accidental logouts --}}

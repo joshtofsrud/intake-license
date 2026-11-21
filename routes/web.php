@@ -492,6 +492,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             // location gate so the toggle works before a location is picked.
             Route::post('/theme',            [TenantControllers\ThemeController::class, 'set'])->name('theme.set');
             Route::post('/sidebar-style',    [TenantControllers\ThemeController::class, 'sidebar'])->name('sidebar.set');
+            Route::post('/nav-pins',         [TenantControllers\ThemeController::class, 'navPins'])->name('nav.pins'); // MARKER-NAV-PINS
 
             // MARKER-LIVE-VIEW: master admin asking to see a tab. Above the
             // location gate, and allowed through the PIN lock, so a request
