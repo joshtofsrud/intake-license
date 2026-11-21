@@ -173,6 +173,7 @@
 @include('layouts.tenant._mobile-fab')
 @if(tenant()?->multi_asset_enabled)
   @include('layouts.tenant._asset-count')
+  @include('layouts.tenant._tip')
 @endif
 
 {{-- Detail modal (appointments, customers) --}}

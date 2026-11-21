@@ -10,16 +10,12 @@
   $sendSig = ($waiting > 0 ? 1 : 0) . '|' . ((int) ($cnt['skipped'] ?? 0) > 0 ? 1 : 0) . '|' . ((int) ($cnt['failed'] ?? 0) > 0 ? 1 : 0) . '|' . (($pos['details_missing'] ?? 0) > 0 ? 1 : 0) . '|' . count($pos['conflicts']);
 @endphp
 <div class="ec-sec cpx-wide">
-  <h3>Sending</h3>
-  @unless($twoWay)
-    <p class="ec-note" style="margin-bottom:10px">Your Connected POS is <b>Reading Only</b>, so nothing is sent to it. This is the record of what was sent before you switched over.</p>
-  @else
-    <p class="ec-note" style="margin-bottom:10px">Online orders and their refunds, items an order needs, items you send from Inventory, and your item edits if you chose to send them. @if(tenant()->online_store_enabled) Sending online orders is switched on in <a class="cpx-lnk" href="{{ route('tenant.storefront.settings', ['tab' => 'pos']) }}">E-commerce › Connected POS</a>.@endif</p>
-  @endunless
+  <h3>Sending @unless($twoWay) <button type="button" class="ia-tip" aria-label="What this does">i</button><span class="ia-tip-text" hidden>Your Connected POS is <b>Reading Only</b>, so nothing is sent to it. This is the record of what was sent before you switched over.</span> @else <button type="button" class="ia-tip" aria-label="What this does">i</button><span class="ia-tip-text" hidden>Online orders and their refunds, items an order needs, items you send from Inventory, and your item edits if you chose to send them. @if(tenant()->online_store_enabled) Sending online orders is switched on in <a class="cpx-lnk" href="{{ route('tenant.storefront.settings', ['tab' => 'pos']) }}">E-commerce › Connected POS</a>.@endif</span> @endunless</h3>
+  @unless($twoWay)<p class="ec-note" style="margin-bottom:10px">Reading Only: nothing is sent.</p>@endunless
   @if($twoWay && ($pos['details_missing'] ?? 0) > 0)
     <div class="ec-row" style="margin-bottom:10px">
-      <div><div class="t">{{ number_format($pos['details_missing']) }} {{ $pos['details_missing'] === 1 ? 'item' : 'items' }} in your Connected POS without brand, category, supplier and cost</div>
-        <div class="d">Fills in what Intake knows. Sent before these went along, or their last try didn't work.@if($pos['details_error']) Last reason: <span style="color:#F26D6D">{{ \Illuminate\Support\Str::limit($pos['details_error'], 160) }}</span>@endif</div></div>
+      <div><div class="t">{{ number_format($pos['details_missing']) }} {{ $pos['details_missing'] === 1 ? 'item' : 'items' }} in your Connected POS without brand, category, supplier and cost <button type="button" class="ia-tip" aria-label="What this does">i</button><span class="ia-tip-text" hidden>Fills in what Intake knows. Sent before these went along, or their last try didn't work.</span></div>
+        @if($pos['details_error'])<div class="d">Last reason: <span style="color:#F26D6D">{{ \Illuminate\Support\Str::limit($pos['details_error'], 160) }}</span></div>@endif</div>
       <div class="ctl"><form method="POST" action="{{ route('tenant.cpos.fill_details') }}">@csrf<button class="ia-btn ia-btn--secondary ia-btn--sm" type="submit">Fill in missing details</button></form></div>
     </div>
   @endif

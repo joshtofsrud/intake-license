@@ -18,8 +18,7 @@
   $twoWay = $pc->isTwoWay();
 @endphp
 <div class="ec-sec">
-  <h3>Sales history</h3>
-  <p class="ec-note" style="margin-bottom:8px">Past sales are copied in for customer pages, Buying, reports and Recovery. They don't change stock, the cash drawer or your ledger, and they're marked <b>From Connected POS</b> everywhere they show.</p>
+  <h3>Sales history <button type="button" class="ia-tip" aria-label="What this does">i</button><span class="ia-tip-text" hidden>Past sales are copied in for customer pages, Buying, reports and Recovery. They don't change stock, the cash drawer or your ledger, and they're marked <b>From Connected POS</b> everywhere they show.</span></h3>
 
   <details class="cp-legend" style="margin-bottom:10px">
     <summary>What is and isn't affected</summary>
@@ -35,19 +34,18 @@
 
   <form method="POST" action="{{ route('tenant.cpos.sales') }}">
     @csrf
-    <div class="ec-row"><div><div class="t">How far back</div><div class="d">More history makes Buying and Recovery smarter, and takes longer.</div></div>
+    <div class="ec-row"><div><div class="t">How far back <button type="button" class="ia-tip" aria-label="What this does">i</button><span class="ia-tip-text" hidden>More history makes Buying and Recovery smarter, and takes longer.</span></div></div>
       <div class="ctl"><select class="ia-select" name="range" @disabled($hRunning)>
         @foreach(['24m', '12m', 'all'] as $k)<option value="{{ $k }}" @selected($ho['range'] === $k)>{{ \App\Services\Pos\PosSalesSync::RANGES[$k] }}</option>@endforeach
       </select></div></div>
-    <div class="ec-row"><div><div class="t">Sales without a customer</div><div class="d">Counted toward item sales and reports; not shown on any customer page.</div></div>
+    <div class="ec-row"><div><div class="t">Sales without a customer <button type="button" class="ia-tip" aria-label="What this does">i</button><span class="ia-tip-text" hidden>Counted toward item sales and reports; not shown on any customer page.</span></div></div>
       <div class="ctl"><select class="ia-select" name="no_customer" @disabled($hRunning)>
         <option value="in" @selected($ho['no_customer'] === 'in')>Bring them in</option>
         <option value="skip" @selected($ho['no_customer'] === 'skip')>Skip them</option>
       </select></div></div>
-    <div class="ec-row"><div><div class="t">Products you haven't imported</div><div class="d">The sale line keeps the product name and SKU so nothing is lost; it links up if you import the item later.</div></div>
+    <div class="ec-row"><div><div class="t">Products you haven't imported <button type="button" class="ia-tip" aria-label="What this does">i</button><span class="ia-tip-text" hidden>The sale line keeps the product name and SKU so nothing is lost; it links up if you import the item later.</span></div></div>
       <div class="ctl"><span class="cpx-pip">Kept as text lines</span></div></div>
-    <div class="ec-row"><div><div class="t">Keep new sales coming in</div>
-      <div class="d">@if($twoWay) After the history is in, sales made in your Connected POS arrive about every minute, until you switch over. @else You have switched over, so new sales no longer come in. History can still be read. @endif</div></div>
+    <div class="ec-row"><div><div class="t">Keep new sales coming in <button type="button" class="ia-tip" aria-label="What this does">i</button><span class="ia-tip-text" hidden>@if($twoWay) After the history is in, sales made in your Connected POS arrive about every minute, until you switch over. @else You have switched over, so new sales no longer come in. History can still be read. @endif</span></div></div>
       <div class="ctl"><label class="tg"><input type="hidden" name="sales_in" value="0" @disabled(! $twoWay)><input type="checkbox" name="sales_in" value="1" @checked($pc->sales_options === null ? true : $pc->sales_in) @disabled($hRunning || ! $twoWay)><i></i></label></div></div>
     @unless($hRunning)
       <div class="ec-actions">
@@ -56,7 +54,6 @@
           @unless($hStopped)<button class="ia-btn ia-btn--secondary ia-btn--sm" type="submit" name="go" value="start" data-confirm="Read your sales history again from the start? Sales already in are updated, not doubled, and anything outside your choices above is taken back out.">Read again</button>@endunless
         @else
           <button class="ia-btn ia-btn--primary" type="submit" name="go" value="start">Start</button>
-          <span class="ec-note">Saves these choices and starts reading. You can stop and resume.</span>
         @endif
       </div>
     @else
@@ -81,20 +78,14 @@
         <div>Lines<b data-live="sales.lines">{{ number_format($hs['lines'] ?? 0) }}</b></div>
         <div>On customers<b data-live="sales.on_customers">{{ number_format($hs['on_customers'] ?? 0) }}</b></div>
         <div>Linked items<b data-live="sales.linked_lines">{{ number_format($hs['linked_lines'] ?? 0) }}</b></div>
-        <div class="w">Left out<b data-live="sales.left_out">{{ number_format($hLeft) }}</b></div>
+        <div class="w">Left out <button type="button" class="ia-tip" aria-label="What this does">i</button><span class="ia-tip-text" hidden>{{ number_format($hs['seen'] ?? 0) }} looked at{{ ! $hFull && ! empty($hs['finished_at']) ? ', last checked ' . \Illuminate\Support\Carbon::parse($hs['finished_at'])->diffForHumans() : '' }}. Left out: {{ number_format($hs['ours'] ?? 0) }} Intake sent there · {{ number_format($hs['older'] ?? 0) }} older than your range · {{ number_format($hs['no_customer'] ?? 0) }} with no customer · {{ number_format($hs['voided'] ?? 0) }} voided · {{ number_format($hs['open'] ?? 0) }} not finished.</span><b data-live="sales.left_out">{{ number_format($hLeft) }}</b></div>
       </div>
       @if(! empty($hs['error']))<div class="d" style="color:#F26D6D;font-size:12.5px;margin-top:6px">{{ $hs['error'] }}</div>@endif
-      <div class="ec-note" style="margin-top:6px">
-        {{ number_format($hs['seen'] ?? 0) }} looked at{{ ! $hFull && ! empty($hs['finished_at']) ? ', last checked ' . \Illuminate\Support\Carbon::parse($hs['finished_at'])->diffForHumans() : '' }}.
-        Left out: {{ number_format($hs['ours'] ?? 0) }} Intake sent there · {{ number_format($hs['older'] ?? 0) }} older than your range · {{ number_format($hs['no_customer'] ?? 0) }} with no customer · {{ number_format($hs['voided'] ?? 0) }} voided · {{ number_format($hs['open'] ?? 0) }} not finished.
-      </div>
       <div class="cp-actions">
         @if($hRunning)
           <form method="POST" action="{{ route('tenant.cpos.sales_stop') }}">@csrf<button class="ia-btn ia-btn--secondary ia-btn--sm" type="submit">Stop</button></form>
-          <span class="ec-note">Stop keeps everything read so far; Resume carries on from <span data-live="sales.reached">{{ $hAt ?: 'where it stopped' }}</span>.</span>
         @elseif($hStopped || ! empty($hs['error']))
           <form method="POST" action="{{ route('tenant.cpos.sales_resume') }}">@csrf<button class="ia-btn ia-btn--primary ia-btn--sm" type="submit">Resume{{ $hAt ? ' from ' . $hAt : '' }}</button></form>
-          <span class="ec-note">Everything read so far is kept.</span>
         @endif
       </div>
     </div>
@@ -111,13 +102,12 @@
       <div>To<b>{{ $hDay($hsum['last']) }}</b></div>
     </div>
     <div class="cp-actions">
-      <a class="ia-btn ia-btn--secondary ia-btn--sm" href="{{ route('tenant.reports.custom') }}">Open reports</a>
+      <a class="ia-btn ia-btn--secondary ia-btn--sm" href="{{ route('tenant.reports.custom') }}">Open reports</a><button type="button" class="ia-tip" aria-label="What this does">i</button><span class="ia-tip-text" hidden>In reports, pick <b>Connected POS sales</b> as the data, or open the <b>Connected POS sales by month</b> template.</span>
       <a class="ia-btn ia-btn--secondary ia-btn--sm" href="{{ route('tenant.buying') }}">Open Buying</a>
       @unless($hRunning)
         <form method="POST" action="{{ route('tenant.cpos.sales_clear') }}">@csrf<button class="ia-btn ia-btn--ghost ia-btn--sm" type="submit" data-confirm="Remove all {{ number_format($hsum['sales']) }} Connected POS sales from Intake? They disappear from customer pages, Buying, reports and Recovery. Your Connected POS, your stock and your own Intake sales are not touched, and you can read the history in again.">Remove sales history</button></form>
       @endunless
     </div>
-    <p class="ec-note">In reports, pick <b>Connected POS sales</b> as the data, or open the <b>Connected POS sales by month</b> template.</p>
   </div>
 @endif
 @include('tenant.connected-pos._live')

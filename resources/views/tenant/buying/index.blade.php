@@ -105,15 +105,13 @@
 
   {{-- ===================== MOVING ===================== --}}
   <section class="mk-pane {{ $tab === 'moving' ? 'on' : '' }}" id="pane-moving">
-    <div class="mk-legend">
-      <b>What this shows.</b> Items that sold in the last {{ \App\Services\Tenant\BuyingService::WINDOWS[$w] }}{{ $loc ? ' at ' . $locs->firstWhere('id', $loc)?->name : '' }}: register and online sales and parts used on work orders, refunds taken off.
-      @if(\App\Services\Pos\PosSalesSync::has(tenant()->id))<b>From Connected POS:</b> sales made in your Connected POS are counted too, for items linked to it{{ $loc ? ' and outlets matched to this location' : '' }}. A row marked <span class="mk-pos">POS</span> has some; open it to see how many. Products you haven't imported aren't Intake items, so they don't show here.@endif
-      <b>Per week</b> is the average of the last {{ $set['pace_weeks'] }} weeks.
-      <b>On order</b> is what's still owed on purchase orders you've placed, with each line's expected date. Units held for a customer's special order are shown but don't count as stock.
-      @if($velocity['report_on'])Distributor figures cover only items in your inventory, and distributor pace is how fast <i>their</i> stock is dropping, not your sales.@endif
+    {{-- MARKER-IA-TIP: closed by default; what each column means is on the column's own "i" --}}
+    <details class="mk-legend mk-fold">
+      <summary>What this shows</summary>
+      <div>Items that sold in the last {{ \App\Services\Tenant\BuyingService::WINDOWS[$w] }}{{ $loc ? ' at ' . $locs->firstWhere('id', $loc)?->name : '' }}: register and online sales and parts used on work orders, refunds taken off.
       @if($canPo)<b>Add to PO</b> puts a line on the draft for that vendor and location. Nothing is sent to the vendor until you place the PO on Purchase orders.@endif
-      @if($canSettings)The thresholds behind each status are in <a class="mk-link" href="{{ route('tenant.settings.index') }}#ordering">Settings › Ordering</a>.@endif
-    </div>
+      @if($canSettings)The thresholds behind each status are in <a class="mk-link" href="{{ route('tenant.settings.index') }}#ordering">Settings › Ordering</a>.@endif</div>
+    </details>
 
     @if(! $rows)
       <div class="mk-empty">
@@ -138,8 +136,8 @@
       <div class="rb-tbl mk-tbl">
         <table class="ia-table" id="by-tbl">
           <thead><tr>
-            <th>Item</th><th>Sold</th><th class="ia-num">Per week</th><th class="ia-num">On hand</th>
-            <th class="ia-num">Days left</th><th>On order</th>@if($velocity['report_on'])<th>Distributor</th>@endif<th>Status</th><th></th>
+            <th>Item</th><th>Sold <button type="button" class="ia-tip" aria-label="What this is">i</button><span class="ia-tip-text" hidden>Units sold in the window: register and online sales and parts used on work orders, refunds taken off. @if(\App\Services\Pos\PosSalesSync::has(tenant()->id)) Sales made in your Connected POS are counted too, for items linked to it{{ $loc ? ' and outlets matched to this location' : '' }}. A row marked <span class="mk-pos">POS</span> has some; open it to see how many. Products you haven't imported aren't Intake items, so they don't show here. @endif</span></th><th class="ia-num">Per week <button type="button" class="ia-tip" aria-label="What this is">i</button><span class="ia-tip-text" hidden>The average of the last {{ $set['pace_weeks'] }} weeks.</span></th><th class="ia-num">On hand</th>
+            <th class="ia-num">Days left</th><th>On order <button type="button" class="ia-tip" aria-label="What this is">i</button><span class="ia-tip-text" hidden>What's still owed on purchase orders you've placed, with each line's expected date. Units held for a customer's special order are shown but don't count as stock.</span></th>@if($velocity['report_on'])<th>Distributor <button type="button" class="ia-tip" aria-label="What this is">i</button><span class="ia-tip-text" hidden>Distributor figures cover only items in your inventory, and distributor pace is how fast <i>their</i> stock is dropping, not your sales.</span></th>@endif<th>Status</th><th></th>
           </tr></thead>
           <tbody></tbody>
         </table>
@@ -155,7 +153,7 @@
 
   {{-- ===================== SEARCHED ===================== --}}
   <section class="mk-pane {{ $tab === 'searched' ? 'on' : '' }}" id="pane-searched">
-    <div class="mk-legend"><b>What this shows.</b> Searches at the register and on your online store in the last 90 days that found nothing in stock{{ $loc ? ' (this location\'s registers, plus the online store)' : '' }}. Each one is a customer who wanted something you didn't have. It's a signal, not an order. A search typed letter by letter counts once. Dismissing one hides it until someone searches for it again.</div>
+    <details class="mk-legend mk-fold"><summary>What this shows</summary><div>Searches at the register and on your online store in the last 90 days that found nothing in stock{{ $loc ? ' (this location\'s registers, plus the online store)' : '' }}. Each one is a customer who wanted something you didn't have. It's a signal, not an order. A search typed letter by letter counts once. Dismissing one hides it until someone searches for it again.</div></details>
     <div class="rb-h"><h2>Unanswered searches</h2><span class="rb-hint">Last 90 days</span></div>
     <div class="rb-tbl mk-tbl">
       <table class="ia-table" id="by-stbl"><thead><tr><th>Search</th><th class="ia-num">Times</th><th>Where</th><th>Last searched</th><th>Closest match in your inventory</th><th></th></tr></thead><tbody></tbody></table>
@@ -176,7 +174,7 @@
         <a class="ia-btn ia-btn--secondary ia-btn--sm" href="#" data-tab="moving">Back to Moving</a>
       </div>
     @else
-      <div class="mk-legend"><b>What this shows.</b> How much you can still spend to reach your inventory goal: goal, less stock on hand at cost, less what's still owed on placed POs. <b>In drafts</b> is shown so you can see what's planned, but it doesn't count until the PO is placed. Goals are per category and per location{{ $locs->count() > 1 && ! $loc ? '; pick a location to edit them' : '' }}.</div>
+      <details class="mk-legend mk-fold"><summary>What this shows</summary><div>How much you can still spend to reach your inventory goal: goal, less stock on hand at cost, less what's still owed on placed POs. <b>In drafts</b> is shown so you can see what's planned, but it doesn't count until the PO is placed. Goals are per category and per location{{ $locs->count() > 1 && ! $loc ? '; pick a location to edit them' : '' }}.</div></details>
       <div class="rb-strip" id="by-ostrip"></div>
       <div class="rb-h"><h2>By category</h2><span class="rb-hint">{{ $loc || $locs->count() === 1 ? 'Edit a goal, then Save goals' : 'All locations: goals add up each location\'s' }}</span></div>
       <form method="POST" action="{{ route('tenant.buying.goals') }}" id="by-goals">

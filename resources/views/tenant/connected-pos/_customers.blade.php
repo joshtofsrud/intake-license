@@ -8,7 +8,7 @@
   <h3>Customers from your Connected POS</h3>
   <form method="POST" action="{{ route('tenant.cpos.customers') }}" class="ec-row">
     @csrf
-    <div><div class="t">Bring in customers</div><div class="d">The first time, every customer is read; after that, new and changed ones come in about every minute. Each is matched to an Intake customer by email, then phone, and only blank fields are filled. Nothing you entered in Intake is overwritten. No one is opted in to marketing, and "do not email" there means opted out here.</div></div>
+    <div><div class="t">Bring in customers <button type="button" class="ia-tip" aria-label="What this does">i</button><span class="ia-tip-text" hidden>The first time, every customer is read; after that, new and changed ones come in about every minute. Each is matched to an Intake customer by email, then phone, and only blank fields are filled. Nothing you entered in Intake is overwritten. No one is opted in to marketing, and "do not email" there means opted out here.</span></div></div>
     <div class="ctl">
       <label class="tg"><input type="hidden" name="customers_in" value="0"><input type="checkbox" name="customers_in" value="1" @checked($pc->customers_in)><i></i></label>
       <button class="ia-btn ia-btn--primary ia-btn--sm" type="submit">Save</button>
@@ -24,10 +24,9 @@
           <div>Matched<b data-live="customers.matched">{{ number_format($cs['matched'] ?? 0) }}</b></div>
           <div>New<b data-live="customers.created">{{ number_format($cs['created'] ?? 0) }}</b></div>
           <div>Filled in<b data-live="customers.filled">{{ number_format($cs['filled'] ?? 0) }}</b></div>
-          <div class="w">Skipped<b data-live="customers.skipped">{{ number_format($cs['skipped'] ?? 0) }}</b></div>
+          <div class="w">Skipped <button type="button" class="ia-tip" aria-label="What this does">i</button><span class="ia-tip-text" hidden>Deleted in your Connected POS, or no name, email or phone to know them by.</span><b data-live="customers.skipped">{{ number_format($cs['skipped'] ?? 0) }}</b></div>
         </div>
         @if(! empty($cs['error']))<div class="d" style="color:#F26D6D">{{ $cs['error'] }}</div>@endif
-        <div class="d">Skipped: deleted in your Connected POS, or no name, email or phone to know them by.</div>
       </div>
       <div class="ctl">
         @if($csRunning)

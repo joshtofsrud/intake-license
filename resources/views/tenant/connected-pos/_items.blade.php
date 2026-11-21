@@ -23,8 +23,8 @@
     <div>
       <div class="t">
         @if($readWaiting) Waiting for a worker to start… @elseif($switching) Switching over: reading one last time… @elseif($reading) Reading your catalog… @elseif($ss['stopped'] ?? false) Stopped — automatic reading is paused @elseif(! empty($ss['error'])) The last read stopped with an error @elseif($pc->last_synced_at) Read {{ $pc->last_synced_at->diffForHumans() }} @else Not read yet @endif
+        <button type="button" class="ia-tip" aria-label="What this does">i</button><span class="ia-tip-text" hidden>Reads every product, links the ones that are plainly items you already carry, and adds the rest to the Import list. Nothing is created. @if($pc->sync_enabled) New and changed products are picked up about every minute, with a full read each night. @else Automatic reading is off; turn it on under Settings, or read when you need to. @endif</span>
       </div>
-      <div class="d">Reads every product, links the ones that are plainly items you already carry, and adds the rest to the Import list. Nothing is created. @if($pc->sync_enabled) New and changed products are picked up about every minute, with a full read each night. @else Automatic reading is off; turn it on under Settings, or read when you need to. @endif</div>
       @if(! empty($ss['error']))<div class="d" style="color:#F26D6D">{{ $ss['error'] }}</div>@endif
       @if($reading && ! $readWaiting)<div class="d">Step: {{ ['stock' => 'reading stock counts', 'link' => 'linking the ones you already carry'][$ss['phase'] ?? ''] ?? 'reading products' }} · page <span data-live="state.pages">{{ $ss['pages'] ?? 0 }}</span></div>@endif
     </div>
@@ -41,7 +41,7 @@
     </div>
   </div>
   @if($reading || ! empty($ss['finished_at']))
-    <div class="d" style="font-size:12px;color:var(--ia-text-muted);margin:8px 0 2px">{{ $reading ? 'This read:' : 'The last read:' }}</div>
+    <div class="d" style="font-size:12px;color:var(--ia-text-muted);margin:8px 0 2px">{{ $reading ? 'This read' : 'The last read' }} <button type="button" class="ia-tip" aria-label="What this does">i</button><span class="ia-tip-text" hidden>Linked and Waiting count the products this read met without a link; ones already linked aren't counted again. Prices and stock change only on linked items, and only in 2 Way Data with reading on.</span></div>
     <div class="av-sum">
       <div>Read<b data-live="state.items_seen">{{ number_format($ss['items_seen'] ?? 0) }}</b></div>
       <div>Linked<b data-live="state.matched">{{ number_format($ss['matched'] ?? 0) }}</b></div>
@@ -51,11 +51,10 @@
       <div class="w">Removed<b data-live="state.removed">{{ number_format($ss['removed'] ?? 0) }}</b></div>
       <div class="w">Need review<b data-live="state.conflicts">{{ number_format($ss['conflicts'] ?? 0) }}</b></div>
     </div>
-    <p class="ec-note">Linked and Waiting count the products this read met without a link; ones already linked aren't counted again. Prices and stock change only on linked items, and only in 2 Way Data with reading on.</p>
   @endif
 
   <div class="ec-row">
-    <div><div class="t">Add items</div><div class="d">Search, filter, preview and add from your Connected POS with the same tools as your distributors: one product, the ones you tick, or everything a filter matches.</div>
+    <div><div class="t">Add items <button type="button" class="ia-tip" aria-label="What this does">i</button><span class="ia-tip-text" hidden>Search, filter, preview and add from your Connected POS with the same tools as your distributors: one product, the ones you tick, or everything a filter matches.</span></div>
       @if($im['running'] ?? false)
         <div class="cpx-prog"><i data-live-bar="import" style="width:{{ ($im['total'] ?? 0) ? round(100 * ($im['done'] ?? 0) / $im['total']) : 0 }}%"></i></div>
         <div class="d">Importing <span data-live="import.done">{{ number_format($im['done'] ?? 0) }}</span> of {{ number_format($im['total'] ?? 0) }} — Stop and the details are in Import.</div>
