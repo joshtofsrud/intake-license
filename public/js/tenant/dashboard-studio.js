@@ -81,10 +81,10 @@
     box.hidden = false;
     box.classList.add('swap');
     setTimeout(function () {
-      if (r.actions) { box.innerHTML = generic(r); box.classList.remove('swap'); return; }
+      if (r.actions) { box.innerHTML = generic(r); box.classList.remove('swap'); sheetDress(); return; }
       var assetP = box.dataset.assetP || 'items';
       var h = '<h3>' + esc(r.who) + ' · ' + esc(r.title) + '<span>' + esc(r.number) + '</span></h3>';
-      h += '<div class="sd-tags"><span>' + esc(r.late ? 'Late' : r.groupLabel) + '</span><span>In the shop ' + esc(r.age) + '</span>' +
+      h += '<div class="sd-tags"><span>' + esc(r.late ? 'Late' : r.groupLabel) + '</span><span>Open ' + esc(r.age) + '</span>' +
         (r.due > 0 ? '<span>' + money(r.due) + ' due</span>' : (r.total > 0 ? '<span>Paid</span>' : '')) + '</div><dl class="sd-kv">';
       if (r.assets && r.assets.length > 1) {
         h += '<dt>' + esc(assetP.charAt(0).toUpperCase() + assetP.slice(1)) + '</dt><dd><ul class="sd-ul">' + r.assets.map(function (a) {
@@ -94,13 +94,14 @@
       if (r.notes) h += '<dt>Notes</dt><dd>' + esc(r.notes) + '</dd>';
       if (r.total > 0) h += '<dt>Total</dt><dd>' + money(r.total) + (r.due > 0 && r.due < r.total ? ' · ' + money(r.due) + ' still due' : '') + '</dd>';
       if (r.phone) h += '<dt>Contact</dt><dd>' + esc(r.phone) + '</dd>';
-      h += '</dl><div class="sd-act"><a class="ia-btn ia-btn--sm ia-btn--primary" href="' + esc(r.url) + '">Open work order</a>';
+      h += '</dl><div class="sd-act"><a class="ia-btn ia-btn--sm ia-btn--primary" href="' + esc(r.url) + '">Open appointment</a>';
       if (r.phone) h += '<a class="ia-btn ia-btn--sm" href="sms:' + esc(String(r.phone).replace(/[^\d+]/g, '')) + '">Text ' + esc(r.who.split(' ')[0]) + '</a>';
       if (r.customerUrl) h += '<a class="ia-btn ia-btn--sm" href="' + esc(r.customerUrl) + '">Customer</a>';
       if (r.group === 'ready' && box.dataset.canRegister === '1') h += '<a class="ia-btn ia-btn--sm" href="' + esc(box.dataset.registerUrl) + '">Ring up</a>';
       h += '</div>';
       box.innerHTML = h;
       box.classList.remove('swap');
+      sheetDress();
     }, 110);
   }
   // a page that sends its own detail (tags, label/value pairs, actions) — the rental desk
@@ -143,11 +144,59 @@
     var r = end.getBoundingClientRect(), lb = lst ? lst.getBoundingClientRect().bottom : innerHeight;
     if (r.top < Math.min(innerHeight, lb) - 4 && r.bottom > 0) end.classList.add('in');
   }
-  function pick(i) {
+  function pick(i, byHand) {
     sel = i;
     $$('.sd-row').forEach(function (r) { r.classList.toggle('sel', +r.dataset.i === i); });
     detail(i);
+    placeDetail();
+    if (byHand && isPhone()) sheet(true);
   }
+
+  // ------------------------------------------- small screens (MARKER-STUDIO-SMALL)
+  // The dashboard only (.sd-dash); the rental desk shares this file and keeps the details where they were.
+  // Tablet: the picked job's details sit right under its row. Phone: they come up as a sheet when a job is tapped.
+  var isDash = root.classList.contains('sd-dash'), sheetOpen = false, scrim = null;
+  function isPhone() { return isDash && innerWidth <= 640; }
+  function isTablet() { return isDash && innerWidth > 640 && innerWidth < 1024; }
+  function placeDetail() {
+    var box = $('#sdDetail'); if (!box || !isDash) return;
+    var home = box.closest('.sd-queue') || $('.sd-queue'), row = $('.sd-row.sel');
+    if (isTablet() && row && !row.hidden) { if (row.nextElementSibling !== box) row.after(box); }
+    else if (home && box.parentElement !== home) { home.appendChild(box); }
+  }
+  function sheetDress() {
+    var box = $('#sdDetail'); if (!box || !isDash || $('.sd-sheet-x', box)) return;
+    var x = document.createElement('button'); x.type = 'button'; x.className = 'sd-sheet-x'; x.setAttribute('aria-label', 'Close'); x.textContent = '✕';
+    box.appendChild(x);
+  }
+  function sheet(open) {
+    var box = $('#sdDetail'); if (!box) return;
+    sheetOpen = !!open && isPhone();
+    if (!scrim) { scrim = document.createElement('div'); scrim.className = 'sd-scrim'; document.body.appendChild(scrim); scrim.addEventListener('click', function () { sheet(false); }); }
+    box.classList.toggle('open', sheetOpen); scrim.classList.toggle('on', sheetOpen);
+  }
+  function headBar(open) {
+    var bar = $('#sdHeadBar'), btn = $('[data-sd-view]'); if (!bar || !btn) return;
+    bar.classList.toggle('open', open); btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+  document.addEventListener('click', function (e) {
+    if (!isDash) return;
+    if (e.target.closest('.sd-sheet-x')) { sheet(false); return; }
+    var done = e.target.closest('[data-sd-done]');
+    if (done) {
+      var tl = done.parentElement.querySelector('.sd-tl'); if (!tl) return;
+      var all = tl.classList.toggle('all'), n = done.dataset.n;
+      done.setAttribute('aria-expanded', all ? 'true' : 'false');
+      done.textContent = all ? 'Hide the ' + n + ' done' : n + ' done earlier today · show';
+      return;
+    }
+    var vb = e.target.closest('[data-sd-view]'), bar = $('#sdHeadBar');
+    if (vb) { headBar(!(bar && bar.classList.contains('open'))); return; }
+    if (bar && bar.classList.contains('open') && !e.target.closest('#sdHeadBar') && !e.target.closest('.ia-drawer, .rb-drawer, [role=dialog]')) headBar(false);
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { sheet(false); headBar(false); } });
+  var smT = 0;
+  addEventListener('resize', function () { clearTimeout(smT); smT = setTimeout(function () { placeDetail(); if (!isPhone()) sheet(false); if (innerWidth > 640) headBar(false); }, 120); });
   root.addEventListener('click', function (e) {
     var m = e.target.closest('.sd-multi');
     if (m) { e.preventDefault(); e.stopPropagation(); popFor === m ? hidePop() : showPop(m); return; }
@@ -159,11 +208,11 @@
       return;
     }
     var row = e.target.closest('.sd-row');
-    if (row) pick(+row.dataset.i);
+    if (row) pick(+row.dataset.i, true);
   });
   root.addEventListener('keydown', function (e) {
     var row = e.target.closest && e.target.closest('.sd-row');
-    if (row && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); pick(+row.dataset.i); }
+    if (row && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); pick(+row.dataset.i, true); }
   });
 
   // ------------------------------------------------------- multi-asset list
@@ -248,6 +297,7 @@
       .then(function (html) {
         var doc = new DOMParser().parseFromString(html, 'text/html');
         var nyOpen = !!document.querySelector('#sdNy.open');
+        var doneAll = !!document.querySelector('.sd-tl.all'), wasSheet = sheetOpen;
         $$('[data-sd-live]').forEach(function (el) {
           var fresh = doc.querySelector('[data-sd-live="' + el.dataset.sdLive + '"]');
           if (!fresh) return;
@@ -265,6 +315,9 @@
         applyFilter();
         $$('.sd-row').forEach(function (r) { r.classList.toggle('sel', +r.dataset.i === sel); });
         detail(sel);
+        placeDetail();
+        if (wasSheet) sheet(true);
+        if (doneAll) { var db = $('[data-sd-done]'); if (db) db.click(); }
       })
       .catch(function () { /* stay on what's shown; the next tick tries again */ })
       .then(function () { busy = false; last = Date.now(); });

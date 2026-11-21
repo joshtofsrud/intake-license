@@ -299,3 +299,81 @@ html.sd-motion .sd-ny:not(.on) .sd-chip { opacity: 0; transform: translateY(8px)
   .sd-chip.more { display: none !important; }
 }
 @media (prefers-reduced-motion: reduce) { .sd-chip { transition: background .2s, border-color .2s; } }
+
+
+/* ============================================================================
+   MARKER-STUDIO-SMALL: the dashboard on a tablet and a phone. Scoped to .sd-dash
+   (the dashboard's root) so the rental desk, which shares .sd, is untouched.
+   Tablet (641-1023): tiles three across and shorter, then two columns: the queue
+   beside the calendar and today; a picked job's details open under its row.
+   Phone (640 and under): no greeting; layout + Customize behind one button;
+   tiles as one compact row (number and one line, no charts; a 4th swipes);
+   this week in place of the month; finished jobs folded; the job under the name
+   in the queue; a picked job's details in a sheet from the bottom.
+   ========================================================================== */
+.sd-week, .sd-donebtn, .sd-viewbtn, .sd-sheet-x, .sd-scrim { display: none; }
+@media (min-width: 641px) and (max-width: 1023px) {
+  .sd-dash .dash-row { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 26px; align-items: start; }
+  .sd-dash .dash-row > .dash-col { display: contents; }
+  .sd-dash .sd-tiles { grid-column: 1 / -1; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; order: 0; }
+  .sd-dash .sd-tiles.sd-n1 { grid-template-columns: minmax(0, 1fr); } .sd-dash .sd-tiles.sd-n2, .sd-dash .sd-tiles.sd-n4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sd-dash .sd-tiles.sd-n3 > .sd-tile:last-child { grid-column: auto; }
+  .sd-dash .sd-tile { min-height: 132px; padding: 14px 16px; gap: 6px; }
+  .sd-dash .sd-big b { font-size: 26px; }
+  .sd-dash .sd-key { display: none; } .sd-dash .sd-bars { height: 34px; } .sd-dash .sd-spark { height: 38px; }
+  .sd-dash .sd-queue { grid-column: 1; grid-row: 2; order: 0; } .sd-dash .sd-rail { grid-column: 2; grid-row: 2; order: 0; }
+  .sd-dash .sd-row { grid-template-columns: 34px minmax(0, 1fr) auto; row-gap: 2px; }
+  .sd-dash .sd-row .sd-job { grid-column: 2 / -1; grid-row: 2; font-size: 12px; color: var(--ia-text-muted); }
+  .sd-dash .sd-row .sd-age { display: none; }
+  .sd-dash .sd-sec-h { flex-wrap: wrap; gap: 10px; } .sd-dash .sd-seg { width: 100%; } .sd-dash .sd-seg button { flex: 1; padding: 6px 4px; }
+  .sd-dash .sd-detail { margin: 6px 0 10px; }
+  .sd-dash .sd-cal-g { gap: 2px; }
+}
+@media (max-width: 640px) {
+  /* header */
+  .sd-dash .sd-hi { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .sd-dash .sd-sub { font-size: 14px; color: var(--ia-text); font-weight: 500; margin: 0; }
+  .sd-dash .sd-head { padding: 0 0 10px; gap: 10px; position: relative; }
+  .sd-dash .sd-head-r { flex-wrap: nowrap; gap: 8px; }
+  .sd-dash .sd-viewbtn { display: grid; place-content: center; flex: none; width: 38px; height: 38px; padding: 0; border-radius: 10px; border: 1px solid var(--ia-border); background: var(--ia-surface); color: var(--ia-text-muted); }
+  .sd-dash .sd-viewbtn[aria-expanded="true"] { color: var(--ia-text); border-color: var(--ia-border-strong); }
+  .sd-dash .sd-head-bar { display: none; }
+  .sd-dash .sd-head-bar.open { display: flex; flex-direction: column; align-items: stretch; gap: 8px; position: absolute; right: 0; top: 100%; z-index: 40; min-width: 200px; padding: 10px; border-radius: 12px; background: var(--ia-surface); border: 1px solid var(--ia-border-strong); box-shadow: 0 12px 32px rgba(0, 0, 0, .35); }
+  .sd-dash .sd-head-bar.open .ia-viewseg { display: flex; flex-direction: column; align-items: stretch; background: none; border: 0; padding: 0; gap: 2px; }
+  .sd-dash .sd-head-bar.open .ia-viewseg form { display: block; margin: 0; }
+  .sd-dash .sd-head-bar.open .ia-viewseg button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px; line-height: 1.2; border-radius: 8px; font-size: 14px; text-align: left; }
+  .sd-dash .sd-head-bar.open .ia-viewseg .vs-lb { display: inline; }
+  .sd-dash .sd-head-bar.open .sd-loc { white-space: normal; font-size: 11.5px; }
+  /* tiles */
+  .sd-dash .sd-tiles { display: flex; gap: 8px; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none; margin: 0 -12px; padding: 0 12px; scroll-padding: 0 12px; } /* bleeds to the edge like the Needs you row above it */
+  .sd-dash .sd-tiles::-webkit-scrollbar { display: none; }
+  .sd-dash .sd-tile { flex: 1 0 calc((100% - 16px) / 3); min-width: 104px; min-height: 0; padding: 10px 12px; gap: 4px; border-radius: 14px; scroll-snap-align: start; }
+  .sd-dash .sd-tile-h i, .sd-dash .sd-bars, .sd-dash .sd-axis, .sd-dash .sd-spark, .sd-dash .sd-stack, .sd-dash .sd-key, .sd-dash .sd-meter, .sd-dash .sd-ring { display: none; }
+  .sd-dash .sd-tile-h span { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sd-dash .sd-big { flex-direction: column; align-items: flex-start; gap: 1px; flex-wrap: nowrap; }
+  .sd-dash .sd-big b { font-size: 22px; }
+  .sd-dash .sd-big small { font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .sd-dash .dash-row { gap: 22px; }
+  /* this week, in place of the month */
+  .sd-dash .sd-cal { display: none; }
+  .sd-dash .sd-week { display: block; margin-bottom: 18px; }
+  .sd-week-g { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; margin-top: 10px; }
+  .sd-week-g a { display: grid; justify-items: center; gap: 3px; padding: 7px 0 8px; border-radius: 12px; font-size: 14px; font-weight: 600; text-decoration: none; color: var(--ia-text); background: color-mix(in srgb, var(--sd-t3) calc(var(--f) * 42%), var(--ia-surface)); }
+  .sd-week-g a small { font-size: 9.5px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: var(--ia-text-muted); }
+  .sd-week-g a.t { background: var(--ia-accent); color: var(--ia-accent-text, #0d0d0d); } .sd-week-g a.t small { color: inherit; opacity: .7; }
+  .sd-week-g a.x, .sd-week-g a.o { opacity: .4; }
+  /* today: what's left leads */
+  .sd-dash .sd-donebtn { display: block; background: none; border: 0; color: var(--ia-text-muted); font: inherit; font-size: 12px; padding: 4px 0 8px; cursor: pointer; }
+  .sd-dash .sd-tl:not(.all) .sd-tl-r.done { display: none; }
+  /* queue */
+  .sd-dash .sd-row { grid-template-columns: 34px minmax(0, 1fr) auto; row-gap: 2px; }
+  .sd-dash .sd-row .sd-job { display: block; grid-column: 2 / -1; grid-row: 2; font-size: 12px; color: var(--ia-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sd-dash .sd-who small { display: none; }
+  /* a picked job's details: a sheet from the bottom, above the tab bar */
+  .sd-dash .sd-detail { position: fixed; left: 0; right: 0; bottom: 0; z-index: 1001; margin: 0; max-height: 78vh; overflow-y: auto; border-radius: 18px 18px 0 0; padding: 18px 18px calc(22px + env(safe-area-inset-bottom)); background: var(--ia-surface) !important; box-shadow: 0 -18px 40px rgba(0, 0, 0, .45); transform: translateY(105%); transition: transform .25s ease; visibility: hidden; }
+  .sd-dash .sd-detail.open { transform: none; visibility: visible; }
+  .sd-dash .sd-detail h3 { padding-right: 38px; }
+  .sd-scrim.on { display: block; position: fixed; inset: 0; z-index: 1000; background: rgba(0, 0, 0, .5); }
+  .sd-dash .sd-sheet-x { display: grid; position: absolute; right: 12px; top: 12px; width: 30px; height: 30px; padding: 0; place-content: center; border-radius: 50%; background: var(--ia-hover); border: 0; color: var(--ia-text); font-size: 15px; cursor: pointer; }
+}
+@media (prefers-reduced-motion: reduce) { .sd-dash .sd-detail { transition: none; } }

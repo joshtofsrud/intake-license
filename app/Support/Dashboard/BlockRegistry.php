@@ -68,11 +68,11 @@ class BlockRegistry
             'studio_needs' => ['name' => 'Needs you strip', 'origin' => 'studio', 'view' => 'tenant.dashboard.blocks.studio-needs',
                 'reads' => 'Appointments, work orders, special orders, stock', 'desc' => 'What needs someone as one row of chips under the greeting, worst first. Each chip opens its list; desktop folds extras into "+N more" and phones swipe the row. Shows only what each role can open.', 'access' => self::QUEUE_AREAS, 'needs' => []],
             'studio_tiles' => ['name' => 'Coloured tiles', 'origin' => 'studio', 'view' => 'tenant.dashboard.blocks.studio-tiles',
-                'reads' => 'Appointments, payments, work orders, website visits', 'desc' => 'Bookings, sales, work orders and online today as four coloured tiles with small charts. Each tile shows only to roles that can open its area.', 'access' => ['any' => ['schedule', 'reports']], 'needs' => ['studio']],
+                'reads' => 'Appointments, payments, work orders, website visits', 'desc' => 'Bookings, sales, open appointments and online today as four coloured tiles with small charts (compact, without charts, on a phone). Each tile shows only to roles that can open its area.', 'access' => ['any' => ['schedule', 'reports']], 'needs' => ['studio']],
             'studio_rail'  => ['name' => 'Calendar and today', 'origin' => 'studio', 'view' => 'tenant.dashboard.blocks.studio-rail',
                 'reads' => 'Appointments, opening hours, pickups and drop-offs', 'desc' => "The month shaded by how busy each day is, then today's timeline with Next up (time-slot shops) or how full today is with the drop-offs (drop-off shops).", 'access' => ['any' => ['schedule']], 'title' => 'Today', 'needs' => ['studio']],
             'studio_queue' => ['name' => 'Queue and details', 'origin' => 'studio', 'view' => 'tenant.dashboard.blocks.studio-queue',
-                'reads' => 'Appointments', 'desc' => 'Jobs in the shop by status, oldest first, with the picked job\'s details and actions beside them.', 'access' => ['any' => ['schedule']], 'title' => 'Queue', 'needs' => ['studio']],
+                'reads' => 'Appointments', 'desc' => 'Open appointments by status, oldest first, with the picked one\'s details and actions beside them (under it on a tablet, in a sheet on a phone).', 'access' => ['any' => ['schedule']], 'title' => 'Queue', 'needs' => ['studio']],
         ];
     }
 

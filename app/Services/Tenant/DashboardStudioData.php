@@ -158,11 +158,11 @@ class DashboardStudioData
         $total = array_sum($c);
 
         return [
-            'key' => 'jobs', 'title' => 'Work orders', 'tone' => 3,
+            'key' => 'jobs', 'title' => 'Open now', 'tone' => 3,
             'value' => $total, 'pre' => '',
-            'sub' => $total ? 'open right now' : 'nothing open — all caught up',
+            'sub' => $total ? ($total === 1 ? 'appointment open' : 'appointments open') : 'nothing open — all caught up',
             'link' => route('tenant.appointments.index'),
-            'say'  => 'Opening work orders',
+            'say'  => 'Opening appointments',
             'chart' => ['type' => 'stack', 'parts' => [
                 ['label' => 'Waiting', 'n' => $c['waiting']],
                 ['label' => 'In progress', 'n' => $c['active']],

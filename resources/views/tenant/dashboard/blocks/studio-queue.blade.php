@@ -9,7 +9,7 @@
 @if ($q)
 <section class="sd-queue sd-in" style="--d:220ms" data-sd-live="queue">
   <div class="sd-sec-h">
-    <div><h2>{{ $dashBlock['title'] ?? 'Queue' }}</h2><span>Jobs in the shop, oldest first</span></div>
+    <div><h2>{{ $dashBlock['title'] ?? 'Queue' }}</h2><span>Open appointments, oldest first</span></div>
     @php $all = array_sum($q['counts']); @endphp
     <div class="sd-seg" role="tablist" aria-label="Show">
       <button type="button" class="on" data-f="all">All {{ $all }}</button>
@@ -20,8 +20,8 @@
   </div>
 
   @if (! $q['rows'])
-    <div class="sd-empty">Nothing in the shop right now.
-      <div class="sd-empty-acts"><a class="ia-btn ia-btn--sm ia-btn--primary" href="{{ route('tenant.appointments.index', ['new' => 1]) }}">New booking</a><a class="ia-btn ia-btn--sm" href="{{ route('tenant.appointments.index') }}">All work orders</a></div>
+    <div class="sd-empty">Nothing open right now.
+      <div class="sd-empty-acts"><a class="ia-btn ia-btn--sm ia-btn--primary" href="{{ route('tenant.appointments.index', ['new' => 1]) }}">New booking</a><a class="ia-btn ia-btn--sm" href="{{ route('tenant.appointments.index') }}">All appointments</a></div>
     </div>
   @else
     <div class="sd-list" id="sdList">
@@ -35,10 +35,10 @@
         </div>
       @endforeach
       <div class="sd-none" hidden>None here right now.</div>
-      <div class="sd-end" data-word="jobs"><i></i><span>End of the list</span><i></i></div>
+      <div class="sd-end" data-word="open"><i></i><span>End of the list</span><i></i></div>
     </div>
     @if ($q['more'])
-      <a class="sd-link sd-more" href="{{ route('tenant.appointments.index') }}">{{ $q['more'] }} more in Work orders →</a>
+      <a class="sd-link sd-more" href="{{ route('tenant.appointments.index') }}">{{ $q['more'] }} more in Appointments →</a>
     @endif
     @php $sdJson = array_map(fn ($r) => \Illuminate\Support\Arr::only($r, ['who', 'number', 'title', 'groupLabel', 'group', 'age', 'late', 'assets', 'notes', 'total', 'due', 'pay', 'url', 'customerUrl', 'phone']), $q['rows']); @endphp
     <script type="application/json" id="sdQueue">@json($sdJson)</script>
