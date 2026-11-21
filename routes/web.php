@@ -535,6 +535,9 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
 
                 // Online Retail Wave 5a: orders queue
                 Route::get('/orders',            [TenantControllers\OrdersController::class, 'index'])->name('orders.index');
+                // MARKER-ORDER-PRINT: pick lists (one or many), bag tag, packing slip
+                Route::get('/orders/print/pick-lists', [TenantControllers\OrdersController::class, 'printPickLists'])->name('orders.print_pick_lists');
+                Route::get('/orders/{id}/print/{doc}', [TenantControllers\OrdersController::class, 'printDoc'])->whereIn('doc', ['pick-list', 'tag', 'packing-slip'])->name('orders.print');
                 Route::get('/orders/{id}',       [TenantControllers\OrdersController::class, 'show'])->name('orders.show');
                 Route::post('/orders/{id}',      [TenantControllers\OrdersController::class, 'update'])->name('orders.update');
                 Route::post('/orders/{id}/shipments/{shipment}', [TenantControllers\OrdersController::class, 'shipment'])->name('orders.shipment'); // MARKER-SHIPMENT-WORKFLOW

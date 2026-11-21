@@ -62,6 +62,14 @@
   .od-rl.gone{opacity:.45}
   .od-rf{display:flex;justify-content:space-between;font-size:14px;font-weight:700;border-top:.5px solid var(--ia-border);margin-top:8px;padding-top:10px}
   .od-dlg .acts{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+  /* MARKER-ORDER-PRINT */
+  .od-print{position:relative}
+  .od-print summary{list-style:none;cursor:pointer}
+  .od-print summary::-webkit-details-marker{display:none}
+  .od-print-menu{position:absolute;right:0;top:calc(100% + 6px);width:250px;background:var(--ia-surface);border:.5px solid var(--ia-border-strong);border-radius:12px;padding:6px;z-index:30;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+  .od-print-menu a{display:block;padding:8px 10px;border-radius:8px;color:var(--ia-text);text-decoration:none;font-size:13px}
+  .od-print-menu a:hover{background:var(--ia-hover)}
+  .od-print-menu small{display:block;font-size:11.5px;color:var(--ia-text-muted)}
 </style>
 
 <div class="ia-page-head">
@@ -70,6 +78,22 @@
     <h1 class="ia-page-title" style="margin-top:4px">{{ $order->order_number }}
       <span class="od-st {{ $order->status }}" style="vertical-align:3px;margin-left:8px">{{ \App\Support\OrderSteps::label($order) }}</span>
     </h1>
+  </div>
+  {{-- MARKER-ORDER-PRINT --}}
+  <div class="ia-page-actions">
+    <details class="od-print">
+      <summary class="ia-btn ia-btn--secondary ia-btn--sm">Print ▾</summary>
+      <div class="od-print-menu">
+        <a href="{{ route('tenant.orders.print', [$order->id, 'pick-list']) }}" target="_blank">Pick list<small>What to pull, with bins</small></a>
+        @if($order->fulfillment_type !== 'ship')<a href="{{ route('tenant.orders.print', [$order->id, 'tag']) }}" target="_blank">Bag tag<small>Name and order number for the counter</small></a>@endif
+        @if($order->sale_id)<a href="{{ route('tenant.register.sales.receipt', $order->sale_id) }}" target="_blank">Receipt<small>The sale, on your receipt printer</small></a>@endif
+        @if($order->fulfillment_type === 'ship')
+          <a href="{{ route('tenant.orders.print', [$order->id, 'packing-slip']) }}" target="_blank">Packing slips<small>A full page for each box</small></a>
+        @else
+          <a href="{{ route('tenant.orders.print', [$order->id, 'packing-slip']) }}" target="_blank">Full-page receipt<small>Letter size, with your logo</small></a>
+        @endif
+      </div>
+    </details>
   </div>
 </div>
 
@@ -157,6 +181,7 @@
             @if($sh->cost_cents !== null)<span style="font-size:12px;color:var(--ia-text-muted)">cost you ${{ number_format($sh->cost_cents / 100, 2) }}</span>@endif
             @if($sh->shipped_at)<span style="font-size:12px;color:var(--ia-text-muted)">shipped {{ $sh->shipped_at->format('M j') }}</span>@endif
             @if($sh->delivered_at)<span style="font-size:12px;color:var(--ia-text-muted)">delivered {{ $sh->delivered_at->format('M j') }}</span>@endif
+            @if($st !== 'cancelled')<a href="{{ route('tenant.orders.print', [$order->id, 'packing-slip']) }}?shipment={{ $sh->id }}" target="_blank" style="font-size:12px;margin-left:auto">Print packing slip</a>@endif
           </div>
           @if($sh->note)<div style="font-size:12px;color:var(--ia-text-muted);margin-top:4px">Note: {{ $sh->note }}</div>@endif
 

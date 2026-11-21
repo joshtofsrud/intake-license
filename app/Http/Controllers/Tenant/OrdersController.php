@@ -60,6 +60,62 @@ class OrdersController extends Controller
         return view('tenant.orders.show', compact('order'));
     }
 
+    /**
+     * MARKER-ORDER-PRINT: GET /orders/{id}/print/{doc}. The pick list and bag tag print on the
+     * receipt printer (the same paper and logo settings as receipts); the packing slip is a
+     * full page for the box, one per shipment when ?shipment= is given.
+     */
+    public function printDoc(Request $request, string $id, string $doc)
+    {
+        $this->guard();
+        $tenant = tenant();
+        $order = TenantOrder::query()->where('tenant_id', $tenant->id)->with(['items', 'sale'])->findOrFail($id);
+        $print = \App\Services\PrintIdentityService::forTenant($tenant);
+
+        if ($doc === 'packing-slip') {
+            $ships = $order->fulfillment_type === 'ship' ? $order->shipments()->with('items.orderItem')->get() : collect();
+            $only  = $request->query('shipment');
+            return view('tenant.orders.print.packing-slip', [
+                'tenant' => $tenant, 'order' => $order, 'print' => $print, 'ships' => $ships,
+                'one'    => $only ? $ships->firstWhere('id', $only) : null,
+                'returns' => \App\Support\Launch\ShopPolicies::returnsUrl($tenant),
+            ]);
+        }
+
+        return view('tenant.orders.print.' . ($doc === 'tag' ? 'tag' : 'pick-lists'), [
+            'tenant' => $tenant, 'print' => $print, 'orders' => collect([$order]), 'bins' => $this->bins($tenant, collect([$order])),
+        ]);
+    }
+
+    /** MARKER-ORDER-PRINT: GET /orders/print/pick-lists?ids[]=… — several pick lists at once, one per page. */
+    public function printPickLists(Request $request)
+    {
+        $this->guard();
+        $tenant = tenant();
+        $ids = array_slice(array_values(array_filter((array) $request->query('ids', []), 'is_string')), 0, 100);
+        $orders = TenantOrder::query()->where('tenant_id', $tenant->id)->whereIn('id', $ids)->with('items')->orderBy('paid_at')->get();
+        abort_if($orders->isEmpty(), 404);
+
+        return view('tenant.orders.print.pick-lists', [
+            'tenant' => $tenant, 'print' => \App\Services\PrintIdentityService::forTenant($tenant), 'orders' => $orders, 'bins' => $this->bins($tenant, $orders),
+        ]);
+    }
+
+    /** Where each item sits: the bin at the order's location, else the item's own bin. [item id => bin] */
+    private function bins($tenant, $orders): array
+    {
+        $itemIds = $orders->flatMap(fn ($o) => $o->items->pluck('inventory_item_id'))->filter()->unique()->values();
+        if ($itemIds->isEmpty()) return [];
+        $loc = $tenant->defaultLocation?->id;
+        $out = \App\Models\Tenant\TenantInventoryItem::where('tenant_id', $tenant->id)->whereIn('id', $itemIds)->pluck('shop_bin_location', 'id')->filter()->all();
+        if ($loc) {
+            foreach (\App\Models\Tenant\TenantInventoryItemLocation::whereIn('inventory_item_id', $itemIds)->where('location_id', $loc)->whereNotNull('shop_bin_location')->pluck('shop_bin_location', 'inventory_item_id') as $iid => $bin) {
+                if (trim((string) $bin) !== '') $out[(string) $iid] = $bin;
+            }
+        }
+        return $out;
+    }
+
     /** POST /orders/{id} — status transitions + optional ready-text. */
     public function update(Request $request, string $id)
     {

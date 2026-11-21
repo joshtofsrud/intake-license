@@ -21,6 +21,8 @@
   .od-st.cancelled{background:rgba(242,109,109,.12);color:#F26D6D}
   .od-ful{font-size:11px;color:var(--ia-text-muted)}
   .od-empty{text-align:center;padding:60px 20px;color:var(--ia-text-muted);background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:12px}
+  .od-pickbar{display:flex;align-items:center;gap:10px;margin-bottom:10px;padding:8px 12px;border:.5px solid var(--ia-border);border-radius:var(--ia-r-md);font-size:13px}
+  .od-tbl input[type=checkbox]{accent-color:var(--ia-accent)}
 </style>
 
 <div class="ia-page-head">
@@ -43,10 +45,18 @@
     {{ $tab === 'open' ? 'No open orders — new online orders land here the moment they\'re paid.' : 'Nothing here yet.' }}
   </div>
 @else
+  {{-- MARKER-ORDER-PRINT: tick orders, print their pick lists in one go --}}
+  <form method="GET" action="{{ route('tenant.orders.print_pick_lists') }}" target="_blank" id="odPickForm">
+  <div class="od-pickbar" id="odPickBar" hidden>
+    <b id="odPickN">0</b> selected
+    <button type="submit" class="ia-btn ia-btn--primary ia-btn--sm">Print pick lists</button>
+    <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" onclick="document.querySelectorAll('.od-pick').forEach(function(c){c.checked=false});odPickSync()">Clear</button>
+  </div>
   <table class="od-tbl">
-    <tr><th>Order</th><th>Customer</th><th>Items</th><th>Get it to them</th><th style="text-align:right">Total</th><th>Status</th><th>Placed</th></tr>
+    <tr><th style="width:30px"><input type="checkbox" title="Select every order on this page" onclick="event.stopPropagation();document.querySelectorAll('.od-pick').forEach(function(c){c.checked=this.checked}.bind(this));odPickSync()"></th><th>Order</th><th>Customer</th><th>Items</th><th>Get it to them</th><th style="text-align:right">Total</th><th>Status</th><th>Placed</th></tr>
     @foreach($orders as $o)
       <tr onclick="window.location='{{ route('tenant.orders.show', $o->id) }}'">
+        <td onclick="event.stopPropagation()"><input type="checkbox" class="od-pick" name="ids[]" value="{{ $o->id }}" onchange="odPickSync()"></td>
         <td style="font-weight:700">{{ $o->order_number }}</td>
         <td>{{ $o->contactName() ?: '—' }}</td>
         <td>{{ (int) $o->items->sum('quantity') }} item{{ $o->items->sum('quantity') == 1 ? '' : 's' }}</td>
@@ -59,6 +69,14 @@
       </tr>
     @endforeach
   </table>
+  </form>
+  <script>
+  function odPickSync() {
+    var n = document.querySelectorAll('.od-pick:checked').length;
+    document.getElementById('odPickN').textContent = n;
+    document.getElementById('odPickBar').hidden = n === 0;
+  }
+  </script>
   <div style="margin-top:16px">{{ $orders->links() }}</div>
 @endif
 @endsection

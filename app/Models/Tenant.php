@@ -676,6 +676,17 @@ class Tenant extends Model
         return $this->hasOne(Tenant\TenantLocation::class)->where('is_default', true);
     }
 
+    /**
+     * MARKER-ORDER-PRINT: the shop's phone, from its main location. Receipts, invoices, tags
+     * and slips have always read $tenant->phone, but tenants have no phone column, so it was
+     * always blank and no printout ever showed the shop's number.
+     */
+    public function getPhoneAttribute(): ?string
+    {
+        $p = trim((string) ($this->defaultLocation?->phone ?? ''));
+        return $p !== '' ? $p : null;
+    }
+
     public function inventoryCategories(): HasMany
     {
         return $this->hasMany(Tenant\TenantInventoryCategory::class);
