@@ -6,7 +6,7 @@
 @include('tenant.orders.print._slip-head')
 <style>.who { font-family: system-ui, -apple-system, sans-serif; font-size: 22px; font-weight: 800; line-height: 1.15; margin: 6px 0 4px; word-break: break-word; }</style>
 </head><body>
-<div class="printbar"><span>Bag tag {{ $o->order_number }}</span><button onclick="window.print()">Print</button></div>
+@unless($embed ?? false)<div class="printbar"><span>Bag tag {{ $o->order_number }}</span><button onclick="window.print()">Print</button></div>@endunless
 <div class="slip ctr">
   @if($logoUrl)<img class="logo" src="{{ $logoUrl }}" alt="{{ $tenant->name }}">@else<div class="shop">{{ strtoupper($tenant->name) }}</div>@endif
   <hr class="hr">

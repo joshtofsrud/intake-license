@@ -6,7 +6,7 @@
   $logo  = $tenant->logo_url ?: (! empty($print['logo_path']) ? asset('storage/' . ltrim($print['logo_path'], '/')) : null);
   $boxes = $one ? collect([$one]) : ($ships->isNotEmpty() ? $ships->where('status', '!=', 'cancelled') : collect([null]));
   $addr  = (array) ($order->fulfillment_address ?? []);
-  $isShip = $order->fulfillment_type === 'ship';
+  $isShip = $order->fulfillment_type === 'ship' && ! ($asReceipt ?? false);
   $docName = $isShip ? 'Packing slip' : 'Receipt';
   // the shop's own contact details: its main location's phone, and where replies go
   $shopPhone = $tenant->phone;
@@ -35,13 +35,13 @@
   .sep { color: #666; font-size: 11.5px; margin-top: 10px; }
   .tot { width: 70mm; margin: 12px 0 0 auto; } .tot td { border: 0; padding: 3px 4px; } .tot .g td { font-weight: 800; font-size: 14px; border-top: 1px solid #111; padding-top: 7px; }
   .foot { margin-top: 26px; border-top: 1px solid #ddd; padding-top: 10px; font-size: 11.5px; color: #444; }
-  @media screen { body { background: #eee; padding: 64px 0 30px; } .page { background: #fff; padding: 14mm; margin-bottom: 18px; box-shadow: 0 2px 12px rgba(0,0,0,.12); }
+  @media screen { body { background: #eee; padding: {{ ($embed ?? false) ? '10px' : '64px' }} 0 30px; } .page { background: #fff; padding: 14mm; margin-bottom: 18px; box-shadow: 0 2px 12px rgba(0,0,0,.12); }
     .printbar { position: fixed; top: 0; left: 0; right: 0; background: #111; color: #fff; font-size: 13px; padding: 10px 16px; display: flex; gap: 12px; align-items: center; justify-content: center; z-index: 5; }
     .printbar button { background: #BEF264; color: #0a0a0a; border: 0; font-weight: 600; padding: 7px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; } }
   @media print { .printbar { display: none; } }
 </style>
 </head><body>
-<div class="printbar"><span>{{ $docName }} {{ $order->order_number }}{{ $boxes->count() > 1 ? ' · ' . $boxes->count() . ' shipments, one per page' : '' }}</span><button onclick="window.print()">Print</button></div>
+@unless($embed ?? false)<div class="printbar"><span>{{ $docName }} {{ $order->order_number }}{{ $boxes->count() > 1 ? ' · ' . $boxes->count() . ' shipments, one per page' : '' }}</span><button onclick="window.print()">Print</button></div>@endunless
 @foreach($boxes as $bi => $sh)
   @php
     $here = $sh ? $sh->items->groupBy(fn ($it) => (string) $it->order_item_id)->map(fn ($g) => (int) $g->sum('quantity'))->all() : null;
@@ -54,7 +54,7 @@
       <div class="doc"><b>{{ $docName }}</b>Order {{ $order->order_number }}<br>{{ $order->paid_at ? tlocal($order->paid_at, 'M j, Y') : '' }}@if($sh && $ships->count() > 1)<br>Shipment {{ $ships->search(fn ($x) => $x->id === $sh->id) + 1 }} of {{ $ships->where('status', '!=', 'cancelled')->count() }}@endif</div>
     </div>
     <div class="cols">
-      <div><div class="k">{{ $isShip ? 'Ship to' : ($order->fulfillment_type === 'local_delivery' ? 'Deliver to' : 'Customer') }}</div><b>{{ $order->contactName() }}</b><br>{{ $addr['line1'] ?? ($addr['line'] ?? '') }}@if(! empty($addr['line2']))<br>{{ $addr['line2'] }}@endif @if(! empty($addr['city']))<br>{{ $addr['city'] }}, {{ $addr['state'] ?? '' }} {{ $addr['zip'] ?? '' }}@endif</div>
+      <div><div class="k">{{ $order->fulfillment_type === 'ship' ? 'Ship to' : ($order->fulfillment_type === 'local_delivery' ? 'Deliver to' : 'Customer') }}</div><b>{{ $order->contactName() }}</b><br>{{ $addr['line1'] ?? ($addr['line'] ?? '') }}@if(! empty($addr['line2']))<br>{{ $addr['line2'] }}@endif @if(! empty($addr['city']))<br>{{ $addr['city'] }}, {{ $addr['state'] ?? '' }} {{ $addr['zip'] ?? '' }}@endif</div>
       <div><div class="k">Order</div>{{ $order->contact_email }}@if($order->contact_phone)<br>{{ $order->contact_phone }}@endif
         @if($sh && $sh->tracking_number)<br><span class="k" style="display:inline">Tracking</span> {{ \App\Services\Tenant\ShipmentFlow::carriers()[$sh->carrier] ?? '' }} {{ $sh->tracking_number }}@endif</div>
     </div>

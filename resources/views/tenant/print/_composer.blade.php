@@ -121,6 +121,10 @@
     receipt: { label:'Receipt', fmts:['t80','t58','full','inv'], def:'t80' },
     tag:     { label:'Service tag', fmts:['t80','t58'], def:'t80' },
     invoice: { label:'Invoice', fmts:['full','inv'], def:'inv' },
+    // MARKER-ORDER-PRINT: online orders
+    pick:    { label:'Pick list', fmts:['t80','t58'], def:'t80' },
+    bagtag:  { label:'Bag tag', fmts:['t80','t58'], def:'t80' },
+    packing: { label:'Packing slip', fmts:['full'], def:'full' },
   };
   const FMT = { t80:'Thermal 80mm', t58:'Thermal 58mm', full:'Full page', inv:'Graphical invoice' };
   // url format token -> builder format param
@@ -148,7 +152,17 @@
     return p.toString();
   }
 
+  // MARKER-ORDER-PRINT: an online order's documents. Its receipt on a receipt printer is the
+  // linked sale's own receipt; everything else is the order's print page at the chosen paper.
+  function orderUrl(embed) {
+    if (S.type === 'receipt' && S.fmt !== 'full') {
+      return window.location.origin + '/admin/print/sale/' + S.saleId + '?' + params(embed);
+    }
+    var u = S.urls[S.type === 'receipt' ? 'receipt_full' : S.type];
+    return u + (u.indexOf('?') < 0 ? '?' : '&') + 'format=' + FMTPARAM[S.fmt] + (embed ? '&embed=1' : '');
+  }
   function previewUrl() {
+    if (S.source === 'order') return orderUrl(true);
     if (S.fmt === 'inv' && S.source === 'appointment')
       return window.location.origin + '/admin/appointments/' + S.id + '/invoice/preview?logo_size=' + encodeURIComponent(S.logoSize);
     return base() + '?' + params(true);
@@ -169,7 +183,7 @@
   function renderFmt() {
     const wrap = document.getElementById('pc-fmt'); wrap.innerHTML = '';
     let allowed = DOC[S.type].fmts;
-    if (S.source === 'sale') allowed = allowed.filter(function (f) { return f !== 'inv'; });
+    if (S.source === 'sale' || S.source === 'order') allowed = allowed.filter(function (f) { return f !== 'inv'; });
     ['t80','t58','full','inv'].forEach(f => {
       const b = document.createElement('button');
       b.textContent = FMT[f]; b.disabled = !allowed.includes(f);
@@ -210,6 +224,12 @@
     document.getElementById('pc-ledger-row').classList.toggle('dim', !S.hasPayments);
     document.querySelectorAll('.pc-tg[data-inc]').forEach(t => t.classList.toggle('on', !!S.inc[t.dataset.inc]));
     document.getElementById('pc-split').classList.toggle('on', S.split);
+    // MARKER-ORDER-PRINT: pick lists, tags and slips print only; the receipt can also be emailed
+    var orderDoc = S.source === 'order' && S.type !== 'receipt';
+    document.querySelector('#pc-send [data-send="email"]').disabled = orderDoc || (S.source === 'order' && !S.saleId);
+    if (orderDoc && S.action === 'email') { S.action = 'print'; document.querySelectorAll('#pc-send button').forEach(function (x) { x.classList.toggle('on', x.dataset.send === 'print'); }); }
+    var incGrp = document.querySelector('.pc-tg[data-inc]').closest('.pc-grp');
+    incGrp.style.display = orderDoc ? 'none' : '';
     document.getElementById('pc-go').textContent = (S.action === 'email' ? 'Send email' : 'Print now');
     document.getElementById('pc-emailbox').style.display = S.action === 'email' ? '' : 'none';
     preview();
@@ -234,14 +254,15 @@
       var bd = new URLSearchParams(params(false)); if (em) bd.set('email', em);
       var tok = (document.querySelector('meta[name=csrf-token]') || {}).content || '';
       var go = document.getElementById('pc-go'); go.disabled = true; go.textContent = 'Sending…';
-      fetch(base() + '/email', { method:'POST', headers:{ 'X-CSRF-TOKEN':tok, 'Content-Type':'application/x-www-form-urlencoded', 'X-Requested-With':'XMLHttpRequest', 'Accept':'application/json' }, body: bd.toString() })
+      var emailBase = S.source === 'order' ? window.location.origin + '/admin/print/sale/' + S.saleId : base();
+      fetch(emailBase + '/email', { method:'POST', headers:{ 'X-CSRF-TOKEN':tok, 'Content-Type':'application/x-www-form-urlencoded', 'X-Requested-With':'XMLHttpRequest', 'Accept':'application/json' }, body: bd.toString() })
         .then(function(r){ return r.json().catch(function(){ return { ok:false, message:'Could not send.' }; }); })
         .then(function(d){ go.disabled = false; go.textContent = 'Send email'; alert(d.message || (d.ok ? 'Sent.' : 'Could not send.')); })
         .catch(function(){ go.disabled = false; go.textContent = 'Send email'; alert('Could not send.'); });
       return;
     }
     // thermal/full: print via hidden iframe; invoice PDF: open in new tab
-    if (S.fmt === 'inv') {
+    if (S.fmt === 'inv' && S.source !== 'order') {
       var iv = (S.source === 'appointment')
         ? window.location.origin + '/admin/appointments/' + S.id + '/invoice/preview?logo_size=' + encodeURIComponent(S.logoSize)
         : base() + '?' + params(false);
@@ -249,13 +270,28 @@
     }
     const f = document.createElement('iframe');
     f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
-    f.src = base() + '?' + params(true);
+    f.src = S.source === 'order' ? orderUrl(true) : base() + '?' + params(true);
     f.onload = function () { try { f.contentWindow.focus(); f.contentWindow.print(); } catch (e) {} setTimeout(() => f.remove(), 2000); };
     document.body.appendChild(f);
   });
 
   window.openPrintComposer = function (source, id, ctx) {
     ctx = ctx || {};
+    // MARKER-ORDER-PRINT: an online order, or several (pick lists). ctx.docs lists what
+    // this order can print; ctx.urls holds each document's page; ctx.sale_id its sale.
+    if (source === 'order') {
+      S = {
+        source: 'order', id: id, saleId: ctx.sale_id || null, urls: ctx.urls || {},
+        type: ctx.type || ctx.docs[0], fmt: 't80', assetList: [], assets: {}, split: false,
+        action: 'print', hasPayments: !!ctx.sale_id, logoSize: LOGO_DEFAULT,
+        allowedDocs: ctx.docs, inc: { notes_customer:true, notes_staff:false, prices:true, ledger:false, qr:false },
+      };
+      S.fmt = DOC[S.type].def;
+      document.getElementById('pc-ctx').textContent = ctx.number || 'Online order';
+      if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open','');
+      sync();
+      return;
+    }
     S = {
       source, id,
       type: ctx.type || 'receipt',

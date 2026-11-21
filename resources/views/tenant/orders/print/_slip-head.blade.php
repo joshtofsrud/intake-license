@@ -27,7 +27,7 @@
   .bin { font-size: 10px; }
   .feed { height: {{ $feedMm ?? '0' }}; }
   @media screen {
-    body { margin: 64px auto 24px; }
+    body { margin: {{ ($embed ?? false) ? '8px' : '64px' }} auto 24px; }
     .slip { box-shadow: 0 0 0 1px #ddd; margin-bottom: 16px; }
     .printbar { position: fixed; top: 0; left: 0; right: 0; background: #111; color: #fff; font-family: system-ui, sans-serif; font-size: 13px; padding: 10px 16px; display: flex; gap: 12px; align-items: center; justify-content: center; }
     .printbar button { background: #BEF264; color: #0a0a0a; border: 0; font-weight: 600; padding: 7px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; }

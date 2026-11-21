@@ -70,20 +70,23 @@ class OrdersController extends Controller
         $this->guard();
         $tenant = tenant();
         $order = TenantOrder::query()->where('tenant_id', $tenant->id)->with(['items', 'sale'])->findOrFail($id);
-        $print = \App\Services\PrintIdentityService::forTenant($tenant);
+        $print = $this->printIdentity($request, $tenant);
+        $embed = $request->boolean('embed');
 
         if ($doc === 'packing-slip') {
-            $ships = $order->fulfillment_type === 'ship' ? $order->shipments()->with('items.orderItem')->get() : collect();
+            // ?as=receipt: the whole order on one page, titled Receipt, for any order
+            $asReceipt = $request->query('as') === 'receipt';
+            $ships = ! $asReceipt && $order->fulfillment_type === 'ship' ? $order->shipments()->with('items.orderItem')->get() : collect();
             $only  = $request->query('shipment');
             return view('tenant.orders.print.packing-slip', [
-                'tenant' => $tenant, 'order' => $order, 'print' => $print, 'ships' => $ships,
-                'one'    => $only ? $ships->firstWhere('id', $only) : null,
+                'tenant' => $tenant, 'order' => $order, 'print' => $print, 'ships' => $ships, 'embed' => $embed,
+                'one'    => $only ? $ships->firstWhere('id', $only) : null, 'asReceipt' => $asReceipt,
                 'returns' => \App\Support\Launch\ShopPolicies::returnsUrl($tenant),
             ]);
         }
 
         return view('tenant.orders.print.' . ($doc === 'tag' ? 'tag' : 'pick-lists'), [
-            'tenant' => $tenant, 'print' => $print, 'orders' => collect([$order]), 'bins' => $this->bins($tenant, collect([$order])),
+            'tenant' => $tenant, 'print' => $print, 'embed' => $embed, 'orders' => collect([$order]), 'bins' => $this->bins($tenant, collect([$order])),
         ]);
     }
 
@@ -97,8 +100,18 @@ class OrdersController extends Controller
         abort_if($orders->isEmpty(), 404);
 
         return view('tenant.orders.print.pick-lists', [
-            'tenant' => $tenant, 'print' => \App\Services\PrintIdentityService::forTenant($tenant), 'orders' => $orders, 'bins' => $this->bins($tenant, $orders),
+            'tenant' => $tenant, 'print' => $this->printIdentity($request, $tenant), 'embed' => $request->boolean('embed'), 'orders' => $orders, 'bins' => $this->bins($tenant, $orders),
         ]);
+    }
+
+    /** The shop's print settings, with the paper the print window chose (?format=t58|t80). */
+    private function printIdentity(Request $request, $tenant): array
+    {
+        $print = \App\Services\PrintIdentityService::forTenant($tenant);
+        $f = $request->query('format');
+        if ($f === 't58') $print['paper'] = '58mm';
+        if ($f === 't80') $print['paper'] = '80mm';
+        return $print;
     }
 
     /** Where each item sits: the bin at the order's location, else the item's own bin. [item id => bin] */

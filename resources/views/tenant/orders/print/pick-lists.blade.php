@@ -4,7 +4,7 @@
 <title>Pick {{ $orders->count() === 1 ? 'list ' . $orders->first()->order_number : 'lists (' . $orders->count() . ' orders)' }}</title>
 @include('tenant.orders.print._slip-head')
 </head><body>
-<div class="printbar"><span>{{ $orders->count() === 1 ? 'Pick list ' . $orders->first()->order_number : $orders->count() . ' pick lists, one per page' }}</span><button onclick="window.print()">Print</button></div>
+@unless($embed ?? false)<div class="printbar"><span>{{ $orders->count() === 1 ? 'Pick list ' . $orders->first()->order_number : $orders->count() . ' pick lists, one per page' }}</span><button onclick="window.print()">Print</button></div>@endunless
 @foreach($orders as $o)
   @php $ships = $o->fulfillment_type === 'ship' ? $o->shipments()->with('items.orderItem')->get() : collect(); @endphp
   <div class="slip">

@@ -46,7 +46,7 @@
   </div>
 @else
   {{-- MARKER-ORDER-PRINT: tick orders, print their pick lists in one go --}}
-  <form method="GET" action="{{ route('tenant.orders.print_pick_lists') }}" target="_blank" id="odPickForm">
+  <form id="odPickForm" onsubmit="event.preventDefault();odPickPrint()">
   <div class="od-pickbar" id="odPickBar" hidden>
     <b id="odPickN">0</b> selected
     <button type="submit" class="ia-btn ia-btn--primary ia-btn--sm">Print pick lists</button>
@@ -71,6 +71,13 @@
   </table>
   </form>
   <script>
+  // MARKER-ORDER-PRINT: the ticked orders' pick lists, in the app's Print & Send window
+  function odPickPrint() {
+    var ids = Array.prototype.map.call(document.querySelectorAll('.od-pick:checked'), function (c) { return 'ids[]=' + encodeURIComponent(c.value); });
+    if (!ids.length) return;
+    openPrintComposer('order', 'many', { number: ids.length + (ids.length === 1 ? ' order' : ' orders') + ' · pick lists', docs: ['pick'],
+      urls: { pick: @json(route('tenant.orders.print_pick_lists')) + '?' + ids.join('&') } });
+  }
   function odPickSync() {
     var n = document.querySelectorAll('.od-pick:checked').length;
     document.getElementById('odPickN').textContent = n;
