@@ -202,30 +202,56 @@ class DeliveriesController extends Controller
             $payload['deliveries'] = $svc->forDay($date);
         }
 
-        // map deliveries to route windows for the chip.
-        // day view only; the week path doesn't build $deliveries.
-        $windowChips = [];
-        $deliveries = $payload['deliveries'] ?? null; // chips never rendered: local var was never set
-        $rw = isset($deliveries)
-            ? \App\Models\Tenant\TenantRouteWindow::where('tenant_id', $tenant->id)->active()->get()
-            : collect();
-        if ($rw->isNotEmpty()) {
-            foreach ($deliveries as $dv) {
-                $local = tlocal_carbon($dv->scheduled_at);
-                if (! $local) continue;
-                foreach ($rw as $w) {
-                    if (! $w->runsOn($local)) continue;
-                    $t = $local->format('H:i:s');
-                    if ($t >= (string) $w->starts_at && $t < (string) $w->ends_at) {
-                        $windowChips[$dv->id] = $w->label . ' · ' . $w->bookedStops($local) . '/' . $w->max_stops;
-                        break;
-                    }
-                }
-            }
+        // MARKER-ROUTE-WINDOWS-REWORK: each day's windows (weekly + that date's
+        // extras), closures, and which stops sit in which window.
+        $hasWindows = \App\Models\Tenant\TenantRouteWindow::where('tenant_id', $tenant->id)->exists();
+        $layout = [];
+        if ($view === 'week') {
+            foreach ($payload['days'] as $key => $list) $layout[$key] = $this->windowLayout($tenant, Carbon::parse($key, $tz), $list);
+        } else {
+            $key = $date->copy()->setTimezone($tz)->toDateString();
+            $layout[$key] = $this->windowLayout($tenant, Carbon::parse($key, $tz), $payload['deliveries']);
         }
-        $payload['windowChips'] = $windowChips;
+        $payload['hasWindows']   = $hasWindows;
+        $payload['windowLayout'] = $layout;
+        $payload['todayKey']     = Carbon::now($tz)->toDateString();
+        $payload['openStop']     = (string) $request->query('open', '');
 
         return view('tenant.deliveries.index', $payload);
+    }
+
+    /**
+     * One date's route windows with their stops. Stops outside every window
+     * land in 'other'. A closed date carries its closure id.
+     */
+    private function windowLayout($tenant, Carbon $day, $deliveries): array
+    {
+        $key     = $day->toDateString();
+        $closure = \App\Models\Tenant\TenantRouteClosure::where('tenant_id', $tenant->id)
+            ->whereDate('date', $key)->whereNull('window_id')->first();
+        $windows = $closure ? collect() : \App\Models\Tenant\TenantRouteWindow::forDate($tenant->id, $day);
+
+        $rows = $windows->map(fn ($w) => ['w' => $w, 'stops' => []])->all();
+        $other = [];
+        foreach ($deliveries as $d) {
+            $t = tlocal_carbon($d->scheduled_at)?->format('H:i:s') ?? '';
+            $placed = false;
+            foreach ($rows as $i => $r) {
+                if ($r['w']->covers($t)) { $rows[$i]['stops'][] = $d; $placed = true; break; }
+            }
+            if (! $placed) $other[] = $d;
+        }
+        foreach ($rows as $i => $r) {
+            $rows[$i]['booked'] = collect($r['stops'])->where('status', 'scheduled')->count()
+                + collect($r['stops'])->where('status', 'completed')->count();
+        }
+        return [
+            'closed'  => $closure ? (string) $closure->id : null,
+            'windows' => $rows,
+            'other'   => $other,
+            'booked'  => array_sum(array_column($rows, 'booked')),
+            'cap'     => (int) $windows->sum('max_stops'),
+        ];
     }
 
     public function store(Request $request): RedirectResponse

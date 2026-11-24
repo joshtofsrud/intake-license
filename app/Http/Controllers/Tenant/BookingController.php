@@ -89,7 +89,7 @@ class BookingController extends Controller
         $pdWindows = [];
         if ($tenant->deliveries_enabled) {
             $windows = \App\Models\Tenant\TenantRouteWindow::where('tenant_id', $tenant->id)
-                ->active()->get();
+                ->where('customers_can_book', true)->active()->get();
             if ($windows->isNotEmpty()) {
                 foreach ($dates as $date) {
                     $day = \Carbon\Carbon::parse($date);

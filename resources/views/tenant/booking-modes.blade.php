@@ -67,62 +67,88 @@
 {{-- Pickup & delivery (route windows + behavior) --}}
 @if($currentTenant->deliveries_enabled)
 <div data-pane="pd" hidden style="max-width:760px;margin-top:8px">
-  <p style="font-size:12.5px;color:var(--ia-text-muted);margin:0 0 18px">Route windows are the capacity customers book pickups against — pickups and deliveries share each window's stop count. Booking-flow integration is coming next; these settings take effect then.</p>
+  {{-- MARKER-ROUTE-WINDOWS-REWORK: weekly grid + dates that differ; one edit panel --}}
+  @php
+    $rwDow = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    $rwHm  = fn ($t) => substr((string) $t, 0, 5);
+  @endphp
+  <style>
+    .rw-sec-h{display:flex;align-items:center;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ia-text-muted);font-weight:600;margin:0 0 10px}
+    .rw-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px;margin-bottom:26px}
+    .rw-col{display:flex;flex-direction:column;gap:6px;min-width:0}
+    .rw-col-h{font-size:11.5px;font-weight:600;color:var(--ia-text-muted);padding:0 2px}
+    .rw-chip{padding:9px 10px;border-radius:10px;background:var(--ia-surface-2);border:.5px solid var(--ia-border);cursor:pointer;text-align:left;font:inherit;color:var(--ia-text)}
+    .rw-chip:hover{border-color:var(--ia-border-strong,var(--ia-text-muted))}
+    .rw-chip:focus-visible{outline:2px solid var(--ia-accent);outline-offset:1px}
+    .rw-chip b{display:block;font-size:12px;font-weight:600;overflow-wrap:anywhere}
+    .rw-chip span{font-size:11px;color:var(--ia-text-muted)}
+    .rw-chip.staff span::after{content:' · staff only'}
+    .rw-add{width:100%;padding:7px;border-radius:9px;border:.5px dashed var(--ia-border-strong,var(--ia-border));background:none;color:var(--ia-text-muted);font:inherit;font-size:12px;cursor:pointer}
+    .rw-add:hover{color:var(--ia-text);border-color:var(--ia-text-muted)}
+    .rw-none{padding:10px 2px;font-size:11px;text-align:center;color:var(--ia-text-muted)}
+    .rw-exc{margin-bottom:26px}
+    .rw-exc-row{display:grid;grid-template-columns:120px 1fr auto;gap:14px;align-items:center;padding:10px 2px;border-bottom:.5px solid var(--ia-border);font-size:12.5px}
+    .rw-exc-row b{font-weight:600}
+    .rw-exc-row span{color:var(--ia-text-muted)}
+    .rw-exc-row a,.rw-exc-row button{border:0;background:none;padding:0;font:inherit;font-size:12.5px;color:var(--ia-accent);cursor:pointer;text-decoration:none}
+    @media(max-width:860px){.rw-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media(max-width:640px){.rw-exc-row{grid-template-columns:1fr auto}.rw-exc-row span{grid-column:1;grid-row:2}}
+  </style>
 
-  {{-- windows list --}}
-  <div style="border:0.5px solid var(--ia-border);border-radius:15px;background:var(--ia-surface);overflow:hidden;margin-bottom:16px">
-    <div style="padding:14px 18px;border-bottom:0.5px solid var(--ia-border)">
-      <div style="font-size:14px;font-weight:600">Route windows</div>
-      <div style="font-size:12px;color:var(--ia-text-muted)">When you run routes, and how many stops fit in each window.</div>
-    </div>
-    <div style="padding:12px 18px">
-      @forelse($routeWindows as $w)
-        <div style="display:flex;align-items:center;gap:12px;padding:9px 12px;border:0.5px solid var(--ia-border);border-radius:10px;margin-bottom:7px;{{ $w->is_active ? '' : 'opacity:.45' }}">
-          <span style="font-weight:600;font-size:13px;min-width:88px">{{ $w->label }}</span>
-          <span style="font-size:11.5px;color:var(--ia-text-muted)">
-            {{ collect($w->days)->map(fn($d) => ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][$d-1])->join(', ') }}
-          </span>
-          <form method="POST" action="{{ route('tenant.route_windows.update', $w->id) }}" style="margin-left:auto;display:flex;align-items:center;gap:8px">
-            @csrf @method('PATCH')
-            <input type="number" name="max_stops" value="{{ $w->max_stops }}" min="1" max="50"
-                   style="width:58px;padding:6px 8px;background:var(--ia-surface-2);border:0.5px solid var(--ia-border);border-radius:7px;color:var(--ia-text);font-size:12.5px;text-align:center">
-            <span style="font-size:11px;color:var(--ia-text-muted)">stops</span>
-            <button class="ia-btn ia-btn--ghost ia-btn--sm">Save</button>
-          </form>
-          <form method="POST" action="{{ route('tenant.route_windows.destroy', $w->id) }}"
-                onsubmit="return confirm('Remove the {{ $w->label }} window?')">
-            @csrf @method('DELETE')
-            <button class="ia-btn ia-btn--ghost ia-btn--sm" style="color:var(--ia-text-muted)">×</button>
-          </form>
-        </div>
-      @empty
-        <div style="font-size:12.5px;color:var(--ia-text-muted);padding:6px 0 10px">No windows yet — add your first below.</div>
-      @endforelse
-
-      <form method="POST" action="{{ route('tenant.route_windows.store') }}"
-            style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-top:0.5px dashed var(--ia-border);padding-top:12px;margin-top:6px">
-        @csrf
-        <input type="text" name="label" placeholder="8–10 am" required maxlength="40"
-               style="width:100px;padding:7px 10px;background:var(--ia-surface-2);border:0.5px solid var(--ia-border);border-radius:8px;color:var(--ia-text);font-size:12.5px">
-        <input type="time" name="starts_at" required
-               style="padding:6px 8px;background:var(--ia-surface-2);border:0.5px solid var(--ia-border);border-radius:8px;color:var(--ia-text);font-size:12.5px">
-        <span style="color:var(--ia-text-muted);font-size:12px">to</span>
-        <input type="time" name="ends_at" required
-               style="padding:6px 8px;background:var(--ia-surface-2);border:0.5px solid var(--ia-border);border-radius:8px;color:var(--ia-text);font-size:12.5px">
-        <span style="display:flex;gap:4px">
-          @foreach(['M','T','W','T','F','S','S'] as $i => $d)
-            <label style="font-size:10.5px;color:var(--ia-text-muted);display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer">
-              {{ $d }}<input type="checkbox" name="days[]" value="{{ $i + 1 }}" @checked($i < 6)>
-            </label>
-          @endforeach
-        </span>
-        <input type="number" name="max_stops" value="3" min="1" max="50"
-               style="width:52px;padding:7px 8px;background:var(--ia-surface-2);border:0.5px solid var(--ia-border);border-radius:8px;color:var(--ia-text);font-size:12.5px;text-align:center">
-        <span style="font-size:11px;color:var(--ia-text-muted)">stops</span>
-        <button class="ia-btn ia-btn--primary ia-btn--sm">Add window</button>
-      </form>
-    </div>
+  <div class="rw-sec-h">Every week
+    <button type="button" class="ia-tip" aria-label="What this is">i</button><span class="ia-tip-text" hidden>The windows that repeat each week. Customers book pickups into them, and pickups and deliveries share each window's stops. Click one to change it. To change a single date, use <b>Schedule › Deliveries</b>.</span>
   </div>
+  <div class="rw-grid">
+    @foreach($rwDow as $i => $dName)
+      @php $dn = $i + 1; $dayWins = $routeWindows->filter(fn ($w) => $w->is_active && in_array($dn, array_map('intval', $w->days ?? []), true)); @endphp
+      <div class="rw-col">
+        <div class="rw-col-h">{{ $dName }}</div>
+        @forelse($dayWins as $w)
+          <button type="button" class="rw-chip {{ $w->customers_can_book ? '' : 'staff' }}" data-rw-open
+                  data-rw="{{ json_encode(['id' => (string) $w->id, 's' => $rwHm($w->starts_at), 'e' => $rwHm($w->ends_at), 'cap' => $w->max_stops, 'name' => $w->name, 'oneDate' => false, 'date' => null, 'dow' => $dn, 'days' => array_map('intval', $w->days ?? []), 'book' => (bool) $w->customers_can_book, 'from' => 'settings']) }}">
+            <b>{{ $w->name ?: \App\Models\Tenant\TenantRouteWindow::autoLabel($rwHm($w->starts_at), $rwHm($w->ends_at)) }}</b>
+            <span>{{ $w->max_stops }} {{ \Illuminate\Support\Str::plural('stop', $w->max_stops) }}</span>
+          </button>
+        @empty
+          <div class="rw-none">None</div>
+        @endforelse
+        <button type="button" class="rw-add" data-rw-add aria-label="Add a window on {{ $dName }}"
+                data-rw="{{ json_encode(['dow' => $dn, 'date' => null, 'from' => 'settings']) }}">+</button>
+      </div>
+    @endforeach
+  </div>
+
+  <div class="rw-sec-h">Dates that differ
+    <button type="button" class="ia-tip" aria-label="What this is">i</button><span class="ia-tip-text" hidden>Extra windows and closed days set for one date. Add them from <b>Schedule › Deliveries</b>; this is the list of what's coming up.</span>
+  </div>
+  @php
+    $rwExc = collect();
+    foreach ($routeExtras as $w) {
+      $rwExc->push(['date' => $w->onDateString(), 'what' => 'Extra window · ' . ($w->name ?: \App\Models\Tenant\TenantRouteWindow::autoLabel($rwHm($w->starts_at), $rwHm($w->ends_at))) . ' · ' . $w->max_stops . ' ' . \Illuminate\Support\Str::plural('stop', $w->max_stops), 'closure' => null]);
+    }
+    foreach ($routeClosures as $c) {
+      $cw = $c->window_id ? \App\Models\Tenant\TenantRouteWindow::find($c->window_id) : null;
+      if ($c->window_id && ! $cw) continue;
+      $rwExc->push(['date' => substr((string) $c->date, 0, 10), 'what' => $cw ? ('Off this date · ' . $cw->label) : 'Closed', 'closure' => (string) $c->id]);
+    }
+    $rwExc = $rwExc->sortBy('date')->values();
+  @endphp
+  <div class="rw-exc">
+    @forelse($rwExc as $x)
+      <div class="rw-exc-row">
+        <b>{{ \Carbon\Carbon::parse($x['date'])->format('D, M j') }}</b>
+        <span>{{ $x['what'] }}</span>
+        <span style="display:flex;gap:14px">
+          @if($x['closure'])<button type="button" onclick="rwReopen('{{ $x['closure'] }}')">Reopen</button>@endif
+          <a href="{{ route('tenant.deliveries.index', ['view' => 'day', 'date' => $x['date']]) }}">Open the day</a>
+        </span>
+      </div>
+    @empty
+      <div class="rw-none" style="text-align:left">None coming up.</div>
+    @endforelse
+  </div>
+
+  @include('tenant.route-windows._panel', ['rwRoutes' => 'route_windows'])
 
   {{-- behavior knobs --}}
   <form method="POST" action="{{ route('tenant.route_windows.settings') }}"

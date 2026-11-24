@@ -587,6 +587,42 @@
   }
   /* =================== end patch-398 block =================== */
 </style>
+<style>
+  /* MARKER-ROUTE-WINDOWS-REWORK: windows on the week and day views */
+  .pd-win{display:block;width:100%;box-sizing:border-box;padding:9px 10px;border-radius:10px;background:var(--ia-surface-2);border:.5px solid var(--ia-border);cursor:pointer;text-align:left;font:inherit;color:var(--ia-text)}
+  .pd-win:hover{border-color:var(--ia-border-strong,var(--ia-text-muted))}
+  .pd-win:focus-visible{outline:2px solid var(--ia-accent);outline-offset:1px}
+  .pd-win-h{display:flex;justify-content:space-between;align-items:baseline;gap:6px}
+  .pd-win-h b{font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pd-win-h span{font:500 10.5px var(--ia-font-mono,ui-monospace,monospace);color:var(--ia-text-muted);white-space:nowrap}
+  .pd-win.full .pd-win-h span{color:var(--ia-text)}
+  .pd-win .del-week-card{margin-top:5px}
+  .pd-win.extra{border-style:dashed;border-color:var(--ia-accent)}
+  .pd-dots{display:flex;gap:3px;margin:6px 0 1px}
+  .pd-dots i{flex:1;max-width:26px;height:4px;border-radius:99px;background:color-mix(in srgb,var(--ia-text) 14%,transparent)}
+  .pd-dots i.on{background:var(--ia-accent)}
+  .pd-tag{display:inline-block;font-style:normal;font-size:9.5px;font-weight:600;letter-spacing:.04em;color:var(--ia-accent);margin-top:4px}
+  .pd-add{width:100%;padding:7px;border-radius:9px;border:.5px dashed var(--ia-border-strong,var(--ia-border));background:none;color:var(--ia-text-muted);font:inherit;font-size:11.5px;cursor:pointer}
+  .pd-add:hover{color:var(--ia-text);border-color:var(--ia-text-muted)}
+  .pd-other{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ia-text-muted);padding:6px 2px 0}
+  .pd-closed{display:grid;justify-items:center;gap:3px;padding:26px 6px;border-radius:10px;font-size:11px;color:var(--ia-text-muted);background:repeating-linear-gradient(45deg,transparent 0 8px,color-mix(in srgb,var(--ia-text) 5%,transparent) 8px 16px)}
+  .pd-closed b{font-size:12.5px;color:var(--ia-text)}
+  .pd-link{border:0;background:none;padding:0;font:inherit;font-size:12px;color:var(--ia-accent);cursor:pointer}
+  .pd-daybar{display:flex;align-items:baseline;gap:10px;margin:14px 0 10px}
+  .pd-daybar b{font-size:15px;font-weight:600}
+  .pd-daybar span{font-size:12px;color:var(--ia-text-muted)}
+  .pd-day{display:grid;gap:22px;max-width:860px}
+  .pd-grp-h{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 2px;border-bottom:.5px solid var(--ia-border-strong,var(--ia-border))}
+  .pd-grp-h b{font-size:14px;font-weight:600;margin-right:8px}
+  .pd-grp.extra .pd-grp-h{border-bottom-style:dashed;border-bottom-color:var(--ia-accent)}
+  .pd-grp-r{display:flex;align-items:center;gap:12px;font:500 11.5px var(--ia-font-mono,ui-monospace,monospace);color:var(--ia-text-muted)}
+  .pd-grp-r .pd-dots{width:84px;margin:0}
+  .pd-grp-r .pd-link{font-family:inherit}
+  .pd-grp-b{padding:10px 0 6px;display:flex;flex-direction:column;gap:6px}
+  .pd-slot{padding:9px;border-radius:9px;border:.5px dashed var(--ia-border-strong,var(--ia-border));background:none;color:var(--ia-text-muted);font:inherit;font-size:12px;cursor:pointer;text-align:left}
+  .pd-slot:hover{color:var(--ia-text)}
+  @media (max-width:640px){.pd-grp-h{flex-wrap:wrap}}
+</style>
 @endpush
 
 @section('content')
@@ -672,6 +708,16 @@
   <div class="del-toolbar-right">
     @if($view === 'day')
       <a class="del-btn del-btn--ghost" href="{{ route('tenant.deliveries.slips') }}?date={{ $date->toDateString() }}" target="_blank" rel="noopener">&#9113; Print slips</a>
+      @php $pdKey = $date->copy()->setTimezone($tz)->toDateString(); $pdL = $windowLayout[$pdKey] ?? null; @endphp
+      @if($pdKey >= $todayKey)
+        @if($pdL && $pdL['closed'])
+          <button type="button" class="del-btn del-btn--ghost" onclick="rwReopen('{{ $pdL['closed'] }}')">Reopen this day</button>
+        @else
+          <button type="button" class="del-btn del-btn--ghost" data-rw-add
+                  data-rw="{{ json_encode(['date' => $pdKey, 'dow' => \Carbon\Carbon::parse($pdKey)->isoWeekday(), 'from' => 'calendar']) }}">+ Window</button>
+          <button type="button" class="del-btn del-btn--ghost" onclick="rwCloseDay('{{ $pdKey }}', {{ json_encode(\Carbon\Carbon::parse($pdKey)->format('l, M j')) }})">Close this day</button>
+        @endif
+      @endif
     @endif
     <button type="button" class="del-btn del-btn--ghost" onclick="delOpenCreate('pickup')">+ Pickup</button>
     <button type="button" class="del-btn del-btn--primary" onclick="delOpenCreate('dropoff')">+ Dropoff</button>
@@ -684,7 +730,71 @@
 {{-- ===========================================================
      VIEW: DAY · capacity mode (single column)
      =========================================================== --}}
-@if($view === 'day' && !$is_timeslot)
+@if($view === 'day' && !$is_timeslot && ($hasWindows || ($pdL['closed'] ?? null)))
+  @php
+    $pdHm = fn ($t) => substr((string) $t, 0, 5);
+    $pdName = fn ($d) => trim(($d->customer->first_name ?? '') . ' ' . ($d->customer->last_name ?? '')) ?: 'Customer';
+  @endphp
+  <div class="pd-daybar">
+    @if($pdL['closed'])<b>Closed</b><span>No windows run this day.</span>
+    @elseif($pdL['cap'])<b>{{ $pdL['booked'] }} of {{ $pdL['cap'] }} stops</b><span>{{ \Carbon\Carbon::parse($pdKey)->format('l') }}</span>
+    @else<b>No windows</b><span>Add one with + Window.</span>@endif
+  </div>
+  <div class="pd-day">
+    @foreach($pdL['windows'] as $r)
+      @php
+        $w = $r['w']; $left = max(0, $w->max_stops - $r['booked']);
+        $pdW = ['id' => (string) $w->id, 's' => $pdHm($w->starts_at), 'e' => $pdHm($w->ends_at), 'cap' => $w->max_stops, 'name' => $w->name,
+                'oneDate' => $w->isOneDate(), 'date' => $pdKey, 'dow' => \Carbon\Carbon::parse($pdKey)->isoWeekday(),
+                'days' => array_map('intval', $w->days ?? []), 'book' => (bool) $w->customers_can_book, 'from' => 'calendar'];
+      @endphp
+      <section class="pd-grp {{ $w->isOneDate() ? 'extra' : '' }}">
+        <header class="pd-grp-h">
+          <div><b>{{ $w->name ?: \App\Models\Tenant\TenantRouteWindow::autoLabel($pdHm($w->starts_at), $pdHm($w->ends_at)) }}</b>@if($w->isOneDate())<em class="pd-tag">This date only</em>@endif @if(! $w->customers_can_book)<em class="pd-tag" style="color:var(--ia-text-muted)">Staff only</em>@endif</div>
+          <div class="pd-grp-r">
+            <span class="pd-dots" aria-hidden="true">@for($k = 0; $k < $w->max_stops; $k++)<i class="{{ $k < $r['booked'] ? 'on' : '' }}"></i>@endfor</span>
+            <span>{{ $r['booked'] }} of {{ $w->max_stops }}</span>
+            @if($pdKey >= $todayKey)<button type="button" class="pd-link" data-rw-open data-rw="{{ json_encode($pdW) }}">Edit</button>@endif
+          </div>
+        </header>
+        <div class="pd-grp-b">
+          @foreach($r['stops'] as $d)
+            <a class="del-card is-{{ $d->type }} {{ $d->status === 'completed' ? 'is-completed' : '' }}" href="#" onclick="delOpenEdit({{ json_encode((string) $d->id) }}); return false;">
+              <div class="stripe"></div>
+              <div class="body">
+                <div class="head-row"><span class="del-tag is-{{ $d->type }}">{{ ucfirst($d->type) }}</span>{{ $pdName($d) }}</div>
+                <div class="meta">@if($d->address)<span>{{ $d->address }}</span>@endif @if($d->notes)<span style="opacity:.7">"{{ \Illuminate\Support\Str::limit($d->notes, 60) }}"</span>@endif</div>
+              </div>
+              <div class="time-col">{{ $d->scheduled_at->copy()->setTimezone($tz)->format('g:i A') }}</div>
+            </a>
+          @endforeach
+          @if($left > 0 && $pdKey >= $todayKey)
+            <button type="button" class="pd-slot" onclick="delOpenCreate('pickup', '{{ $pdKey }}', '{{ $pdHm($w->starts_at) }}')">{{ $left }} open · add a stop</button>
+          @endif
+        </div>
+      </section>
+    @endforeach
+    @if(! empty($pdL['other']))
+      <section class="pd-grp">
+        <header class="pd-grp-h"><div><b>Outside windows</b></div>
+          <div class="pd-grp-r"><button type="button" class="ia-tip" aria-label="What this is">i</button><span class="ia-tip-text" hidden>Stops booked at a time no window covers. They don't use any window's stops.</span></div></header>
+        <div class="pd-grp-b">
+          @foreach($pdL['other'] as $d)
+            <a class="del-card is-{{ $d->type }} {{ $d->status === 'completed' ? 'is-completed' : '' }}" href="#" onclick="delOpenEdit({{ json_encode((string) $d->id) }}); return false;">
+              <div class="stripe"></div>
+              <div class="body">
+                <div class="head-row"><span class="del-tag is-{{ $d->type }}">{{ ucfirst($d->type) }}</span>{{ $pdName($d) }}</div>
+                <div class="meta">@if($d->address)<span>{{ $d->address }}</span>@endif</div>
+              </div>
+              <div class="time-col">{{ $d->scheduled_at->copy()->setTimezone($tz)->format('g:i A') }}</div>
+            </a>
+          @endforeach
+        </div>
+      </section>
+    @endif
+  </div>
+
+@elseif($view === 'day' && !$is_timeslot)
   <div class="del-day-timeline">
     @for($h = $openHour; $h < $closeHour; $h++)
       @php
@@ -709,10 +819,6 @@
               </div>
               <div class="time-col">
                 {{ $d->scheduled_at->copy()->setTimezone($tz)->format('g:i A') }}
-                {{-- route window chip --}}
-                @if(!empty(($windowChips ?? [])[$d->id] ?? null))
-                  <span style="display:inline-block;font-size:9.5px;font-weight:600;letter-spacing:.05em;color:var(--ia-accent);background:var(--ia-accent-soft);border:0.5px solid var(--ia-accent);border-radius:99px;padding:1px 8px;margin-bottom:3px">{{ ($windowChips ?? [])[$d->id] }}</span>
-                @endif
                 <span class="window">
                   {{ $d->scheduled_at->copy()->setTimezone($tz)->format('g:i') }}
                   –
@@ -808,36 +914,70 @@
     @php $i = 0; @endphp
     @foreach($days as $dayKey => $dayDeliveries)
       @php
-        $dayDate = \Carbon\Carbon::parse($dayKey);
-        $isThatToday = $dayDate->copy()->setTimezone($tz)->isSameDay($today);
+        // the key is a shop-local date: read it in the shop's zone (parsed as UTC, US shops lit tomorrow as today)
+        $dayDate = \Carbon\Carbon::parse($dayKey, $tz);
+        $isThatToday = $dayDate->isSameDay($today);
         $i++;
+      @endphp
+      @php
+        $wkL = $windowLayout[$dayKey] ?? ['closed' => null, 'windows' => [], 'other' => $dayDeliveries->all(), 'booked' => 0, 'cap' => 0];
+        $wkFuture = $dayKey >= $todayKey;
+        $wkHm = fn ($t) => substr((string) $t, 0, 5);
+        $wkName = fn ($d) => trim(($d->customer->first_name ?? '') . ' ' . ($d->customer->last_name ?? '')) ?: 'Customer';
       @endphp
       <div class="del-week-col">
         <div class="del-week-head {{ $isThatToday ? 'is-today' : '' }}">
           <div class="dow">{{ $dayDate->format('D') }}</div>
           <div class="date">{{ $dayDate->format('j') }}</div>
-          <div class="count">{{ $dayDeliveries->count() }} {{ \Illuminate\Support\Str::plural('stop', $dayDeliveries->count()) }}</div>
+          <div class="count">
+            @if($wkL['closed']) Closed
+            @elseif($wkL['cap']) {{ $wkL['booked'] }} of {{ $wkL['cap'] }} stops
+            @else {{ $dayDeliveries->count() }} {{ \Illuminate\Support\Str::plural('stop', $dayDeliveries->count()) }}
+            @endif
+          </div>
         </div>
         <div class="del-week-body">
-          @forelse($dayDeliveries as $d)
+          @if($wkL['closed'])
+            <div class="pd-closed"><b>Closed</b><span>this date only</span>@if($wkFuture)<button type="button" class="pd-link" onclick="rwReopen('{{ $wkL['closed'] }}')">Reopen</button>@endif</div>
+          @endif
+          @foreach($wkL['windows'] as $r)
+            @php
+              $w = $r['w'];
+              $wkW = ['id' => (string) $w->id, 's' => $wkHm($w->starts_at), 'e' => $wkHm($w->ends_at), 'cap' => $w->max_stops, 'name' => $w->name,
+                      'oneDate' => $w->isOneDate(), 'date' => $dayKey, 'dow' => $dayDate->isoWeekday(),
+                      'days' => array_map('intval', $w->days ?? []), 'book' => (bool) $w->customers_can_book, 'from' => 'calendar'];
+            @endphp
+            <div class="pd-win {{ $r['booked'] >= $w->max_stops ? 'full' : '' }} {{ $w->isOneDate() ? 'extra' : '' }}"
+                 @if($wkFuture) data-rw-open data-rw="{{ json_encode($wkW) }}" tabindex="0" role="button" aria-label="Edit window" @endif>
+              <div class="pd-win-h"><b>{{ $w->name ?: \App\Models\Tenant\TenantRouteWindow::autoLabel($wkHm($w->starts_at), $wkHm($w->ends_at)) }}</b><span>{{ $r['booked'] }} of {{ $w->max_stops }}</span></div>
+              <span class="pd-dots" aria-hidden="true">@for($k = 0; $k < $w->max_stops; $k++)<i class="{{ $k < $r['booked'] ? 'on' : '' }}"></i>@endfor</span>
+              @if($w->isOneDate())<em class="pd-tag">This date only</em>@endif
+              @if(! $w->customers_can_book)<em class="pd-tag" style="color:var(--ia-text-muted)">Staff only</em>@endif
+              @foreach($r['stops'] as $d)
+                <a class="del-week-card is-{{ $d->type }} {{ $d->status === 'completed' ? 'is-completed' : '' }}" data-rw-stop
+                   href="#" onclick="delOpenEdit({{ json_encode((string) $d->id) }}); return false;">
+                  <span class="time">{{ $d->scheduled_at->copy()->setTimezone($tz)->format('g:i A') }}@if($is_timeslot && $d->deliveryResource) · {{ $d->deliveryResource->name }}@endif</span>
+                  <span class="name">{{ $wkName($d) }}</span>
+                  @if($d->address)<span class="addr">{{ $d->address }}</span>@endif
+                </a>
+              @endforeach
+            </div>
+          @endforeach
+          @if(! empty($wkL['other']) && ! empty($wkL['windows']))<div class="pd-other">Outside windows</div>@endif
+          @foreach($wkL['other'] as $d)
             <a class="del-week-card is-{{ $d->type }} {{ $d->status === 'completed' ? 'is-completed' : '' }}"
                href="#" onclick="delOpenEdit({{ json_encode((string) $d->id) }}); return false;">
-              <span class="time">
-                {{ $d->scheduled_at->copy()->setTimezone($tz)->format('g:i A') }}
-                @if($is_timeslot && $d->deliveryResource)
-                  · {{ $d->deliveryResource->name }}
-                @endif
-              </span>
-              <span class="name">{{ trim(($d->customer->first_name ?? '') . ' ' . ($d->customer->last_name ?? '')) ?: 'Customer' }}</span>
-              @if($d->address)
-                <span class="addr">{{ $d->address }}</span>
-              @endif
+              <span class="time">{{ $d->scheduled_at->copy()->setTimezone($tz)->format('g:i A') }}@if($is_timeslot && $d->deliveryResource) · {{ $d->deliveryResource->name }}@endif</span>
+              <span class="name">{{ $wkName($d) }}</span>
+              @if($d->address)<span class="addr">{{ $d->address }}</span>@endif
             </a>
-          @empty
-            <div style="padding:14px 6px; font-size:11px; text-align:center; color: var(--ia-text-dim, rgba(255,255,255,.42));">
-              &mdash;
-            </div>
-          @endforelse
+          @endforeach
+          @if(empty($wkL['windows']) && empty($wkL['other']) && ! $wkL['closed'])
+            <div style="padding:14px 6px; font-size:11px; text-align:center; color: var(--ia-text-dim, rgba(255,255,255,.42));">&mdash;</div>
+          @endif
+          @if($wkFuture && ! $wkL['closed'])
+            <button type="button" class="pd-add" data-rw-add data-rw="{{ json_encode(['date' => $dayKey, 'dow' => $dayDate->isoWeekday(), 'from' => 'calendar']) }}">+ Window</button>
+          @endif
         </div>
       </div>
     @endforeach
@@ -1016,6 +1156,8 @@
   </form>
 </div>
 
+@include('tenant.route-windows._panel', ['rwRoutes' => 'deliveries.windows'])
+
 {{-- Deliveries seed for client-side edit lookups --}}
 @php
   $deliveriesForJs = [];
@@ -1051,7 +1193,14 @@
     customerAssets: @json(route('tenant.deliveries.customer-assets')),
   };
 
-  function delOpenCreate(type) {
+  // ?open={id}: a "Move" link from a refused window change opens that stop
+  window.addEventListener('load', function () {
+    var id = @json($openStop ?? '');
+    if (id && window.delDeliveries[id]) delOpenEdit(id);
+  });
+
+  // date/time are optional: "add a stop" in a window passes that window's day and start
+  function delOpenCreate(type, presetDate, presetTime) {
     { var _pb = document.getElementById('del-print-btn'); if (_pb) _pb.style.display = 'none'; }
     window.delEditing = null;
     document.getElementById('del-drawer-bg').classList.add('is-open');
@@ -1071,6 +1220,8 @@
     var hh = String(now.getHours() + 1).padStart(2, '0');
     document.getElementById('del-time').value = hh + ':00';
     document.getElementById('del-window').value = '30';
+    if (presetDate) document.getElementById('del-date').value = presetDate;
+    if (presetTime) document.getElementById('del-time').value = presetTime;
     // customer-search component reset
     delResetCustomer();
     delSetContactTiles('', ''); // no customer yet on create

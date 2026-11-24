@@ -862,6 +862,12 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             // printable 80mm pickup/delivery slips for a day
             Route::get('/deliveries/slips',                     [TenantControllers\DeliveriesController::class, 'printSlips'])->name('deliveries.slips');
             Route::get('/deliveries/customer-assets',           [TenantControllers\DeliveriesController::class, 'customerAssets'])->name('deliveries.customer-assets');
+            // route windows edited from the calendar (Schedule access)
+            Route::post('/deliveries/windows',                   [TenantControllers\RouteWindowsController::class, 'store'])->name('deliveries.windows.store');
+            Route::post('/deliveries/windows/close-day',         [TenantControllers\RouteWindowsController::class, 'closeDay'])->name('deliveries.windows.close_day');
+            Route::delete('/deliveries/windows/closures/{id}',   [TenantControllers\RouteWindowsController::class, 'reopen'])->name('deliveries.windows.reopen');
+            Route::patch('/deliveries/windows/{id}',             [TenantControllers\RouteWindowsController::class, 'update'])->name('deliveries.windows.update');
+            Route::delete('/deliveries/windows/{id}',            [TenantControllers\RouteWindowsController::class, 'destroy'])->name('deliveries.windows.destroy');
             // single delivery receipt
             Route::get('/deliveries/{id}/slip',                 [TenantControllers\DeliveriesController::class, 'printSlip'])->name('deliveries.slip');
             // create + edit + complete + cancel
@@ -1472,6 +1478,8 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::patch('/booking-modes/route-windows/settings',    [TenantControllers\RouteWindowsController::class, 'saveSettings'])->name('route_windows.settings');
             Route::patch('/booking-modes/route-windows/{id}',        [TenantControllers\RouteWindowsController::class, 'update'])->name('route_windows.update');
             Route::delete('/booking-modes/route-windows/{id}',       [TenantControllers\RouteWindowsController::class, 'destroy'])->name('route_windows.destroy');
+            Route::post('/booking-modes/route-windows/close-day',    [TenantControllers\RouteWindowsController::class, 'closeDay'])->name('route_windows.close_day');
+            Route::delete('/booking-modes/route-closures/{id}',      [TenantControllers\RouteWindowsController::class, 'reopen'])->name('route_windows.reopen');
 
             // Campaign image library
             Route::get('/campaign-images',           [TenantControllers\CampaignImageController::class, 'index'])->name('campaign-images.index');

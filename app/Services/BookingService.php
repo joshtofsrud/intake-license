@@ -353,7 +353,8 @@ class BookingService
                 // Runs for both public paths (direct + pending->materialize) since
                 // both funnel the raw payload through createAppointment.
                 if (!empty($data['route_window_id'])) {
-                    $this->createPickupStop($appointment, (string) $data['route_window_id'], (array) $data);
+                    // staff bookings ($notify false) may use staff-only windows
+                    $this->createPickupStop($appointment, (string) $data['route_window_id'], (array) $data, $notify);
                 } elseif (!empty($data['pickup_outreach'])) {
                     // customer skipped the window
                     // choice and asked to be contacted about pickup.
@@ -514,10 +515,11 @@ class BookingService
      * Capacity re-checked under an advisory lock keyed tenant+window+date;
      * a full window throws (surfaces as booking failed, same as slot_taken).
      */
-    protected function createPickupStop(TenantAppointment $appointment, string $windowId, array $data): void
+    protected function createPickupStop(TenantAppointment $appointment, string $windowId, array $data, bool $customersOnly = true): void
     {
         $window = \App\Models\Tenant\TenantRouteWindow::where('tenant_id', $appointment->tenant_id)
             ->where('is_active', true)
+            ->when($customersOnly, fn ($q) => $q->where('customers_can_book', true))
             ->find($windowId);
         if (! $window) {
             throw new RuntimeException('That pickup window is no longer available.');

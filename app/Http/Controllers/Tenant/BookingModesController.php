@@ -29,9 +29,19 @@ class BookingModesController extends Controller
             ->get();
 
         // Pickup & delivery section data
+        // weekly windows for the grid; one-date extras and closures from today on
+        $pdToday = \Carbon\Carbon::now($tenant->timezone())->toDateString();
         $routeWindows = $tenant->deliveries_enabled
-            ? \App\Models\Tenant\TenantRouteWindow::where('tenant_id', $tenant->id)
-                ->orderBy('sort_order')->orderBy('starts_at')->get()
+            ? \App\Models\Tenant\TenantRouteWindow::where('tenant_id', $tenant->id)->whereNull('on_date')
+                ->orderBy('starts_at')->orderBy('sort_order')->get()
+            : collect();
+        $routeExtras = $tenant->deliveries_enabled
+            ? \App\Models\Tenant\TenantRouteWindow::where('tenant_id', $tenant->id)->whereNotNull('on_date')
+                ->whereDate('on_date', '>=', $pdToday)->orderBy('on_date')->orderBy('starts_at')->get()
+            : collect();
+        $routeClosures = $tenant->deliveries_enabled
+            ? \App\Models\Tenant\TenantRouteClosure::where('tenant_id', $tenant->id)
+                ->whereDate('date', '>=', $pdToday)->orderBy('date')->get()
             : collect();
         $s = (array) ($tenant->settings ?? []);
         $pd = [
@@ -45,7 +55,7 @@ class BookingModesController extends Controller
             'turnaround'        => $s['pd_turnaround_label'] ?? '2–3 days',
         ];
 
-        return view('tenant.booking-modes', compact('mode', 'categories', 'routeWindows', 'pd'));
+        return view('tenant.booking-modes', compact('mode', 'categories', 'routeWindows', 'routeExtras', 'routeClosures', 'pd'));
     }
 
     public function save(Request $request)

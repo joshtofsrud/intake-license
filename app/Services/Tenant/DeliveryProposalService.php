@@ -45,6 +45,7 @@ class DeliveryProposalService
 
         $windows = TenantRouteWindow::query()
             ->where('tenant_id', $this->tenant->id)
+            ->where('customers_can_book', true)
             ->active()
             ->get();
         if ($windows->isEmpty()) return [];
