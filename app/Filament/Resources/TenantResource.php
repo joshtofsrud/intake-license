@@ -243,6 +243,59 @@ class TenantResource extends Resource
                     ->color('gray')
                     ->url(fn (Tenant $t) => \App\Filament\Pages\LaunchChecklists::getUrl(['view' => 'shop', 'tenant' => $t->id])),
 
+                // MARKER-SEND-RESET-LINK: email the owner a one-time link to set
+                // their own password (the shop's own forgot-password flow), built
+                // on the shop's own address. No password passes through master admin.
+                Tables\Actions\Action::make('send_reset_link')
+                    ->label('Send reset link')
+                    ->icon('heroicon-o-envelope')
+                    ->color('gray')
+                    ->requiresConfirmation()
+                    ->modalHeading('Email the owner a reset link?')
+                    ->modalDescription(function (Tenant $t) {
+                        $o = \App\Models\Tenant\TenantUser::where('tenant_id', $t->id)
+                            ->where('role', 'owner')->where('is_active', true)->first();
+                        return $o
+                            ? 'Sends ' . $o->name . ' (' . $o->email . ') a link to set a new password. It works for one hour. Their current password keeps working until they use it.'
+                            : 'This shop has no active owner, so there is no one to send it to.';
+                    })
+                    ->modalSubmitActionLabel('Send link')
+                    ->action(function (Tenant $t) {
+                        $owner = \App\Models\Tenant\TenantUser::where('tenant_id', $t->id)
+                            ->where('role', 'owner')->where('is_active', true)->first();
+                        if (! $owner || ! $owner->email) {
+                            \Filament\Notifications\Notification::make()->title('No active owner to send it to.')->warning()->send();
+                            return;
+                        }
+
+                        $token = \Illuminate\Support\Str::random(64);
+                        \Illuminate\Support\Facades\Cache::put('pwd_reset_' . $token, ['tenant_id' => $t->id, 'user_id' => $owner->id], now()->addMinutes(60));
+                        $url = $t->urlTo('admin/reset-password', ['token' => $token]);
+
+                        $ledger = \App\Services\EmailLedger::begin($t->id, 'staff', $owner->email, 'staff_password_reset');
+                        try {
+                            \Illuminate\Support\Facades\Mail::to($owner->email)->send(new \App\Mail\PasswordReset($t, $owner, $url));
+                            \App\Services\EmailLedger::markSent($ledger);
+                        } catch (\Throwable $e) {
+                            \App\Services\EmailLedger::void($ledger);
+                            \Illuminate\Support\Facades\Cache::forget('pwd_reset_' . $token);
+                            \Filament\Notifications\Notification::make()->title('The email didn’t send')->body($e->getMessage())->danger()->persistent()->send();
+                            return;
+                        }
+
+                        debug_log()->audit(
+                            'tenant_password_reset_link',
+                            'Master admin emailed a password reset link to the owner of ' . $t->name,
+                            $owner,
+                            ['tenant_id' => $t->id, 'owner_email' => $owner->email],
+                        );
+
+                        \Filament\Notifications\Notification::make()
+                            ->title('Reset link sent to ' . $owner->email)
+                            ->body('It works for one hour.')
+                            ->success()->send();
+                    }),
+
                 Tables\Actions\Action::make('reset_password')
                     ->label('Reset password')
                     ->icon('heroicon-o-key')
