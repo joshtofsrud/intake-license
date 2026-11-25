@@ -989,20 +989,82 @@ class PlatformCommunication extends Page
         $this->cTheme = in_array($t, ['light', 'dark', 'phone'], true) ? $t : 'light';
     }
 
-    public function cancelCampaign(): void
+    /**
+     * MARKER-CAMPAIGN-STOP. Scheduled: back to a draft (no list exists yet).
+     * Sending: stopped. Its waiting emails stay in line, untouched, until
+     * Resume; nothing already sent is affected.
+     */
+    public function cancelCampaign(?string $id = null): void
     {
-        $c = $this->campaignId ? \App\Models\PlatformCampaign::find($this->campaignId) : null;
+        $id = $id ?: $this->campaignId;
+        $c = $id ? \App\Models\PlatformCampaign::find($id) : null;
         if (! $c || ! in_array($c->status, ['scheduled', 'sending'], true)) {
             return;
         }
 
-        $c->update(['status' => 'draft', 'scheduled_at' => null]);
-        \App\Models\PlatformCampaignSend::where('campaign_id', $c->id)
-            ->where('status', 'pending')
-            ->update(['status' => 'skipped', 'skip_reason' => 'campaign cancelled']);
+        if ($c->status === 'scheduled') {
+            $c->update(['status' => 'draft', 'scheduled_at' => null]);
+            Notification::make()->success()->title('Unscheduled')->body('It is a draft again. Nothing was sent.')->send();
+            return;
+        }
 
-        Notification::make()->success()->title('Cancelled')
-            ->body('Anything already sent has gone; nothing further will.')->send();
+        $c->update(['status' => 'paused']);
+        $sent    = \App\Models\PlatformCampaignSend::where('campaign_id', $c->id)->where('status', 'sent')->count();
+        $waiting = \App\Models\PlatformCampaignSend::where('campaign_id', $c->id)->where('status', 'pending')->count();
+        Notification::make()->success()->title('Stopped')
+            ->body(number_format($sent) . ' sent. ' . number_format($waiting) . ' waiting. Resume sends to the people still waiting, no one twice.')->send();
+    }
+
+    /** waiting rows a Resume would send to, including ones skipped by an earlier cancel */
+    public function resumableCount(\App\Models\PlatformCampaign $c): int
+    {
+        if (! in_array($c->status, ['paused', 'cancelled', 'draft'], true)) return 0;
+        return \App\Models\PlatformCampaignSend::where('campaign_id', $c->id)
+            ->where(fn ($q) => $q->where('status', 'pending')
+                ->orWhere(fn ($q) => $q->where('status', 'skipped')
+                    ->whereIn('skip_reason', \App\Console\Commands\ProcessPlatformCampaignSends::STOPPED_REASONS)))
+            ->when($c->status === 'draft', fn ($q) => $q->where('status', 'skipped')) // a draft's own unsent list isn't a resume
+            ->count();
+    }
+
+    public function askResume(string $id): void { $this->confirmDel = 'r:' . $id; }
+
+    /** carry on a stopped or cancelled campaign: only people who haven't had it */
+    public function resumeCampaign(string $id): void
+    {
+        $this->confirmDel = null;
+        $c = \App\Models\PlatformCampaign::find($id);
+        if (! $c || $this->resumableCount($c) === 0) {
+            Notification::make()->warning()->title('Nothing to resume')->body('Everyone on its list has been sent it or skipped for a reason of their own.')->send();
+            return;
+        }
+        \App\Console\Commands\ProcessPlatformCampaignSends::revive($c);
+        $waiting = \App\Models\PlatformCampaignSend::where('campaign_id', $c->id)->where('status', 'pending')->count();
+        $c->update(['status' => 'sending', 'scheduled_at' => null]);
+        Notification::make()->success()->title('Resumed')
+            ->body(number_format($waiting) . ' waiting. Opt-outs are checked again as each one goes.')->send();
+    }
+
+    /** a new draft with the same content, audience and sender; nothing about who got the original */
+    public function duplicateCampaign(string $id): void
+    {
+        $c = \App\Models\PlatformCampaign::find($id);
+        if (! $c) return;
+        $copy = \App\Models\PlatformCampaign::create([
+            'name'        => mb_substr('Copy of ' . $c->name, 0, 191),
+            'subject'     => $c->subject,
+            'preheader'   => $c->preheader,
+            'body'        => $c->body,
+            'sender'      => $c->sender,
+            'delivery'    => $c->delivery,
+            'audience_id' => $c->audience_id,
+            'blocks'      => $c->blocks,
+            'theme'       => $c->theme,
+            'status'      => 'draft',
+        ]);
+        $this->report = false;
+        $this->openCampaign($copy->id);
+        Notification::make()->success()->title('Duplicated')->body('A new draft. Nothing is sent until you send it.')->send();
     }
 
     // ---- MARKER-FEATURE-BLOCKS: editing helpers ----------------------------

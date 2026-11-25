@@ -46,6 +46,8 @@ class ProcessPlatformCampaignSends extends Command
         $pending = PlatformCampaignSend::where('status', 'pending')
             // MARKER-PERSONAL-DELIVERY: personal rows wait for their own click
             ->where(fn ($q) => $q->whereNull('channel')->orWhere('channel', '!=', 'personal'))
+            // MARKER-CAMPAIGN-STOP: a stopped campaign's rows wait, untouched, for Resume
+            ->whereNotIn('campaign_id', PlatformCampaign::where('status', 'paused')->select('id'))
             ->orderBy('paced')
             ->orderBy('created_at')
             ->limit($limit)
@@ -174,7 +176,23 @@ class ProcessPlatformCampaignSends extends Command
             // repeats of an address (same person twice) are ignored by the key
             PlatformCampaignSend::insertOrIgnore($rows);
         });
+        // MARKER-CAMPAIGN-STOP: sending again after a cancel. Those rows already
+        // exist (skipped), so the insert above ignores them and the campaign
+        // finished at once having sent nothing. Put them back in line; people
+        // who already got it keep their sent row and are not mailed twice.
+        static::revive($campaign);
         return PlatformCampaignSend::where('campaign_id', $campaign->id)->count();
+    }
+
+    /** reasons a row was skipped only because the campaign was stopped */
+    public const STOPPED_REASONS = ['campaign cancelled', 'campaign gone'];
+
+    /** rows skipped because the campaign was cancelled go back to waiting; returns how many */
+    public static function revive(PlatformCampaign $campaign): int
+    {
+        return PlatformCampaignSend::where('campaign_id', $campaign->id)
+            ->where('status', 'skipped')->whereIn('skip_reason', self::STOPPED_REASONS)
+            ->update(['status' => 'pending', 'skip_reason' => null, 'updated_at' => now()]);
     }
 
     /**

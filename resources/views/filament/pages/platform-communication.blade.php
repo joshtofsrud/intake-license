@@ -330,7 +330,7 @@
         <div class="rp-head">
           <h3>{{ $campaign->name }}</h3>
           <span class="sub">{{ $campaign->subject }}</span>
-          <span class="sp"><span class="pc-pill {{ $campaign->status === 'sent' ? 'pc-pill--custom' : '' }}">{{ ucfirst($campaign->status) }}</span></span>
+          <span class="sp"><span class="pc-pill {{ $campaign->status === 'sent' ? 'pc-pill--custom' : '' }}">{{ $campaign->status === 'paused' ? 'Stopped' : ucfirst($campaign->status) }}</span></span>
         </div>
         <div class="sub" style="font-size:12px;opacity:.55">
           {{ optional($campaign->audience)->name ?: 'No audience' }}
@@ -338,6 +338,7 @@
           @if($campaign->status === 'sent' && $campaign->sent_at) · finished {{ alocal($campaign->sent_at, 'D M j, g:i a') }}@endif
           @if($campaign->status === 'scheduled' && $campaign->scheduled_at) · starts {{ alocal($campaign->scheduled_at, 'D M j, g:i a') }}@endif
         </div>
+        @include('filament.pages.partials.campaign-run-actions', ['rc' => $campaign])
 
         {{-- sending progress --}}
         @if($R['total'] > 0)
@@ -357,7 +358,11 @@
                 @if($campaign->deliveryKey() === 'personal')
                   <span>one at a time: each waits for its Send button</span>
                 @else
-                <span>{{ number_format($R['last_hour']) }} sent in the last hour{{ $etaTxt ? ' · ' . $etaTxt : ($R['last_hour'] === 0 ? ' · paused or between paced sends' : '') }}</span>
+                @if($campaign->status === 'paused')
+                <span>Stopped · Resume sends to the {{ number_format($R['pending']) }} waiting</span>
+                @else
+                <span>{{ number_format($R['last_hour']) }} sent in the last hour{{ $etaTxt ? ' · ' . $etaTxt : ($R['last_hour'] === 0 ? ' · between paced sends' : '') }}</span>
+                @endif
                 @endif
               @endif
             </div>
@@ -842,10 +847,10 @@
               {{ trim($cSchedule) !== '' ? 'Schedule' : 'Send now' }}
             </button>
             @endif
-            @if(in_array($campaign->status, ['scheduled', 'sending'], true))
-              <button type="button" class="pc-btn pc-btn--warn" wire:click="cancelCampaign">Cancel</button>
-            @endif
             <button type="button" class="pc-btn" wire:click="closeCampaign">Close</button>
+          </div>
+          <div style="margin-top:10px">
+            @include('filament.pages.partials.campaign-run-actions', ['rc' => $campaign])
           </div>
         </div>
 
@@ -899,12 +904,12 @@
 
       <div class="pc-list" @if($campaigns->contains(fn ($x) => $x->status === 'sending')) wire:poll.30s @endif>
         @forelse($campaigns as $c)
-          <div class="pc-row" style="grid-template-columns:1fr 110px 1fr 150px">
+          <div class="pc-row" style="grid-template-columns:1fr 110px 1fr 220px">
             <div>
               <div class="t">{{ $c->name }}</div>
               <div class="d">{{ $c->subject ?: 'No subject yet' }}</div>
             </div>
-            <div><span class="pc-pill {{ $c->status === 'sent' ? 'pc-pill--custom' : '' }}">{{ ucfirst($c->status) }}</span></div>
+            <div><span class="pc-pill {{ $c->status === 'sent' ? 'pc-pill--custom' : '' }}">{{ $c->status === 'paused' ? 'Stopped' : ucfirst($c->status) }}</span></div>
             <div class="fires">
               {{ optional($c->audience)->name ?: 'No audience' }}
               @php $lc = $listCounts[$c->id] ?? null; @endphp
@@ -926,6 +931,7 @@
               @else
                 @if($c->status === 'draft')<button type="button" class="pc-del" wire:click="askDelete('c:{{ $c->id }}')">Delete</button>@endif
                 @if($c->status !== 'draft')<button type="button" class="pc-edit" wire:click="openReport('{{ $c->id }}')">Report</button>@endif
+                <button type="button" class="pc-edit" wire:click="duplicateCampaign('{{ $c->id }}')" title="New draft with the same content and audience">Duplicate</button>
                 <button type="button" class="pc-edit" wire:click="openCampaign('{{ $c->id }}')">Open</button>
               @endif
             </div>
