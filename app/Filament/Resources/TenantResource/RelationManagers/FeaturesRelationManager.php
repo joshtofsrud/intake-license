@@ -99,13 +99,19 @@ class FeaturesRelationManager extends RelationManager
     {
         $tenant = $this->getOwnerRecord();
 
-        app(AddonManagementService::class)->activate($tenant, $code, [
-            'source' => 'staff_push',
-            'actor_type' => 'staff',
-            'actor_id' => Auth::id(),
-            'actor_label' => Auth::user()?->name ?? 'master admin',
-            'reason' => $reason,
-        ]);
+        // MARKER-FEATURES-REFUSED: a refusal (plan floor, unknown code) shows as a warning, not a 500
+        try {
+            app(AddonManagementService::class)->activate($tenant, $code, [
+                'source' => 'staff_push',
+                'actor_type' => 'staff',
+                'actor_id' => Auth::id(),
+                'actor_label' => Auth::user()?->name ?? 'master admin',
+                'reason' => $reason,
+            ]);
+        } catch (\InvalidArgumentException $e) {
+            $this->refused($code, $e);
+            return;
+        }
 
         Notification::make()
             ->success()
@@ -119,12 +125,18 @@ class FeaturesRelationManager extends RelationManager
     {
         $tenant = $this->getOwnerRecord();
 
-        app(AddonManagementService::class)->cancel($tenant, $code, [
-            'actor_type' => 'staff',
-            'actor_id' => Auth::id(),
-            'actor_label' => Auth::user()?->name ?? 'master admin',
-            'reason' => $reason,
-        ]);
+        // MARKER-FEATURES-REFUSED: a refusal (plan floor, unknown code) shows as a warning, not a 500
+        try {
+            app(AddonManagementService::class)->cancel($tenant, $code, [
+                'actor_type' => 'staff',
+                'actor_id' => Auth::id(),
+                'actor_label' => Auth::user()?->name ?? 'master admin',
+                'reason' => $reason,
+            ]);
+        } catch (\InvalidArgumentException $e) {
+            $this->refused($code, $e);
+            return;
+        }
 
         Notification::make()
             ->success()
@@ -138,11 +150,17 @@ class FeaturesRelationManager extends RelationManager
     {
         $tenant = $this->getOwnerRecord();
 
-        app(AddonManagementService::class)->suppress($tenant, $code, [
-            'actor_id' => Auth::id(),
-            'actor_label' => Auth::user()?->name ?? 'master admin',
-            'reason' => $reason,
-        ]);
+        // MARKER-FEATURES-REFUSED: a refusal (plan floor, unknown code) shows as a warning, not a 500
+        try {
+            app(AddonManagementService::class)->suppress($tenant, $code, [
+                'actor_id' => Auth::id(),
+                'actor_label' => Auth::user()?->name ?? 'master admin',
+                'reason' => $reason,
+            ]);
+        } catch (\InvalidArgumentException $e) {
+            $this->refused($code, $e);
+            return;
+        }
 
         Notification::make()
             ->warning()
@@ -156,11 +174,17 @@ class FeaturesRelationManager extends RelationManager
     {
         $tenant = $this->getOwnerRecord();
 
-        app(AddonManagementService::class)->liftSuppression($tenant, $code, [
-            'actor_id' => Auth::id(),
-            'actor_label' => Auth::user()?->name ?? 'master admin',
-            'reason' => 'suppression lifted',
-        ]);
+        // MARKER-FEATURES-REFUSED: a refusal (plan floor, unknown code) shows as a warning, not a 500
+        try {
+            app(AddonManagementService::class)->liftSuppression($tenant, $code, [
+                'actor_id' => Auth::id(),
+                'actor_label' => Auth::user()?->name ?? 'master admin',
+                'reason' => 'suppression lifted',
+            ]);
+        } catch (\InvalidArgumentException $e) {
+            $this->refused($code, $e);
+            return;
+        }
 
         Notification::make()
             ->success()
@@ -168,6 +192,19 @@ class FeaturesRelationManager extends RelationManager
             ->send();
 
         $this->dispatch('$refresh');
+    }
+
+    /** the service refused: say why in plain words, change nothing */
+    private function refused(string $code, \InvalidArgumentException $e): void
+    {
+        $addon = \Illuminate\Support\Facades\DB::table('addons')->where('code', $code)->first();
+        $name  = $addon->name ?? $code;
+        $title = str_contains($e->getMessage(), 'plan or higher') && ! empty($addon->min_plan_tier)
+            ? $name . ' needs the ' . ucfirst($addon->min_plan_tier) . ' plan'
+            : 'Couldn’t change ' . $name;
+        Notification::make()->warning()->title($title)
+            ->body(str_contains($title, 'plan') ? 'Change this shop’s plan, or lower the add-on’s minimum plan. Nothing was changed.' : 'Nothing was changed.')
+            ->send();
     }
 
     // Filter reset on change

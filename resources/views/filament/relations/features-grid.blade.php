@@ -2,27 +2,29 @@
 
     <link rel="stylesheet" href="{{ asset('css/admin/features-grid.css') }}?v={{ filemtime(public_path('css/admin/features-grid.css')) }}">
 
+    {{-- MARKER-FEATURES-DIALOG: in-app reason / confirm dialog (was native prompt() and confirm()) --}}
     <div class="fg-page" x-data="{
+        dlg: { open: false, title: '', body: '', ask: false, need: false, ok: 'Confirm', danger: false, reason: '', run: null, err: '' },
+        ask(o) { this.dlg = Object.assign({ open: true, title: '', body: '', ask: false, need: false, ok: 'Confirm', danger: false, reason: '', run: null, err: '' }, o); this.$nextTick(() => this.$refs.fgReason && this.dlg.ask && this.$refs.fgReason.focus()); },
+        go() {
+            if (this.dlg.need && !this.dlg.reason.trim()) { this.dlg.err = 'A reason is needed.'; return; }
+            const run = this.dlg.run, r = this.dlg.reason.trim();
+            this.dlg.open = false;
+            if (run) run(r || null);
+        },
         promptActivate(code, name) {
-            const reason = prompt(`Reason for activating ${name}? (optional)`);
-            if (reason === null) return;
-            $wire.activateFeature(code, reason || null);
+            this.ask({ title: 'Activate ' + name + '?', body: 'It turns on for this shop now, at no charge to them.', ask: true, ok: 'Activate', run: (r) => $wire.activateFeature(code, r) });
         },
         promptDeactivate(code, name) {
-            const reason = prompt(`Reason for deactivating ${name}? (optional)`);
-            if (reason === null) return;
-            $wire.deactivateFeature(code, reason || null);
+            this.ask({ title: 'Deactivate ' + name + '?', body: 'It turns off for this shop now.', ask: true, ok: 'Deactivate', danger: true, run: (r) => $wire.deactivateFeature(code, r) });
         },
         promptSuppress(code, name) {
-            const reason = prompt(`Reason for revoking plan access to ${name}? (required)`);
-            if (!reason) return;
-            $wire.suppressFeature(code, reason);
+            this.ask({ title: 'Revoke plan access to ' + name + '?', body: 'The shop loses it even though their plan includes it.', ask: true, need: true, ok: 'Revoke', danger: true, run: (r) => $wire.suppressFeature(code, r) });
         },
         restoreSuppression(code) {
-            if (!confirm('Restore plan access?')) return;
-            $wire.liftSuppressionFeature(code);
+            this.ask({ title: 'Restore plan access?', body: 'The shop gets it back through their plan.', ok: 'Restore', run: () => $wire.liftSuppressionFeature(code) });
         },
-    }">
+    }" @keydown.escape.window="dlg.open = false">
 
         <div class="fg-header">
             <p class="fg-header__stats">
@@ -161,7 +163,11 @@
                                 <span class="fg-card__status">{{ $statusLine }}</span>
 
                                 <div class="fg-card__actions">
-                                    @if($state === 'neutral')
+                                    @if($state === 'neutral' && ! empty($f->tier_locked))
+                                        {{-- plan floor: Activate would be refused, so say why instead --}}
+                                        <span class="fg-badge" title="Change the shop's plan, or lower this add-on's minimum plan">Needs {{ ucfirst((string) $f->min_plan_tier) }} plan</span>
+
+                                    @elseif($state === 'neutral')
                                         <button type="button" class="fg-btn fg-btn--primary"
                                                 @click="promptActivate('{{ $f->code }}', @js($f->name))">
                                             Activate
@@ -200,5 +206,24 @@
             @endif
         @endforeach
 
+        <template x-teleport="body">
+            <div x-show="dlg.open" x-cloak x-transition.opacity class="fg-dlg-bg" @click.self="dlg.open = false">
+                <div class="fg-dlg" role="dialog" aria-modal="true">
+                    <h3 class="fg-dlg__t" x-text="dlg.title"></h3>
+                    <p class="fg-dlg__b" x-text="dlg.body"></p>
+                    <template x-if="dlg.ask">
+                        <div>
+                            <label class="fg-dlg__l">Reason <span x-text="dlg.need ? '' : '(optional)'"></span></label>
+                            <input type="text" x-ref="fgReason" x-model="dlg.reason" maxlength="255" class="fg-dlg__in" @keydown.enter.prevent="go()" @input="dlg.err = ''">
+                            <p class="fg-dlg__err" x-show="dlg.err" x-text="dlg.err"></p>
+                        </div>
+                    </template>
+                    <div class="fg-dlg__f">
+                        <button type="button" class="fg-btn" @click="dlg.open = false">Cancel</button>
+                        <button type="button" class="fg-btn" :class="dlg.danger ? 'fg-btn--danger' : 'fg-btn--primary'" @click="go()" x-text="dlg.ok"></button>
+                    </div>
+                </div>
+            </div>
+        </template>
     </div>
 </div>
