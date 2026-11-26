@@ -51,7 +51,8 @@
       <div class="ec-actions">
         @if($hEver)
           <button class="ia-btn ia-btn--primary ia-btn--sm" type="submit" name="go" value="save">Save</button>
-          @unless($hStopped)<button class="ia-btn ia-btn--secondary ia-btn--sm" type="submit" name="go" value="start" data-confirm="Read your sales history again from the start? Sales already in are updated, not doubled, and anything outside your choices above is taken back out.">Read again</button>@endunless
+          {{-- MARKER-SALES-START-OVER: a stopped read can start over too (it used to offer only Resume, from its old place) --}}
+          <button class="ia-btn ia-btn--secondary ia-btn--sm" type="submit" name="go" value="start" data-confirm="{{ $hStopped ? 'Start over with the choices above, instead of resuming from ' . ($hAt ?: 'where it stopped') . '? Sales already in are updated, not doubled.' : 'Read your sales history again from the start? Sales already in are updated, not doubled, and anything outside your choices above is taken back out.' }}">{{ $hStopped ? 'Start over' : 'Read again' }}</button>
         @else
           <button class="ia-btn ia-btn--primary" type="submit" name="go" value="start">Start</button>
         @endif
