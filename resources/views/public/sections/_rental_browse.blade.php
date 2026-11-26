@@ -49,6 +49,8 @@
   $anchorId  = trim($c['anchor_id'] ?? '') ?: 'rental-browse';
   $custClass = trim($c['custom_classes'] ?? '');
   $instId    = 'p-rbrw-' . ($section->id ?? uniqid());
+  $rbBgTok   = (string) (\App\Support\DesignTokens::resolve($rbTenant)['bg'] ?? '');
+  $rbDark    = \App\Support\ColorHelper::isDark(preg_match('/^#[0-9a-fA-F]{6}$/', $rbBgTok) ? $rbBgTok : '#ffffff');
 @endphp
 <style>
 .{{ $instId }} {
@@ -60,6 +62,9 @@
 .{{ $instId }} .rs-body { color: {{ $stBody }}; }
 .{{ $instId }} .p-eyebrow, .{{ $instId }} .rs-accent { color: {{ $stAccent }}; }
 .{{ $instId }} .rs-card { background: {{ $stCardBg }}; border-color: {{ $stCardBd }}; }
+/* MARKER-RENTAL-PAGES-THEME: date fields follow the site's colours instead of the browser's white box */
+.{{ $instId }} .rs-input { font: inherit; font-size: 14px; padding: 10px 12px; color: var(--p-text); background: color-mix(in srgb, var(--p-text) 6%, var(--p-bg)); border: 1px solid color-mix(in srgb, var(--p-text) 16%, transparent); border-radius: var(--p-btn-r, 8px); color-scheme: {{ $rbDark ? 'dark' : 'light' }}; }
+.{{ $instId }} .rs-input:focus { outline: none; border-color: var(--p-accent); }
 @if(!empty($c['hide_on_mobile']))
 @media (max-width: 768px) { .{{ $instId }} { display: none; } }
 @endif
@@ -82,11 +87,11 @@
     <form method="GET" action="#{{ $anchorId }}" style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;justify-content:center;margin-top:28px">
       <div>
         <label style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;opacity:.5;display:block;margin-bottom:5px;font-weight:600">Pickup</label>
-        <input type="datetime-local" name="starts" value="{{ $rbStart->format('Y-m-d\TH:i') }}" required style="padding:9px 12px;border:1.5px solid rgba(0,0,0,.15);border-radius:8px;font-size:14px">
+        <input type="datetime-local" name="starts" value="{{ $rbStart->format('Y-m-d\TH:i') }}" required class="rs-input">
       </div>
       <div>
         <label style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;opacity:.5;display:block;margin-bottom:5px;font-weight:600">Return</label>
-        <input type="datetime-local" name="due" value="{{ $rbDue->format('Y-m-d\TH:i') }}" required style="padding:9px 12px;border:1.5px solid rgba(0,0,0,.15);border-radius:8px;font-size:14px">
+        <input type="datetime-local" name="due" value="{{ $rbDue->format('Y-m-d\TH:i') }}" required class="rs-input">
       </div>
       <button type="submit" class="p-btn p-btn--primary" @if($rbBtn) style="{{ $rbBtn }}" @endif>Check</button>
     </form>

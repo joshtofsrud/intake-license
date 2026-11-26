@@ -222,10 +222,13 @@
   </div>
 </main>
 
+@php $errSupport = \App\Models\PlatformSettings::supportEmail(); @endphp
+@if($errSupport !== '')
 <footer class="err-foot">
   @yield('footer_text', 'Need help? Email')
-  <a href="mailto:{{ \App\Models\PlatformSettings::supportEmail() }}">{{ \App\Models\PlatformSettings::supportEmail() }}</a>
+  <a href="mailto:{{ $errSupport }}">{{ $errSupport }}</a>
 </footer>
+@endif
 
 </body>
 </html>

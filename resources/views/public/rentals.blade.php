@@ -1,9 +1,7 @@
 <!DOCTYPE html>
-{{-- public rental availability browse. Standalone page
-     in the public design language (same approach as booking.blade). The
-     Reserve CTA points at /contact until PATCH-240 ships real checkout. --}}
+{{-- public rental availability browse, inside the shop's own header and footer.
+     MARKER-RENTAL-PAGES-THEME: styles come from public._rental-theme. --}}
 @php
-  $accent = $currentTenant->accent_color ?? '#BEF264';
   $tname  = $currentTenant->name ?? 'Rentals';
 @endphp
 <html lang="en">
@@ -14,38 +12,30 @@
 @include('partials.mobile-input-zoom')
 <title>Rentals — {{ $tname }}</title>
 @include('public._theme-fonts')
+@include('public._rental-theme')
 <style>
-  /* MARKER-SHOP-THEME: the rentals pages use the site's own look, like every other public page */
-  :root {
-{!! \App\Support\DesignTokens::cssVars(\App\Support\DesignTokens::resolve($currentTenant ?? tenant())) !!}
-    --p-muted: color-mix(in srgb, var(--p-text) 62%, transparent);
-  }
-  :root { --acc: var(--p-accent); }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: var(--p-font-body); color: var(--p-text); background: var(--p-bg); line-height: 1.6; -webkit-font-smoothing: antialiased; }
-  h1, h2, h3 { font-family: var(--p-font-heading); font-weight: var(--p-heading-weight, 650); text-transform: var(--p-heading-transform, none); }
-  a { color: inherit; text-decoration: none; }
-  .wrap { max-width: 980px; margin: 0 auto; padding: 28px 20px 80px; }
-  .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
-  .top a.home { font-weight: 700; font-size: 16px; }
-  h1 { font-size: 26px; font-weight: 650; letter-spacing: -.02em; }
-  .sub { font-size: 14px; opacity: .55; margin-top: 4px; }
-  .picker { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; background: #fff; border: 1.5px solid color-mix(in srgb, var(--p-text) 9%, transparent); border-radius: 14px; padding: 18px 20px; margin: 22px 0 30px; }
-  .picker label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; opacity: .5; display: block; margin-bottom: 5px; font-weight: 600; }
-  .picker input { font: inherit; font-size: 14px; padding: 9px 12px; border: 1.5px solid color-mix(in srgb, var(--p-text) 12%, transparent); border-radius: 9px; background: #fff; }
-  .picker button { font: inherit; font-size: 14px; font-weight: 650; padding: 10px 22px; border: none; border-radius: 9px; background: var(--acc); color: var(--p-text); cursor: pointer; }
-  .err { background: #fef3c7; border: 1px solid #f59e0b; color: #78350f; border-radius: 9px; padding: 10px 14px; font-size: 13px; margin-bottom: 18px; }
-  .cat { margin-bottom: 30px; }
-  .cat h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .07em; opacity: .45; margin-bottom: 12px; font-weight: 650; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
-  .card { background: color-mix(in srgb, var(--p-text) 3%, var(--p-bg)); border: 1.5px solid color-mix(in srgb, var(--p-text) 9%, transparent); border-radius: 14px; padding: 18px 20px; display: flex; flex-direction: column; }
-  .card .name { font-size: 16px; font-weight: 650; line-height: 1.3; }
-  .card .subt { font-size: 12.5px; opacity: .55; margin-top: 2px; }
-  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 11px; }
-  .chip { font-size: 12px; background: color-mix(in srgb, var(--p-text) 5%, transparent); border-radius: 6px; padding: 3px 9px; }
-  .meta { font-size: 12px; opacity: .55; margin-top: 10px; }
-  .card .cta { margin-top: 14px; text-align: center; font-size: 13.5px; font-weight: 650; padding: 9px 0; border-radius: 9px; background: var(--acc); color: var(--p-text); }
-  .empty { text-align: center; padding: 60px 20px; opacity: .55; font-size: 15px; }
+  .rb-picker { display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; align-items: end; margin: 26px 0 10px; }
+  .rb-picker .rt-label { margin-top: 0; }
+  .rb-hours { font-size: 13px; color: var(--rt-muted); margin-bottom: 26px; }
+  .rb-filter { font-size: 13.5px; margin: 0 0 22px; }
+  .rb-filter a { color: var(--rt-muted); text-decoration: underline; text-underline-offset: 2px; }
+  .rb-cat { margin-bottom: 36px; }
+  .rb-cat h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--rt-muted); margin-bottom: 14px; font-family: var(--p-font-body); font-weight: 650; }
+  .rb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+  .rb-card { display: flex; flex-direction: column; background: var(--rt-card); border: 1px solid var(--rt-line); border-radius: var(--rt-r); overflow: hidden; transition: border-color .15s, transform .15s; }
+  .rb-card:hover { border-color: color-mix(in srgb, var(--p-accent) 55%, transparent); transform: translateY(-2px); }
+  .rb-photo { aspect-ratio: 16/10; background: var(--p-tile-bg, #ffffff) center/contain no-repeat; border-bottom: 1px solid var(--rt-line); }
+  .rb-photo.none { display: grid; place-items: center; background: var(--rt-field); color: var(--rt-muted); font-size: 12px; }
+  .rb-body { padding: 16px 18px 18px; display: flex; flex-direction: column; flex: 1; }
+  .rb-name { font-size: 17px; font-weight: 650; line-height: 1.3; font-family: var(--p-font-heading); }
+  .rb-subt { font-size: 13px; color: var(--rt-muted); margin-top: 2px; }
+  .rb-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
+  .rb-chip { font-size: 12.5px; border: 1px solid var(--rt-line); border-radius: 99px; padding: 3px 10px; }
+  .rb-meta { font-size: 12.5px; color: var(--rt-muted); margin: 10px 0 16px; }
+  .rb-body .rt-btn { margin-top: auto; }
+  .rb-empty { text-align: center; padding: 64px 20px; color: var(--rt-muted); font-size: 15px; border: 1px dashed var(--rt-line); border-radius: var(--rt-r); }
+  .rb-empty a { color: var(--p-text); text-decoration: underline; }
+  @media (max-width: 640px) { .rb-picker { grid-template-columns: 1fr; } .rb-picker .rt-btn { width: 100%; } }
 </style>
   @include('public._ga4')
   @include('public._site-scripts', ['ssPart' => 'head']) {{-- MARKER-SITE-SCRIPTS --}}
@@ -53,34 +43,22 @@
 <body>
 @include('public._launch-ribbon', ['lrModule' => 'rent'])
 @include('public._chrome-inline', ['chromePos' => 'top'])
-<div class="wrap">
-  <div class="top">
-    <a class="home" href="/">{{ $tname }}</a>
-    <a href="/contact" style="font-size:13.5px;opacity:.6">Contact</a>
-  </div>
+<div class="rt-wrap">
+  <h1 class="rt-h1">Rentals</h1>
+  <p class="rt-sub">Pick your dates — everything below is free for that whole window.</p>
 
-  <h1>Rentals</h1>
-  <p class="sub">Pick your window — everything below is genuinely available for those times.</p>
-
-  <form class="picker" method="GET" action="{{ route('tenant.rentals.browse') }}">
+  <form class="rt-card rb-picker" method="GET" action="{{ route('tenant.rentals.browse') }}">
     <div>
-      <label>Pickup</label>
-      <input type="datetime-local" name="starts" value="{{ $startLocal->format('Y-m-d\TH:i') }}" required>
+      <label class="rt-label" for="rbStart">Pickup</label>
+      <input class="rt-input" id="rbStart" type="datetime-local" name="starts" value="{{ $startLocal->format('Y-m-d\TH:i') }}" required>
     </div>
     <div>
-      <label>Return</label>
-      <input type="datetime-local" name="due" value="{{ $dueLocal->format('Y-m-d\TH:i') }}" required>
+      <label class="rt-label" for="rbDue">Return</label>
+      <input class="rt-input" id="rbDue" type="datetime-local" name="due" value="{{ $dueLocal->format('Y-m-d\TH:i') }}" required>
       @if(!empty($activeCategory))<input type="hidden" name="category" value="{{ $activeCategory->id }}">@endif
     </div>
-    <button type="submit">Check availability</button>
+    <button type="submit" class="rt-btn">Check availability</button>
   </form>
-  {{-- active category chip --}}
-  @if(!empty($activeCategory))
-    <div style="margin:14px 0 0;font-size:13px">
-      Showing <b>{{ $activeCategory->name }}</b> ·
-      <a href="{{ route('tenant.rentals.browse', ['starts' => $startLocal->format('Y-m-d\TH:i'), 'due' => $dueLocal->format('Y-m-d\TH:i')]) }}" style="opacity:.6">show everything</a>
-    </div>
-  @endif
 
   @php
     // a message sent back from the reserve page (sold out, outside hours, paused) used to be dropped here
@@ -88,38 +66,50 @@
     $rhHours = \App\Support\Launch\RentalRules::hours($currentTenant ?? tenant());
   @endphp
   @if(array_filter($rhHours['days'], fn ($d) => $d['open']))
-    <p class="sub" style="margin:10px 0 0;font-size:13px">Pickup and return: {{ \App\Support\Launch\RentalRules::summary($rhHours) }}</p>
+    <p class="rb-hours">Pickup and return: {{ \App\Support\Launch\RentalRules::summary($rhHours) }}</p>
+  @else
+    <div class="rb-hours"></div>
   @endif
-  @if($error)<div class="err">{{ $error }}</div>@endif
+  @if($error)<div class="rt-err" style="display:block;margin:0 0 22px">{{ $error }}</div>@endif
+
+  {{-- active category chip --}}
+  @if(!empty($activeCategory))
+    <p class="rb-filter">Showing <b>{{ $activeCategory->name }}</b> · <a href="{{ route('tenant.rentals.browse', ['starts' => $startLocal->format('Y-m-d\TH:i'), 'due' => $dueLocal->format('Y-m-d\TH:i')]) }}">show everything</a></p>
+  @endif
 
   @if(empty($groups))
-    <div class="empty">Nothing free for that window — try different dates, or <a href="/contact" style="text-decoration:underline">get in touch</a> and we'll sort you out.</div>
+    <div class="rb-empty">Nothing free for that window — try different dates, or <a href="/contact">get in touch</a> and we'll sort you out.</div>
   @else
     @foreach($groups as $catName => $models)
-      <div class="cat">
+      <section class="rb-cat">
         <h2>{{ $catName }}</h2>
-        <div class="grid">
+        <div class="rb-grid">
           @foreach($models as $entry)
-            @php $m = $entry['model']; @endphp
-            <div class="card">
-              @if($m->image_url)<div style="aspect-ratio:16/10;border-radius:10px;background:url('{{ $m->image_url }}') center/cover no-repeat;margin-bottom:12px"></div>@endif
-              <div class="name">{{ $m->name }}</div>
-              @if($m->subtitle)<div class="subt">{{ $m->subtitle }}</div>@endif
-              <div class="chips">
-                @if($m->daily_rate_cents)<span class="chip"><b>{{ format_money($m->daily_rate_cents) }}</b>{{ $m->additional_day_rate_cents ? ' first day' : '/day' }}</span>@endif
-                @if($m->daily_rate_cents && $m->additional_day_rate_cents)<span class="chip"><b>{{ format_money($m->additional_day_rate_cents) }}</b> each extra day</span>@endif
-                @if($m->hourly_rate_cents)<span class="chip"><b>{{ format_money($m->hourly_rate_cents) }}</b>/hr</span>@endif
-                @if($m->weekend_rate_cents)<span class="chip"><b>{{ format_money($m->weekend_rate_cents) }}</b>/weekend</span>@endif
+            @php $m = $entry['model']; $rbUrl = route('tenant.rentals.reserve', ['model' => $m->id, 'starts' => $startLocal->format('Y-m-d\TH:i'), 'due' => $dueLocal->format('Y-m-d\TH:i')]); @endphp
+            <article class="rb-card">
+              @if($m->image_url)
+                <a href="{{ $rbUrl }}" class="rb-photo" style="background-image:url('{{ e($m->image_url) }}')" aria-label="Reserve {{ $m->name }}"></a>
+              @else
+                <a href="{{ $rbUrl }}" class="rb-photo none">{{ $tname }}</a>
+              @endif
+              <div class="rb-body">
+                <div class="rb-name">{{ $m->name }}</div>
+                @if($m->subtitle)<div class="rb-subt">{{ $m->subtitle }}</div>@endif
+                <div class="rb-chips">
+                  @if($m->daily_rate_cents)<span class="rb-chip"><b>{{ format_money($m->daily_rate_cents) }}</b>{{ $m->additional_day_rate_cents ? ' first day' : ' / day' }}</span>@endif
+                  @if($m->daily_rate_cents && $m->additional_day_rate_cents)<span class="rb-chip"><b>{{ format_money($m->additional_day_rate_cents) }}</b> each extra day</span>@endif
+                  @if($m->hourly_rate_cents)<span class="rb-chip"><b>{{ format_money($m->hourly_rate_cents) }}</b> / hr</span>@endif
+                  @if($m->weekend_rate_cents)<span class="rb-chip"><b>{{ format_money($m->weekend_rate_cents) }}</b> / weekend</span>@endif
+                </div>
+                <div class="rb-meta">{{ $entry['count'] }} available{{ count($entry['sizes']) ? ' · sizes ' . implode(', ', $entry['sizes']) : '' }}</div>
+                <a class="rt-btn block" href="{{ $rbUrl }}">Reserve</a>
               </div>
-              <div class="meta">{{ $entry['count'] }} available{{ count($entry['sizes']) ? ' · sizes ' . implode(', ', $entry['sizes']) : '' }}</div>
-              {{-- real online reservation. --}}
-              <a class="cta" href="{{ route('tenant.rentals.reserve', ['model' => $m->id, 'starts' => $startLocal->format('Y-m-d\TH:i'), 'due' => $dueLocal->format('Y-m-d\TH:i')]) }}">Reserve</a>
-            </div>
+            </article>
           @endforeach
         </div>
-      </div>
+      </section>
     @endforeach
-    <p style="font-size:12px;opacity:.4;text-align:center;margin-top:10px">{{ $unitCount }} unit{{ $unitCount === 1 ? '' : 's' }} free for this window.</p>
+    <p class="rt-note" style="text-align:center">{{ $unitCount }} unit{{ $unitCount === 1 ? '' : 's' }} free for this window.</p>
   @endif
 </div>
 @include('public._chrome-inline', ['chromePos' => 'bottom'])

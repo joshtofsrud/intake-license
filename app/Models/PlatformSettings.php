@@ -104,7 +104,8 @@ class PlatformSettings extends Model
     {
         $stored = trim((string) (self::current()->support_email ?? ''));
 
-        return $stored !== '' ? $stored : self::fromAddress();
+        // MARKER-SUPPORT-EMAIL-NULL: no address configured must not crash the error page that calls this
+        return $stored !== '' ? $stored : (string) self::fromAddress();
     }
 
     public static function fromAddress(): ?string

@@ -3,7 +3,8 @@
      public design language. Card flow: submit → rental+PI created → Payment
      Element → confirm endpoint → confirmation. --}}
 @php
-  $accent = $currentTenant->accent_color ?? '#BEF264';
+  // MARKER-RENTAL-PAGES-THEME: when the renter chooses, "Pay now by card" starts selected, so the wording starts there too
+  $rrOnline = ($payChoice ?? false) ? true : (bool) $payOnline;
   $tname  = $currentTenant->name ?? 'Rentals';
 @endphp
 <html lang="en">
@@ -14,90 +15,71 @@
 @include('partials.mobile-input-zoom')
 <title>Reserve {{ $model->name }} — {{ $tname }}</title>
 @include('public._theme-fonts')
+@include('public._rental-theme')
 <style>
-  /* MARKER-SHOP-THEME: the rentals pages use the site's own look, like every other public page */
-  :root {
-{!! \App\Support\DesignTokens::cssVars(\App\Support\DesignTokens::resolve($currentTenant ?? tenant())) !!}
-    --p-muted: color-mix(in srgb, var(--p-text) 62%, transparent);
-  }
-  :root { --acc: var(--p-accent); }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: var(--p-font-body); color: var(--p-text); background: var(--p-bg); line-height: 1.6; -webkit-font-smoothing: antialiased; }
-  h1, h2, h3 { font-family: var(--p-font-heading); font-weight: var(--p-heading-weight, 650); text-transform: var(--p-heading-transform, none); }
-  a { color: inherit; text-decoration: none; }
-  .wrap { max-width: 560px; margin: 0 auto; padding: 28px 20px 80px; }
-  .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 26px; }
-  .top a.home { font-weight: 700; font-size: 16px; }
-  h1 { font-size: 22px; font-weight: 650; letter-spacing: -.02em; }
-  .card { background: color-mix(in srgb, var(--p-text) 3%, var(--p-bg)); border: 1.5px solid color-mix(in srgb, var(--p-text) 9%, transparent); border-radius: 14px; padding: 20px 22px; margin-top: 16px; }
-  .kv { display: flex; justify-content: space-between; font-size: 14px; padding: 4px 0; }
-  .kv span:first-child { opacity: .55; }
-  .kv.total { font-weight: 700; border-top: 1.5px solid color-mix(in srgb, var(--p-text) 8%, transparent); margin-top: 6px; padding-top: 10px; }
-  label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; opacity: .5; display: block; margin: 12px 0 5px; font-weight: 600; }
-  input { font: inherit; font-size: 14px; padding: 10px 12px; border: 1.5px solid color-mix(in srgb, var(--p-text) 12%, transparent); border-radius: 9px; width: 100%; background: color-mix(in srgb, var(--p-text) 3%, var(--p-bg)); }
-  .btn { font: inherit; font-size: 15px; font-weight: 650; padding: 13px 0; border: none; border-radius: 10px; background: var(--acc); color: var(--p-text); cursor: pointer; width: 100%; margin-top: 18px; }
-  .btn:disabled { opacity: .5; cursor: default; }
-  .err { background: #fef2f2; border: 1px solid #ef4444; color: #7f1d1d; border-radius: 9px; padding: 10px 14px; font-size: 13px; margin-top: 14px; display: none; }
-  .hint { font-size: 12px; opacity: .45; margin-top: 10px; text-align: center; }
-  #pay-wrap { display: none; margin-top: 16px; }
+  .rr-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+  .rr-pay { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 2px; }
+  .rr-pay label { flex: 1; min-width: 160px; display: flex; gap: 9px; align-items: center; font-size: 14.5px; padding: 11px 13px; border: 1px solid var(--rt-line); border-radius: calc(var(--rt-r) * .7); background: var(--rt-field); cursor: pointer; }
+  .rr-pay label:has(input:checked) { border-color: var(--p-accent); box-shadow: 0 0 0 1px var(--p-accent); }
+  .rr-pay input { accent-color: var(--p-accent); }
+  #pay-wrap { display: none; }
+  #details-card { transition: opacity .2s; }
+  @media (max-width: 520px) { .rr-grid2 { grid-template-columns: 1fr; } }
 </style>
   @include('public._ga4')
   @include('public._site-scripts', ['ssPart' => 'head']) {{-- MARKER-SITE-SCRIPTS --}}
 </head>
 <body>
 @include('public._launch-ribbon', ['lrModule' => 'rent'])
-<div class="wrap">
-  <div class="top">
-    <a class="home" href="/">{{ $tname }}</a>
-    <a href="{{ route('tenant.rentals.browse', ['starts' => $starts, 'due' => $due]) }}" style="font-size:13.5px;opacity:.6">← Back to rentals</a>
+@include('public._chrome-inline', ['chromePos' => 'top'])
+<div class="rt-wrap narrow">
+  <a class="rt-back" href="{{ route('tenant.rentals.browse', ['starts' => $starts, 'due' => $due]) }}">← Back to rentals</a>
+  <h1 class="rt-h1">Reserve {{ $model->name }}</h1>
+
+  <div class="rt-card" style="margin-top:20px">
+    <div class="rt-kv"><span>Category</span><span>{{ $model->category?->name }}</span></div>
+    <div class="rt-kv"><span>Pickup</span><span>{{ $startLocal->format('D M j, g:i A') }}</span></div>
+    <div class="rt-kv"><span>Return</span><span>{{ $dueLocal->format('D M j, g:i A') }}</span></div>
+    <div class="rt-kv"><span>{{ \App\Support\Rentals\RentalPricing::lineLabel($rateMode ?? 'daily', (int) $rateCents, (int) $days, (int) $subtotal, fn ($c) => format_money($c)) }}</span><span>{{ format_money($subtotal) }}</span></div>
+    @if($tax > 0)<div class="rt-kv"><span>Tax</span><span>{{ format_money($tax) }}</span></div>@endif
+    <div class="rt-kv total"><span id="due-label" style="color:var(--p-text)">{{ $rrOnline ? 'Pay now' : 'Due at pickup' }}</span><span>{{ format_money($total) }}</span></div>
   </div>
 
-  <h1>Reserve — {{ $model->name }}</h1>
-
-  <div class="card">
-    <div class="kv"><span>Category</span><span>{{ $model->category?->name }}</span></div>
-    <div class="kv"><span>Pickup</span><span>{{ $startLocal->format('D M j, g:i A') }}</span></div>
-    <div class="kv"><span>Return</span><span>{{ $dueLocal->format('D M j, g:i A') }}</span></div>
-    <div class="kv"><span>{{ \App\Support\Rentals\RentalPricing::lineLabel($rateMode ?? 'daily', (int) $rateCents, (int) $days, (int) $subtotal, fn ($c) => format_money($c)) }}</span><span>{{ format_money($subtotal) }}</span></div>
-    @if($tax > 0)<div class="kv"><span>Tax</span><span>{{ format_money($tax) }}</span></div>@endif
-    <div class="kv total"><span style="opacity:1" id="due-label">{{ $payOnline ? 'Pay now' : 'Due at pickup' }}</span><span>{{ format_money($total) }}</span></div>
-  </div>
-
-  <div class="card" id="details-card">
-    <div style="font-size:13px;font-weight:650">Your details</div>
+  <div class="rt-card" id="details-card" style="margin-top:16px">
+    <h2 style="font-size:18px">Your details</h2>
     <form id="reserve-form">
       <input type="hidden" name="model_id" value="{{ $model->id }}">
       <input type="hidden" name="starts" value="{{ $starts }}">
       <input type="hidden" name="due" value="{{ $due }}">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 10px">
-        <div><label>First name</label><input name="first_name" required maxlength="120"></div>
-        <div><label>Last name</label><input name="last_name" maxlength="120"></div>
+      <div class="rr-grid2">
+        <div><label class="rt-label" for="rrFirst">First name</label><input class="rt-input" id="rrFirst" name="first_name" required maxlength="120" autocomplete="given-name"></div>
+        <div><label class="rt-label" for="rrLast">Last name</label><input class="rt-input" id="rrLast" name="last_name" maxlength="120" autocomplete="family-name"></div>
       </div>
-      <label>Email</label><input type="email" name="email" required maxlength="190">
-      <label>Phone</label><input type="tel" name="phone" maxlength="40">
+      <label class="rt-label" for="rrEmail">Email</label><input class="rt-input" id="rrEmail" type="email" name="email" required maxlength="190" autocomplete="email">
+      <label class="rt-label" for="rrPhone">Phone</label><input class="rt-input" id="rrPhone" type="tel" name="phone" maxlength="40" autocomplete="tel">
       @if($payChoice ?? false)
         {{-- MARKER-RENTAL-PAY-MODE: the shop lets the renter choose --}}
-        <label>How would you like to pay?</label>
-        <div style="display:flex;gap:16px;flex-wrap:wrap;margin:4px 0 6px;font-size:14px">
-          <label style="display:flex;gap:7px;align-items:center;margin:0;font-weight:500"><input type="radio" name="pay" value="online" checked style="width:auto;margin:0"> Pay now by card</label>
-          <label style="display:flex;gap:7px;align-items:center;margin:0;font-weight:500"><input type="radio" name="pay" value="pickup" style="width:auto;margin:0"> Pay at pickup</label>
+        <span class="rt-label">How would you like to pay?</span>
+        <div class="rr-pay">
+          <label><input type="radio" name="pay" value="online" checked> Pay now by card</label>
+          <label><input type="radio" name="pay" value="pickup"> Pay at pickup</label>
         </div>
       @endif
-      <button type="submit" class="btn" id="reserve-btn">{{ $payOnline ? 'Continue to payment' : 'Reserve — pay at pickup' }}</button>
+      <button type="submit" class="rt-btn block" style="margin-top:20px" id="reserve-btn">{{ $rrOnline ? 'Continue to payment' : 'Reserve — pay at pickup' }}</button>
     </form>
-    <div class="err" id="reserve-err"></div>
+    <div class="rt-err" id="reserve-err"></div>
   </div>
 
   @if($payOnline || ($payChoice ?? false))
-  <div class="card" id="pay-wrap">
-    <div style="font-size:13px;font-weight:650;margin-bottom:12px">Payment — {{ format_money($total) }}</div>
+  <div class="rt-card" id="pay-wrap" style="margin-top:16px">
+    <h2 style="font-size:18px;margin-bottom:14px">Payment — {{ format_money($total) }}</h2>
     <div id="payment-element"></div>
-    <button type="button" class="btn" id="pay-btn">Pay {{ format_money($total) }} &amp; reserve</button>
-    <div class="err" id="pay-err"></div>
+    <button type="button" class="rt-btn block" style="margin-top:18px" id="pay-btn">Pay {{ format_money($total) }} &amp; reserve</button>
+    <div class="rt-err" id="pay-err"></div>
   </div>
   @endif
 
-  <p class="hint" id="pay-hint">Your spot is held the moment you reserve. Bring ID at pickup{{ $payOnline ? '' : ' — payment is taken at the counter' }}.</p>
+  <p class="rt-note" style="text-align:center;margin-top:14px" id="pay-hint">Your spot is held the moment you reserve. Bring ID at pickup{{ $rrOnline ? '' : ' — payment is taken at the counter' }}.</p>
 </div>
 
 <script src="https://js.stripe.com/v3/"></script>
@@ -145,7 +127,7 @@
         // Card flow: mount the Payment Element.
         piId = res.json.payment_intent;
         stripe = Stripe(res.json.publishable_key);
-        elements = stripe.elements({ clientSecret: res.json.client_secret });
+        elements = stripe.elements({ clientSecret: res.json.client_secret, appearance: {!! json_encode(\App\Support\RentalTheme::stripe($currentTenant ?? $tenant ?? tenant()), JSON_HEX_TAG | JSON_HEX_AMP) !!} });
         elements.create('payment').mount('#payment-element');
         document.getElementById('pay-wrap').style.display = 'block';
         document.getElementById('details-card').style.opacity = '.45';
@@ -184,6 +166,7 @@
   }
 })();
 </script>
+@include('public._chrome-inline', ['chromePos' => 'bottom'])
 @include('public._site-scripts', ['ssPart' => 'body']) {{-- MARKER-SITE-SCRIPTS --}}
 </body>
 </html>
