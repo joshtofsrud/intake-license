@@ -181,7 +181,27 @@
   <div class="pb2-group">
     <div class="pb2-group-title">Contact info</div>
 
-    <div class="pb2-field-hint" style="text-align:left;margin-bottom:10px;display:block">
+    {{-- MARKER-SHOP-LOCATIONS: phone, address and hours from the shop's locations, or typed here --}}
+    @php
+      $ftrSrc = in_array($get('contact_source'), ['loc', 'typed'], true) ? $get('contact_source')
+          : ((trim((string) $get('contact_phone')) !== '' || trim((string) $get('contact_address')) !== '' || trim((string) $get('contact_hours')) !== '') ? 'typed' : 'loc');
+    @endphp
+    @unless($isMarketing ?? false)
+    <div class="pb2-field">
+      <div class="pb2-seg" data-field-seg="contact_source">
+        @foreach(['loc' => 'Location info', 'typed' => 'Typed by hand'] as $val => $name)
+          <button type="button" class="pb2-seg-btn {{ $ftrSrc === $val ? 'active' : '' }}" data-seg-value="{{ $val }}">{{ $name }}</button>
+        @endforeach
+      </div>
+      <input type="hidden" data-field="contact_source" value="{{ $ftrSrc }}">
+    </div>
+    <div class="mg-legend" data-seg-pane="contact_source:loc" style="margin-bottom:10px">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>
+      <span>Address and phone come from <a href="{{ route('tenant.locations.index') }}" target="_blank">Settings › Locations</a>, hours from <a href="{{ route('tenant.capacity.index') }}" target="_blank">Capacity</a>. Every active location is listed.</span>
+    </div>
+    @endunless
+
+    <div class="pb2-field-hint" style="text-align:left;margin-bottom:10px;display:block" data-seg-pane="contact_source:typed">
       Enter what you want shown, then toggle it on. Leave email blank to use your account email.
     </div>
 
@@ -189,7 +209,7 @@
       <input type="checkbox" data-field="show_phone" value="1" {{ $get('show_phone', false) ? 'checked' : '' }}>
       <span>Show phone number</span>
     </label>
-    <div class="pb2-field" style="margin:6px 0 12px">
+    <div class="pb2-field" style="margin:6px 0 12px" data-seg-pane="contact_source:typed">
       <input type="text" class="pb2-input pb2-input-sm" data-field="contact_phone" value="{{ $get('contact_phone') }}" placeholder="(555) 123-4567">
     </div>
 
@@ -205,7 +225,7 @@
       <input type="checkbox" data-field="show_address" value="1" {{ $get('show_address', false) ? 'checked' : '' }}>
       <span>Show address</span>
     </label>
-    <div class="pb2-field" style="margin:6px 0 12px">
+    <div class="pb2-field" style="margin:6px 0 12px" data-seg-pane="contact_source:typed">
       <input type="text" class="pb2-input pb2-input-sm" data-field="contact_address" value="{{ $get('contact_address') }}" placeholder="123 Main St, City, ST">
     </div>
 
@@ -213,7 +233,7 @@
       <input type="checkbox" data-field="show_hours" value="1" {{ $get('show_hours', false) ? 'checked' : '' }}>
       <span>Show hours</span>
     </label>
-    <div class="pb2-field" style="margin:6px 0 0">
+    <div class="pb2-field" style="margin:6px 0 0" data-seg-pane="contact_source:typed">
       <input type="text" class="pb2-input pb2-input-sm" data-field="contact_hours" value="{{ $get('contact_hours') }}" placeholder="Mon-Fri 9-5">
     </div>
   </div>

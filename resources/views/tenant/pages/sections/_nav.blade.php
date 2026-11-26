@@ -80,6 +80,7 @@
          data-rows="{{ json_encode($snRows) }}"
          data-groups="{{ json_encode(\App\Support\ShopNav::groups($snT)) }}"
          data-icons="{{ json_encode(\App\Support\ShopNav::icons()) }}"
+         data-locs="{{ json_encode(\App\Support\ShopHours::options($snT)) }}"
          data-pages="{{ json_encode($snPages) }}"
          data-apps="{{ json_encode($snApps) }}"></div>
     <div class="pb2-navlist-status" id="pb2-nav-status" style="margin-top:8px"></div>
@@ -95,6 +96,69 @@
 
     <div class="pb2-field-hint" style="margin-top:6px">Lets customers sign in to see their bookings, orders, rentals and messages.</div>
   </div>
+
+  {{-- MARKER-SHOP-LOCATIONS: the strip above the bar --}}
+  @unless($isMarketing ?? false)
+  <div class="pb2-group">
+    <div class="pb2-group-title">Top strip</div>
+
+    <label class="pb2-checkbox-row">
+      <input type="checkbox" data-field="strip_on" value="1" {{ $get('strip_on', false) ? 'checked' : '' }}>
+      <span>Show a strip above the bar</span>
+    </label>
+
+    <div class="pb2-field" style="margin-top:10px">
+      <label class="pb2-field-label">Left side</label>
+      <div class="mg-chips">
+        @foreach(['strip_today' => ["Today's hours", true], 'strip_phone' => ['Phone', true], 'strip_addr' => ['Address', false]] as $stripF => $stripD)
+          <label class="mg-chip"><input type="checkbox" data-field="{{ $stripF }}" value="1" {{ $get($stripF, $stripD[1]) ? 'checked' : '' }}><span>{{ $stripD[0] }}</span></label>
+        @endforeach
+      </div>
+    </div>
+
+    <div class="pb2-field">
+      <label class="pb2-field-label">Message</label>
+      <input type="text" class="pb2-input pb2-input-sm" data-field="strip_msg" value="{{ $get('strip_msg') }}" maxlength="90" placeholder="Free shipping over $150">
+      <input type="text" class="pb2-input pb2-input-sm" data-field="strip_url" value="{{ $get('strip_url') }}" maxlength="255" placeholder="Link (optional): /page or https://…" style="margin-top:6px">
+    </div>
+
+    <div class="pb2-field">
+      <label class="pb2-field-label">Layout</label>
+      <div class="pb2-seg" data-field-seg="strip_layout">
+        @foreach(['split' => 'Info left · message right', 'center' => 'Centered'] as $val => $name)
+          <button type="button" class="pb2-seg-btn {{ $get('strip_layout', 'split') === $val ? 'active' : '' }}" data-seg-value="{{ $val }}">{{ $name }}</button>
+        @endforeach
+      </div>
+      <input type="hidden" data-field="strip_layout" value="{{ $get('strip_layout', 'split') }}">
+    </div>
+
+    <label class="pb2-checkbox-row">
+      <input type="checkbox" data-field="strip_msg_phone" value="1" {{ $get('strip_msg_phone', false) ? 'checked' : '' }}>
+      <span>Message on phones</span>
+    </label>
+    <div class="pb2-field-hint" style="text-align:left;display:block;margin-top:4px">Phones always keep today's hours and the call button.</div>
+
+    <div class="pb2-field" style="margin-top:12px">
+      <label class="pb2-field-label">Strip color <span class="pb2-field-hint">blank = automatic</span></label>
+      <div class="pb2-color-row">
+        <input type="color" data-field="strip_bg" value="{{ $get('strip_bg') ?: '#0a0a0a' }}" class="pb2-color-swatch">
+        <input type="text" class="pb2-input pb2-input-sm pb2-input-mono" data-field="strip_bg_text" value="{{ $get('strip_bg') }}" placeholder="automatic">
+      </div>
+    </div>
+    <div class="pb2-field">
+      <label class="pb2-field-label">Strip text <span class="pb2-field-hint">blank = automatic</span></label>
+      <div class="pb2-color-row">
+        <input type="color" data-field="strip_text" value="{{ $get('strip_text') ?: '#ffffff' }}" class="pb2-color-swatch">
+        <input type="text" class="pb2-input pb2-input-sm pb2-input-mono" data-field="strip_text_text" value="{{ $get('strip_text') }}" placeholder="automatic">
+      </div>
+    </div>
+
+    <div class="mg-legend">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>
+      <span>Address and phone come from <a href="{{ route('tenant.locations.index') }}" target="_blank">Settings › Locations</a>, hours from <a href="{{ route('tenant.capacity.index') }}" target="_blank">Capacity</a>. Change them there — the menu, strip and footer follow.</span>
+    </div>
+  </div>
+  @endunless
 
   {{-- the header button is now an item in the Menu above
        (style: Button), not a separate setting. --}}

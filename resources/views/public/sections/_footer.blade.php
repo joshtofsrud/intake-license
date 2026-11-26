@@ -66,7 +66,29 @@
   $showHours   = (bool)($c['show_hours']   ?? false) && $cHours   !== '';
   $contactEmail = $cEmail;
 
-  $hasContactBlock = $showPhone || $showEmail || $showAddress || $showHours;
+  // MARKER-SHOP-LOCATIONS: phone, address and hours can come from the shop's locations
+  // (Settings > Locations, Capacity) rather than being typed here. A footer that
+  // already has typed details keeps them until the shop switches.
+  $cSource = in_array($c['contact_source'] ?? '', ['loc', 'typed'], true) ? $c['contact_source']
+      : (($cPhone !== '' || $cAddress !== '' || $cHours !== '') ? 'typed' : 'loc');
+  $ftrLocs = [];
+  if ($cSource === 'loc') {
+      $ftrWant = ['phone' => (bool) ($c['show_phone'] ?? false), 'addr' => (bool) ($c['show_address'] ?? false), 'hours' => (bool) ($c['show_hours'] ?? false)];
+      if (in_array(true, $ftrWant, true)) {
+          foreach (\App\Support\ShopHours::cards($tenant ?? tenant()) as $ftrL) {
+              $ftrRow = [
+                  'name'  => $ftrL['loc_name'],
+                  'phone' => $ftrWant['phone'] ? $ftrL['phone'] : '', 'tel' => $ftrL['tel'],
+                  'lines' => $ftrWant['addr'] ? $ftrL['lines'] : [], 'dir' => $ftrL['dir_url'],
+                  'hours' => $ftrWant['hours'] ? $ftrL['summary'] : '',
+              ];
+              if ($ftrRow['phone'] !== '' || $ftrRow['lines'] || $ftrRow['hours'] !== '') $ftrLocs[] = $ftrRow;
+          }
+      }
+      $showPhone = $showAddress = $showHours = false;
+  }
+
+  $hasContactBlock = $showPhone || $showEmail || $showAddress || $showHours || $ftrLocs;
 
   // Copyright with {year} + {name} templating
   $copyTpl = $c['copyright_text'] ?? '';
@@ -246,6 +268,8 @@
 }
 .{{ $instId }} .p-ftr-contact-line a { color: {{ $linkColor }}; text-decoration: none; }
 .{{ $instId }} .p-ftr-contact-line a:hover { color: {{ $textColor }}; }
+.{{ $instId }} .p-ftr-loc + .p-ftr-loc { margin-top: 16px; }
+.{{ $instId }} .p-ftr-loc-name { margin-bottom: 4px; }
 .{{ $instId }} .p-ftr-contact-line strong {
   display: block;
   font-size: 11px;
@@ -479,6 +503,32 @@
         @if($hasContactBlock)
           <div class="p-ftr-col">
             <h4 class="p-ftr-col-heading">Contact</h4>
+            {{-- MARKER-SHOP-LOCATIONS: details from the shop's locations --}}
+            @foreach($ftrLocs as $ftrL)
+              <div class="p-ftr-loc">
+                @if(count($ftrLocs) > 1)
+                  <p class="p-ftr-contact-line p-ftr-loc-name"><strong>{{ $ftrL['name'] }}</strong></p>
+                @endif
+                @if($ftrL['lines'])
+                  <p class="p-ftr-contact-line">
+                    @if(count($ftrLocs) === 1)<strong>Address</strong>@endif
+                    <a href="{{ $ftrL['dir'] }}" target="_blank" rel="noopener">{{ implode(', ', $ftrL['lines']) }}</a>
+                  </p>
+                @endif
+                @if($ftrL['phone'] !== '')
+                  <p class="p-ftr-contact-line">
+                    @if(count($ftrLocs) === 1)<strong>Phone</strong>@endif
+                    <a href="{{ $ftrL['tel'] }}">{{ $ftrL['phone'] }}</a>
+                  </p>
+                @endif
+                @if($ftrL['hours'] !== '')
+                  <p class="p-ftr-contact-line">
+                    @if(count($ftrLocs) === 1)<strong>Hours</strong>@endif
+                    {{ $ftrL['hours'] }}
+                  </p>
+                @endif
+              </div>
+            @endforeach
             @if($showPhone)
               <p class="p-ftr-contact-line">
                 <strong>Phone</strong>

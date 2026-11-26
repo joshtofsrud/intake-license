@@ -42,6 +42,17 @@ class PageBuilderController extends Controller
             'logo_size'       => 'medium',   // small | medium | large | xl
             // Customer account
             'show_account'    => true,
+            // MARKER-SHOP-LOCATIONS: the strip above the bar
+            'strip_on'        => false,
+            'strip_today'     => true,
+            'strip_phone'     => true,
+            'strip_addr'      => false,
+            'strip_msg'       => '',
+            'strip_url'       => '',
+            'strip_layout'    => 'split',    // split | center
+            'strip_msg_phone' => false,
+            'strip_bg'        => '',
+            'strip_text'      => '',
             // CTA
             'show_cta'        => true,
             'cta_label'       => 'Book Now',
@@ -366,6 +377,7 @@ class PageBuilderController extends Controller
             'show_email'      => true,
             'show_address'    => false,
             'show_hours'      => false,
+            'contact_source'  => 'loc',     // MARKER-SHOP-LOCATIONS: loc (Settings > Locations) | typed
             // inline contact form
             'show_form'       => false,
             'form_heading'    => 'Get in touch',
@@ -922,6 +934,12 @@ class PageBuilderController extends Controller
             $snKeys = array_column($snGroups, 'key');
             $items = $items->map(fn ($it) => ($it['group_key'] && ! in_array($it['group_key'], $snKeys, true))
                 ? array_merge($it, ['group_key' => null, 'description' => null, 'icon' => null]) : $it);
+            // MARKER-SHOP-LOCATIONS: the Locations row only exists with its group; ordinary links leave that group
+            $snLocKeys = array_column(array_filter($snGroups, fn ($g) => ($g['kind'] ?? '') === 'locations'), 'key');
+            $items = $items->filter(fn ($it) => $it['url'] !== \App\Support\ShopNav::LOC_URL || in_array($it['group_key'], $snLocKeys, true))
+                ->map(fn ($it) => ($it['url'] !== \App\Support\ShopNav::LOC_URL && $it['group_key'] && in_array($it['group_key'], $snLocKeys, true))
+                    ? array_merge($it, ['group_key' => null, 'description' => null, 'icon' => null]) : $it)
+                ->values();
 
             if ($items->isEmpty()) {
                 return response()->json([

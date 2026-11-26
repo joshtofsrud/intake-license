@@ -1557,6 +1557,22 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
 .pb2-insp-body .mg-feat-r{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px}
 .pb2-insp-body .mg-feat .sn-in,.pb2-insp-body .sn-r3 .sn-in{width:100%;box-sizing:border-box}
 .pb2-insp-body .mg-add{font-size:12px}
+/* MARKER-SHOP-LOCATIONS: Locations group card, chips and the where-it-comes-from note */
+.pb2-insp-body .mg-adds{display:flex;gap:6px;flex-wrap:wrap}
+.pb2-insp-body .mg-kind,.pb2-insp-body .sn-chip.is-loc{font-size:10.5px;padding:1px 7px;border-radius:999px;background:color-mix(in srgb,var(--pb2-accent) 14%,transparent);color:var(--pb2-accent);white-space:nowrap}
+body.ia-theme-b .pb2-insp-body .mg-kind,body.ia-theme-b .pb2-insp-body .sn-chip.is-loc{color:var(--pb2-text)}
+.pb2-insp-body .mg-sub{font-size:10.5px;color:var(--pb2-text-faint);margin:9px 0 4px;text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+.pb2-insp-body .mg-chips{display:flex;flex-wrap:wrap;gap:4px}
+.pb2-insp-body .mg-chip{display:inline-flex;cursor:pointer;user-select:none}
+.pb2-insp-body .mg-chip input{position:absolute;opacity:0;pointer-events:none;width:0;height:0}
+.pb2-insp-body .mg-chip span,.pb2-insp-body button.mg-chip{display:inline-flex;align-items:center;gap:5px;font:inherit;font-size:11.5px;line-height:1.5;padding:3px 9px;border-radius:999px;border:.5px solid var(--pb2-border-2);color:var(--pb2-text-dim);background:var(--pb2-bg);cursor:pointer}
+.pb2-insp-body .mg-chip input:checked + span,.pb2-insp-body button.mg-chip.on{border-color:var(--pb2-accent);color:var(--pb2-text);background:color-mix(in srgb,var(--pb2-accent) 9%,transparent)}
+.pb2-insp-body .mg-chip input:checked + span::before,.pb2-insp-body button.mg-chip.on::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--pb2-accent)}
+.pb2-insp-body .mg-chip input:focus-visible + span{outline:2px solid var(--pb2-accent);outline-offset:1px}
+.pb2-insp-body .mg-legend{display:flex;gap:8px;align-items:flex-start;font-size:11.5px;line-height:1.45;color:var(--pb2-text-dim);border:.5px dashed var(--pb2-border-2);border-radius:8px;padding:8px 10px;margin-top:10px}
+.pb2-insp-body .mg-legend svg{flex:none;width:14px;height:14px;margin-top:1px;stroke:var(--pb2-accent);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.pb2-insp-body .mg-legend a{color:var(--pb2-text);text-decoration:underline}
+.pb2-insp-body .sn-row.is-loc .sn-tgt{font-size:11.5px;color:var(--pb2-text-dim)}
 .pb2-insp-body .sn-r3{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;margin-top:6px;padding-left:18px}
 .pb2-insp-body .sn-r3 .sn-sel,.pb2-insp-body .sn-r3 .pb2-field-hint{grid-column:1/-1}
 .pb2-insp-body .sn-r3.has-group .sn-sel{grid-column:1}
@@ -3538,8 +3554,11 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
           }
           // For bg_mode, show only the matching .pb2-bg-pane
           if (fieldName === 'bg_mode') updateBgModePanes(body, btn.dataset.segValue);
+          updateSegPanes(body, fieldName, btn.dataset.segValue);
         });
       });
+      // MARKER-SHOP-LOCATIONS: [data-seg-pane="field:value"] shows only for that choice
+      if (target) updateSegPanes(body, fieldName, target.value);
     });
 
     // Show the right bg-mode pane on initial load
@@ -5123,7 +5142,13 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
     if (!Array.isArray(groups)) groups = [];
     window.pb2NavGroups = groups;
     const svg = k => icons[k] ? `<svg viewBox="0 0 24 24" aria-hidden="true">${icons[k]}</svg>` : '';
-    const groupable = r => r.side === 'left' && r.style === 'link';
+    // MARKER-SHOP-LOCATIONS: one group can be the Locations dropdown; its menu row has no address of its own
+    const LOC_URL = '#locations', LOC_PARTS = [['status','Open now'],['hours','Week hours'],['map','Map'],['addr','Address'],['call','Call'],['dir','Directions']];
+    let locs = [];
+    try { locs = JSON.parse(host.dataset.locs || '[]'); } catch (e) { locs = []; }
+    const isLocG = g => g && g.kind === 'locations';
+    const locGroup = () => groups.find(isLocG);
+    const groupable = r => r.side === 'left' && r.style === 'link' && r.type !== 'locations';
     const inGroup = r => groupable(r) && r.group && groups.some(g => g.key === r.group);
     const countIn = k => rows.filter(r => groupable(r) && r.group === k).length;
     function iconPop(cur, attr) {
@@ -5131,11 +5156,11 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
         + `<button type="button" class="none" ${attr} data-ic="">No icon</button></div>`;
     }
     function groupRow(r, i) {
-      if (!groups.length || r.side !== 'left') return '';
+      if (!groups.some(x => !isLocG(x)) || r.side !== 'left') return '';
       if (r.style !== 'link') return '<div class="sn-r3"><span class="pb2-field-hint" style="text-align:left">Buttons stay in the bar — only Link items can join a group.</span></div>';
       const g = inGroup(r);
       return `<div class="sn-r3${g ? ' has-group' : ''}"><select class="sn-sel" data-sn-group="${i}"><option value="">Not in a group — shows in the bar</option>`
-        + groups.map(x => `<option value="${esc(x.key)}"${r.group === x.key ? ' selected' : ''}>In ${esc(x.title || 'group')}</option>`).join('') + '</select>'
+        + groups.filter(x => !isLocG(x)).map(x => `<option value="${esc(x.key)}"${r.group === x.key ? ' selected' : ''}>In ${esc(x.title || 'group')}</option>`).join('') + '</select>'
         + (g ? `<div class="mg-ic"><button type="button" class="mg-ic-btn" data-sn-icon="${i}" title="Icon">${r.icon ? svg(r.icon) : 'Icon'} ▾</button>${icPop === i ? iconPop(r.icon, `data-sn-icset="${i}"`) : ''}</div>`
           + `<input class="sn-in sn-desc" data-sn-k="desc" data-i="${i}" value="${esc(r.desc || '')}" maxlength="80" placeholder="One-line description (optional)">` : '')
         + '</div>';
@@ -5147,6 +5172,24 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
         + '<div class="mg-hint">Put links in a group to show them as one dropdown. A group sits in the bar where its first link is in the list below. Left-side Link items only.</div>'
         + groups.map((g, gi) => {
           const n = countIn(g.key), f = g.feature;
+          if (isLocG(g)) {
+            const parts = Array.isArray(g.parts) && g.parts.length ? g.parts : LOC_PARTS.map(x => x[0]);
+            const picked = Array.isArray(g.locs) ? g.locs.filter(id => locs.some(l => l.id === id)) : [];
+            return `<div class="mg-card"><div class="mg-r1"><input class="sn-in" data-g="${gi}" data-gk="title" value="${esc(g.title)}" maxlength="30" placeholder="Hours & location">`
+              + '<span class="mg-kind">Locations</span>'
+              + `<button type="button" class="sn-x" data-gdel="${gi}" title="Remove the Locations dropdown">×</button></div>`
+              + (locs.length > 1 ? '<div class="mg-sub">Show</div><div class="mg-chips">'
+                  + locs.map(l => `<button type="button" class="mg-chip${!picked.length || picked.indexOf(l.id) >= 0 ? ' on' : ''}" data-gloc="${gi}" data-id="${esc(l.id)}">${esc(l.name)}</button>`).join('') + '</div>' : '')
+              + '<div class="mg-sub">On each card</div><div class="mg-chips">'
+              + LOC_PARTS.map(x => `<button type="button" class="mg-chip${parts.indexOf(x[0]) >= 0 ? ' on' : ''}" data-gpart="${gi}" data-p="${x[0]}">${x[1]}</button>`).join('') + '</div>'
+              + `<label class="mg-chk"><input type="checkbox" data-gfeat="${gi}"${f ? ' checked' : ''}> Featured action card</label>`
+              + (f ? `<div class="mg-feat"><div class="mg-feat-r"><input class="sn-in" data-g="${gi}" data-gf="label" value="${esc(f.label)}" maxlength="40" placeholder="Label, e.g. Book a pickup">`
+                  + `<div class="mg-ic"><button type="button" class="mg-ic-btn" data-gicon="${gi}" title="Icon">${svg(f.icon)} ▾</button>${icPopG === gi ? iconPop(f.icon, `data-gicset="${gi}"`) : ''}</div></div>`
+                  + `<input class="sn-in" data-g="${gi}" data-gf="desc" value="${esc(f.desc || '')}" maxlength="80" placeholder="One line under it">`
+                  + `<input class="sn-in" data-g="${gi}" data-gf="url" value="${esc(f.url || '')}" maxlength="255" placeholder="/book, /contact or https://…"></div>` : '')
+              + (locs.length ? '' : '<div class="pb2-field-hint" style="text-align:left;padding:6px 0 0">No active location yet — add one in Settings › Locations and this fills itself.</div>')
+              + '</div>';
+          }
           return `<div class="mg-card"><div class="mg-r1"><input class="sn-in" data-g="${gi}" data-gk="title" value="${esc(g.title)}" maxlength="30" placeholder="Group name">`
             + `<span class="mg-n">${n}${n === 1 ? ' link' : ' links'}${n ? '' : ' · hidden'}</span>`
             + `<button type="button" class="sn-x" data-gdel="${gi}" title="Remove group (its links go back in the bar)">×</button></div>`
@@ -5158,13 +5201,14 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
             + '</div>';
         }).join('')
         + (groups.length ? '' : '<div class="pb2-field-hint" style="text-align:left;padding:2px 0 6px">No groups yet — every link shows in the bar, as now.</div>')
-        + (groups.length < 6 ? '<button type="button" class="pb2-btn mg-add" data-gadd="1">+ Group</button>' : '');
+        + '<div class="mg-adds">' + (groups.length < 6 ? '<button type="button" class="pb2-btn mg-add" data-gadd="1">+ Group</button>' : '')
+        + (groups.length < 6 && !locGroup() ? '<button type="button" class="pb2-btn mg-add" data-gaddloc="1" title="A dropdown showing your hours, address, map and phone">+ Locations</button>' : '') + '</div>';
     }
     function groupsChanged() { window.pb2NavGroups = groups; changed(); }
     if (gHost) {
       gHost.addEventListener('input', e => {
         const t = e.target, g = groups[+t.dataset.g]; if (!g) return;
-        if (t.dataset.gk) g[t.dataset.gk] = t.value;
+        if (t.dataset.gk) { g[t.dataset.gk] = t.value; if (isLocG(g)) rows.forEach(r => { if (r.type === 'locations') r.label = t.value; }); }
         else if (t.dataset.gf && g.feature) g.feature[t.dataset.gf] = t.value;
         else return;
         window.pb2NavRows = rows; window.pb2NavGroups = groups; window.pb2NavPending = true; window.pb2NavSaver = saveNavLinks;
@@ -5179,7 +5223,35 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
         const t = e.target.closest('button'); if (!t) return;
         const d = t.dataset;
         if (d.gadd) { if (groups.length < 6) groups.push({ key: 'g' + Date.now().toString(36).slice(-6), title: 'New group', feature: null }); groupsChanged(); return; }
-        if (d.gdel !== undefined) { const k = groups[+d.gdel].key; rows.forEach(r => { if (r.group === k) r.group = ''; }); groups.splice(+d.gdel, 1); groupsChanged(); return; }
+        if (d.gaddloc) {
+          if (groups.length < 6 && !locGroup()) {
+            const k = 'loc' + Date.now().toString(36).slice(-6);
+            groups.push({ key: k, title: 'Hours & location', feature: null, kind: 'locations', locs: [], parts: LOC_PARTS.map(x => x[0]) });
+            rows.splice(rows.filter(r => r.side === 'left').length, 0, { type: 'locations', page: null, label: 'Hours & location', url: LOC_URL, style: 'link', side: 'left', tab: false, group: k });
+          }
+          groupsChanged(); return;
+        }
+        if (d.gloc !== undefined) {
+          const g = groups[+d.gloc]; let cur = Array.isArray(g.locs) ? g.locs.filter(id => locs.some(l => l.id === id)) : [];
+          if (!cur.length) cur = locs.map(l => l.id);
+          const at = cur.indexOf(d.id);
+          if (at >= 0) { if (cur.length > 1) cur.splice(at, 1); } else cur.push(d.id);
+          g.locs = cur.length === locs.length ? [] : cur; // every location = follow the list as it grows
+          groupsChanged(); return;
+        }
+        if (d.gpart !== undefined) {
+          const g = groups[+d.gpart]; const cur = Array.isArray(g.parts) && g.parts.length ? g.parts.slice() : LOC_PARTS.map(x => x[0]);
+          const at = cur.indexOf(d.p);
+          if (at >= 0) { if (cur.length > 1) cur.splice(at, 1); } else cur.push(d.p);
+          g.parts = LOC_PARTS.map(x => x[0]).filter(x => cur.indexOf(x) >= 0);
+          groupsChanged(); return;
+        }
+        if (d.gdel !== undefined) {
+          const gone = groups[+d.gdel], k = gone.key;
+          if (isLocG(gone)) rows = rows.filter(r => r.type !== 'locations');
+          rows.forEach(r => { if (r.group === k) r.group = ''; });
+          groups.splice(+d.gdel, 1); groupsChanged(); return;
+        }
         if (d.gicon !== undefined) { icPopG = icPopG === +d.gicon ? -1 : +d.gicon; renderGroups(); return; }
         if (d.gicset !== undefined) { groups[+d.gicset].feature.icon = d.ic || 'star'; icPopG = -1; groupsChanged(); }
       });
@@ -5204,6 +5276,15 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
       const used = rows.filter(r => r.type === 'page').map(r => r.page);
       const free = Object.keys(pages).filter(id => used.indexOf(id) < 0);
       host.innerHTML = rows.map((r, i) => {
+        if (r.type === 'locations') {
+          const lg = locGroup();
+          return `<div class="sn-row is-loc" draggable="true" data-i="${i}">
+          <div class="sn-r1"><span class="sn-grip" title="Drag to reorder">⋮⋮</span>
+            <input class="sn-in" value="${esc(lg ? lg.title : r.label)}" readonly title="Rename it in Menu groups above">
+            <button type="button" class="sn-x" data-sn-del="${i}" title="Remove from the menu">×</button></div>
+          <div class="sn-r2"><div class="sn-tgt"><span class="sn-chip is-loc">Locations</span>Dropdown with your hours, address and map</div></div>
+        </div>`;
+        }
         const p = r.type === 'page' ? pages[r.page] : null;
         const tgt = r.type === 'page'
           ? (p ? `<span class="sn-chip">Page</span>${esc(p.t)} · <code>${esc(p.path)}</code>${p.pub ? '' : '<span class="sn-warn">hidden — unpublished</span>'}`
@@ -5244,7 +5325,11 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
       if (t.dataset.snIcon !== undefined) { icPop = icPop === +t.dataset.snIcon ? -1 : +t.dataset.snIcon; render(); return; }
       if (t.dataset.snIcset !== undefined) { rows[+t.dataset.snIcset].icon = t.dataset.ic; icPop = -1; changed(); return; }
       if (t.dataset.snSeg) { rows[+t.dataset.i][t.dataset.snSeg] = t.dataset.v; changed(); return; }
-      if (t.dataset.snDel !== undefined) { rows.splice(+t.dataset.snDel, 1); changed(); return; }
+      if (t.dataset.snDel !== undefined) {
+        const gone = rows.splice(+t.dataset.snDel, 1)[0];
+        if (gone && gone.type === 'locations') { groups = groups.filter(g => !isLocG(g)); window.pb2NavGroups = groups; }
+        changed(); return;
+      }
       if (t.dataset.snPop) { pop = !pop; render(); return; }
       if (t.dataset.snAddlink) { rows.push({type:'link', page:null, label:'', url:'', style:'link', side:'left', tab:false}); changed(); return; }
       const at = rows.filter(r => r.side === 'left').length;
@@ -5338,6 +5423,12 @@ body.ia-theme-b .pb2-guides-btn[aria-pressed="true"] { color: #3F6212; box-shado
 
     catList.querySelectorAll('input[type="checkbox"][data-svc-cat-id]').forEach(cb => {
       cb.addEventListener('change', serialize);
+    });
+  }
+
+  function updateSegPanes(body, field, value) {
+    body.querySelectorAll('[data-seg-pane^="' + field + ':"]').forEach(p => {
+      p.style.display = p.dataset.segPane === field + ':' + value ? '' : 'none';
     });
   }
 

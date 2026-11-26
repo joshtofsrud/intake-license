@@ -14,6 +14,8 @@ class ShopNav
 {
     public const STYLES = ['link', 'button', 'outline'];
     public const SIDES  = ['left', 'right'];
+    /** MARKER-SHOP-LOCATIONS: the address of the menu row that stands for the Locations dropdown. */
+    public const LOC_URL = '#locations';
 
     public static function pages(string $tenantId): array
     {
@@ -31,7 +33,7 @@ class ShopNav
     {
         return TenantNavItem::where('tenant_id', $tenantId)->orderBy('sort_order')->get()
             ->map(fn ($r) => [
-                'type'  => $r->page_id ? 'page' : 'link',
+                'type'  => $r->page_id ? 'page' : ($r->getRawOriginal('url') === self::LOC_URL ? 'locations' : 'link'),
                 'page'  => $r->page_id ? (string) $r->page_id : null,
                 'label' => (string) ($r->getRawOriginal('label') ?? ''),
                 'url'   => (string) ($r->getRawOriginal('url') ?? ''),
@@ -51,6 +53,15 @@ class ShopNav
         $side  = in_array($r['side'] ?? '', self::SIDES, true) ? $r['side'] : 'left';
         $label = mb_substr(trim((string) ($r['label'] ?? '')), 0, 60);
         $pid   = (string) ($r['page_id'] ?? $r['page'] ?? '');
+        // MARKER-SHOP-LOCATIONS: the Locations row carries no address of its own; its group draws it
+        if ($pid === '' && trim((string) ($r['url'] ?? '')) === self::LOC_URL) {
+            $grp = mb_substr(preg_replace('/[^a-z0-9_-]/', '', strtolower((string) ($r['group_key'] ?? $r['group'] ?? ''))), 0, 20);
+            if ($grp === '') return null;
+            return [
+                'page_id' => null, 'label' => $label !== '' ? $label : 'Hours & location', 'url' => self::LOC_URL, 'style' => 'link', 'side' => 'left',
+                'open_in_new_tab' => false, 'is_external' => false, 'group_key' => $grp, 'description' => null, 'icon' => null,
+            ];
+        }
         if ($pid !== '') {
             if (! isset($pages[$pid])) return null;
             $url = $pages[$pid]['path'];
@@ -118,9 +129,23 @@ class ShopNav
 
     public static function cleanGroups(array $groups): array
     {
-        $out = [];
+        // MARKER-SHOP-LOCATIONS: a group can be the Locations dropdown (one per menu)
+        $raw = [];
+        foreach (array_slice(array_values($groups), 0, 6) as $i => $g) {
+            if (! is_array($g)) continue;
+            $k = mb_substr(preg_replace('/[^a-z0-9_-]/', '', strtolower((string) ($g['key'] ?? ''))) ?: 'g' . ($i + 1), 0, 20);
+            $raw[$k] = $g;
+        }
+        $out = []; $hasLoc = false;
         foreach (MarketingNav::cleanGroups($groups) as $g) {
             if ($g['feature'] && ! isset(self::icons()[$g['feature']['icon']])) $g['feature']['icon'] = 'star';
+            $r = $raw[$g['key']] ?? [];
+            if (($r['kind'] ?? '') === 'locations' && ! $hasLoc) {
+                $hasLoc = true;
+                $g['kind']  = 'locations';
+                $g['locs']  = array_values(array_slice(array_filter(array_map('strval', (array) ($r['locs'] ?? [])), fn ($v) => preg_match('/^[a-z0-9-]{1,40}$/i', $v)), 0, 30));
+                $g['parts'] = ShopHours::cleanParts($r['parts'] ?? null);
+            }
             $out[] = $g;
         }
         return $out;
@@ -135,14 +160,19 @@ class ShopNav
     {
         $byKey = [];
         foreach ($groups as $g) $byKey[$g['key']] = $g + ['items' => []];
-        $key = function ($i) use ($byKey) {
+        // MARKER-SHOP-LOCATIONS: the Locations row belongs to its own group only, and
+        // ordinary links never sit inside it; a Locations row without its group is not drawn
+        $isLoc = fn ($i) => (string) ($i->url ?? '') === self::LOC_URL && ! ($i->page_id ?? null);
+        $key = function ($i) use ($byKey, $isLoc) {
             $k = (string) ($i->group_key ?? '');
-            return ($k !== '' && isset($byKey[$k]) && ($i->side ?? 'left') !== 'right' && ($i->style ?? 'link') === 'link') ? $k : '';
+            if ($k === '' || ! isset($byKey[$k]) || ($i->side ?? 'left') === 'right' || ($i->style ?? 'link') !== 'link') return '';
+            return (($byKey[$k]['kind'] ?? '') === 'locations') === $isLoc($i) ? $k : '';
         };
         foreach ($items as $i) if (($k = $key($i)) !== '') $byKey[$k]['items'][] = $i;
         $out = []; $placed = [];
         foreach ($items as $i) {
             $k = $key($i);
+            if ($k === '' && $isLoc($i)) continue;
             if ($k === '') { $out[] = ['kind' => 'link', 'item' => $i]; continue; }
             if (isset($placed[$k])) continue;
             $placed[$k] = true;

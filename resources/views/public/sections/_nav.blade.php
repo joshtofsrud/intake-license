@@ -84,6 +84,26 @@
   // MARKER-SHOP-MENU-GROUPS: dropdown groups (none = the menu as before)
   $navGroups = isset($tenant) && $tenant ? \App\Support\ShopNav::groups($tenant) : [];
 
+  // MARKER-SHOP-LOCATIONS: the optional strip above the bar (today's hours, phone, address, a message)
+  $stripCard = null; $stripMsg = ''; $stripUrl = ''; $stripBits = [];
+  if ((bool) ($c['strip_on'] ?? false) && isset($tenant) && $tenant) {
+      $stripCard = \App\Support\ShopHours::cards($tenant)[0] ?? null;
+      $stripMsg  = trim((string) ($c['strip_msg'] ?? ''));
+      $stripUrl  = trim((string) ($c['strip_url'] ?? ''));
+      if (! preg_match('#^(/|https?://|mailto:|tel:)#i', $stripUrl)) $stripUrl = '';
+      if ($stripCard) {
+          if ((bool) ($c['strip_today'] ?? true) && $stripCard['today'] !== '') $stripBits[] = 'today';
+          if ((bool) ($c['strip_phone'] ?? true) && $stripCard['tel'] !== '')   $stripBits[] = 'phone';
+          if ((bool) ($c['strip_addr'] ?? false) && $stripCard['address'] !== '') $stripBits[] = 'addr';
+      }
+  }
+  $stripShow   = $stripBits || $stripMsg !== '';
+  $stripCenter = ($c['strip_layout'] ?? 'split') === 'center';
+  $stripHex    = fn ($v) => preg_match('/^#[0-9a-fA-F]{3,8}$/', (string) $v) ? (string) $v : '';
+  $stripBg     = $stripHex($c['strip_bg'] ?? '')   ?: \App\Support\SiteLook::c('text', '#0a0a0a');
+  $stripText   = $stripHex($c['strip_text'] ?? '') ?: \App\Support\SiteLook::c('bg', '#ffffff');
+  $stripMsgPhone = (bool) ($c['strip_msg_phone'] ?? false);
+
   // MARKER-SHOP-FLOAT-NAV: header style (Classic / Floating), App\Support\ShopNavHeader
   $pfAll   = \App\Support\ShopNavHeader::resolve($c);
   $pfD     = $pfAll['d'];
@@ -282,6 +302,29 @@
 @media (min-width: 769px) { .{{ $instId }} { display: none; } }
 @endif
 
+@if($stripShow)
+/* MARKER-SHOP-LOCATIONS: the strip above the bar */
+.{{ $instId }}-strip { position: relative; z-index: 101; background: {{ $stripBg }}; color: {{ $stripText }}; font-size: 12.5px; line-height: 1.4; }
+.{{ $instId }}-strip .p-strip-in { max-width: var(--p-page-max, 1200px); margin: 0 auto; padding: 7px clamp(20px, 5vw, 48px); display: flex; align-items: center; flex-wrap: wrap; gap: 4px 18px; }
+.{{ $instId }}-strip.is-center .p-strip-in { justify-content: center; }
+.{{ $instId }}-strip .p-strip-bit { display: inline-flex; align-items: center; gap: 6px; color: inherit; text-decoration: none; opacity: .9; white-space: nowrap; }
+.{{ $instId }}-strip a.p-strip-bit:hover { opacity: 1; }
+.{{ $instId }}-strip .p-strip-bit svg { width: 13px; height: 13px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.{{ $instId }}-strip .p-strip-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: #4ade80; }
+.{{ $instId }}-strip .p-strip-dot.closed { background: #f87171; }
+.{{ $instId }}-strip .p-strip-msg { margin-left: auto; color: var(--p-accent); font-weight: 600; letter-spacing: .01em; text-decoration: none; white-space: normal; }
+.{{ $instId }}-strip.is-center .p-strip-msg { margin-left: 0; }
+@media (max-width: 768px) {
+  .{{ $instId }}-strip .p-strip-in { justify-content: space-between; gap: 4px 12px; padding: 7px 16px; }
+  .{{ $instId }}-strip .p-strip-addr { display: none; }
+  .{{ $instId }}-strip .p-strip-msg { margin-left: 0; font-size: 11.5px; @if(! $stripMsgPhone && $stripBits) display: none; @endif }
+  @if($hideMobile) .{{ $instId }}-strip { display: none; } @endif
+}
+@if($hideDesktop)
+@media (min-width: 769px) { .{{ $instId }}-strip { display: none; } }
+@endif
+@endif
+
 @include('public._nav-float')
 @if($navGroups)
 @php
@@ -296,6 +339,29 @@
 @endif
 </style>
 
+@if($stripShow)
+  {{-- MARKER-SHOP-LOCATIONS: the strip above the bar --}}
+  <div class="{{ $instId }}-strip p-strip{{ $stripCenter ? ' is-center' : '' }}">
+    <div class="p-strip-in">
+      @if(in_array('today', $stripBits, true))
+        <span class="p-strip-bit"><span class="p-strip-dot{{ $stripCard['open'] ? '' : ' closed' }}"></span>{{ $stripCard['today'] }}</span>
+      @endif
+      @if(in_array('phone', $stripBits, true))
+        <a class="p-strip-bit" href="{{ $stripCard['tel'] }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg>{{ $stripCard['phone'] }}</a>
+      @endif
+      @if(in_array('addr', $stripBits, true))
+        <a class="p-strip-bit p-strip-addr" href="{{ $stripCard['dir_url'] }}" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>{{ $stripCard['address'] }}</a>
+      @endif
+      @if($stripMsg !== '')
+        @if($stripUrl !== '')
+          <a class="p-strip-bit p-strip-msg" href="{{ $stripUrl }}">{{ $stripMsg }}</a>
+        @else
+          <span class="p-strip-bit p-strip-msg">{{ $stripMsg }}</span>
+        @endif
+      @endif
+    </div>
+  </div>
+@endif
 <nav class="{{ $instId }} p-nav {{ $customClass }}" data-pf-d="{{ $pfD['style'] }}" data-pf-p="{{ $pfP['style'] }}" @if($anchorId) id="{{ $anchorId }}" @endif>
   <div class="p-nav-wrap">
     <div class="p-nav-inner">
@@ -515,7 +581,17 @@
   if (!window.__pDd) {
     window.__pDd = true;
     var ddFine = window.matchMedia && window.matchMedia('(hover: hover)').matches, ddT = null;
-    var ddSet = function (d, on) { d.classList.toggle('on', on); var b = d.querySelector('.p-dd-btn'); if (b) b.setAttribute('aria-expanded', on ? 'true' : 'false'); };
+    // MARKER-SHOP-LOCATIONS: maps load the first time their panel opens; a wide panel stays on screen
+    var ddMaps = function (root) { root.querySelectorAll('iframe[data-src]').forEach(function (f) { f.src = f.getAttribute('data-src'); f.removeAttribute('data-src'); }); };
+    var ddFit = function (d) {
+      var p = d.querySelector('.p-dd-panel'); if (!p) return;
+      p.style.marginLeft = '';
+      var r = p.getBoundingClientRect(), w = document.documentElement.clientWidth, s = 0;
+      if (r.right > w - 12) s = w - 12 - r.right;
+      if (r.left + s < 12) s = 12 - r.left;
+      if (s) p.style.marginLeft = s + 'px';
+    };
+    var ddSet = function (d, on) { var was = d.classList.contains('on'); d.classList.toggle('on', on); var b = d.querySelector('.p-dd-btn'); if (b) b.setAttribute('aria-expanded', on ? 'true' : 'false'); if (on && !was) { ddMaps(d); ddFit(d); } };
     var ddAll = function (except) { document.querySelectorAll('.p-dd.on').forEach(function (d) { if (d !== except) ddSet(d, false); }); };
     document.addEventListener('mouseover', function (e) { if (!ddFine) return; var d = e.target.closest && e.target.closest('.p-dd'); if (d) { clearTimeout(ddT); ddAll(d); ddSet(d, true); } });
     document.addEventListener('mouseout', function (e) { if (!ddFine) return; var d = e.target.closest && e.target.closest('.p-dd'); if (!d || d.contains(e.relatedTarget)) return; ddT = setTimeout(function () { ddSet(d, false); }, 140); });
@@ -527,6 +603,7 @@
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') ddAll(null); });
     document.addEventListener('toggle', function (e) {
       var t = e.target; if (!t.matches || !t.matches('.p-mg') || !t.open) return;
+      ddMaps(t);
       t.parentNode.querySelectorAll('.p-mg[open]').forEach(function (x) { if (x !== t) x.open = false; });
     }, true);
   }
