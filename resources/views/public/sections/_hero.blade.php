@@ -345,7 +345,7 @@
     @endif
 
     @if(!empty($c['subheading']))
-      <p class="p-hero-sub">{{ $c['subheading'] }}</p>
+      <p class="p-hero-sub">{!! nl2br(e($c['subheading'])) !!}</p>{{-- MARKER-TEXT-BREAKS --}}
     @endif
 
     @if(count($buttons) > 0)

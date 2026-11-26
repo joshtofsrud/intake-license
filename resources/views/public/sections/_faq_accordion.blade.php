@@ -228,7 +228,7 @@
               @endif
             </summary>
             @if($item['answer'] !== '')
-              <p class="p-faq-a">{{ $item['answer'] }}</p>
+              <p class="p-faq-a">{!! nl2br(e($item['answer'])) !!}</p>{{-- MARKER-TEXT-BREAKS --}}
             @endif
           </details>
         @endforeach
