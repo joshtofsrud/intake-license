@@ -15,7 +15,8 @@
 .p-dd-items.is-two { grid-template-columns: 1fr 1fr; width: 470px; }
 .p-dd-item, .p-mg-item { display: flex; gap: 12px; align-items: flex-start; padding: 10px 12px; border-radius: 12px; text-decoration: none; color: inherit; }
 .p-dd-item:hover, .p-dd-item:focus-visible { background: color-mix(in srgb, var(--p-dd-text, #0a0a0a) 7%, transparent); outline: 0; }
-.p-dd-ic { flex: none; width: 32px; height: 32px; border-radius: 9px; background: color-mix(in srgb, var(--p-accent) 16%, transparent); color: var(--p-accent); display: flex; align-items: center; justify-content: center; }
+.p-dd-ic { flex: none; width: 32px; height: 32px; border-radius: 9px; background: color-mix(in srgb, var(--p-accent) 22%, transparent); color: color-mix(in srgb, var(--p-accent) 60%, var(--p-dd-text, #0a0a0a)); display: flex; align-items: center; justify-content: center; }
+/* MARKER-NAV-ICON-CONTRAST: the icon colour leans toward the menu's text colour, so a light accent still reads */
 .p-dd-ic svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .p-dd-item b, .p-mg-item b { display: block; font-size: 14px; font-weight: 600; line-height: 1.3; }
 .p-dd-item small, .p-mg-item small { display: block; font-size: 12.5px; opacity: .62; margin-top: 2px; line-height: 1.4; font-weight: 400; }
