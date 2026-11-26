@@ -24,6 +24,8 @@ use Illuminate\Support\Facades\Log;
  */
 class ListTenants extends ListRecords
 {
+    use \App\Filament\Resources\TenantResource\Concerns\OwnerPasswordActions;
+
     protected static string $resource = TenantResource::class;
     protected static string $view = 'filament.resources.tenant-resource.pages.list-tenants';
 

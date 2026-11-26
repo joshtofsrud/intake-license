@@ -192,6 +192,15 @@
                                            f.submit();
                                        ">Impersonate</a>
                                     <a href="{{ $editUrl }}" class="tg-card__menu-item">Edit</a>
+                                    {{-- MARKER-OWNER-PASSWORD --}}
+                                    <button type="button" class="tg-card__menu-item"
+                                        @click.stop.prevent="open = false; $wire.mountAction('sendResetLink', { tenant: '{{ $t->id }}' })">
+                                        Send reset link
+                                    </button>
+                                    <button type="button" class="tg-card__menu-item"
+                                        @click.stop.prevent="open = false; $wire.mountAction('setPassword', { tenant: '{{ $t->id }}' })">
+                                        Set password
+                                    </button>
                                     @if($t->suspended_at ?? null)
                                       <button type="button" class="tg-card__menu-item"
                                         @click.stop.prevent="open = false; $wire.unsuspend('{{ $t->id }}')">

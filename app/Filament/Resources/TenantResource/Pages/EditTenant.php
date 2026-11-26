@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\Log;
 
 class EditTenant extends EditRecord
 {
+    use \App\Filament\Resources\TenantResource\Concerns\OwnerPasswordActions;
+
     protected static string $resource = TenantResource::class;
 
     /**
@@ -28,6 +30,8 @@ class EditTenant extends EditRecord
                 ->icon('heroicon-o-user')
                 ->color('gray')
                 ->extraAttributes(['x-on:click.prevent' => $js]),
+            $this->sendResetLinkAction(),
+            $this->setPasswordAction(),
             ...parent::getHeaderActions(),
         ];
     }
