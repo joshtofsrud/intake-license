@@ -87,6 +87,9 @@ class PosSalesSync
         $st = (array) $conn->sales_state;
         $adapter = $this->registry->make($conn->adapter_code);
         $ctx = (array) ($conn->context ?? []);
+        // MARKER-SALES-SINCE: "how far back", for adapters that can ask for it up front
+        // instead of reading every older sale only to leave it out
+        $ctx['sales_since'] = $st['since'] ?? null;
         $tz = Tenant::find($conn->tenant_id)?->timezone() ?? 'UTC';
 
         for ($i = 0; $i < self::PAGES_PER_STEP; $i++) {

@@ -174,8 +174,9 @@
 @include('layouts.tenant._mobile-fab')
 @if(tenant()?->multi_asset_enabled)
   @include('layouts.tenant._asset-count')
-  @include('layouts.tenant._tip')
 @endif
+{{-- MARKER-IA-TIP: every shop, not only multi-asset ones (it sat inside that @if, so most shops' i's were dead grey boxes) --}}
+@include('layouts.tenant._tip')
 
 {{-- Detail modal (appointments, customers) --}}
 @include('tenant._detail_modal')

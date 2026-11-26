@@ -176,6 +176,10 @@ class LightspeedRClient implements PosAdapter
     public function pullSales(string $accessToken, string $accountId, array $context, ?string $cursor): array
     {
         $c = $this->cursor($cursor);
+        // MARKER-SALES-SINCE: a first read starts at "how far back", not the shop's first sale
+        if (! $c['since'] && empty($c['next']) && ! empty($context['sales_since'])) {
+            $c['since'] = \Illuminate\Support\Carbon::parse((string) $context['sales_since'])->utc()->format('Y-m-d\TH:i:sP');
+        }
         $q = ['limit' => 100, 'load_relations' => '["SaleLines","SaleLines.Item"]'];
         $body = $this->page($accessToken, $accountId, 'Sale.json', $q, $c);
         $rows = $this->rows($body['Sale'] ?? null);
