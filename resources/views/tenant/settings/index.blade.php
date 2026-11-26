@@ -1135,29 +1135,19 @@
     <div class="ia-card-head">
       <span class="ia-card-title">Web analytics</span>
     </div>
-    <p style="font-size:13px;opacity:.5;margin-bottom:14px">
-      Connect Google Analytics 4 to your public-facing pages. We'll inject the tracking script automatically.
-      Leave blank to disable.
-    </p>
-    <form method="POST" action="{{ route('tenant.settings.analytics.update') }}">
-      @csrf
-      <div class="ia-form-group">
-        <label class="ia-form-label">GA-4 measurement ID</label>
-        <input type="text" name="analytics_ga4_id" class="ia-input"
-               value="{{ old('analytics_ga4_id', $currentTenant->settings['analytics_ga4_id'] ?? '') }}"
-               placeholder="G-XXXXXXXXXX"
-               style="max-width: 320px; font-family: var(--ia-font-mono, 'JetBrains Mono', monospace);">
-        <div style="font-size:11px;color:var(--ia-text-dim);margin-top:4px">
-          Find this in your GA-4 Admin → Data Streams → Measurement ID. Starts with <code>G-</code>.
-        </div>
+    {{-- MARKER-SITE-SCRIPTS: the GA4 ID moved to the page builder's Site scripts panel,
+         next to the shop's other site-wide code --}}
+    @php
+      $ssHome = \App\Models\Tenant\TenantPage::where('tenant_id', $currentTenant->id)->where('is_home', true)->value('id');
+      $ssGaNow = (string) ($currentTenant->settings['analytics_ga4_id'] ?? '');
+    @endphp
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <div style="flex:1;min-width:220px;font-size:13px;color:var(--ia-text-dim)">
+        Google Analytics and your other site scripts are set in the page builder, under <b style="color:var(--ia-text);font-weight:500">Site scripts</b>.
+        @if($ssGaNow !== '')<div style="margin-top:6px;font-family:var(--ia-font-mono,monospace);font-size:12px;color:var(--ia-text)">{{ $ssGaNow }}</div>@endif
       </div>
-      @error('analytics_ga4_id')
-        <div style="color: #F47373; font-size: 12px; margin-top: 6px;">{{ $message }}</div>
-      @enderror
-      <div style="margin-top: 14px;">
-        <button type="submit" class="ia-btn ia-btn--primary">Save analytics</button>
-      </div>
-    </form>
+      <a class="ia-btn ia-btn--secondary" href="{{ $ssHome ? route('tenant.pages.index', ['edit' => $ssHome, 'panel' => 'scripts']) : route('tenant.pages.index') }}">Open Site scripts</a>
+    </div>
   </div>
   </div>{{-- close grid wrapper --}}
 

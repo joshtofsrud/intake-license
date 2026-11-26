@@ -54,6 +54,7 @@
   <meta name="csrf-token" content="{{ csrf_token() }}">
   {{-- analytics + funnel tracking --}}
   @include('public._funnel_tracker')
+  @include('public._site-scripts', ['ssPart' => 'head']) {{-- MARKER-SITE-SCRIPTS --}}
   <title>{{ $pageTitle ?? 'Book online' }} — {{ $currentTenant->name }}</title>
   @if($currentTenant->favicon_url)<link rel="icon" href="{{ $currentTenant->favicon_url }}">@endif
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -138,6 +139,7 @@
 
 @stack('scripts')
 @if(($bk['show_footer'] ?? '1') === '1')@include('public._chrome-inline', ['chromePos' => 'bottom', 'hideBookingCta' => ($bk['hide_cta'] ?? false)])@endif
+@include('public._site-scripts', ['ssPart' => 'body']) {{-- MARKER-SITE-SCRIPTS --}}
 </body>
 </html>
 

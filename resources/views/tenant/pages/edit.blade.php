@@ -2417,6 +2417,217 @@ body.ia-theme-b .pb2-insp-body .mg-kind,body.ia-theme-b .pb2-insp-body .sn-chip.
     })();
     </script>
 
+    {{-- MARKER-SITE-SCRIPTS: code from outside tools on every page of the shop's site,
+         plus the GA4 ID. Site-wide, so it sits up here with the page-level panels. --}}
+    @unless($isMarketing ?? false)
+    @php
+      $ssMe      = \Illuminate\Support\Facades\Auth::guard('tenant')->user();
+      $ssT       = $currentTenant ?? tenant();
+      $ssCanSee  = $ssMe && $ssMe->isManager();
+      $ssOwner   = $ssMe && $ssMe->isOwner();
+      $ssRows    = \App\Support\SiteScripts::all($ssT);
+      $ssGa      = (string) ($ssT->settings['analytics_ga4_id'] ?? '');
+      $ssOn      = count(array_filter($ssRows, fn ($r) => $r['on'])) + ($ssGa !== '' ? 1 : 0);
+      $ssData    = ['rows' => $ssRows, 'preview' => \App\Support\SiteScripts::previewOn($ssT), 'ga4' => $ssGa, 'owner' => (bool) $ssOwner, 'page' => (string) $page->id];
+    @endphp
+    @if($ssCanSee)
+    <style>
+    .pb2-sc-list { display: grid; gap: 6px; margin-bottom: 8px; }
+    .pb2-sc-row { border: .5px solid var(--pb2-border); border-radius: 8px; padding: 8px 9px; background: var(--pb2-bg); }
+    .pb2-sc-row.is-off .pb2-sc-name, .pb2-sc-row.is-off .pb2-sc-pills { opacity: .45; }
+    .pb2-sc-r1 { display: flex; align-items: center; gap: 8px; }
+    .pb2-sc-name { flex: 1; min-width: 0; font-size: 12.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pb2-sc-pills { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 0; }
+    .pb2-sc-pill { font-family: var(--pb2-mono); font-size: 10px; padding: 1px 7px; border-radius: 99px; border: .5px solid var(--pb2-border-2); color: var(--pb2-text-dim); }
+    .pb2-sc-r3 { display: flex; align-items: center; gap: 8px; margin-top: 7px; }
+    .pb2-sc-skip { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--pb2-text-dim); cursor: pointer; flex: 1; }
+    .pb2-sc-lnk { background: none; border: 0; padding: 0; font: inherit; font-size: 11px; color: var(--pb2-text-dim); cursor: pointer; text-decoration: underline; }
+    .pb2-sc-lnk:hover { color: var(--pb2-text); }
+    .pb2-sc-sw { width: 28px; height: 16px; border-radius: 99px; border: 0; padding: 0; position: relative; background: var(--pb2-surface-3); cursor: pointer; flex: none; }
+    .pb2-sc-sw::after { content: ''; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: #8a8a8a; transition: left .12s; }
+    .pb2-sc-sw.is-on { background: var(--pb2-accent); }
+    .pb2-sc-sw.is-on::after { left: 14px; background: #0a0a0a; }
+    .pb2-sc-sw:disabled { cursor: default; opacity: .6; }
+    .pb2-sc-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 11.5px; color: var(--pb2-text-dim); margin: 10px 0 0; }
+    .pb2-sc-ga { display: flex; gap: 6px; }
+    .pb2-sc-ga .pb2-ss-input { font-family: var(--pb2-mono); }
+    .pb2-sc-dlg { position: fixed; inset: 0; z-index: 9990; background: rgba(0,0,0,.55); display: none; align-items: center; justify-content: center; padding: 16px; }
+    .pb2-sc-dlg.is-open { display: flex; }
+    .pb2-sc-card { width: 100%; max-width: 560px; background: var(--pb2-surface); color: var(--pb2-text); border: .5px solid var(--pb2-border-2); border-radius: 12px; padding: 20px 22px; box-shadow: 0 24px 60px rgba(0,0,0,.5); }
+    .pb2-sc-card h3 { margin: 0 0 14px; font-size: 15px; font-weight: 600; }
+    .pb2-sc-code { min-height: 170px; font-family: var(--pb2-mono); font-size: 12px; line-height: 1.55; }
+    .pb2-sc-two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 4px; }
+    .pb2-sc-seg { display: inline-flex; border: .5px solid var(--pb2-border); border-radius: 7px; overflow: hidden; }
+    .pb2-sc-seg button { background: transparent; border: 0; color: var(--pb2-text-dim); font: inherit; font-size: 12px; padding: 6px 10px; cursor: pointer; }
+    .pb2-sc-seg button.is-on { background: var(--pb2-surface-3); color: var(--pb2-text); }
+    .pb2-sc-hint { font-size: 11px; color: var(--pb2-text-faint); margin-top: 5px; line-height: 1.45; }
+    .pb2-sc-foot { display: flex; align-items: center; gap: 8px; margin-top: 16px; }
+    .pb2-sc-foot .pb2-ss-msg { flex: 1; }
+    </style>
+    <div class="pb2-ss" id="pb2-sc" data-update-url="{{ $updateUrl }}" data-state="{{ json_encode($ssData) }}">
+      <button type="button" class="pb2-ss-head" id="pb2-sc-toggle" aria-expanded="false" aria-controls="pb2-sc-body">
+        <span class="pb2-ss-title">Site scripts</span>
+        <span class="pb2-ss-state {{ $ssOn ? 'is-custom' : '' }}" id="pb2-sc-state">{{ $ssOn ? $ssOn . ' on' : 'None' }}</span>
+        <svg class="pb2-ss-chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="pb2-ss-body" id="pb2-sc-body" hidden>
+        <div class="pb2-ss-legend">
+          Every page of your site, not just this one. Never inside Intake. Checkout and account pages are skipped unless a script says Every page.
+        </div>
+        <div class="pb2-ss-field">
+          <label class="pb2-ss-label" for="pb2-sc-ga">Google Analytics ID <span class="pb2-ss-hint">G-…</span></label>
+          <div class="pb2-sc-ga">
+            <input class="pb2-ss-input" id="pb2-sc-ga" type="text" maxlength="32" placeholder="G-XXXXXXXXXX" value="{{ $ssGa }}">
+            <button type="button" class="pb2-status-btn" id="pb2-sc-ga-save">Save</button>
+          </div>
+        </div>
+        <label class="pb2-ss-label" style="margin-bottom:6px">Scripts @unless($ssOwner)<span class="pb2-ss-hint">owners only</span>@endunless</label>
+        <div class="pb2-sc-list" id="pb2-sc-list"></div>
+        @if($ssOwner)
+          <button type="button" class="pb2-status-btn" id="pb2-sc-add">+ Add script</button>
+          <div class="pb2-sc-line"><span>Run in this preview</span><button type="button" class="pb2-sc-sw" id="pb2-sc-preview" title="Show the scripts in the builder preview"></button></div>
+        @endif
+        <div class="pb2-ss-msg" id="pb2-sc-msg" style="margin-top:8px"></div>
+      </div>
+    </div>
+    <div class="pb2-sc-dlg" id="pb2-sc-dlg" role="dialog" aria-modal="true" aria-labelledby="pb2-sc-dlg-title">
+      <div class="pb2-sc-card">
+        <h3 id="pb2-sc-dlg-title">Add script</h3>
+        <div class="pb2-ss-field"><label class="pb2-ss-label" for="pb2-sc-name">Name</label><input class="pb2-ss-input" id="pb2-sc-name" maxlength="40" placeholder="e.g. Chat widget"></div>
+        <div class="pb2-ss-field"><label class="pb2-ss-label" for="pb2-sc-code">Code <span class="pb2-ss-hint">paste what the tool gives you</span></label>
+          <textarea class="pb2-ss-input pb2-sc-code" id="pb2-sc-code" spellcheck="false" placeholder="&lt;script src=&quot;https://…&quot;&gt;&lt;/script&gt;"></textarea></div>
+        <div class="pb2-sc-two">
+          <div><label class="pb2-ss-label">Where</label><div class="pb2-sc-seg" data-k="where"><button type="button" data-v="body">End of page</button><button type="button" data-v="head">In &lt;head&gt;</button></div>
+            <div class="pb2-sc-hint">Most tools say which. End of page if unsure.</div></div>
+          <div><label class="pb2-ss-label">Pages</label><div class="pb2-sc-seg" data-k="pages"><button type="button" data-v="safe">All but checkout</button><button type="button" data-v="all">Every page</button></div>
+            <div class="pb2-sc-hint" id="pb2-sc-pages-hint"></div></div>
+        </div>
+        <div class="pb2-sc-foot">
+          <span class="pb2-ss-msg" id="pb2-sc-dlg-msg"></span>
+          <button type="button" class="pb2-status-btn" id="pb2-sc-cancel">Cancel</button>
+          <button type="button" class="pb2-status-btn" id="pb2-sc-save" style="background:var(--pb2-accent);color:#0a0a0a;border-color:var(--pb2-accent)">Save script</button>
+        </div>
+      </div>
+    </div>
+    <script>
+    (function () {
+      var root = document.getElementById('pb2-sc');
+      if (!root) return;
+      var S; try { S = JSON.parse(root.dataset.state); } catch (e) { return; }
+      var $ = function (id) { return document.getElementById(id); };
+      var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+      var WHERE = { body: 'End of page', head: 'In <head>' }, PAGES = { safe: 'All but checkout', all: 'Every page' };
+      var head = $('pb2-sc-toggle'), body = $('pb2-sc-body'), msg = $('pb2-sc-msg'), dlg = $('pb2-sc-dlg');
+      var edit = -1, busy = false;
+
+      head.addEventListener('click', function () {
+        var open = head.getAttribute('aria-expanded') !== 'true';
+        head.setAttribute('aria-expanded', open ? 'true' : 'false');
+        body.hidden = !open;
+      });
+
+      function stateLabel() {
+        var n = S.rows.filter(function (r) { return r.on; }).length + (S.ga4 ? 1 : 0);
+        var st = $('pb2-sc-state'); st.textContent = n ? n + ' on' : 'None'; st.classList.toggle('is-custom', n > 0);
+      }
+      function render() {
+        var skipHere = function (r) { return (r.skip || []).indexOf(S.page) >= 0; };
+        $('pb2-sc-list').innerHTML = S.rows.length ? S.rows.map(function (r, i) {
+          return '<div class="pb2-sc-row' + (r.on ? '' : ' is-off') + '">'
+            + '<div class="pb2-sc-r1"><button type="button" class="pb2-sc-sw' + (r.on ? ' is-on' : '') + '" data-sc-on="' + i + '"' + (S.owner ? '' : ' disabled') + ' title="' + (r.on ? 'Running — click to turn off' : 'Off — click to turn on') + '"></button>'
+            + '<span class="pb2-sc-name">' + esc(r.name) + '</span></div>'
+            + '<div class="pb2-sc-pills"><span class="pb2-sc-pill">' + esc(WHERE[r.where]) + '</span><span class="pb2-sc-pill">' + PAGES[r.pages] + '</span>' + (skipHere(r) ? '<span class="pb2-sc-pill">skipped here</span>' : '') + '</div>'
+            + (S.owner ? '<div class="pb2-sc-r3"><label class="pb2-sc-skip"><input type="checkbox" data-sc-skip="' + i + '"' + (skipHere(r) ? ' checked' : '') + '> Skip on this page</label>'
+              + '<button type="button" class="pb2-sc-lnk" data-sc-ed="' + i + '">Edit</button><button type="button" class="pb2-sc-lnk" data-sc-rm="' + i + '">Remove</button></div>' : '')
+            + '</div>';
+        }).join('') : '<div class="pb2-ss-legend" style="margin:0">No scripts yet. Chat widgets, pixels and other tools go here.</div>';
+        var pv = $('pb2-sc-preview'); if (pv) pv.classList.toggle('is-on', !!S.preview);
+        stateLabel();
+      }
+      function save(note, keepDlg) {
+        if (busy) return Promise.resolve(false);
+        busy = true;
+        var tok = document.querySelector('#pb2-page-form input[name="_token"]') || document.querySelector('meta[name="csrf-token"]');
+        var fd = new FormData();
+        fd.append('_token', tok ? (tok.value || tok.content) : '');
+        fd.append('_method', 'PATCH');
+        fd.append('op', 'set_site_scripts');
+        fd.append('analytics_ga4_id', $('pb2-sc-ga').value.trim());
+        if (S.owner) { fd.append('scripts', JSON.stringify(S.rows)); fd.append('preview', S.preview ? '1' : '0'); }
+        var out = keepDlg ? $('pb2-sc-dlg-msg') : msg;
+        out.classList.remove('is-error'); out.textContent = 'Saving…';
+        return fetch(root.dataset.updateUrl, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
+          .then(function (r) { return r.json().catch(function () { return null; }).then(function (d) { return { ok: r.ok, d: d }; }); })
+          .then(function (res) {
+            busy = false;
+            if (!res.ok || !res.d || !res.d.ok) throw new Error((res.d && (res.d.error || res.d.message)) || 'Could not save. Please try again.');
+            S.rows = res.d.scripts; S.ga4 = res.d.ga4;
+            render(); out.textContent = ''; msg.classList.remove('is-error'); msg.textContent = note || 'Saved';
+            var f = document.getElementById('pb2-preview');
+            if (f && S.preview) { try { f.contentWindow.location.reload(); } catch (e) { f.src = f.src; } }
+            return true;
+          })
+          .catch(function (e) { busy = false; out.classList.add('is-error'); out.textContent = e.message; return false; });
+      }
+      function seg(k, v) { dlg.querySelectorAll('.pb2-sc-seg[data-k="' + k + '"] button').forEach(function (b) { b.classList.toggle('is-on', b.dataset.v === v); }); if (k === 'pages') $('pb2-sc-pages-hint').textContent = v === 'all' ? 'Includes checkout — only for tools that need it there, like a payment pixel.' : 'Skips checkout, booking payment and customer account pages.'; }
+      function segVal(k) { var b = dlg.querySelector('.pb2-sc-seg[data-k="' + k + '"] button.is-on'); return b ? b.dataset.v : null; }
+      function openDlg(i) {
+        edit = i;
+        var r = i >= 0 ? S.rows[i] : { name: '', code: '', where: 'body', pages: 'safe' };
+        $('pb2-sc-dlg-title').textContent = i >= 0 ? 'Edit script' : 'Add script';
+        $('pb2-sc-name').value = r.name; $('pb2-sc-code').value = r.code; $('pb2-sc-dlg-msg').textContent = '';
+        seg('where', r.where); seg('pages', r.pages);
+        dlg.classList.add('is-open'); $('pb2-sc-name').focus();
+      }
+      function closeDlg() { dlg.classList.remove('is-open'); edit = -1; }
+
+      $('pb2-sc-ga-save').addEventListener('click', function () { save('Analytics ID saved'); });
+      $('pb2-sc-code').addEventListener('input', function () { $('pb2-sc-dlg-msg').textContent = ''; });
+      $('pb2-sc-list').addEventListener('click', function (e) {
+        var b = e.target.closest('button'); if (!b || !S.owner) return;
+        if (b.dataset.scOn !== undefined) { var r = S.rows[+b.dataset.scOn]; r.on = !r.on; render(); save(r.name + (r.on ? ' is on' : ' is off')); }
+        if (b.dataset.scEd !== undefined) openDlg(+b.dataset.scEd);
+        if (b.dataset.scRm !== undefined) {
+          var i = +b.dataset.scRm, name = S.rows[i].name;
+          var go = function () { S.rows.splice(i, 1); render(); save(name + ' removed'); };
+          if (window.IntakeConfirm) IntakeConfirm.show({ title: 'Remove “' + name + '”?', message: 'It stops loading on your site right away.', confirmText: 'Remove', danger: true }).then(function (ok) { if (ok) go(); });
+          else go();
+        }
+      });
+      $('pb2-sc-list').addEventListener('change', function (e) {
+        var c = e.target; if (c.dataset.scSkip === undefined) return;
+        var r = S.rows[+c.dataset.scSkip]; r.skip = (r.skip || []).filter(function (p) { return p !== S.page; });
+        if (c.checked) r.skip.push(S.page);
+        render(); save(c.checked ? r.name + ' is skipped on this page' : r.name + ' runs on this page');
+      });
+      var add = $('pb2-sc-add'); if (add) add.addEventListener('click', function () { openDlg(-1); });
+      var pv = $('pb2-sc-preview'); if (pv) pv.addEventListener('click', function () { S.preview = !S.preview; render(); save(S.preview ? 'Scripts run in the preview' : 'Scripts are off in the preview').then(function () { var f = document.getElementById('pb2-preview'); if (f) { try { f.contentWindow.location.reload(); } catch (e) { f.src = f.src; } } }); });
+      dlg.addEventListener('click', function (e) {
+        var b = e.target.closest('button');
+        if (e.target === dlg) { closeDlg(); return; }
+        if (!b) return;
+        if (b.parentElement && b.parentElement.classList.contains('pb2-sc-seg')) { seg(b.parentElement.dataset.k, b.dataset.v); return; }
+        if (b.id === 'pb2-sc-cancel') { closeDlg(); return; }
+        if (b.id === 'pb2-sc-save') {
+          var code = $('pb2-sc-code').value.trim(), m = $('pb2-sc-dlg-msg');
+          m.classList.add('is-error');
+          if (!code) { m.textContent = 'Paste the code the tool gave you.'; return; }
+          if (code.charAt(0) !== '<') { m.textContent = 'The code should start with a tag, such as <script.'; return; }
+          var prev = JSON.stringify(S.rows);
+          var r = { name: $('pb2-sc-name').value.trim() || 'Script', code: code, where: segVal('where'), pages: segVal('pages') };
+          if (edit >= 0) Object.assign(S.rows[edit], r); else S.rows.push(Object.assign(r, { on: true, skip: [] }));
+          save(r.name + ' saved', true).then(function (ok) { if (ok) closeDlg(); else S.rows = JSON.parse(prev); });
+        }
+      });
+      document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && dlg.classList.contains('is-open')) closeDlg(); });
+      render();
+      // arriving from Settings › Web analytics opens the panel
+      if (/[?&]panel=scripts\b/.test(location.search)) { head.click(); root.scrollIntoView({ block: 'nearest' }); }
+    })();
+    </script>
+    @endif
+    @endunless
+
     {{-- sections docked above the inspector --}}
     <div class="pb2-sections-docked" id="pb2-sections-pane">
       {{-- collapsible header --}}

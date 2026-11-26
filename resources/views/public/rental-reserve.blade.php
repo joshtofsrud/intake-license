@@ -42,6 +42,7 @@
   #pay-wrap { display: none; margin-top: 16px; }
 </style>
   @include('public._ga4')
+  @include('public._site-scripts', ['ssPart' => 'head']) {{-- MARKER-SITE-SCRIPTS --}}
 </head>
 <body>
 @include('public._launch-ribbon', ['lrModule' => 'rent'])
@@ -183,5 +184,6 @@
   }
 })();
 </script>
+@include('public._site-scripts', ['ssPart' => 'body']) {{-- MARKER-SITE-SCRIPTS --}}
 </body>
 </html>

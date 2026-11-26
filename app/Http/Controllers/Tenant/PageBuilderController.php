@@ -1170,6 +1170,33 @@ class PageBuilderController extends Controller
             return back()->with('success', $msg);
         }
 
+        // MARKER-SITE-SCRIPTS: the builder's Site scripts panel — the GA4 ID (managers)
+        // and outside scripts (owners only, since they run raw on the shop's site)
+        if ($op === 'set_site_scripts') {
+            $me = \Illuminate\Support\Facades\Auth::guard('tenant')->user();
+            if (! $me || ! $me->isManager() || ($tenant->is_platform ?? false)) {
+                return response()->json(['ok' => false, 'error' => 'Manager or owner access required.'], 403);
+            }
+            $ga = trim((string) $request->input('analytics_ga4_id', ''));
+            if ($ga !== '' && ! preg_match('/^(G-|UA-)[A-Z0-9]{4,20}$/i', $ga)) {
+                return response()->json(['ok' => false, 'error' => 'GA-4 measurement IDs start with G- (or UA- for legacy). Example: G-XXXXXXXXXX'], 422);
+            }
+            $settings = $tenant->settings ?? [];
+            if ($ga === '') unset($settings['analytics_ga4_id']); else $settings['analytics_ga4_id'] = $ga;
+            if ($me->isOwner() && $request->has('scripts')) {
+                $posted = json_decode((string) $request->input('scripts'), true);
+                if (! is_array($posted)) return response()->json(['ok' => false, 'error' => 'The script list could not be read. Reload and try again.'], 422);
+                if (count($posted) > \App\Support\SiteScripts::MAX) return response()->json(['ok' => false, 'error' => 'Up to ' . \App\Support\SiteScripts::MAX . ' scripts.'], 422);
+                $clean = \App\Support\SiteScripts::clean($posted);
+                if ($clean['error']) return response()->json(['ok' => false, 'error' => $clean['error']], 422);
+                $settings['site_scripts'] = $clean['rows'];
+                $settings['site_scripts_preview'] = $request->boolean('preview');
+            }
+            $tenant->settings = $settings;
+            $tenant->save();
+            return response()->json(['ok' => true, 'scripts' => \App\Support\SiteScripts::all($tenant), 'ga4' => $ga]);
+        }
+
         // the widest any section on this page can go
         // (marketing pages). null = the site default, 1080.
         if ($op === 'set_page_width') {

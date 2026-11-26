@@ -76,6 +76,7 @@
   </style>
   {{-- analytics + funnel tracking --}}
   @include('public._funnel_tracker')
+  @include('public._site-scripts', ['ssPart' => 'head']) {{-- MARKER-SITE-SCRIPTS --}}
 </head>
 <body>
 <div class="w-shell">
@@ -102,5 +103,6 @@ document.querySelectorAll('.w-day-chip input[type=checkbox]').forEach(function (
   update();
 });
 </script>
+@include('public._site-scripts', ['ssPart' => 'body']) {{-- MARKER-SITE-SCRIPTS --}}
 </body>
 </html>

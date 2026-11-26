@@ -33,6 +33,7 @@
   a.btn { display: inline-block; font-size: 14px; font-weight: 650; padding: 11px 26px; border-radius: 10px; background: var(--acc); color: var(--p-text); text-decoration: none; margin-top: 26px; }
 </style>
   @include('public._ga4')
+  @include('public._site-scripts', ['ssPart' => 'head']) {{-- MARKER-SITE-SCRIPTS --}}
 </head>
 <body>
 <div class="wrap">
@@ -52,5 +53,6 @@
   <p style="font-size:13px;opacity:.55;margin-top:18px">Bring photo ID at pickup. Need to change anything? Just get in touch — your reservation number is above.</p>
   <a class="btn" href="/">Back to {{ $tname }}</a>
 </div>
+@include('public._site-scripts', ['ssPart' => 'body']) {{-- MARKER-SITE-SCRIPTS --}}
 </body>
 </html>

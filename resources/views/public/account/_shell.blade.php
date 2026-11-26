@@ -59,6 +59,7 @@
   @stack('styles')
   {{-- analytics + funnel tracking --}}
   @include('public._funnel_tracker')
+  @include('public._site-scripts', ['ssPart' => 'head']) {{-- MARKER-SITE-SCRIPTS --}}
 </head>
 <body>
 @include('public._chrome-inline', ['chromePos' => 'top'])
@@ -104,5 +105,6 @@
 
 @stack('scripts')
 @include('public._chrome-inline', ['chromePos' => 'bottom'])
+@include('public._site-scripts', ['ssPart' => 'body']) {{-- MARKER-SITE-SCRIPTS --}}
 </body>
 </html>

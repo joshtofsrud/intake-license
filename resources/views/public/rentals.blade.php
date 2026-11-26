@@ -48,6 +48,7 @@
   .empty { text-align: center; padding: 60px 20px; opacity: .55; font-size: 15px; }
 </style>
   @include('public._ga4')
+  @include('public._site-scripts', ['ssPart' => 'head']) {{-- MARKER-SITE-SCRIPTS --}}
 </head>
 <body>
 @include('public._launch-ribbon', ['lrModule' => 'rent'])
@@ -121,5 +122,6 @@
   @endif
 </div>
 @include('public._chrome-inline', ['chromePos' => 'bottom'])
+@include('public._site-scripts', ['ssPart' => 'body']) {{-- MARKER-SITE-SCRIPTS --}}
 </body>
 </html>

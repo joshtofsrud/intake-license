@@ -11,6 +11,7 @@
   @if(empty($builderPreview) && ! \App\Support\SiteLook::previewing())
   @include('public._funnel_tracker')
   @endif
+  @include('public._site-scripts', ['ssPart' => 'head']) {{-- MARKER-SITE-SCRIPTS --}}
 
   {{-- title, description and link-preview tags,
        from the builder's Search & sharing panel. --}}
@@ -506,5 +507,6 @@ document.addEventListener('click', function (e) {
 @endif
 
 @stack('scripts')
+@include('public._site-scripts', ['ssPart' => 'body']) {{-- MARKER-SITE-SCRIPTS --}}
 </body>
 </html>
