@@ -115,19 +115,16 @@ class LightspeedRClient implements PosAdapter
     }
 
     /**
-     * MARKER-CONNECTED-POS-CATALOG: items changed since a timestamp, paged by offset.
-     * The cursor holds the window start, the offset inside it and the newest
+     * MARKER-CONNECTED-POS-CATALOG: items changed since a timestamp, paged by Lightspeed's next link.
+     * The cursor holds the window start, the next page's URL and the newest
      * timestamp seen, so the next run starts where this one finished.
      */
     public function pullItems(string $accessToken, string $accountId, array $context, ?string $cursor): array
     {
         $c = $this->cursor($cursor);
         // MARKER-CONNECTED-POS-SECTION: category and brand come along for Inventory › Import
-        $q = ['limit' => 100, 'offset' => $c['offset'], 'sort' => 'timeStamp', 'load_relations' => '["ItemPrices","Category","Manufacturer"]'];
-        if ($c['since']) {
-            $q['timeStamp'] = '>,' . $c['since'];
-        }
-        $body = $this->get($accessToken, $this->url($accountId, 'Item.json'), $q);
+        $q = ['limit' => 100, 'load_relations' => '["ItemPrices","Category","Manufacturer"]'];
+        $body = $this->page($accessToken, $accountId, 'Item.json', $q, $c);
         $rows = $this->rows($body['Item'] ?? null);
 
         $items = [];
@@ -139,18 +136,16 @@ class LightspeedRClient implements PosAdapter
             $items[] = $this->mapItem($r);
         }
 
-        return $this->advance($c, count($rows), 100) + ['items' => $items];
+        return $this->advance($c, $body, count($rows), 100) + ['items' => $items];
     }
 
     /** MARKER-POS-CUSTOMERS-IN: not yet tried against a real R-Series account. */
     public function pullCustomers(string $accessToken, string $accountId, array $context, ?string $cursor): array
     {
         $c = $this->cursor($cursor);
-        $q = ['limit' => 100, 'offset' => $c['offset'], 'sort' => 'timeStamp', 'load_relations' => '["Contact"]', 'archived' => 'true'];
-        if ($c['since']) {
-            $q['timeStamp'] = '>,' . $c['since'];
-        }
-        $rows = $this->rows(($this->get($accessToken, $this->url($accountId, 'Customer.json'), $q))['Customer'] ?? null);
+        $q = ['limit' => 100, 'load_relations' => '["Contact"]', 'archived' => 'true'];
+        $body = $this->page($accessToken, $accountId, 'Customer.json', $q, $c);
+        $rows = $this->rows($body['Customer'] ?? null);
 
         $out = [];
         foreach ($rows as $r) {
@@ -174,18 +169,16 @@ class LightspeedRClient implements PosAdapter
             ];
         }
 
-        return $this->advance($c, count($rows), 100) + ['customers' => $out];
+        return $this->advance($c, $body, count($rows), 100) + ['customers' => $out];
     }
 
     /** MARKER-POS-SALES-HISTORY: not yet tried against a real R-Series account. */
     public function pullSales(string $accessToken, string $accountId, array $context, ?string $cursor): array
     {
         $c = $this->cursor($cursor);
-        $q = ['limit' => 100, 'offset' => $c['offset'], 'sort' => 'timeStamp', 'load_relations' => '["SaleLines","SaleLines.Item"]'];
-        if ($c['since']) {
-            $q['timeStamp'] = '>,' . $c['since'];
-        }
-        $rows = $this->rows(($this->get($accessToken, $this->url($accountId, 'Sale.json'), $q))['Sale'] ?? null);
+        $q = ['limit' => 100, 'load_relations' => '["SaleLines","SaleLines.Item"]'];
+        $body = $this->page($accessToken, $accountId, 'Sale.json', $q, $c);
+        $rows = $this->rows($body['Sale'] ?? null);
 
         $cents = fn ($v) => is_numeric($v) ? (int) round(((float) $v) * 100) : 0;
         $yes = fn ($v) => in_array(strtolower((string) $v), ['true', '1'], true);
@@ -224,17 +217,14 @@ class LightspeedRClient implements PosAdapter
             ];
         }
 
-        return $this->advance($c, count($rows), 100) + ['sales' => $out];
+        return $this->advance($c, $body, count($rows), 100) + ['sales' => $out];
     }
 
     public function pullStock(string $accessToken, string $accountId, array $context, ?string $cursor): array
     {
         $c = $this->cursor($cursor);
-        $q = ['limit' => 100, 'offset' => $c['offset'], 'sort' => 'timeStamp'];
-        if ($c['since']) {
-            $q['timeStamp'] = '>,' . $c['since'];
-        }
-        $body = $this->get($accessToken, $this->url($accountId, 'ItemShop.json'), $q);
+        $q = ['limit' => 100];
+        $body = $this->page($accessToken, $accountId, 'ItemShop.json', $q, $c);
         $data = $this->rows($body['ItemShop'] ?? null);
 
         $rows = [];
@@ -247,27 +237,63 @@ class LightspeedRClient implements PosAdapter
             $rows[] = ['item_id' => (string) $r['itemID'], 'location_id' => (string) $r['shopID'], 'qty' => (int) floor((float) ($r['qoh'] ?? 0))];
         }
 
-        return $this->advance($c, count($data), 100) + ['rows' => $rows];
+        return $this->advance($c, $body, count($data), 100) + ['rows' => $rows];
     }
 
-    /** @return array{since: ?string, offset: int, max: ?string} */
+    /**
+     * MARKER-R-CURSOR-PAGING: Lightspeed R dropped offset paging ("The offset
+     * parameter is no longer supported"). Each response now carries the URL of
+     * the next page, and the cursor keeps that URL, so a stopped import resumes
+     * on the page it stopped at. A window is everything changed since `since`;
+     * when it runs out, the next window starts at the newest timestamp seen.
+     * An old offset cursor just restarts its window: rows upsert, so nothing doubles.
+     *
+     * @return array{since: ?string, next: ?string, max: ?string}
+     */
     private function cursor(?string $cursor): array
     {
         $c = $cursor ? (json_decode($cursor, true) ?: []) : [];
 
-        return ['since' => $c['since'] ?? null, 'offset' => (int) ($c['offset'] ?? 0), 'max' => $c['max'] ?? null];
+        return ['since' => $c['since'] ?? null, 'next' => $c['next'] ?? null, 'max' => $c['max'] ?? null];
+    }
+
+    /** this window's next page: the URL Lightspeed handed back, or the first page of a new window */
+    private function page(string $token, string $accountId, string $resource, array $query, array $c): array
+    {
+        if (! empty($c['next'])) {
+            return $this->get($token, (string) $c['next']);
+        }
+        if ($c['since']) {
+            $query['timeStamp'] = '>,' . $c['since'];
+        }
+
+        return $this->get($token, $this->url($accountId, $resource), $query);
+    }
+
+    /** The next page's URL, '' when this was the last, null when the response didn't say. */
+    private function nextUrl(array $body): ?string
+    {
+        $attr = (array) ($body['@attributes'] ?? []);
+        foreach ([$attr['next'] ?? null, $body['next'] ?? null] as $v) {
+            if ($v !== null) return trim((string) $v);
+        }
+        return array_key_exists('@attributes', $body) || array_key_exists('next', $body) ? '' : null;
     }
 
     /** Next page in this window, or close the window at the newest timestamp seen. */
-    private function advance(array $c, int $got, int $limit): array
+    private function advance(array $c, array $body, int $got, int $limit): array
     {
-        if ($got >= $limit) {
-            return ['cursor' => json_encode(['since' => $c['since'], 'offset' => $c['offset'] + $got, 'max' => $c['max']]), 'more' => true];
+        $next = $this->nextUrl($body);
+        if ($next === null && $got >= $limit) {
+            // a full page with no next link: carrying on would repeat this page or skip the rest
+            throw new \RuntimeException('Lightspeed R sent a full page without a link to the next one, so the import stopped rather than guess. Nothing was lost; try again shortly.');
+        }
+        if ($next !== null && $next !== '') {
+            return ['cursor' => json_encode(['since' => $c['since'], 'next' => $next, 'max' => $c['max']]), 'more' => true];
         }
 
-        return ['cursor' => json_encode(['since' => $c['max'] ?: $c['since'], 'offset' => 0, 'max' => null]), 'more' => false];
+        return ['cursor' => json_encode(['since' => $c['max'] ?: $c['since'], 'next' => null, 'max' => null]), 'more' => false];
     }
-
 
     /** One API item in the shape pullItems returns. R-Series items carry no description here. */
     private function mapItem(array $r): array
@@ -446,7 +472,8 @@ class LightspeedRClient implements PosAdapter
 
     private function get(string $token, string $url, array $query = []): array
     {
-        $send = fn () => Http::withToken($token)->acceptJson()->timeout(20)->get($url, $query);
+        // an empty query must go as null: [] makes the client drop the URL's own ?after=… (the next-page link)
+        $send = fn () => Http::withToken($token)->acceptJson()->timeout(20)->get($url, $query ?: null);
         $res = $send();
         if ($res->status() === 429) {
             sleep(min(5, max(1, (int) ($res->header('Retry-After') ?: 2))));
