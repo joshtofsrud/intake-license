@@ -28,6 +28,7 @@ class DiscountAdminController extends Controller
         $tenant = tenant();
 
         $discounts = TenantDiscount::where('tenant_id', $tenant->id)
+            ->shopMade() // MARKER-RENT-TO-BUY: per-customer credits live on their rental
             ->orderByDesc('is_active')
             ->orderByDesc('created_at')
             ->get();

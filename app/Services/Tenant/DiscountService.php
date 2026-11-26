@@ -40,6 +40,15 @@ class DiscountService
         if (! $discount->is_active) {
             return $fail('That code has been turned off.');
         }
+        // MARKER-RENT-TO-BUY: a code issued to one customer works only for them
+        if ($discount->customer_id) {
+            if (! $customerId) {
+                return $fail('This code belongs to a customer — add them to the sale first.');
+            }
+            if ($discount->customer_id !== $customerId) {
+                return $fail('This code belongs to a different customer.');
+            }
+        }
         if ($discount->starts_at && $discount->starts_at->isFuture()) {
             return $fail('That code starts ' . tlocal($discount->starts_at, 'M j') . '.');
         }
@@ -147,6 +156,7 @@ class DiscountService
 
             // the one place every surface passes through.
             app(DiscountTagService::class)->onRedeemed($locked, $customerId);
+            app(RentToBuyService::class)->onRedeemed($locked, $customerId); // MARKER-RENT-TO-BUY
 
             return [
                 'ok'           => true,
@@ -169,6 +179,7 @@ class DiscountService
         $tenantId   = $redemption->tenant_id;
         $redemption->delete();
         app(DiscountTagService::class)->onReleased($tenantId, $discountId, $customerId);
+        app(RentToBuyService::class)->onReleased($discountId); // MARKER-RENT-TO-BUY
 
         $d = TenantDiscount::find($discountId);
         if ($d) {
@@ -194,6 +205,7 @@ class DiscountService
             $row->delete();
             $released++;
             app(DiscountTagService::class)->onReleased($tenantId, $discountId, $customerId);
+            app(RentToBuyService::class)->onReleased($discountId); // MARKER-RENT-TO-BUY
 
             $d = TenantDiscount::find($discountId);
             if ($d) {

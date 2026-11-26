@@ -13,6 +13,7 @@
   html.pb-appear-on .pbw-appear > section > *, html.pb-appear-on .pbw-appear > footer > * { opacity: 0; transition: opacity var(--pb-appear-dur, 700ms) ease, transform var(--pb-appear-dur, 700ms) ease; transition-delay: var(--pb-appear-delay, 0ms); }
   html.pb-appear-on .pbw-appear-up > section > *, html.pb-appear-on .pbw-appear-up > footer > * { transform: translateY(28px); }
   html.pb-appear-on .pbw-appear.is-in > section > *, html.pb-appear-on .pbw-appear.is-in > footer > * { opacity: 1; transform: none; }
+  .pbw-shape { position: relative; } /* MARKER-SECTION-SHAPE */
   .pbw-divider > section, .pbw-divider > footer { border-bottom: 1px solid var(--p-border, rgba(0,0,0,.1)) !important; background-origin: border-box !important; }
   /* sections sharing one gradient show no line between them */
   .pbw[data-bg-chain] > section { border-bottom-width: 0 !important; }

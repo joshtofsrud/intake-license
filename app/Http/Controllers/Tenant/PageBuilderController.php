@@ -361,6 +361,8 @@ class PageBuilderController extends Controller
             'mf_list'=>'fast','mf_mode'=>'auto','mf_count'=>'8','mf_layout'=>'grid','mf_carry'=>'all','mf_vendors'=>[],'mf_cats'=>[],'mf_brands'=>[],'mf_min'=>'','mf_max'=>'','mf_picked'=>[],'mf_badges'=>'1','mf_prices'=>'1','mf_special'=>'show'],
         'products_showcase' => ['eyebrow'=>'','heading'=>'From the shop','body'=>'','category_id'=>'','max_items'=>8,'in_stock_only'=>'0','show_prices'=>'1','show_search'=>'0','search_placeholder'=>'','cta_label'=>'Browse the shop','cta_url'=>'/shop','bg_color'=>''],
         'classes_embed'  => ['heading'=>'Upcoming classes','show_filters'=>true,'weeks_ahead'=>2],
+        // MARKER-POSTS
+        'post_feed'      => ['eyebrow'=>'','heading'=>'Latest updates','body'=>'','feed'=>'','max_posts'=>3,'layout'=>'list','show_dates'=>'1','show_images'=>'1','empty_text'=>'Nothing posted yet — check back soon.','cta_label'=>'See all','cta_url'=>'','text_align'=>'left','bg_color'=>'','text_color'=>'','anchor_id'=>'','custom_classes'=>'','hide_on_mobile'=>false,'hide_on_desktop'=>false],
         'roadmap_grid'  => ['intro_text'=>'An honest look at where Intake is heading. Plans change as we learn from shops using the product.'],
         'changelog_list'=> ['intro_text'=>'Everything we shipped lately, reverse-chronological.'],
         // footer v2 fields (Phase 2)
@@ -1043,6 +1045,9 @@ class PageBuilderController extends Controller
                             ->select('category_id'))
                         ->orderBy('name')
                         ->get(['id', 'name']);
+                }
+                if ($section->section_type === 'post_feed') { // MARKER-POSTS
+                    $extras['postFeeds'] = \App\Models\Tenant\TenantPost::feedsFor($tenant->id);
                 }
                 if ($section->section_type === 'market_movers') {
                     $extras['mfAvailable'] = \App\Support\MovingFast::available($tenant);

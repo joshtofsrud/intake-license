@@ -168,6 +168,7 @@ class RentalBookingController extends Controller
                 // read through the model (rates moved up).
                 'hourly_rate_cents'   => $u->effectiveHourlyCents(),
                 'daily_rate_cents'    => $u->effectiveDailyCents(),
+                'additional_day_rate_cents' => $u->effectiveAdditionalDayCents(),
                 'weekend_rate_cents'  => $u->effectiveWeekendCents(),
                 'seasonal_rate_cents' => $u->effectiveSeasonalCents(),
                 'deposit_cents'       => $u->effectiveDepositCents(),
@@ -354,7 +355,14 @@ class RentalBookingController extends Controller
                 ->where('status', '!=', 'cancelled')->count()
             : 0;
 
-        return view('tenant.rentals.bookings.show', compact('rental', 'feed', 'priorRentals'));
+        // MARKER-RENT-TO-BUY
+        $rtbSvc   = app(\App\Services\Tenant\RentToBuyService::class);
+        $rtbCfg   = \App\Services\Tenant\RentToBuyService::settings($tenant);
+        $rtbCredit = $rtbSvc->creditFor($rental);
+        $rtbParts  = $rtbCredit ? \App\Models\Tenant\TenantDiscount::where('parent_id', $rtbCredit->id)->first() : null;
+        $rtbPreview = (! $rtbCredit && $rtbCfg['enabled']) ? $rtbSvc->amountFor($rental, $rtbCfg['max_days']) : 0;
+
+        return view('tenant.rentals.bookings.show', compact('rental', 'feed', 'priorRentals', 'rtbCfg', 'rtbCredit', 'rtbParts', 'rtbPreview'));
     }
 
     // ------------------------------------------ check-out flow (PATCH-232)
@@ -935,6 +943,11 @@ class RentalBookingController extends Controller
             $rental->returned_at = now();
             $rental->save();
 
+            // MARKER-RENT-TO-BUY: the renter's credit toward a purchase
+            if ($rtb = app(\App\Services\Tenant\RentToBuyService::class)->issueOnReturn($rental)) {
+                $message .= ' ' . $rtb;
+            }
+
             return $message;
         });
     }
@@ -976,6 +989,10 @@ class RentalBookingController extends Controller
             $rental->status = 'returned';
             $rental->returned_at = now();
             $rental->save();
+            // MARKER-RENT-TO-BUY
+            if ($rtb = app(\App\Services\Tenant\RentToBuyService::class)->issueOnReturn($rental)) {
+                $message .= ' ' . $rtb;
+            }
             return $message;
         });
     }
@@ -1394,29 +1411,8 @@ class RentalBookingController extends Controller
      */
     private function priceUnit(TenantRentalUnit $unit, string $mode, Carbon $start, Carbon $due): array
     {
-        // model-backed rates. PATCH-228 adds seasonal
-        // (flat for the whole window, like weekend).
-        $rateCents = match ($mode) {
-            'hourly'   => $unit->effectiveHourlyCents(),
-            'daily'    => $unit->effectiveDailyCents(),
-            'weekend'  => $unit->effectiveWeekendCents(),
-            'seasonal' => $unit->effectiveSeasonalCents(),
-        };
-
-        if ($rateCents === null) {
-            throw new RuntimeException("{$unit->name} has no {$mode} rate configured.");
-        }
-
-        $minutes = $start->diffInMinutes($due);
-
-        $durationUnits = match ($mode) {
-            'hourly'   => max(1, (int) ceil($minutes / 60)),
-            'daily'    => max(1, (int) ceil($minutes / 1440)),
-            'weekend'  => 1,
-            'seasonal' => 1,
-        };
-
-        return [$mode, (int) $rateCents, $durationUnits, (int) $rateCents * $durationUnits];
+        // MARKER-RENTAL-PRICING: shared with the public reserve flow (tiered daily).
+        return \App\Support\Rentals\RentalPricing::price($unit, $mode, $start, $due);
     }
 
     /**
@@ -1487,6 +1483,16 @@ class RentalBookingController extends Controller
     }
 
     /** remove it and give any code use back. */
+    /** MARKER-RENT-TO-BUY: issue the credit by hand — e.g. they buy before bringing the rental back. */
+    public function issueRentToBuy(string $id)
+    {
+        $tenant = tenant();
+        $rental = TenantRental::where('tenant_id', $tenant->id)->where('id', $id)->firstOrFail();
+        [$discount, $msg] = app(\App\Services\Tenant\RentToBuyService::class)->issue($rental, auth('tenant')->id());
+        return redirect()->route('tenant.rentals.bookings.show', $rental->id)
+            ->with($discount ? ['flash' => $msg] : [])->withErrors($discount ? [] : ['rtb' => $msg]);
+    }
+
     public function removeDiscount(string $id)
     {
         $rental = \App\Models\Tenant\TenantRental::where('tenant_id', tenant()->id)->findOrFail($id);

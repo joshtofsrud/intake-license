@@ -52,14 +52,10 @@ class RentalReserveController extends Controller
         return [$start->utc(), $due->utc()];
     }
 
-    private function priceDaily(TenantRentalUnit $unit, Carbon $startUtc, Carbon $dueUtc): array
+    /** MARKER-RENTAL-PRICING: cheapest mode that fits the window, tiered daily. */
+    private function priceOnline(TenantRentalUnit $unit, Carbon $startUtc, Carbon $dueUtc): array
     {
-        $rate = $unit->effectiveDailyCents();
-        if (!$rate) {
-            throw new RuntimeException('This model has no daily rate configured.');
-        }
-        $days = max(1, (int) ceil($startUtc->diffInMinutes($dueUtc) / 1440));
-        return [(int) $rate, $days, (int) $rate * $days];
+        return \App\Support\Rentals\RentalPricing::online($unit, $startUtc, $dueUtc, tenant()->timezone());
     }
 
     private function freeUnitOfModel(TenantRentalModel $model, Carbon $startUtc, Carbon $dueUtc): ?TenantRentalUnit
@@ -161,7 +157,7 @@ class RentalReserveController extends Controller
             ])->with('browse_error', $model->name . ' just sold out for that window.');
         }
 
-        [$rate, $days, $subtotal] = $this->priceDaily($unit, $startUtc, $dueUtc);
+        [$mode, $rate, $days, $subtotal] = $this->priceOnline($unit, $startUtc, $dueUtc);
         $taxRate = (float) ($tenant->default_tax_rate ?? 0);
         $tax     = (int) round($subtotal * $taxRate / 100);
 
@@ -175,6 +171,7 @@ class RentalReserveController extends Controller
             'due'        => $request->query('due'),
             'rateCents'  => $rate,
             'days'       => $days,
+            'rateMode'   => $mode,
             'subtotal'   => $subtotal,
             'tax'        => $tax,
             'total'      => $subtotal + $tax,
@@ -234,7 +231,7 @@ class RentalReserveController extends Controller
                         throw new RuntimeException($model->name . ' just sold out for that window — try different dates.');
                     }
 
-                    [$rate, $days, $subtotal] = $this->priceDaily($unit, $startUtc, $dueUtc);
+                    [$mode, $rate, $days, $subtotal] = $this->priceOnline($unit, $startUtc, $dueUtc);
                     $taxRate = (float) ($tenant->default_tax_rate ?? 0);
                     $tax     = (int) round($subtotal * $taxRate / 100);
                     $total   = $subtotal + $tax;
@@ -261,7 +258,7 @@ class RentalReserveController extends Controller
                         'kind'                => 'unit',
                         'unit_id'             => $unit->id,
                         'name_snapshot'       => $unit->name . ($unit->identifier ? " ({$unit->identifier})" : ''),
-                        'rate_mode_snapshot'  => 'daily',
+                        'rate_mode_snapshot'  => $mode,
                         'rate_cents_snapshot' => $rate,
                         'quantity'            => 1,
                         'duration_units'      => $days,

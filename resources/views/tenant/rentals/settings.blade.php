@@ -16,6 +16,7 @@
   $nextV   = $current ? $current->version + 1 : 1;
   $secs    = ['rentals' => 'Rentals', 'booking' => 'Hours & payment', 'leasing' => 'Leasing', 'late' => 'Late & overdue'];
   if ($extOn) $secs['offers'] = 'Extension offers';
+  $secs['rtb'] = 'Rent to Buy'; // MARKER-RENT-TO-BUY
   $secs['deposits'] = 'Deposits'; $secs['agreement'] = 'Agreement';
   // a switch is a real (hidden) checkbox, so the form posts exactly what it did before
   $tog = function (string $name, bool $on, string $label) {
@@ -147,6 +148,19 @@
           </div>
         </section>
         @endif
+
+        {{-- MARKER-RENT-TO-BUY --}}
+        <section class="st-sec sd-in" id="ss-rtb">
+          <h2>Rent to Buy</h2>
+          <p>Renters get what they spent back toward a purchase. A one-time credit code is made for them when the rental comes back.</p>
+          <div class="st-row"><div><b>Give rental credit toward a purchase</b><small>Shows on the rental and under the customer in the register.</small></div>{!! $tog('rtb_enabled', $rtb['enabled'], 'Give rental credit toward a purchase') !!}</div>
+          <div class="st-fields">
+            <label title="Days of rental that count toward the purchase"><span class="rf-lbl">Days that count</span><input class="ia-input" type="number" name="rtb_max_days" value="{{ $rtb['max_days'] }}" min="1" max="60"></label>
+            <label title="How long the renter has to buy"><span class="rf-lbl">Good for (days)</span><input class="ia-input" type="number" name="rtb_window_days" value="{{ $rtb['window_days'] }}" min="1" max="365"></label>
+            <label title="The purchase has to be at least this much (and always at least the credit)"><span class="rf-lbl">Minimum purchase ($)</span><input class="ia-input" type="number" name="rtb_min_purchase" value="{{ number_format($rtb['min_purchase'] / 100, 2, '.', '') }}" min="0" step="0.01" style="text-align:right"></label>
+            <label title="Using the credit makes a second code for this % off parts and accessories, good until close that day. 0 = off."><span class="rf-lbl">Parts &amp; accessories % that day</span><input class="ia-input" type="number" name="rtb_parts_pct" value="{{ $rtb['parts_pct'] }}" min="0" max="90"></label>
+          </div>
+        </section>
 
         <section class="st-sec sd-in" id="ss-deposits">
           <h2>Deposits</h2>

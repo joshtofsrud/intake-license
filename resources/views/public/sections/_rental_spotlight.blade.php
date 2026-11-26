@@ -77,7 +77,8 @@
         @if(!empty($c['body']))<p class="rs-body" style="margin-top:14px;opacity:.85;font-size:15px;line-height:1.65">{{ $c['body'] }}</p>@endif
         @if($spShowRates)
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:18px">
-            @if($spModel->daily_rate_cents)<span style="font-size:12.5px;background:rgba(0,0,0,.05);border-radius:6px;padding:4px 10px"><b>{{ format_money($spModel->daily_rate_cents) }}</b>/day</span>@endif
+            @if($spModel->daily_rate_cents)<span style="font-size:12.5px;background:rgba(0,0,0,.05);border-radius:6px;padding:4px 10px"><b>{{ format_money($spModel->daily_rate_cents) }}</b>{{ $spModel->additional_day_rate_cents ? ' first day' : '/day' }}</span>@endif
+                @if($spModel->daily_rate_cents && $spModel->additional_day_rate_cents)<span style="font-size:12.5px;background:rgba(0,0,0,.05);border-radius:6px;padding:4px 10px"><b>{{ format_money($spModel->additional_day_rate_cents) }}</b> each extra day</span>@endif
             @if($spModel->hourly_rate_cents)<span style="font-size:12.5px;background:rgba(0,0,0,.05);border-radius:6px;padding:4px 10px"><b>{{ format_money($spModel->hourly_rate_cents) }}</b>/hr</span>@endif
             @if($spModel->weekend_rate_cents)<span style="font-size:12.5px;background:rgba(0,0,0,.05);border-radius:6px;padding:4px 10px"><b>{{ format_money($spModel->weekend_rate_cents) }}</b>/weekend</span>@endif
             @if($spShowDeposit && $spModel->deposit_cents)<span style="font-size:12.5px;background:rgba(0,0,0,.05);border-radius:6px;padding:4px 10px">{{ format_money($spModel->deposit_cents) }} deposit</span>@endif

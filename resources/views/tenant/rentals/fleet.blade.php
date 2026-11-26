@@ -117,7 +117,8 @@
               <div class="rf-mname"><b data-model-name>{{ $model->name }}</b><small>{{ $model->subtitle ?: $cat->name }}{{ $model->conditionTemplate ? ' · ' . $model->conditionTemplate->name : '' }}</small></div>
               <div class="rf-rates">
                 @if($model->hourly_rate_cents)<span class="rf-rate"><b>{{ format_money($model->hourly_rate_cents) }}</b>/hr</span>@endif
-                @if($model->daily_rate_cents)<span class="rf-rate"><b>{{ format_money($model->daily_rate_cents) }}</b>/day</span>@endif
+                @if($model->daily_rate_cents)<span class="rf-rate"><b>{{ format_money($model->daily_rate_cents) }}</b>{{ $model->additional_day_rate_cents ? ' 1st day' : '/day' }}</span>@endif
+                @if($model->daily_rate_cents && $model->additional_day_rate_cents)<span class="rf-rate"><b>{{ format_money($model->additional_day_rate_cents) }}</b>/extra day</span>@endif
                 @if($model->weekend_rate_cents)<span class="rf-rate"><b>{{ format_money($model->weekend_rate_cents) }}</b>/wknd</span>@endif
                 @if($model->seasonal_rate_cents)<span class="rf-rate"><b>{{ format_money($model->seasonal_rate_cents) }}</b>/season</span>@endif
                 <span class="rf-rate"><b>{{ format_money($model->deposit_cents) }}</b> deposit</span>
@@ -246,6 +247,7 @@
           <div class="rf-fg">
             <label><span class="rf-lbl">Hourly</span><div class="rf-money"><input class="ia-input" data-mf="hourly_rate" value="{{ $rate($model->hourly_rate_cents) }}" placeholder="—" inputmode="decimal"></div></label>
             <label><span class="rf-lbl">Daily</span><div class="rf-money"><input class="ia-input" data-mf="daily_rate" value="{{ $rate($model->daily_rate_cents) }}" placeholder="—" inputmode="decimal"></div></label>
+            <label title="Days after the first. Blank charges every day at the daily rate."><span class="rf-lbl">Each extra day</span><div class="rf-money"><input class="ia-input" data-mf="additional_day_rate" value="{{ $rate($model->additional_day_rate_cents) }}" placeholder="same" inputmode="decimal"></div></label>
             <label><span class="rf-lbl">Weekend</span><div class="rf-money"><input class="ia-input" data-mf="weekend_rate" value="{{ $rate($model->weekend_rate_cents) }}" placeholder="—" inputmode="decimal"></div></label>
             <label><span class="rf-lbl">Deposit</span><div class="rf-money"><input class="ia-input" data-mf="deposit" value="{{ number_format($model->deposit_cents / 100, 2, '.', '') }}" inputmode="decimal"></div></label>
             <label class="rf-c2"><span class="rf-lbl">Entire season / lease @unless(tenant()->leasing_available)<span style="text-transform:none;letter-spacing:0">(Scale plan)</span>@endunless</span><div class="rf-money"><input class="ia-input" data-mf="seasonal_rate" value="{{ $rate($model->seasonal_rate_cents) }}" placeholder="—" inputmode="decimal" {{ tenant()->leasing_available ? '' : 'disabled' }}></div></label>
@@ -327,6 +329,7 @@
         <div class="rf-fg">
           <label><span class="rf-lbl">Hourly</span><div class="rf-money"><input class="ia-input" name="hourly_rate" placeholder="—" inputmode="decimal"></div></label>
           <label><span class="rf-lbl">Daily</span><div class="rf-money"><input class="ia-input" name="daily_rate" placeholder="—" inputmode="decimal"></div></label>
+          <label title="Days after the first. Blank charges every day at the daily rate."><span class="rf-lbl">Each extra day</span><div class="rf-money"><input class="ia-input" name="additional_day_rate" placeholder="same" inputmode="decimal"></div></label>
           <label><span class="rf-lbl">Weekend</span><div class="rf-money"><input class="ia-input" name="weekend_rate" placeholder="—" inputmode="decimal"></div></label>
           <label><span class="rf-lbl">Deposit</span><div class="rf-money"><input class="ia-input" name="deposit" placeholder="0.00" inputmode="decimal"></div></label>
           @if(tenant()->leasing_available)

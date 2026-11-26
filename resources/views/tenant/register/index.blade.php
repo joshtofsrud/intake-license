@@ -3415,6 +3415,13 @@ async function loadCustomerOpen(customerId) {
     if (!d.ok || (!d.open.length && !pickups.length)) { box.innerHTML = ''; return; }
     box.innerHTML = renderPickups(pickups) + (d.open.length ? '<div style="font-size:10.5px;letter-spacing:.09em;color:var(--ia-text-dim);margin:10px 0 6px">OPEN WITH THIS CUSTOMER</div>' : '')
       + d.open.map(o => {
+          // MARKER-RENT-TO-BUY: issued credit codes apply through the normal code path
+          if (o.kind === 'credit') {
+            return `<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:0.5px solid var(--ia-border);border-radius:8px;margin-bottom:6px;font-size:12.5px">
+            <div style="flex:1"><div>${escapeHtml(o.label)}</div>
+            <div style="font-size:11.5px;color:var(--ia-text-dim)"><span style="font-family:var(--ia-font-mono)">${escapeHtml(o.code)}</span> · ${escapeHtml(o.summary)}${o.ends_label ? ' · ' + escapeHtml(o.ends_label) : ''}</div></div>
+            <button type="button" class="reg-btn-primary" style="padding:4px 10px;font-size:12px" data-credit-code="${escapeHtml(o.code)}">${cart.discountCode === o.code ? 'Applied' : 'Apply'}</button></div>`;
+          }
           const meta = o.kind === 'layaway'
             ? (o.status === 'ready' ? (o.awaiting ? 'Paid · waiting on a special order' : 'Paid · ready to hand over')
                : fmt(o.balance_cents) + ' balance' + (o.scheduled_cents ? ' · ' + fmt(o.scheduled_cents) + ' due ' + (o.next_due_on || '') : '')
@@ -3435,6 +3442,11 @@ async function loadCustomerOpen(customerId) {
       openTenderForPlan();
     }));
     box.querySelectorAll('[data-handover]').forEach(b => b.addEventListener('click', () => handOverLayaway(b.dataset.handover)));
+    box.querySelectorAll('[data-credit-code]').forEach(b => b.addEventListener('click', () => {
+      document.getElementById('discountBtn').click();
+      document.getElementById('discCodeInput').value = b.dataset.creditCode;
+      document.getElementById('discCodeApply').click();
+    }));
     box.querySelectorAll('[data-pickup-hand]').forEach(b => b.addEventListener('click', () => handOverPickup(b.dataset.pickupHand)));
     box.querySelectorAll('[data-pickup-add]').forEach(b => b.addEventListener('click', () => {
       const p = pickups.find(x => x.id === b.dataset.pickupAdd);

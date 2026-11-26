@@ -123,7 +123,7 @@
       <div style="flex:1;min-width:0">
         <div>{{ $ln->name_snapshot }}</div>
         <div class="ac-line-m">
-          @if($ln->duration_units) {{ $ln->duration_units }} {{ \Illuminate\Support\Str::plural($modeTxt[$ln->rate_mode_snapshot] ?? 'day', (int) $ln->duration_units) }} &times; {{ $money($ln->rate_cents_snapshot) }}@endif
+          @if($ln->duration_units) {{ $ln->rateLabel($money) }} @endif
           @if($ln->unit?->size) &middot; size {{ $ln->unit->size }}@endif
         </div>
       </div>

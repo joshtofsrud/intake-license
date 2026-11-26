@@ -97,6 +97,8 @@ class RentalExtensionOfferService
         $hours = $gapMinutes / 60;
         $rate  = (int) ($line->rate_cents_snapshot ?? 0);
         $mode  = $line->rate_mode_snapshot ?? 'daily';
+        // MARKER-RENTAL-PRICING: extra time on a daily rental is an additional day, not a first day
+        if ($mode === 'daily' && ($extra = $unit->effectiveAdditionalDayCents())) { $rate = (int) $extra; }
         $base  = $mode === 'hourly'
             ? (int) ceil($hours) * $rate
             : (int) round($rate * min(1, $hours / 8)); // daily prorated per shop-hour, capped at a day

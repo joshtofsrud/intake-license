@@ -258,7 +258,16 @@
     return 1; // weekend and seasonal are flat
   }
   function rateOf(u, mode) { var f = modesOf(u).filter(function (x) { return x[0] === mode; })[0]; return f ? f[1] : 0; }
-  function lineOf(u, mode) { return rateOf(u, mode) * unitsFor(mode); }
+  function rateText(u, mode) {
+    var n = unitsFor(mode);
+    if (mode === 'daily' && u.additional_day_rate_cents != null && n > 1) return '1st day ' + fmt(u.daily_rate_cents) + ' + ' + (n - 1) + ' × ' + fmt(u.additional_day_rate_cents);
+    return n + ' × ' + fmt(rateOf(u, mode));
+  }
+  function lineOf(u, mode) {
+    // MARKER-RENTAL-PRICING: first day at the daily rate, the rest at "each additional day"
+    if (mode === 'daily' && u.additional_day_rate_cents != null) { var n = unitsFor('daily'); return u.daily_rate_cents + (n - 1) * u.additional_day_rate_cents; }
+    return rateOf(u, mode) * unitsFor(mode);
+  }
   function defaultMode(u) {
     var ms = modesOf(u).map(function (x) { return x[0]; });
     if (!ms.length) return '';
@@ -347,7 +356,7 @@
       var u = byId(p.id), line = lineOf(u, p.mode); sub += line;
       hid += '<input type="hidden" name="units[' + i + '][unit_id]" value="' + esc(p.id) + '"><input type="hidden" name="units[' + i + '][rate_mode]" value="' + esc(p.mode) + '">';
       var opts = modesOf(u).map(function (m) { return '<option value="' + m[0] + '"' + (m[0] === p.mode ? ' selected' : '') + '>' + esc(MODE_LABEL[m[0]] + ' · ' + fmt(m[1])) + '</option>'; }).join('');
-      return '<div class="rf-pk"><div><b>' + esc(u.name) + '</b><small><span class="rf-mono">' + esc(u.identifier || '') + '</span>' + (u.size ? ' · ' + esc(u.size) : '') + ' · ' + unitsFor(p.mode) + ' × ' + fmt(rateOf(u, p.mode)) + '</small>' +
+      return '<div class="rf-pk"><div><b>' + esc(u.name) + '</b><small><span class="rf-mono">' + esc(u.identifier || '') + '</span>' + (u.size ? ' · ' + esc(u.size) : '') + ' · ' + rateText(u, p.mode) + '</small>' +
         '<select class="ia-input rf-pk-mode" data-mode="' + i + '" aria-label="Rate for ' + esc(u.name) + '">' + opts + '</select></div>' +
         '<span class="amt">' + fmt(line) + '</span><button type="button" class="rf-ib" data-unpick="' + i + '" aria-label="Remove ' + esc(u.name) + '">×</button></div>';
     }).join('') : '<div class="sd-empty">Pick units from what\'s free. Each one you add shows here with its price for the window.</div>';

@@ -434,6 +434,18 @@
             'tenant' => $tenant,
             'industry' => $industry,
         ])
+        {{-- MARKER-SECTION-SHAPE: bottom shape in the next section's color --}}
+        @if(\App\Support\SectionShape::on($c))
+          @php
+            $mkShNext = collect($sections)->slice($loop->index + 1)->first(fn ($s) => ! in_array($s->section_type, ['nav'], true) && ($s->is_visible ?? true));
+            $mkShC    = $mkShNext ? ($mkShNext->content ?? []) : [];
+            $mkShHex  = fn ($v) => is_string($v) && preg_match('/^#[0-9a-fA-F]{3,8}$/', trim($v)) ? trim($v) : null;
+            $mkShTo   = ($mkShC['bg_mode'] ?? '') === 'gradient' ? ($mkShHex($mkShC['bg_gradient_from'] ?? null) ?: '#0a0a0a')
+                      : ($mkShHex($mkShC['bg_color'] ?? null) ?: ($mkShHex($mkShNext->bg_color ?? null) ?: 'var(--mk-bg, #0a0a0a)'));
+          @endphp
+          <style>.{{ $mkwId }}{position:relative}</style>
+          {!! \App\Support\SectionShape::html($c, $mkShTo, substr(md5((string) $section->id), 0, 8)) !!}
+        @endif
         </div>
         @if($pull > 0 || $pullP > 0)</div>@endif
         @if(!empty($builderPreview))</div>@endif

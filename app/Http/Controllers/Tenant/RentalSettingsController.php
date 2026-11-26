@@ -36,6 +36,7 @@ class RentalSettingsController extends Controller
             'rentalHours' => \App\Support\Launch\RentalRules::hours($tenant),
             'payMode'     => (string) ($s['rental_pay_mode'] ?? \App\Support\Launch\RentalRules::payMode($tenant)),
             'paymentsOn'  => (new \App\Services\Tenant\DirectPaymentsService($tenant))->isEnabled(),
+            'rtb'         => \App\Services\Tenant\RentToBuyService::settings($tenant), // MARKER-RENT-TO-BUY
         ]);
     }
 
@@ -92,6 +93,12 @@ class RentalSettingsController extends Controller
             'late_fee_cap'       => ['nullable', 'in:day_rate,none'],
             // deposit behavior.
             'deposit_autorelease_quick' => ['nullable', 'boolean'],
+            // MARKER-RENT-TO-BUY
+            'rtb_enabled'      => ['nullable', 'boolean'],
+            'rtb_max_days'     => ['nullable', 'integer', 'min:1', 'max:60'],
+            'rtb_window_days'  => ['nullable', 'integer', 'min:1', 'max:365'],
+            'rtb_min_purchase' => ['nullable', 'numeric', 'min:0', 'max:99999'],
+            'rtb_parts_pct'    => ['nullable', 'integer', 'min:0', 'max:90'],
         ]);
 
         $settings = $tenant->settings ?? [];
@@ -114,6 +121,12 @@ class RentalSettingsController extends Controller
         }
         // deposit behavior.
         $settings['rental_deposit_autorelease_quick'] = (bool) $request->input('deposit_autorelease_quick');
+        // MARKER-RENT-TO-BUY
+        $settings['rtb_enabled']            = (bool) $request->input('rtb_enabled');
+        $settings['rtb_max_days']           = (int) $request->input('rtb_max_days', 4);
+        $settings['rtb_window_days']        = (int) $request->input('rtb_window_days', 30);
+        $settings['rtb_min_purchase_cents'] = (int) round(((float) $request->input('rtb_min_purchase', 0)) * 100);
+        $settings['rtb_parts_pct']          = (int) $request->input('rtb_parts_pct', 0);
 
         // MARKER-RENTAL-HOURS: an open day needs a window that ends after it starts
         $days = [];

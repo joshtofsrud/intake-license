@@ -105,7 +105,7 @@
               <b>{{ $line->name_snapshot }}</b>
               <small>
                 @if($u && ($u->identifier || $u->size))<span class="rf-mono">{{ $u->identifier ?: '—' }}</span>@if($u->size) · Size {{ $u->size }}@endif · @endif
-                {{ $line->duration_units }} × {{ format_money($line->rate_cents_snapshot) }} ({{ $line->rate_mode_snapshot }})
+                {{ $line->rateLabel() }}
               </small>
             </div>
             <div>@if($lineChip)<span class="rf-st {{ $lineChip[0] }}">{{ $lineChip[1] }}</span>@endif</div>
@@ -229,6 +229,24 @@
           @endif
         @else
           <div class="sd-empty">No deposit was held on this rental.</div>
+        @endif
+
+        {{-- MARKER-RENT-TO-BUY --}}
+        @if($rtbCredit || ($rtbCfg['enabled'] && $rental->status !== 'cancelled'))
+          <div class="rf-rh"><b>Rent to Buy</b><span>{{ $rtbCredit ? ($rtbCredit->redemption_count > 0 ? 'Used' : ($rtbCredit->ends_at && $rtbCredit->ends_at->isPast() ? 'Expired' : 'Open')) : '' }}</span></div>
+          <div class="rf-offer">
+            @if($rtbCredit)
+              <p><span class="rf-mono" style="font-weight:600">{{ $rtbCredit->code }}</span> — {{ format_money($rtbCredit->value) }} toward a purchase of {{ format_money($rtbCredit->min_subtotal_cents) }} or more{{ $rtbCredit->ends_at ? ', good through ' . tlocal($rtbCredit->ends_at, 'M j') : '' }}. Only {{ $rental->customer?->first_name ?: 'this customer' }} can use it.</p>
+              @if($rtbParts)
+                <p><span class="rf-mono" style="font-weight:600">{{ $rtbParts->code }}</span> — {{ $rtbParts->value }}% off parts &amp; accessories, {{ $rtbParts->redemption_count > 0 ? 'used' : ($rtbParts->ends_at && $rtbParts->ends_at->isPast() ? 'expired' : 'good until close today') }}.</p>
+              @endif
+            @elseif(in_array($rental->status, ['out', 'returned'], true) && $rtbPreview > 0)
+              <p>Worth {{ format_money($rtbPreview) }} toward a purchase (up to {{ $rtbCfg['max_days'] }} {{ \Illuminate\Support\Str::plural('day', $rtbCfg['max_days']) }}). {{ $rental->status === 'out' ? 'Issued automatically on return — or now, if they\'re buying first.' : '' }}</p>
+              <form method="POST" action="{{ route('tenant.rentals.bookings.rtb.issue', $rental->id) }}">@csrf<button type="submit" class="ia-btn ia-btn--sm">Issue credit now</button></form>
+            @else
+              <p class="rf-dim">{{ $rental->status === 'reserved' ? 'Earns a credit once they\'ve paid and ridden.' : 'Nothing paid yet, so no credit to issue.' }}</p>
+            @endif
+          </div>
         @endif
 
         @if($extPanel)

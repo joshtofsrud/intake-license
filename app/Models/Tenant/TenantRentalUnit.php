@@ -100,6 +100,12 @@ class TenantRentalUnit extends Model
         return $this->model?->daily_rate_cents ?? $this->daily_rate_cents;
     }
 
+    /** MARKER-RENTAL-PRICING: days after the first; null = daily rate. */
+    public function effectiveAdditionalDayCents(): ?int
+    {
+        return $this->model?->additional_day_rate_cents;
+    }
+
     public function effectiveWeekendCents(): ?int
     {
         return $this->model?->weekend_rate_cents ?? $this->weekend_rate_cents;

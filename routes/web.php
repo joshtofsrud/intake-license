@@ -291,6 +291,9 @@ $tenantRoutes = function () {
     Route::get('/gift-cards/balance',         [TenantControllers\GiftCardPublicController::class, 'balance'])->name('tenant.gift-cards.public.balance');
     Route::post('/gift-cards/balance',        [TenantControllers\GiftCardPublicController::class, 'balanceCheck'])->name('tenant.gift-cards.public.balance.check')->middleware('throttle:10,1');
     Route::get('/rentals',               [TenantControllers\RentalBrowseController::class, 'index'])->name('tenant.rentals.browse');
+    // MARKER-POSTS: public posts
+    Route::get('/posts',                 [TenantControllers\PostPublicController::class, 'index'])->name('tenant.posts.public');
+    Route::get('/posts/{slug}',          [TenantControllers\PostPublicController::class, 'show'])->where('slug', '[a-z0-9-]+')->name('tenant.posts.show');
     // public reservation checkout.
     Route::get( '/rentals/reserve',          [TenantControllers\RentalReserveController::class, 'show'])->name('tenant.rentals.reserve');
     Route::post('/rentals/reserve',          [TenantControllers\RentalReserveController::class, 'store'])->name('tenant.rentals.reserve.store');
@@ -766,6 +769,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::post('/rentals/bookings/{id}/extension-offer', [TenantControllers\RentalBookingController::class, 'sendExtensionOffer'])->name('rentals.bookings.extension.send');
                 Route::post('/rentals/bookings/{id}/discount',   [TenantControllers\RentalBookingController::class, 'applyDiscount'])->name('rentals.bookings.discount.apply');
                 Route::delete('/rentals/bookings/{id}/discount', [TenantControllers\RentalBookingController::class, 'removeDiscount'])->name('rentals.bookings.discount.remove');
+                Route::post('/rentals/bookings/{id}/rent-to-buy', [TenantControllers\RentalBookingController::class, 'issueRentToBuy'])->name('rentals.bookings.rtb.issue'); // MARKER-RENT-TO-BUY
                 Route::post('/rentals/bookings/{id}/check-out',  [TenantControllers\RentalBookingController::class, 'checkOut'])->name('rentals.bookings.checkout');
                 // guided check-out flow.
                 Route::get( '/rentals/bookings/{id}/check-out-flow',   [TenantControllers\RentalBookingController::class, 'checkOutFlow'])->name('rentals.bookings.checkout.flow');
@@ -1382,6 +1386,13 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::get('/media/feed',       [TenantControllers\MediaLibraryController::class, 'feed'])->name('media.feed');
             Route::post('/media/{id}/archive', [TenantControllers\MediaLibraryController::class, 'archive'])->name('media.archive');
             Route::delete('/media/{id}',       [TenantControllers\MediaLibraryController::class, 'destroy'])->name('media.destroy');
+
+            // MARKER-POSTS: dated posts grouped into feeds
+            Route::get('/posts',            [TenantControllers\PostController::class, 'index'])->name('posts.index');
+            Route::post('/posts',           [TenantControllers\PostController::class, 'store'])->name('posts.store');
+            Route::get('/posts/{id}/edit',  [TenantControllers\PostController::class, 'edit'])->whereUuid('id')->name('posts.edit');
+            Route::patch('/posts/{id}',     [TenantControllers\PostController::class, 'update'])->whereUuid('id')->name('posts.update');
+            Route::delete('/posts/{id}',    [TenantControllers\PostController::class, 'destroy'])->whereUuid('id')->name('posts.destroy');
 
             Route::get('/help', [TenantControllers\HelpController::class, 'index'])->name('help.index');
             // gated articles under the existing help page.

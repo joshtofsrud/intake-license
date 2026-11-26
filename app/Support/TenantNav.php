@@ -237,6 +237,13 @@ class TenantNav
           'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="2" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.2"/><circle cx="4.5" cy="5.5" r="1.2" stroke="currentColor" stroke-width="1.2"/><path d="M2 10l3-2.5 2.5 2 2-1.5L12 10" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>',
           'group'  => 'website',
         ],
+        // MARKER-POSTS
+        [
+          'route'  => 'tenant.posts.index',
+          'label'  => 'Posts',
+          'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="2" y="1.5" width="10" height="11" rx="1.4" stroke="currentColor" stroke-width="1.2"/><path d="M4.5 4.5h5M4.5 7h5M4.5 9.5h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
+          'group'  => 'website',
+        ],
         [
           'route'  => 'tenant.pages.index',
           'label'  => 'Pages',

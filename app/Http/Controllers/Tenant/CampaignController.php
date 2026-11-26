@@ -79,6 +79,7 @@ class CampaignController extends Controller
         // codes worth offering: active, and not
         // already spent. An expired code in the dropdown is a trap.
         $discounts = \App\Models\Tenant\TenantDiscount::where('tenant_id', $tenant->id)
+            ->shopMade() // MARKER-RENT-TO-BUY
             ->where('is_active', true)
             ->orderBy('code')
             ->get()

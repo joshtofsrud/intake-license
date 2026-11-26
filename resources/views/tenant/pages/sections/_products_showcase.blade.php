@@ -51,6 +51,10 @@
       <label class="pb2-field-label" style="display:flex;gap:8px;align-items:center;cursor:pointer">
         <input type="checkbox" data-field="in_stock_only" value="1" {{ $get('in_stock_only', '0') === '1' ? 'checked' : '' }}> In-stock items only
       </label>
+      {{-- MARKER-SHOWCASE-SALE --}}
+      <label class="pb2-field-label" style="display:flex;gap:8px;align-items:center;cursor:pointer" title="Items with a was price above their price">
+        <input type="checkbox" data-field="on_sale_only" value="1" {{ $get('on_sale_only', '0') === '1' ? 'checked' : '' }}> On-sale items only
+      </label>
       <label class="pb2-field-label" style="display:flex;gap:8px;align-items:center;cursor:pointer">
         <input type="checkbox" data-field="show_prices" value="1" {{ $get('show_prices', '1') === '1' ? 'checked' : '' }}> Show prices
       </label>

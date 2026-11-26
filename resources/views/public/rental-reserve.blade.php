@@ -58,7 +58,7 @@
     <div class="kv"><span>Category</span><span>{{ $model->category?->name }}</span></div>
     <div class="kv"><span>Pickup</span><span>{{ $startLocal->format('D M j, g:i A') }}</span></div>
     <div class="kv"><span>Return</span><span>{{ $dueLocal->format('D M j, g:i A') }}</span></div>
-    <div class="kv"><span>{{ $days }} day{{ $days === 1 ? '' : 's' }} × {{ format_money($rateCents) }}</span><span>{{ format_money($subtotal) }}</span></div>
+    <div class="kv"><span>{{ \App\Support\Rentals\RentalPricing::lineLabel($rateMode ?? 'daily', (int) $rateCents, (int) $days, (int) $subtotal, fn ($c) => format_money($c)) }}</span><span>{{ format_money($subtotal) }}</span></div>
     @if($tax > 0)<div class="kv"><span>Tax</span><span>{{ format_money($tax) }}</span></div>@endif
     <div class="kv total"><span style="opacity:1" id="due-label">{{ $payOnline ? 'Pay now' : 'Due at pickup' }}</span><span>{{ format_money($total) }}</span></div>
   </div>

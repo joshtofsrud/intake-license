@@ -17,6 +17,7 @@ class TenantDiscount extends Model
         'starts_at', 'ends_at',
         'max_redemptions', 'max_per_customer', 'redemption_count',
         'is_active', 'campaign_id', 'created_by',
+        'customer_id', 'rental_id', 'source', 'parent_id', // MARKER-RENT-TO-BUY
     ];
 
     protected $casts = [
@@ -27,6 +28,12 @@ class TenantDiscount extends Model
 
     public const TYPE_PERCENT = 'percent';
     public const TYPE_FIXED   = 'fixed';
+
+    /** MARKER-RENT-TO-BUY: issued per customer by the system, not made on the Discounts page. */
+    public function scopeShopMade($q)
+    {
+        return $q->whereNull('source');
+    }
 
     public function redemptions()
     {

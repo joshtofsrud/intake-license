@@ -74,7 +74,8 @@
           @if($m->subtitle)<div style="font-size:12.5px;opacity:.55;margin-top:2px">{{ $m->subtitle }}</div>@endif
           @if($rsShowRates)
             <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:12px">
-              @if($m->daily_rate_cents)<span style="font-size:12px;background:rgba(0,0,0,.05);border-radius:6px;padding:3px 9px"><b>{{ format_money($m->daily_rate_cents) }}</b>/day</span>@endif
+              @if($m->daily_rate_cents)<span style="font-size:12px;background:rgba(0,0,0,.05);border-radius:6px;padding:3px 9px"><b>{{ format_money($m->daily_rate_cents) }}</b>{{ $m->additional_day_rate_cents ? ' first day' : '/day' }}</span>@endif
+                @if($m->daily_rate_cents && $m->additional_day_rate_cents)<span style="font-size:12px;background:rgba(0,0,0,.05);border-radius:6px;padding:3px 9px"><b>{{ format_money($m->additional_day_rate_cents) }}</b> each extra day</span>@endif
               @if($m->hourly_rate_cents)<span style="font-size:12px;background:rgba(0,0,0,.05);border-radius:6px;padding:3px 9px"><b>{{ format_money($m->hourly_rate_cents) }}</b>/hr</span>@endif
               @if($m->weekend_rate_cents)<span style="font-size:12px;background:rgba(0,0,0,.05);border-radius:6px;padding:3px 9px"><b>{{ format_money($m->weekend_rate_cents) }}</b>/weekend</span>@endif
               @if($rsShowDeposit && $m->deposit_cents)<span style="font-size:12px;background:rgba(0,0,0,.05);border-radius:6px;padding:3px 9px">{{ format_money($m->deposit_cents) }} deposit</span>@endif

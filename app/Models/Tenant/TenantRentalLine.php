@@ -41,6 +41,15 @@ class TenantRentalLine extends Model
         return $this->belongsTo(TenantRentalUnit::class, 'unit_id');
     }
 
+    /** MARKER-RENTAL-PRICING: "1st day $120 + 2 × $100" or "3 days × $120". */
+    public function rateLabel(?callable $money = null): string
+    {
+        $money ??= fn ($c) => format_money($c);
+        return \App\Support\Rentals\RentalPricing::lineLabel(
+            $this->rate_mode_snapshot, (int) $this->rate_cents_snapshot, (int) $this->duration_units,
+            (int) ($this->line_total_cents ?? ((int) $this->rate_cents_snapshot * (int) $this->duration_units)), $money);
+    }
+
     public function addon(): BelongsTo
     {
         return $this->belongsTo(TenantRentalAddon::class, 'addon_id');

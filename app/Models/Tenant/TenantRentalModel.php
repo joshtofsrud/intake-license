@@ -22,7 +22,7 @@ class TenantRentalModel extends Model
 
     protected $fillable = [
         'tenant_id', 'category_id', 'name', 'subtitle', 'image_url',
-        'hourly_rate_cents', 'daily_rate_cents', 'weekend_rate_cents',
+        'hourly_rate_cents', 'daily_rate_cents', 'additional_day_rate_cents', 'weekend_rate_cents',
         'seasonal_rate_cents', 'deposit_cents', 'condition_template_id',
         'sort_order', 'archived_at',
         'identifiers',
@@ -32,6 +32,7 @@ class TenantRentalModel extends Model
     protected $casts = [
         'hourly_rate_cents'   => 'integer',
         'daily_rate_cents'    => 'integer',
+        'additional_day_rate_cents' => 'integer',
         'weekend_rate_cents'  => 'integer',
         'seasonal_rate_cents' => 'integer',
         'deposit_cents'       => 'integer',

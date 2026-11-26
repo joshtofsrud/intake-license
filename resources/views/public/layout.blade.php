@@ -422,6 +422,18 @@
                 $sc['_fade_to'] = $dt['bg'] ?? '#ffffff';
             }
         }
+        // MARKER-SECTION-SHAPE: a bottom shape is drawn in the next section's color unless one is set
+        if (\App\Support\SectionShape::on($sc)) {
+            $shNext = collect($sections)->slice($loop->index + 1)
+                ->first(fn ($s) => $s->is_visible && view()->exists('public.sections._' . $s->section_type));
+            if ($shNext) {
+                $shC = $shNext->content ?? [];
+                $shC['bg_color'] = \App\Support\DesignTokens::sectionBg($shC['bg_color'] ?? null, $shNext->section_type, $dt);
+                $sc['_shape_to'] = \App\Support\ShopSectionDesign::startColor($shC, $dt['bg'] ?? '#ffffff');
+            } else {
+                $sc['_shape_to'] = $dt['bg'] ?? '#ffffff';
+            }
+        }
       @endphp
       {{-- an addressable wrapper, builder-only. Section
            partials render their own <section> elements with markup we don't

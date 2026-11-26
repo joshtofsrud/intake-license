@@ -58,9 +58,10 @@ class ShopSectionDesign
         $ripple = self::on($c['btn_ripple'] ?? false);
         $tablet = self::on($c['hide_on_tablet'] ?? false);
         $divide = self::on($c['divider_below'] ?? false);
+        $shape  = SectionShape::on($c); // MARKER-SECTION-SHAPE
 
         $blend  = self::supportsBlend($type) ? self::blend($c) : ['css' => '', 'grad' => '', 'end' => '', 'cont' => ''];
-        $any    = $appear || $fx || $ripple || $tablet || $divide || $blend['css'] !== '' || $blend['cont'] !== '';
+        $any    = $appear || $fx || $ripple || $tablet || $divide || $shape || $blend['css'] !== '' || $blend['cont'] !== '';
         if (! $any && ! $forceWrap) return null;
 
         $id = 'pbw-' . substr(md5((string) $section->id), 0, 8);
@@ -68,7 +69,8 @@ class ShopSectionDesign
             . (self::on($c['hide_on_mobile'] ?? false) ? ' pbw-hide-m' : '')
             . (self::on($c['hide_on_desktop'] ?? false) ? ' pbw-hide-d' : '')
             . ($tablet ? ' pbw-hide-t' : '')
-            . ($divide ? ' pbw-divider' : '')
+            . ($divide && ! $shape ? ' pbw-divider' : '')
+            . ($shape ? ' pbw-shape' : '')
             . ($appear ? ' pbw-appear' . ($appear === 'up' ? ' pbw-appear-up' : '') : '');
 
         $attrs = ' class="' . e($class) . '"';
@@ -86,7 +88,9 @@ class ShopSectionDesign
             ? '<style>.' . $id . ' > section, .' . $id . ' > footer { background: ' . $blend['css'] . ' !important; }</style>'
             : '';
 
-        return ['open' => $css . '<div' . $attrs . '>', 'close' => '</div>'];
+        $shapeHtml = $shape ? SectionShape::html($c, (string) ($c['_shape_to'] ?? '#ffffff'), substr(md5((string) $section->id), 0, 8)) : '';
+
+        return ['open' => $css . '<div' . $attrs . '>', 'close' => $shapeHtml . '</div>'];
     }
 
     /**

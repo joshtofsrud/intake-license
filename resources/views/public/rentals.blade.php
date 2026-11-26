@@ -106,7 +106,8 @@
               <div class="name">{{ $m->name }}</div>
               @if($m->subtitle)<div class="subt">{{ $m->subtitle }}</div>@endif
               <div class="chips">
-                @if($m->daily_rate_cents)<span class="chip"><b>{{ format_money($m->daily_rate_cents) }}</b>/day</span>@endif
+                @if($m->daily_rate_cents)<span class="chip"><b>{{ format_money($m->daily_rate_cents) }}</b>{{ $m->additional_day_rate_cents ? ' first day' : '/day' }}</span>@endif
+                @if($m->daily_rate_cents && $m->additional_day_rate_cents)<span class="chip"><b>{{ format_money($m->additional_day_rate_cents) }}</b> each extra day</span>@endif
                 @if($m->hourly_rate_cents)<span class="chip"><b>{{ format_money($m->hourly_rate_cents) }}</b>/hr</span>@endif
                 @if($m->weekend_rate_cents)<span class="chip"><b>{{ format_money($m->weekend_rate_cents) }}</b>/weekend</span>@endif
               </div>

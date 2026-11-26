@@ -219,4 +219,50 @@
   <input type="checkbox" data-field="divider_below" value="1" {{ $divOn ? 'checked' : '' }}>
   <span>Divider line below</span>
 </label>
+{{-- MARKER-SECTION-SHAPE --}}
+@php
+  $shK    = \App\Support\SectionShape::shape($section->content ?? []);
+  $shH    = max(20, min(240, (int) ($section->content['shape_height'] ?? 90)));
+  $shCol  = (string) ($section->content['shape_color'] ?? '');
+  $shFrom = (string) ($section->content['shape_stripe_from'] ?? '');
+  $shTo   = (string) ($section->content['shape_stripe_to'] ?? '');
+  $shFlip = ! empty($section->content['shape_flip']) && ! in_array((string) $section->content['shape_flip'], ['0', 'false'], true);
+  $shSw   = fn ($v, $d) => preg_match('/^#[0-9a-fA-F]{6}$/', $v) ? $v : $d;
+@endphp
+<div class="pb2-group">
+  <div class="pb2-group-title">Shape at the bottom</div>
+  <div class="pb2-field">
+    <div class="pb2-seg" data-field-seg="shape_below">
+      @foreach(\App\Support\SectionShape::SHAPES as $v => $n)
+        <button type="button" class="pb2-seg-btn {{ $shK === $v ? 'active' : '' }}" data-seg-value="{{ $v }}">{{ $n }}</button>
+      @endforeach
+    </div>
+    <input type="hidden" data-field="shape_below" value="{{ $shK }}">
+  </div>
+  <div class="pb2-field">
+    <label class="pb2-field-label">Height</label>
+    <div style="display:flex;align-items:center;gap:12px">
+      <input type="range" min="20" max="240" step="5" value="{{ $shH }}" style="flex:1;min-width:0"
+             oninput="this.nextElementSibling.textContent = this.value + 'px';
+                      var h = this.parentElement.parentElement.querySelector('[data-field=shape_height]');
+                      h.value = this.value; h.dispatchEvent(new Event('change', { bubbles: true }));">
+      <span style="min-width:56px;text-align:right;font-variant-numeric:tabular-nums;font-size:12.5px;opacity:.75">{{ $shH }}px</span>
+    </div>
+    <input type="hidden" data-field="shape_height" value="{{ $shH }}">
+  </div>
+  @foreach(['shape_color' => ['Shape color', $shCol, 'auto'], 'shape_stripe_from' => ['Stripe from', $shFrom, 'none'], 'shape_stripe_to' => ['Stripe to', $shTo, 'same']] as $shF => [$shL, $shV, $shPh])
+    <div class="pb2-field">
+      <label class="pb2-field-label" @if($shF === 'shape_color') title="Blank uses the next section's background, so the edge blends in" @endif>{{ $shL }}</label>
+      <div class="pb2-color-row">
+        <input type="color" value="{{ $shSw($shV, '#000000') }}" class="pb2-color-swatch"
+               oninput="var t = this.nextElementSibling; t.value = this.value; t.dispatchEvent(new Event('change', { bubbles: true }));">
+        <input type="text" class="pb2-input pb2-input-sm pb2-input-mono" data-field="{{ $shF }}" value="{{ $shV }}" placeholder="{{ $shPh }}">
+      </div>
+    </div>
+  @endforeach
+  <label class="pb2-checkbox-row">
+    <input type="checkbox" data-field="shape_flip" value="1" {{ $shFlip ? 'checked' : '' }}>
+    <span>Flip left to right</span>
+  </label>
+</div>
 @endif

@@ -81,7 +81,7 @@
         @foreach($unitLines as $line)
           <div class="rf-line">
             <div class="rf-thumb">{{ $ini($line->name_snapshot) }}</div>
-            <div><b>{{ $line->name_snapshot }}</b><small>@if($line->unit?->identifier)<span class="rf-mono">{{ $line->unit->identifier }}</span>@endif{{ $line->unit?->size ? ' · Size ' . $line->unit->size : '' }} · {{ $line->duration_units }} × {{ format_money($line->rate_cents_snapshot) }}</small></div>
+            <div><b>{{ $line->name_snapshot }}</b><small>@if($line->unit?->identifier)<span class="rf-mono">{{ $line->unit->identifier }}</span>@endif{{ $line->unit?->size ? ' · Size ' . $line->unit->size : '' }} · {{ $line->rateLabel() }}</small></div>
             <div></div>
             <div class="amt">{{ format_money($line->line_total_cents ?? ($line->rate_cents_snapshot * $line->duration_units)) }}</div>
           </div>

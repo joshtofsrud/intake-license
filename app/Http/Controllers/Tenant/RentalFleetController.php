@@ -399,6 +399,7 @@ class RentalFleetController extends Controller
             'subtitle'     => ['nullable', 'string', 'max:120'],
             'hourly_rate'  => ['nullable', 'numeric', 'min:0', 'max:99999'],
             'daily_rate'   => ['nullable', 'numeric', 'min:0', 'max:99999'],
+            'additional_day_rate' => ['nullable', 'numeric', 'min:0', 'max:99999'],
             'weekend_rate' => ['nullable', 'numeric', 'min:0', 'max:99999'],
             'seasonal_rate'=> ['nullable', 'numeric', 'min:0', 'max:99999'],
             'deposit'      => ['nullable', 'numeric', 'min:0', 'max:99999'],
@@ -418,6 +419,7 @@ class RentalFleetController extends Controller
             'subtitle'              => $request->input('subtitle') ?: null,
             'hourly_rate_cents'     => $this->dollarsToCents($request->input('hourly_rate')),
             'daily_rate_cents'      => $this->dollarsToCents($request->input('daily_rate')),
+            'additional_day_rate_cents' => $this->dollarsToCents($request->input('additional_day_rate')),
             'weekend_rate_cents'    => $this->dollarsToCents($request->input('weekend_rate')),
             'seasonal_rate_cents'   => $this->dollarsToCents($request->input('seasonal_rate')),
             'deposit_cents'         => $this->dollarsToCents($request->input('deposit')) ?? 0,
@@ -466,6 +468,7 @@ class RentalFleetController extends Controller
                 break;
             case 'hourly_rate':
             case 'daily_rate':
+            case 'additional_day_rate':
             case 'weekend_rate':
             case 'seasonal_rate':
                 $request->validate(['value' => ['nullable', 'numeric', 'min:0', 'max:99999']]);

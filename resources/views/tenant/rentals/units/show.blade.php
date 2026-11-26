@@ -36,7 +36,7 @@
     <div class="un-kpi"><small>Utilization 30d</small><b>{{ $utilizationPct }}%</b><span>rented time ÷ window</span></div>
     <div class="un-kpi"><small>Revenue lifetime</small><b>{{ format_money($lifetimeCents) }}</b><span>{{ $rentals->count() }}{{ $rentals->count() === 25 ? '+' : '' }} {{ $rentals->count() === 1 ? 'rental' : 'rentals' }}</span></div>
     <div class="un-kpi"><small>Flagged returns</small><b class="{{ $flaggedReturns > 0 ? 'warn' : '' }}">{{ $flaggedReturns }}</b><span>in-checks with flags</span></div>
-    <div class="un-kpi"><small>Rates</small><b style="font-size:17px;line-height:1.6;margin:3px 0">{{ $unit->effectiveDailyCents() ? format_money($unit->effectiveDailyCents()) . ' / day' : '—' }}</b><span>deposit {{ format_money($unit->effectiveDepositCents()) }}</span></div>
+    <div class="un-kpi"><small>Rates</small><b style="font-size:17px;line-height:1.6;margin:3px 0">{{ $unit->effectiveDailyCents() ? format_money($unit->effectiveDailyCents()) . ($unit->effectiveAdditionalDayCents() ? ' 1st day · ' . format_money($unit->effectiveAdditionalDayCents()) . ' extra' : ' / day') : '—' }}</b><span>deposit {{ format_money($unit->effectiveDepositCents()) }}</span></div>
   </div>
 
   <div class="dash-row">

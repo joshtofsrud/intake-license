@@ -816,6 +816,19 @@ class RegisterController extends Controller
             ];
         }
 
+        // MARKER-RENT-TO-BUY: credits issued to this customer, one tap to apply
+        foreach (app(\App\Services\Tenant\RentToBuyService::class)->openFor($tenant->id, $customerId) as $cr) {
+            $out[] = [
+                'kind'          => 'credit',
+                'id'            => $cr->id,
+                'code'          => $cr->code,
+                'label'         => $cr->label,
+                'summary'       => $cr->summary(),
+                'ends_label'    => $cr->ends_at ? (tlocal($cr->ends_at, 'Y-m-d') === now(tenant()->timezone())->toDateString() ? 'today only' : 'until ' . tlocal($cr->ends_at, 'M j')) : '',
+                'balance_cents' => 0,
+            ];
+        }
+
         return response()->json(['ok' => true, 'open' => $out, 'pickups' => $pickups]);
     }
 

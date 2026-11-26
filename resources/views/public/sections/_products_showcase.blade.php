@@ -17,10 +17,15 @@
           ->where('show_online', true)
           ->when(!empty($c['category_id']), fn ($q) => $q->where('category_id', $c['category_id']))
           ->when(($c['in_stock_only'] ?? '0') === '1', fn ($q) => $q->where('computed_stock_count', '>', 0))
+          // MARKER-SHOWCASE-SALE: a was price set above the price
+          ->when(($c['on_sale_only'] ?? '0') === '1', fn ($q) => $q->whereNotNull('compare_at_cents')->where('compare_at_cents', '>', 0))
           ->with('distributorCatalog:id,manufacturer,images')
           ->orderByDesc('computed_stock_count')->orderBy('name')
           ->limit(max(1, min(24, (int) ($c['max_items'] ?? 8))))
           ->get();
+      if (($c['on_sale_only'] ?? '0') === '1') {
+          $psItems = $psItems->filter(fn ($i) => $i->effectiveSellPriceCents() !== null && (int) $i->compare_at_cents > $i->effectiveSellPriceCents())->values();
+      }
   }
   $psShowPrices = ($c['show_prices'] ?? '1') === '1';
   $psShowSearch = ($c['show_search'] ?? '0') === '1';
@@ -52,7 +57,9 @@
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px;margin-top:32px">
       @foreach($psItems as $item)
         <a href="{{ $item->shopPath() }}" style="text-decoration:none;color:inherit;border:1.5px solid rgba(0,0,0,.1);border-radius:var(--p-r-lg,14px);background:rgba(255,255,255,.7);overflow:hidden;display:flex;flex-direction:column">
-          <div style="aspect-ratio:var(--p-tile-ratio, 1);background:var(--p-tile-bg, #fff);color:var(--p-tile-ink, #6b7280);display:grid;place-items:center;border-bottom:1px solid rgba(0,0,0,.05)">
+          @php $psWas = ($item->compare_at_cents && $item->effectiveSellPriceCents() !== null && $item->compare_at_cents > $item->effectiveSellPriceCents()) ? (int) $item->compare_at_cents : null; @endphp
+          <div style="position:relative;aspect-ratio:var(--p-tile-ratio, 1);background:var(--p-tile-bg, #fff);color:var(--p-tile-ink, #6b7280);display:grid;place-items:center;border-bottom:1px solid rgba(0,0,0,.05)">
+            @if($psWas && $psShowPrices)<span style="position:absolute;top:10px;left:10px;z-index:1;font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;background:#e5484d;color:#fff;border-radius:99px;padding:3px 9px">Sale</span>@endif
             @if($u = $psImg($item))
               <img src="{{ $u }}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:contain;padding:14px">
             @else
@@ -66,7 +73,7 @@
             <div style="font-size:13.5px;font-weight:650;line-height:1.32;margin-top:2px">{{ $item->name }}</div>
             <div style="display:flex;justify-content:space-between;align-items:center;margin-top:auto;padding-top:11px">
               @if($psShowPrices)
-                <div style="font-size:14.5px;font-weight:750">${{ number_format(($item->effectiveSellPriceCents() ?? 0) / 100, 2) }}</div>
+                <div style="font-size:14.5px;font-weight:750">${{ number_format(($item->effectiveSellPriceCents() ?? 0) / 100, 2) }}@if($psWas) <s style="font-size:12.5px;font-weight:500;opacity:.5;margin-left:4px">${{ number_format($psWas / 100, 2) }}</s>@endif</div>
               @else<div></div>@endif
               @if(($item->computed_stock_count ?? 0) > 0)
                 <span style="font-size:10px;font-weight:650;border-radius:99px;padding:2px 8px;background:rgba(52,168,83,.1);color:#1d7a3a">In stock</span>

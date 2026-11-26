@@ -61,6 +61,7 @@ class SectionRegistry
             'pages'             => ['label' => 'Pages',              'group' => 'website',  'prefixes' => ['tenant.pages', 'tenant.site_health'],                                'gate' => null],
             'templates'         => ['label' => 'Templates',          'group' => 'website',  'prefixes' => ['tenant.templates'],                            'gate' => null],
             'media'             => ['label' => 'Media',              'group' => 'website',  'prefixes' => ['tenant.media'],                                'gate' => null],
+            'posts'             => ['label' => 'Posts',              'group' => 'website',  'prefixes' => ['tenant.posts'],                                'gate' => null], // MARKER-POSTS
             'storefront'        => ['label' => 'E-commerce',         'group' => 'website',  'prefixes' => ['tenant.storefront'],                           'gate' => 'online_store_enabled'],
             'booking_mode'      => ['label' => 'Booking Mode',       'group' => 'website',  'prefixes' => ['tenant.booking_modes', 'tenant.route_windows'], 'gate' => null],
             'inbox'             => ['label' => 'Inbox',              'group' => 'messages', 'prefixes' => ['tenant.inbox'],                                'gate' => 'unified_inbox_enabled'],
