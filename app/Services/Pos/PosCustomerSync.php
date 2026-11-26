@@ -124,7 +124,7 @@ class PosCustomerSync
         $fields = [
             'first_name' => $first, 'last_name' => $last, 'email' => $email, 'phone' => trim((string) ($c['phone'] ?? '')),
             'address_line1' => $c['address1'] ?? '', 'address_line2' => $c['address2'] ?? '', 'city' => $c['city'] ?? '',
-            'state' => $c['state'] ?? '', 'postcode' => $c['postcode'] ?? '', 'country' => $c['country'] ?? '',
+            'state' => $c['state'] ?? '', 'postcode' => $c['postcode'] ?? '', 'country' => self::countryCode($c['country'] ?? ''),
         ];
 
         if ($customer) {
@@ -143,10 +143,15 @@ class PosCustomerSync
             }
             $st['matched']++;
         } else {
-            $data = ['tenant_id' => $tid] + array_map(fn ($v) => trim((string) $v) !== '' ? $v : null, $fields);
-            if ($data['first_name'] === null && $data['last_name'] === null) {
+            // MARKER-POS-CUSTOMER-BLANKS: blanks are left out, not sent as null, so the
+            // table's own defaults apply (country is required and defaults to US; a
+            // Connected POS customer with no country stopped the whole import)
+            $data = ['tenant_id' => $tid] + array_filter($fields, fn ($v) => trim((string) $v) !== '');
+            if (($data['first_name'] ?? null) === null && ($data['last_name'] ?? null) === null) {
                 $data['first_name'] = ($email !== '' ? strstr($email, '@', true) : '') ?: 'Customer';
             }
+            $data['first_name'] ??= '';
+            $data['last_name'] ??= ''; // required column; plenty of POS customers have a first name only
             $customer = TenantCustomer::create($data);
             if (! empty($c['no_marketing'])) {
                 $customer->forceFill(['email_marketing_opt_out_at' => now()])->save();
@@ -164,5 +169,12 @@ class PosCustomerSync
         } else {
             DB::table('tenant_pos_customers')->insert(['tenant_id' => $tid, 'customer_id' => $customer->id, 'external_id' => $c['id'], 'email' => $email ?: null, 'created_at' => now(), 'updated_at' => now()]);
         }
+    }
+
+    /** a two-letter country code, or '' (a full name like "United States" won't fit the column) */
+    public static function countryCode(?string $v): string
+    {
+        $v = strtoupper(trim((string) $v));
+        return preg_match('/^[A-Z]{2}$/', $v) ? $v : '';
     }
 }
